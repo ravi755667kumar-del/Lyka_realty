@@ -8,8 +8,8 @@ export function createInitialLeadProfile(): LeadProfile {
     full_name: '',
     phone: '',
     email: '',
-    customer_type: 'First-time buyer',
-    intent: 'Buy',
+    customer_type: '',
+    intent: '',
     preferred_language: 'English',
     current_location: '',
     preferred_communities: [],
@@ -26,14 +26,14 @@ export function createInitialLeadProfile(): LeadProfile {
     viewing_preference: '',
     lead_status: 'New',
     lead_priority: 'Medium',
-    requirement_completeness: 15,
+    requirement_completeness: 0,
     engagement_level: 'High',
     human_handoff_required: false,
     assigned_agent: LYKA_AGENTS[0].name,
-    next_action: 'Greet customer and identify intent',
+    next_action: 'Greet customer and identify role',
     follow_up_date: null,
     summary: 'Customer initiated inquiry on Lyka Realty assistant.',
-    missing_fields: ['Intent (Buy/Rent/Invest)', 'Budget range in AED', 'Preferred community', 'Property type', 'Bedrooms'],
+    missing_fields: ['Role (Investor/Buyer/Seller/Other)', 'Contact information (name, phone, email)'],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -43,8 +43,11 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   const lower = text.toLowerCase();
   const extracted: Partial<LeadProfile> = {};
 
-  // Intent detection
-  if (lower.includes('invest') || lower.includes('roi') || lower.includes('yield') || lower.includes('capital appreciation')) {
+  // Intent detection - detect role first per PDF
+  if (lower.includes('sell') || lower.includes('selling') || lower.includes('list my property') || lower.includes('list property')) {
+    extracted.intent = 'Sell';
+    extracted.customer_type = 'Seller';
+  } else if (lower.includes('invest') || lower.includes('roi') || lower.includes('yield') || lower.includes('capital appreciation')) {
     extracted.intent = 'Invest';
     extracted.purpose = 'Investment';
     extracted.customer_type = 'Investor';
@@ -56,6 +59,51 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     if (!currentLead.customer_type || currentLead.customer_type === 'Tenant/Renter') {
       extracted.customer_type = 'First-time buyer';
     }
+  } else if (lower.includes('partner') || lower.includes('agent') || lower.includes('broker') || lower.includes('collaboration') || lower.includes('media') || lower.includes('press') || lower.includes('other')) {
+    extracted.customer_type = 'Other stakeholder';
+  }
+
+  // Seller specific fields
+  if (lower.includes('asking price') || lower.includes('ask price') || lower.includes('selling for')) {
+    const priceMatch = text.match(/(?:asking price|ask price|selling for)\s*(?:aed|inr|rs|₹)?\s*([1-9]\d{5,8})/i);
+    if (priceMatch && priceMatch[1]) {
+      extracted.asking_price = parseInt(priceMatch[1], 10);
+    }
+  }
+
+  // Current situation / motivation detection
+  if (lower.includes('relocating') || lower.includes('moving abroad') || lower.includes('downsizing') || lower.includes('upgrading') || lower.includes('change of plans')) {
+    extracted.current_situation = lower.includes('relocating') ? 'Relocating' 
+      : lower.includes('moving abroad') ? 'Moving abroad'
+      : lower.includes('downsizing') ? 'Downsizing'
+      : lower.includes('upgrading') ? 'Upgrading'
+      : 'Change of plans';
+  }
+
+  if (lower.includes('quick sale') || lower.includes('fast sale') || lower.includes('need to sell fast')) {
+    extracted.motivation = 'Quick sale needed';
+  } else if (lower.includes('max return') || lower.includes('maximum return') || lower.includes('best price') || lower.includes('highest price')) {
+    extracted.motivation = 'Maximize return';
+  } else if (lower.includes('estate clearance') || lower.includes('family decision') || lower.includes('inherited')) {
+    extracted.motivation = 'Estate/inherited property';
+  }
+
+  // Other stakeholder fields
+  if (lower.includes('inquiry') || lower.includes('question') || lower.includes('interested in')) {
+    extracted.inquiry_reason = text;
+  }
+
+  if (lower.includes('help with') || lower.includes('looking to') || lower.includes('need help')) {
+    extracted.how_can_help = text;
+  }
+
+  // Investor experience level
+  if (lower.includes('first time investor') || lower.includes('beginner investor') || lower.includes('new to investing')) {
+    extracted.experience_level = 'Beginner';
+  } else if (lower.includes('experienced investor') || lower.includes('seasoned investor') || lower.includes('multiple properties')) {
+    extracted.experience_level = 'Experienced';
+  } else if (lower.includes('professional investor') || lower.includes('portfolio') || lower.includes('institutional')) {
+    extracted.experience_level = 'Professional';
   }
 
   // Name extraction (e.g., "my name is Alex", "I am John Smith")

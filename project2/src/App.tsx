@@ -287,7 +287,9 @@ export default function App() {
         });
         const chatData = await chatRes.json();
         if (chatData && chatData.reply) {
-          assistantReply = chatData.reply;
+          if (!chatData.fallback) {
+            assistantReply = chatData.reply;
+          }
           if (chatData.provider) {
             assistantProvider = chatData.provider;
           }
@@ -316,7 +318,7 @@ export default function App() {
         timestamp: new Date().toISOString(),
         provider: assistantProvider,
         agentic_decision: agenticDecision,
-        recommended_properties: matchingProps.length > 0 ? matchingProps.slice(0, 3) : undefined,
+        recommended_properties: matchingProps.length > 0 ? matchingProps.slice(0, 3) : null,
       };
 
       setMessages(prev => [...prev, assistantMsg]);

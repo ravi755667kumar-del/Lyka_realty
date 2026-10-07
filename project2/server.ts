@@ -373,6 +373,20 @@ const PDF_DOCUMENT_SECTIONS = [
 
 // Seed all PDF section embeddings into MongoDB and local cache
 async function syncPdfEmbeddingsToMongo() {
+  if (mongoDb) {
+    try {
+      const existingDocs = await mongoDb.collection('pdf_knowledge_embeddings').find().sort({ section_number: 1 }).toArray();
+      if (existingDocs.length >= PDF_DOCUMENT_SECTIONS.length) {
+        console.log(`Found ${existingDocs.length} PDF sections already in MongoDB. Fetching instead of re-converting...`);
+        localPdfEmbeddingsStore.length = 0;
+        existingDocs.forEach(doc => localPdfEmbeddingsStore.push(doc));
+        return; // Skip the expensive embedding generation!
+      }
+    } catch (err: any) {
+      console.warn('Could not check existing PDF embeddings in MongoDB:', err.message);
+    }
+  }
+
   console.log('Ingesting all 11 sections of Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf into numerical vectors...');
   for (const sec of PDF_DOCUMENT_SECTIONS) {
     const { vector, model, dimensions } = await getEmbeddingVector(sec.title + ': ' + sec.text_content);
@@ -579,6 +593,22 @@ app.get('/api/followups', async (_req: Request, res: Response) => {
   }
 });
 
+
+// Cosine Similarity for Vector Search
+function cosineSimilarity(vecA: number[], vecB: number[]) {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  const len = Math.min(vecA.length, vecB.length);
+  for (let i = 0; i < len; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 // AI Agentic Chat endpoint powered by Groq & Gemini
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
@@ -605,6 +635,34 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       });
     }
 
+    // 1.5 Convert User Message to Numerical Form & Store in MongoDB
+    const queryEmbedding = await getEmbeddingVector(message);
+    if (mongoDb) {
+      await mongoDb.collection('customer_embeddings').insertOne({
+        _id: 'VEC-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
+        lead_id: currentLead?.id || 'GENERAL',
+        text_content: message,
+        vector: queryEmbedding.vector,
+        dimensions: queryEmbedding.dimensions,
+        model: queryEmbedding.model,
+        storage: 'MongoDB',
+        createdAt: new Date().toISOString()
+      }).catch(e => console.warn('Could not store customer vector:', e.message));
+    }
+
+    // 1.6 Vector Similarity Search against Lyka Realty PDF Database
+    let injectedPDFContext = "";
+    if (localPdfEmbeddingsStore.length > 0) {
+      const scoredDocs = localPdfEmbeddingsStore.map(doc => ({
+        ...doc,
+        score: cosineSimilarity(queryEmbedding.vector, doc.vector)
+      })).sort((a, b) => b.score - a.score);
+      
+      const top2 = scoredDocs.slice(0, 2);
+      injectedPDFContext = "\n\nRELEVANT KNOWLEDGE EXTRACTED FROM DATABASE VIA VECTOR SEARCH:\n" + top2.map(d => `- ${d.title}: ${d.text_content}`).join('\n\n');
+      console.log('RAG Match Found! Highest score:', top2[0].score.toFixed(3));
+    }
+
     const systemPrompt = `You are the AI Real Estate Assistant for Lyka Realty, a Dubai-based real estate brokerage with 300+ clients across Dubai (official website: https://lykarealty.ae/).
 You are an AGENTIC AI, not a simple question-answer chatbot.
 Represent Lyka Realty with utmost professionalism, warmth, politeness, and market mastery.
@@ -629,8 +687,9 @@ KNOWLEDGE BASE FROM OFFICIAL LYKA REALTY DOCUMENTS:
 9. Always ask at most 1 or 2 natural questions. Never ask for details already known.
 
 Current known customer profile:
-${JSON.stringify(currentLead || {}, null, 2)}
+${JSON.stringify(currentLead || {}, null, 2)}${injectedPDFContext}
 
+Answer the customer according to the instructions and extracted knowledge above. 
 Respond warmly, politely, concisely, and naturally as Lyka Realty's senior real-estate assistant.`;
 
     // 2. Try Groq AI Inference (using custom key/model if provided, or environment variables)
@@ -665,7 +724,7 @@ Respond warmly, politely, concisely, and naturally as Lyka Realty's senior real-
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.8-flash',
           contents: [
             { role: 'user', parts: [{ text: systemPrompt + '\n\nCustomer message: ' + message }] }
           ]

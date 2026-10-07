@@ -5,7 +5,9 @@ export type CustomerType =
   | 'Luxury buyer'
   | 'End-user / Family'
   | 'Tenant/Renter'
-  | 'Commercial client';
+  | 'Commercial client'
+  | 'Seller'
+  | 'Other stakeholder';
 
 export type PropertyIntent = 
   | 'Buy'
@@ -62,6 +64,15 @@ export interface LeadProfile {
   financing: string;
   viewing_preference: string;
 
+  // Seller specific
+  asking_price?: number | null;
+  current_situation?: string;
+  motivation?: string;
+
+  // Other stakeholder specific
+  inquiry_reason?: string;
+  how_can_help?: string;
+
   // Investor specific
   investment_goal?: string;
   investment_horizon?: string;
@@ -71,6 +82,7 @@ export interface LeadProfile {
   investment_property_status?: string;
   investment_budget?: number | null;
   investment_areas?: string[];
+  experience_level?: string;
 
   // Renter specific
   rental_budget?: number | null;
