@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+vapi-config.local.json
+sarvam-config.local.json
+groq-config.local.json
+*.local.json
+*.pem
+*.key
+*.key.json
+serviceAccountKey.json

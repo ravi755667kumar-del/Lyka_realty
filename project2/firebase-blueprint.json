@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "Lead": {
+      "title": "Lead",
+      "description": "Customer CRM profile with real estate requirements, qualification score, and lifecycle status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Lead identifier" },
+        "full_name": { "type": "string", "description": "Full name of the customer" },
+        "phone": { "type": "string", "description": "Contact phone or WhatsApp number" },
+        "email": { "type": "string", "description": "Email address" },
+        "customer_type": { "type": "string", "description": "First-time buyer, Investor, Luxury, Renter, NRI/Overseas, etc." },
+        "intent": { "type": "string", "description": "Buy, Rent, Invest, Sell, Lease, Commercial" },
+        "preferred_language": { "type": "string", "description": "Communication language preference" },
+        "current_location": { "type": "string", "description": "Current city or country of the lead" },
+        "preferred_communities": { "type": "array", "description": "List of targeted Dubai communities" },
+        "budget_min": { "type": "number", "description": "Minimum budget in AED" },
+        "budget_max": { "type": "number", "description": "Maximum budget in AED" },
+        "property_type": { "type": "string", "description": "Apartment, Villa, Townhouse, Penthouse, etc." },
+        "bedrooms": { "type": "string", "description": "Bedrooms needed (Studio, 1, 2, 3, 4, 5+)" },
+        "ready_or_offplan": { "type": "string", "description": "Ready, Off-plan, or Both" },
+        "purpose": { "type": "string", "description": "Own use, Investment, Holiday home" },
+        "timeline": { "type": "string", "description": "Purchase or rental timeline" },
+        "must_have_features": { "type": "array", "description": "Must have amenities or preferences" },
+        "exclusions": { "type": "array", "description": "Unwanted locations or features" },
+        "financing": { "type": "string", "description": "Cash, Mortgage, Payment plan" },
+        "viewing_preference": { "type": "string", "description": "Preferred viewing mode or schedule" },
+        "lead_status": { "type": "string", "description": "New, contacted, qualified, viewing, negotiation, converted, lost" },
+        "lead_priority": { "type": "string", "description": "Low, medium, high, urgent" },
+        "requirement_completeness": { "type": "number", "description": "0 to 100 percentage" },
+        "human_handoff_required": { "type": "boolean", "description": "Flag if human agent intervention is requested or required" },
+        "assigned_agent": { "type": "string", "description": "Assigned Lyka Realty agent name" },
+        "next_action": { "type": "string", "description": "Next CRM action" },
+        "summary": { "type": "string", "description": "Concise AI-generated summary" },
+        "createdAt": { "type": "string", "description": "Creation ISO date" },
+        "updatedAt": { "type": "string", "description": "Updated ISO date" }
+      },
+      "required": ["id", "intent", "lead_status"]
+    },
+    "Interaction": {
+      "title": "Interaction",
+      "description": "Conversation messages and agentic decision logs between customer and AI assistant",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Interaction message ID" },
+        "lead_id": { "type": "string", "description": "Associated lead identifier" },
+        "role": { "type": "string", "description": "user, assistant, agent, system" },
+        "content": { "type": "string", "description": "Message text" },
+        "timestamp": { "type": "string", "description": "Message timestamp" },
+        "extracted_data": { "type": "object", "description": "Fields extracted in this turn" },
+        "agentic_notes": { "type": "string", "description": "Internal reasoning of the AI" }
+      },
+      "required": ["id", "lead_id", "role", "content"]
+    },
+    "Property": {
+      "title": "Property",
+      "description": "Dubai verified property listings for Lyka Realty",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Property SKU or ID" },
+        "title": { "type": "string", "description": "Listing title" },
+        "community": { "type": "string", "description": "Dubai Community" },
+        "property_type": { "type": "string", "description": "Apartment, Villa, Townhouse, Penthouse" },
+        "bedrooms": { "type": "string", "description": "Number of bedrooms" },
+        "price_aed": { "type": "number", "description": "Price in AED" },
+        "status": { "type": "string", "description": "Ready or Off-plan" },
+        "developer": { "type": "string", "description": "Developer name e.g. Emaar, Nakheel, Meraas" },
+        "expected_roi": { "type": "string", "description": "Estimated rental yield e.g. 7.5% - 8.2%" },
+        "size_sqft": { "type": "number", "description": "Size in square feet" },
+        "amenities": { "type": "array", "description": "Key amenities" },
+        "image_url": { "type": "string", "description": "Photo URL" },
+        "description": { "type": "string", "description": "Verified listing description" }
+      },
+      "required": ["id", "title", "community", "price_aed", "status"]
+    },
+    "FollowUp": {
+      "title": "FollowUp",
+      "description": "Scheduled follow-up tasks and viewings for agents",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Follow-up task ID" },
+        "lead_id": { "type": "string", "description": "Target lead ID" },
+        "customer_name": { "type": "string", "description": "Customer name" },
+        "reason": { "type": "string", "description": "Follow-up reason" },
+        "date": { "type": "string", "description": "Due date" },
+        "assigned_agent": { "type": "string", "description": "Agent in charge" },
+        "action": { "type": "string", "description": "Required action" },
+        "status": { "type": "string", "description": "Pending or Completed" }
+      },
+      "required": ["id", "lead_id", "reason", "status"]
+    }
+  },
+  "firestore": {
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "CRM customer profiles and lead qualification records"
+    },
+    "/interactions/{interactionId}": {
+      "schema": "Interaction",
+      "description": "Logs of customer messages, AI agent reasoning, and extractions"
+    },
+    "/properties/{propertyId}": {
+      "schema": "Property",
+      "description": "Verified Lyka Realty property inventory in Dubai"
+    },
+    "/followups/{followupId}": {
+      "schema": "FollowUp",
+      "description": "Scheduled viewing and agent contact follow-ups"
+    }
+  }
+}

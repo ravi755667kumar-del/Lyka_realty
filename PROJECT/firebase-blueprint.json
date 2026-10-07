@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "Lead": {
+      "title": "Lead",
+      "description": "A real estate lead to be contacted by Lyka Realty AI agent.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "consent": { "type": "boolean" },
+        "blocked": { "type": "boolean" },
+        "status": {
+          "type": "string"
+        },
+        "language": { "type": "string", "maxLength": 50 },
+        "outcome": {
+          "type": "string"
+        },
+        "lastCallId": { "type": "string", "maxLength": 100 },
+        "callCount": { "type": "number" },
+        "callTime": { "type": "string" },
+        "duration": { "type": "number" },
+        "transcript": { "type": "string", "maxLength": 50000 },
+        "summary": { "type": "string", "maxLength": 5000 },
+        "buyerOrInvestor": { "type": "string", "maxLength": 50 },
+        "budget": { "type": "string", "maxLength": 100 },
+        "location": { "type": "string", "maxLength": 200 },
+        "timeline": { "type": "string", "maxLength": 100 },
+        "nextAction": { "type": "string", "maxLength": 500 },
+        "recordingReference": { "type": "string", "maxLength": 1000 },
+        "vapiCallId": { "type": "string", "maxLength": 100 },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "phone", "consent", "blocked", "status"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "A voice call session log for a customer lead.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "language": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "maxLength": 50 },
+        "outcome": { "type": "string", "maxLength": 50 },
+        "startedAt": { "type": "string" },
+        "endedAt": { "type": "string" },
+        "duration": { "type": "number" },
+        "qualification": { "type": "object" },
+        "summary": { "type": "string", "maxLength": 5000 },
+        "transcript": { "type": "string", "maxLength": 50000 },
+        "noAnswer": { "type": "boolean" }
+      },
+      "required": ["customerId", "status"]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "Outbound cold calling campaign state and configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "isRunning": { "type": "boolean" },
+        "activeLeadId": { "type": "string" },
+        "activeLeadName": { "type": "string" },
+        "activeLeadPhone": { "type": "string" },
+        "totalLeads": { "type": "number" },
+        "completedCalls": { "type": "number" },
+        "hotCount": { "type": "number" },
+        "warmCount": { "type": "number" },
+        "coldCount": { "type": "number" },
+        "optOutCount": { "type": "number" },
+        "noAnswerCount": { "type": "number" },
+        "agentCallbackCount": { "type": "number" },
+        "lastUpdated": { "type": "string" }
+      },
+      "required": ["isRunning"]
+    },
+    "KnowledgeDoc": {
+      "title": "KnowledgeDoc",
+      "description": "Approved company information/property doc for AI factual grounding.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "content": { "type": "string", "maxLength": 20000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "content"]
+    }
+  },
+  "firestore": {
+    "/leads/{leadId}": {
+      "schema": { "$ref": "#/entities/Lead" },
+      "description": "Collection of all authorized property leads."
+    },
+    "/calls/{callId}": {
+      "schema": { "$ref": "#/entities/Call" },
+      "description": "Collection of individual voice call logs and transcripts."
+    },
+    "/campaigns/{campaignId}": {
+      "schema": { "$ref": "#/entities/Campaign" },
+      "description": "Campaign execution status and metrics."
+    },
+    "/knowledge_docs/{docId}": {
+      "schema": { "$ref": "#/entities/KnowledgeDoc" },
+      "description": "Approved Lyka Realty knowledge base documents for agent."
+    }
+  }
+}

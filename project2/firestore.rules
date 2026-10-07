@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Leads collection
+    match /leads/{leadId} {
+      allow read: if isValidId(leadId);
+      allow create: if isValidId(leadId) 
+        && request.resource.data.id is string
+        && request.resource.data.intent is string
+        && request.resource.data.lead_status is string;
+      allow update: if isValidId(leadId)
+        && request.resource.data.id is string;
+      allow delete: if isValidId(leadId);
+    }
+
+    // Interactions collection
+    match /interactions/{interactionId} {
+      allow read: if isValidId(interactionId);
+      allow create: if isValidId(interactionId)
+        && request.resource.data.lead_id is string
+        && request.resource.data.content is string;
+      allow update: if isValidId(interactionId);
+      allow delete: if isValidId(interactionId);
+    }
+
+    // Properties collection
+    match /properties/{propertyId} {
+      allow read: if isValidId(propertyId);
+      allow create, update: if isValidId(propertyId)
+        && request.resource.data.title is string
+        && request.resource.data.community is string;
+      allow delete: if isValidId(propertyId);
+    }
+
+    // Follow-ups collection
+    match /followups/{followupId} {
+      allow read: if isValidId(followupId);
+      allow create, update: if isValidId(followupId)
+        && request.resource.data.lead_id is string
+        && request.resource.data.reason is string;
+      allow delete: if isValidId(followupId);
+    }
+  }
+}

@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all unknown paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == '950323243501@gracecoe.org' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidLead(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.phone is string && data.phone.size() > 0 && data.phone.size() <= 30 &&
+        data.consent is bool &&
+        data.blocked is bool &&
+        data.status is string && data.status.size() <= 50;
+    }
+
+    function isValidCampaign(data) {
+      return data.isRunning is bool &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 100));
+    }
+
+    // Lead rules: Read and write permitted with schema validation so outbound cold-calling agent and dashboard operate smoothly
+    match /leads/{leadId} {
+      allow read: if true;
+      allow create: if isValidId(leadId) && isValidLead(incoming());
+      allow update: if isValidId(leadId);
+      allow delete: if isValidId(leadId);
+    }
+
+    // Calls collection rules: Individual call session logs
+    match /calls/{callId} {
+      allow read: if true;
+      allow create: if isValidId(callId);
+      allow update: if isValidId(callId);
+      allow delete: if isValidId(callId);
+    }
+
+    // Campaign state rules: Singleton campaign tracking outbound progress
+    match /campaigns/{campaignId} {
+      allow read: if true;
+      allow write: if isValidId(campaignId) && isValidCampaign(incoming());
+    }
+
+    // Knowledge docs rules
+    match /knowledge_docs/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId) &&
+        incoming().title is string && incoming().title.size() <= 200 &&
+        incoming().content is string && incoming().content.size() <= 20000;
+    }
+
+    // Test connection doc
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Admins collection
+    match /admins/{userId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
+

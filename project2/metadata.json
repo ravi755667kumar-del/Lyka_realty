@@ -1,0 +1,6 @@
+{
+  "name": "Lyka Realty Agentic AI",
+  "description": "Dubai real-estate agentic AI assistant and CRM qualification platform for Lyka Realty.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
