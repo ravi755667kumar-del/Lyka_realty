@@ -60,18 +60,18 @@ export default function App() {
       id: 'MSG-INIT',
       lead_id: 'INITIAL',
       role: 'assistant',
-      content: `Welcome to Lyka Realty Dubai. I am your AI Property Advisor.\n\nWhether you are looking to buy a luxury residence, invest in high-yield off-plan developments, or lease a property in Dubai, I am here to assist you with verified market data.\n\nAre you looking to buy, rent, or explore investment opportunities in Dubai today?`,
+      content: `Hello, and welcome! Thanks for reaching out to Lyka Realty. What brings you to us today? Are you looking to invest, buy, sell, or something else?`,
       timestamp: new Date().toISOString(),
       agentic_decision: {
         intent_detected: 'Inquiry Initiation',
         confidence: 100,
         extracted_fields: {},
         still_missing_fields: ['Intent (Buy/Rent/Invest)', 'Budget range', 'Preferred community'],
-        next_question_intent: 'Determine Customer Intent',
-        rationale: 'Initial greeting to discover customer intent and establish professional rapport.',
-        qualify_score: 15,
+        next_question_intent: 'Identify Role First',
+        rationale: 'Initial greeting per PDF: ask what brings them today before criteria.',
+        qualify_score: 0,
         handoff_suggested: false,
-        suggested_action: 'Greet customer and collect primary intent'
+        suggested_action: 'Greet customer and identify role first'
       }
     }
   ]);
@@ -209,11 +209,22 @@ export default function App() {
         id: 'MSG-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
         lead_id: newLead.id,
         role: 'assistant',
-        content: `Welcome to Lyka Realty Dubai. I am your dedicated AI Real Estate Assistant.\n\nHow may I assist your Dubai property search today? (Buying, renting, or property investment?)`,
+        content: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
         timestamp: new Date().toISOString(),
       }
     ]);
     setActiveTab('chat');
+  };
+
+  // Maps current lead state to the correct LangGraph conversation stage
+  const mapLeadToStage = (lead: typeof currentLead): string => {
+    if (!lead.intent) return 'classify_intent';
+    const i = lead.intent.toLowerCase();
+    if (i === 'buy') return 'qualify_buy';
+    if (i === 'rent') return 'qualify_rent';
+    if (i === 'invest') return 'qualify_invest';
+    if (i === 'sell') return 'qualify_sell';
+    return 'classify_intent';
   };
 
   // User sends message
@@ -274,13 +285,16 @@ export default function App() {
       // 8. Try Server AI endpoint or fallback to deterministic Agentic Question
       let assistantReply = nextQuestion;
       let assistantProvider = 'Lyka Realty Polite Concierge';
+      let serverMatchedProperties: any[] = [];
       try {
         const chatRes = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: userText,
+            history: [...messages, userMsg].slice(-10).map(m => ({ role: m.role, content: m.content })),
             currentLead: mergedLead,
+            conversationStage: mapLeadToStage(mergedLead),
             groqApiKey: options?.groqApiKey,
             groqModel: options?.groqModel
           })
@@ -292,6 +306,17 @@ export default function App() {
           }
           if (chatData.provider) {
             assistantProvider = chatData.provider;
+          }
+          if (chatData.matchedProperties && chatData.matchedProperties.length > 0) {
+            serverMatchedProperties = chatData.matchedProperties;
+          }
+          // Merge any profile updates from LangGraph back into lead
+          if (chatData.updatedProfile) {
+            const serverUpdates = chatData.updatedProfile;
+            if (serverUpdates.intent && !mergedLead.intent) mergedLead.intent = serverUpdates.intent;
+            if (serverUpdates.budget_max) mergedLead.budget_max = serverUpdates.budget_max;
+            if (serverUpdates.rental_budget) mergedLead.rental_budget = serverUpdates.rental_budget;
+            if (serverUpdates.property_type && !mergedLead.property_type) mergedLead.property_type = serverUpdates.property_type;
           }
         }
       } catch (err) {
@@ -310,6 +335,10 @@ export default function App() {
         suggested_action: intentCategory
       };
 
+      const finalProperties = serverMatchedProperties.length > 0
+        ? serverMatchedProperties.slice(0, 3)
+        : matchingProps.length > 0 ? matchingProps.slice(0, 3) : null;
+
       const assistantMsg: ChatMessage = {
         id: 'MSG-A-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
         lead_id: mergedLead.id,
@@ -318,7 +347,7 @@ export default function App() {
         timestamp: new Date().toISOString(),
         provider: assistantProvider,
         agentic_decision: agenticDecision,
-        recommended_properties: matchingProps.length > 0 ? matchingProps.slice(0, 3) : null,
+        recommended_properties: finalProperties,
       };
 
       setMessages(prev => [...prev, assistantMsg]);

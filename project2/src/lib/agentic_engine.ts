@@ -33,7 +33,7 @@ export function createInitialLeadProfile(): LeadProfile {
     next_action: 'Greet customer and identify role',
     follow_up_date: null,
     summary: 'Customer initiated inquiry on Lyka Realty assistant.',
-    missing_fields: ['Role (Investor/Buyer/Seller/Other)', 'Contact information (name, phone, email)'],
+    missing_fields: ['Role (Investor/Buyer/Seller/Other)', 'Contact information (name, phone, email)', 'Location/Geography', 'Property Type'],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -43,23 +43,35 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   const lower = text.toLowerCase();
   const extracted: Partial<LeadProfile> = {};
 
-  // Intent detection - detect role first per PDF
-  if (lower.includes('sell') || lower.includes('selling') || lower.includes('list my property') || lower.includes('list property')) {
+  // Intent detection - detect role first per PDF with more robust matching
+  const investKeywords = ['invest', 'investment', 'roi', 'yield', 'capital appreciation', 'buy and hold', 'rental income', 'passive income', 'golden visa', 'flip', 'flipping', 'developer project', 'off-plan'];
+  const sellKeywords = ['sell', 'selling', 'list my property', 'list property', 'put on market', 'dispose', 'divest', 'estate sale', 'need to sell', 'want to sell'];
+  const buyKeywords = ['buy', 'purchase', 'acquire', 'shopping for', 'looking to buy', 'want to buy', 'need to buy', 'first home', 'first-time buyer', 'end user', 'end-user', 'primary residence', 'vacation home', 'second home'];
+  const rentKeywords = ['rent', 'lease', 'tenant', 'monthly', 'renting', 'looking to rent', 'want to rent', 'short-term rental', 'furnished rental', 'holiday let'];
+  const otherKeywords = ['partner', 'collaboration', 'media', 'press', 'journalist', 'blogger', 'influencer', 'agent', 'broker', 'developer', 'supplier', 'service provider', 'contractor', 'maintenance', 'property management'];
+
+  const hasInvest = investKeywords.some(kw => lower.includes(kw));
+  const hasSell = sellKeywords.some(kw => lower.includes(kw));
+  const hasBuy = buyKeywords.some(kw => lower.includes(kw));
+  const hasRent = rentKeywords.some(kw => lower.includes(kw));
+  const hasOther = otherKeywords.some(kw => lower.includes(kw));
+
+  if (hasSell) {
     extracted.intent = 'Sell';
     extracted.customer_type = 'Seller';
-  } else if (lower.includes('invest') || lower.includes('roi') || lower.includes('yield') || lower.includes('capital appreciation')) {
+  } else if (hasInvest) {
     extracted.intent = 'Invest';
     extracted.purpose = 'Investment';
     extracted.customer_type = 'Investor';
-  } else if (lower.includes('rent') || lower.includes('lease') || lower.includes('tenant') || lower.includes('monthly')) {
+  } else if (hasRent) {
     extracted.intent = 'Rent';
     extracted.customer_type = 'Tenant/Renter';
-  } else if (lower.includes('buy') || lower.includes('purchase') || lower.includes('acquire')) {
+  } else if (hasBuy) {
     extracted.intent = 'Buy';
     if (!currentLead.customer_type || currentLead.customer_type === 'Tenant/Renter') {
       extracted.customer_type = 'First-time buyer';
     }
-  } else if (lower.includes('partner') || lower.includes('agent') || lower.includes('broker') || lower.includes('collaboration') || lower.includes('media') || lower.includes('press') || lower.includes('other')) {
+  } else if (hasOther) {
     extracted.customer_type = 'Other stakeholder';
   }
 
@@ -106,13 +118,21 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     extracted.experience_level = 'Professional';
   }
 
-  // Name extraction (e.g., "my name is Alex", "I am John Smith")
-  const nameMatch = text.match(/(?:my name is|i am|this is|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
-  if (nameMatch && nameMatch[1]) {
-    extracted.full_name = nameMatch[1].trim();
+  // Name extraction - more patterns
+  const namePatterns = [
+    /(?:my name is|i am|this is|call me|name is|i'm|i’m)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)(?:\s+here)?$/,
+    /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:calling|speaking)/i,
+  ];
+  for (const pattern of namePatterns) {
+    const nameMatch = text.match(pattern);
+    if (nameMatch && nameMatch[1] && nameMatch[1].length > 2 && !nameMatch[1].toLowerCase().includes('investor') && !nameMatch[1].toLowerCase().includes('buyer') && !nameMatch[1].toLowerCase().includes('seller')) {
+      extracted.full_name = nameMatch[1].trim();
+      break;
+    }
   }
 
-  // Phone extraction
+  // Phone extraction - more formats
   const phoneMatch = text.match(/(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/);
   if (phoneMatch && phoneMatch[0].length >= 8 && !phoneMatch[0].includes('000000')) {
     extracted.phone = phoneMatch[0].trim();
@@ -186,14 +206,19 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     extracted.preferred_communities = detectedCommunities;
   }
 
-  // Budget detection (AED millions/thousands, and INR Crores/Lakhs)
-  const budgetCrores = text.match(/(?:inr|rs\.?|₹)?\s*(\d+(?:\.\d+)?)\s*(?:cr|crore|crores)/i);
-  const budgetLakhs = text.match(/(?:inr|rs\.?|₹)?\s*(\d+)\s*(?:lakh|lakhs|lac|lacs)/i);
-  const budgetMillions = text.match(/(?:aed\s*)?(\d+(?:\.\d+)?)\s*(?:m|million|mn)/i);
-  const budgetThousands = text.match(/(?:aed\s*)?(\d+)\s*(?:k|thousand)/i);
-  const budgetPlain = text.match(/(?:aed|inr|budget|around|upto)\s*([1-9]\d{5,8})/i);
+  // Budget detection - more robust with currency symbols, words, and commas
+  const cleanText = text.replace(/,/g, ''); // Remove commas to simplify number matching
+  const budgetCrores = cleanText.match(/(?:inr|rs\.?|₹)?\s*(\d+(?:\.\d+)?)\s*(?:cr|crore|crores)/i);
+  const budgetLakhs = cleanText.match(/(?:inr|rs\.?|₹)?\s*(\d+)\s*(?:lakh|lakhs|lac|lacs|l)/i);
+  const budgetMillions = cleanText.match(/(?:aed\s*)?(\d+(?:\.\d+)?)\s*(?:m|million|mn|mill)/i);
+  const budgetThousands = cleanText.match(/(?:aed\s*)?(\d+)\s*(?:k|thousand|thou)/i);
+  const budgetPlain = cleanText.match(/(?:aed|inr|budget|around|upto|approx|approximately)?\s*([1-9]\d{3,8})/i);
+  const budgetWithTo = cleanText.match(/(?:aed|inr)?\s*([1-9]\d{3,8})\s*(?:to|-|–)\s*(?:aed|inr)?\s*([1-9]\d{3,8})/i);
 
-  if (budgetCrores && budgetCrores[1]) {
+  if (budgetWithTo && budgetWithTo[1] && budgetWithTo[2]) {
+    extracted.budget_min = parseInt(budgetWithTo[1], 10);
+    extracted.budget_max = parseInt(budgetWithTo[2], 10);
+  } else if (budgetCrores && budgetCrores[1]) {
     const valInr = parseFloat(budgetCrores[1]) * 10000000;
     const valAed = Math.round(valInr / 22.8);
     extracted.budget_max = valAed;
@@ -221,47 +246,71 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     extracted.budget_min = Math.round(val * 0.8);
   }
 
-  // Property type
-  if (lower.includes('penthouse')) {
-    extracted.property_type = 'Penthouse';
-  } else if (lower.includes('villa')) {
-    extracted.property_type = 'Villa';
-  } else if (lower.includes('townhouse')) {
-    extracted.property_type = 'Townhouse';
-  } else if (lower.includes('apartment') || lower.includes('flat') || lower.includes('studio')) {
-    extracted.property_type = 'Apartment';
-  } else if (lower.includes('commercial') || lower.includes('office')) {
-    extracted.property_type = 'Commercial / Office';
+  if (extracted.budget_max && (!currentLead.intent || currentLead.intent === 'Rent' || extracted.intent === 'Rent')) {
+    extracted.rental_budget = extracted.budget_max;
+  }
+
+  // Property type - more variations
+  const propTypeMap: Record<string, string> = {
+    'penthouse': 'Penthouse',
+    'villa': 'Villa',
+    'townhouse': 'Townhouse',
+    'town house': 'Townhouse',
+    'apartment': 'Apartment',
+    'flat': 'Apartment',
+    'condo': 'Apartment',
+    'condominium': 'Apartment',
+    'studio': 'Apartment',
+    'loft': 'Apartment',
+    'commercial': 'Commercial / Office',
+    'office': 'Commercial / Office',
+    'shop': 'Commercial / Office',
+    'retail': 'Commercial / Office',
+    'warehouse': 'Commercial / Office',
+  };
+  for (const [kw, type] of Object.entries(propTypeMap)) {
+    if (lower.includes(kw)) {
+      extracted.property_type = type;
+      break;
+    }
   }
 
   // Bedrooms
   if (lower.includes('studio')) {
     extracted.bedrooms = 'Studio';
   } else {
-    const bedMatch = text.match(/(\d+)\s*(?:br|bed|bedroom|bhk)/i);
+    const bedMatch = text.match(/(\d+)\s*(?:br|bed|bedroom|bhk|beds|bedrooms)/i);
     if (bedMatch && bedMatch[1]) {
       extracted.bedrooms = bedMatch[1];
+    } else if (lower.includes('one bed') || lower.includes('1 bed') || lower.includes('single bedroom')) {
+      extracted.bedrooms = '1';
+    } else if (lower.includes('two bed') || lower.includes('2 bed') || lower.includes('two bedroom')) {
+      extracted.bedrooms = '2';
+    } else if (lower.includes('three bed') || lower.includes('3 bed') || lower.includes('three bedroom')) {
+      extracted.bedrooms = '3';
+    } else if (lower.includes('four bed') || lower.includes('4 bed') || lower.includes('four bedroom')) {
+      extracted.bedrooms = '4';
     }
   }
 
   // Ready vs Off-plan
-  if (lower.includes('off-plan') || lower.includes('offplan') || lower.includes('under construction') || lower.includes('payment plan')) {
+  if (lower.includes('off-plan') || lower.includes('offplan') || lower.includes('off plan') || lower.includes('under construction') || lower.includes('payment plan') || lower.includes('developer') || lower.includes('launch')) {
     extracted.ready_or_offplan = 'Off-plan';
-  } else if (lower.includes('ready') || lower.includes('immediate move') || lower.includes('vacant') || lower.includes('ready to move')) {
+  } else if (lower.includes('ready') || lower.includes('immediate move') || lower.includes('vacant') || lower.includes('ready to move') || lower.includes('move-in ready') || lower.includes('completed') || lower.includes('handover')) {
     extracted.ready_or_offplan = 'Ready';
   }
 
   // Purpose
-  if (lower.includes('own use') || lower.includes('myself') || lower.includes('family') || lower.includes('relocating')) {
+  if (lower.includes('own use') || lower.includes('myself') || lower.includes('family') || lower.includes('relocating') || lower.includes('primary home') || lower.includes('primary residence') || lower.includes('living in')) {
     extracted.purpose = 'Own use';
-  } else if (lower.includes('investment') || lower.includes('rental income') || lower.includes('high roi')) {
+  } else if (lower.includes('investment') || lower.includes('rental income') || lower.includes('high roi') || lower.includes('capital growth') || lower.includes('rental yield') || lower.includes('for rent') || lower.includes('to let')) {
     extracted.purpose = 'Investment';
   }
 
   // Financing
-  if (lower.includes('mortgage') || lower.includes('bank loan') || lower.includes('financing')) {
+  if (lower.includes('mortgage') || lower.includes('bank loan') || lower.includes('financing') || lower.includes('finance') || lower.includes('home loan') || lower.includes('property loan')) {
     extracted.financing = 'Mortgage';
-  } else if (lower.includes('cash') || lower.includes('ready funds')) {
+  } else if (lower.includes('cash') || lower.includes('ready funds') || lower.includes('cash buyer') || lower.includes('cash purchase') || lower.includes('no loan')) {
     extracted.financing = 'Cash';
   }
 
@@ -436,9 +485,9 @@ export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[
   // If user said hi / hello / greeting
   if (lastUserText && isGreetingMessage(lastUserText)) {
     return {
-      nextQuestion: `Hello and a very warm welcome to Lyka Realty! It is an absolute pleasure to connect with you. As a premier Dubai-based real estate brokerage that has proudly served 300+ clients across the UAE, we are here to provide expert, verified market guidance.\n\nMay I ask what you are looking for today? Are you interested in buying a residential home, renting, or exploring high-yield property investment opportunities across Dubai?`,
-      rationale: 'Customer sent a greeting. Responded with verified Lyka Realty polite greeting and enquired about their property intent (buying, renting, or investing) as specified in the CRM Information Requirements documentation.',
-      intentCategory: 'Discovering Property Intent'
+      nextQuestion: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
+      rationale: 'Customer sent a greeting. Responded with PDF-compliant opening: identify role first.',
+      intentCategory: 'Role Identification'
     };
   }
 
