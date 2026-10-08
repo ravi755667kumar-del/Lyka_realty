@@ -102,8 +102,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       <div className="p-4 sm:p-6 bg-slate-900 border-b border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-              <Building2 className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-bold text-slate-300 flex items-center space-x-2">
+              <Building2 className="w-5 h-5 text-amber-600" />
               <span>Verified Dubai Property Database</span>
             </h2>
             <p className="text-xs text-slate-400">
@@ -113,7 +113,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md"
+            className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md"
           >
             <Plus className="w-4 h-4" />
             <span>Add Property Listing</span>
@@ -127,8 +127,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             onClick={() => setSelectedCity('ALL')}
             className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
               selectedCity === 'ALL'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-amber-500 text-amber-950 shadow-sm'
+                : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
             }`}
           >
             All Portfolios ({properties.length})
@@ -137,8 +137,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             onClick={() => setSelectedCity('Dubai')}
             className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
               selectedCity === 'Dubai'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-amber-500 text-amber-950 shadow-sm'
+                : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
             }`}
           >
             Dubai Properties
@@ -147,8 +147,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             onClick={() => setSelectedCity('Mumbai')}
             className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
               selectedCity === 'Mumbai'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-amber-500 text-amber-950 shadow-sm'
+                : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
             }`}
           >
             Mumbai NRI Corridor
@@ -163,7 +163,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by title, developer, community..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500"
             />
           </div>
 
@@ -171,7 +171,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedCommunity}
               onChange={(e) => setSelectedCommunity(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Communities</option>
               <optgroup label="Dubai Communities">
@@ -201,7 +201,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Statuses</option>
               <option value="Ready">Ready to Move</option>
@@ -213,7 +213,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedBeds}
               onChange={(e) => setSelectedBeds(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Bedrooms</option>
               <option value="1">1 Bedroom</option>
@@ -243,10 +243,10 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                     />
                     <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                      <span className="bg-amber-500/90 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded shadow">
+                      <span className="bg-amber-500/90 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded shadow">
                         {prop.city || (prop.id.startsWith('MUM') ? 'Mumbai' : 'Dubai')}
                       </span>
-                      <span className="bg-slate-900/90 backdrop-blur-md text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-700">
+                      <span className="bg-slate-900/90 backdrop-blur-md text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-700">
                         {prop.community}
                       </span>
                       <span className="bg-slate-900/90 backdrop-blur-md text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-700">
@@ -268,7 +268,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   <div className="p-4 space-y-2">
                     <div className="flex items-baseline justify-between flex-wrap gap-1">
                       <div>
-                        <span className="text-base font-extrabold text-amber-400">
+                        <span className="text-base font-extrabold text-amber-600">
                           AED {prop.price_aed.toLocaleString()}
                         </span>
                         <span className="text-[11px] text-slate-400 ml-1.5 font-medium">
@@ -280,7 +280,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-white text-sm leading-snug line-clamp-1 group-hover:text-amber-300 transition-colors">
+                    <h3 className="font-bold text-slate-300 text-sm leading-snug line-clamp-1 group-hover:text-amber-700 transition-colors">
                       {prop.title}
                     </h3>
 
@@ -307,7 +307,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                     <button
                       onClick={() => onBookViewing(prop)}
-                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1.5 shadow-sm"
+                      className="bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1.5 shadow-sm"
                     >
                       <Calendar className="w-3.5 h-3.5" />
                       <span>Book Viewing</span>
@@ -325,11 +325,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                <Building2 className="w-4 h-4 text-amber-400" />
+              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
+                <Building2 className="w-4 h-4 text-amber-600" />
                 <span>Add Verified Dubai Property Listing</span>
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-300">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -342,7 +342,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="E.g., Marina Gate Luxury 2BR with Yacht Views"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   required
                 />
               </div>
@@ -353,7 +353,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   <select
                     value={newCommunity}
                     onChange={(e) => setNewCommunity(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   >
                     <option value="Dubai Marina">Dubai Marina</option>
                     <option value="Downtown Dubai">Downtown Dubai</option>
@@ -372,7 +372,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     type="text"
                     value={newDeveloper}
                     onChange={(e) => setNewDeveloper(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                     required
                   />
                 </div>
@@ -385,7 +385,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     type="number"
                     value={newPrice}
                     onChange={(e) => setNewPrice(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                     required
                   />
                 </div>
@@ -395,7 +395,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   <select
                     value={newBeds}
                     onChange={(e) => setNewBeds(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   >
                     <option value="Studio">Studio</option>
                     <option value="1">1</option>
@@ -410,7 +410,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   >
                     <option value="Ready">Ready</option>
                     <option value="Off-plan">Off-plan</option>
@@ -424,7 +424,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   type="url"
                   value={newImage}
                   onChange={(e) => setNewImage(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   required
                 />
               </div>
@@ -439,7 +439,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-2 rounded-xl font-bold shadow-md"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl font-bold shadow-md"
                 >
                   Publish Property
                 </button>

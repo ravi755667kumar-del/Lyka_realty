@@ -1,26 +1,63 @@
 @import "tailwindcss";
 
 @theme {
-  /* Surfaces — dark warm browns. Safe for backgrounds, borders and chips. */
-  --color-slate-950: #120a05;
-  --color-slate-900: #1c1008;
-  --color-slate-800: #2c1a0e;
-  --color-slate-700: #422918;
+  /* ── IVORY + CHAMPAGNE GOLD ──────────────────────────────────────────────
+     Light theme. The numbering is intentionally INVERTED relative to a stock
+     dark theme: the tokens the components use as backgrounds (slate-700..950)
+     are now the light ivory surfaces, and the tokens used as text
+     (slate-300..600) are now warm dark browns.
 
-  /* Text tones — warm, and every one is >= 4.5:1 against all four surfaces
-     above (WCAG AA). Previously slate-600 was #5e3b23, which scored only
-     1.98:1 on the page background and made small labels nearly invisible.
-     slate-400/500 are defined here too so the whole ramp stays in one warm
-     hue instead of falling back to Tailwind's cold grey. */
-  --color-slate-600: #ad9781;
-  --color-slate-500: #c2ad93;
-  --color-slate-400: #d8c5ab;
-  --color-slate-300: #e8dcc8;
+     Within each group the visual order is preserved: slate-300 is the
+     strongest/most prominent text, slate-600 the most muted — the same
+     relationship the dark theme had. Every value below is verified to clear
+     WCAG AA (4.5:1) against all four ivory surfaces. */
 
-  --color-amber-600: #b08133;
-  --color-amber-500: #c9973e;
-  --color-amber-400: #d4aa5e;
-  --color-amber-300: #e0b666;
+  /* Ivory surfaces, lightest-to-darkest across the tokens */
+  --color-slate-950: #fdfbf5;  /* page background — ivory */
+  --color-slate-900: #ffffff;  /* panels */
+  --color-slate-800: #f7f2e6;  /* cards */
+  --color-slate-700: #eee6d3;  /* chips / tags */
+
+  /* Warm dark browns for text — 300 strongest, 600 most muted */
+  --color-slate-300: #463726;
+  --color-slate-400: #5a4835;
+  --color-slate-500: #6b5843;
+  --color-slate-600: #726048;
+
+  /* Text that sits ON champagne gold (buttons, badges). Previously
+     text-slate-950 did this job because the theme was dark; on an ivory theme
+     slate-950 is now the page colour, so buttons need this dedicated token.
+     #3f2f1c on #c4a468 = 5.42:1. */
+  --color-amber-950: #3f2f1c;
+
+  /* Champagne gold.
+     300-500 are BACKGROUND tones only (gold text on them scores 1.3-2.3:1).
+     600-800 are the text-usable golds (4.8:1, 6.8:1, 8.9:1 on ivory). */
+  --color-amber-800: #5a441b;
+  --color-amber-700: #6f5524;
+  --color-amber-600: #8a6b2f;
+  --color-amber-500: #c4a468;
+  --color-amber-400: #d9c08a;
+  --color-amber-300: #eadcb8;
+
+  /* Accents darkened so they stay readable on ivory */
+  --color-emerald-400: #0b7a4b;  /* 5.20:1 on ivory */
+  --color-emerald-300: #065f3c;  /* 7.49:1 on ivory */
+  --color-violet-500: #6d3fd4;   /* 6.13:1 on ivory */
+  --color-red-400: #b03a2e;      /* 5.81:1 on ivory */
+
+  /* ── DARK ESPRESSO BROWN — the header bar ────────────────────────────────
+     The header is deliberately dark against the ivory page, so it needs its
+     own tokens: the slate tokens are light-on-dark-reversed for the page body
+     and would be invisible here. Every text tone clears 4.5:1 on all three
+     espresso surfaces (worst case 4.94:1). */
+  --color-espresso-900: #2e2019;  /* the header bar itself */
+  --color-espresso-800: #3d2b21;  /* chips and buttons sitting on the bar */
+  --color-espresso-700: #513a2c;  /* borders on the bar */
+
+  --color-espresso-300: #f2e6d2;  /* primary text on espresso — 8.55:1 */
+  --color-espresso-400: #dcc9a8;  /* secondary text — 6.51:1 */
+  --color-espresso-500: #c9ae7e;  /* muted text / gold accent — 4.94:1 */
 }
 
 @layer base {
@@ -30,13 +67,23 @@
     height: 100%;
     width: 100%;
     background-color: var(--color-slate-950);
-    color: #f8fafc;
+    color: #463726;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
 
+  /* Faint champagne wash so the page is not a flat block of ivory. Kept very
+     light so every text tone keeps well above 4.5:1. */
+  body {
+    background-image:
+      radial-gradient(1100px 620px at 18% -8%, rgba(196, 164, 104, 0.10), transparent 62%),
+      radial-gradient(900px 520px at 88% 108%, rgba(196, 164, 104, 0.07), transparent 60%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
   ::selection {
-    background-color: rgba(201, 151, 62, 0.3);
-    color: #fef3c7;
+    background-color: rgba(196, 164, 104, 0.35);
+    color: #3f2f1c;
   }
 }
 

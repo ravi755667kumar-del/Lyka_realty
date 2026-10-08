@@ -223,14 +223,14 @@ APP_URL="MY_APP_URL"`;
               <Database className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+              <h2 className="text-lg font-bold text-slate-300 flex items-center space-x-2">
                 <span>MongoDB & Text-to-Number Embedding Hub</span>
-                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
+                <span className="text-[10px] bg-amber-500/20 text-amber-700 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
                   {mongoStatus.configuredModel}
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                All sections of <strong className="text-amber-300">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> and customer requirements converted into numerical float vectors and stored in MongoDB.
+                All sections of <strong className="text-amber-700">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> and customer requirements converted into numerical float vectors and stored in MongoDB.
               </p>
             </div>
           </div>
@@ -240,7 +240,7 @@ APP_URL="MY_APP_URL"`;
           <div className={`px-3 py-1.5 rounded-xl border flex items-center space-x-2 text-xs font-semibold ${
             mongoStatus.connected
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
           }`}>
             <span className={`w-2 h-2 rounded-full ${mongoStatus.connected ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`}></span>
             <span>
@@ -266,14 +266,14 @@ APP_URL="MY_APP_URL"`;
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
             <span className="text-xl">✅</span>
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-sm font-bold text-slate-300">
               PDF Embedding Storage Status in MongoDB Database
             </h3>
           </div>
           <button
             onClick={handleSyncPdfToMongo}
             disabled={isSyncingPdf}
-            className="flex items-center space-x-1.5 text-xs bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold px-3 py-1.5 rounded-xl transition-colors shadow"
+            className="flex items-center space-x-1.5 text-xs bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-amber-950 font-bold px-3 py-1.5 rounded-xl transition-colors shadow"
           >
             {isSyncingPdf ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
             <span>Re-Sync All PDF Sections to MongoDB</span>
@@ -281,7 +281,7 @@ APP_URL="MY_APP_URL"`;
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed">
-          <strong className="text-emerald-400 font-semibold">Yes!</strong> All 11 distinct sections from your document <strong className="text-white">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> are chunked, transformed into multi-dimensional float vectors (e.g. 128 float numbers), and stored in your MongoDB database (<code className="text-emerald-300 font-mono">lyka_realty</code>) in collection <code className="text-amber-300 font-mono">pdf_knowledge_embeddings</code>.
+          <strong className="text-emerald-400 font-semibold">Yes!</strong> All 11 distinct sections from your document <strong className="text-slate-300">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> are chunked, transformed into multi-dimensional float vectors (e.g. 128 float numbers), and stored in your MongoDB database (<code className="text-emerald-300 font-mono">lyka_realty</code>) in collection <code className="text-amber-700 font-mono">pdf_knowledge_embeddings</code>.
         </p>
 
         {pdfSyncMessage && (
@@ -294,7 +294,7 @@ APP_URL="MY_APP_URL"`;
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
           <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
             <span className="text-slate-400 block text-[11px]">PDF Document:</span>
-            <span className="font-bold text-white truncate block">Lyka Realty CRM Specs</span>
+            <span className="font-bold text-slate-300 truncate block">Lyka Realty CRM Specs</span>
           </div>
           <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
             <span className="text-slate-400 block text-[11px]">PDF Chunks Stored:</span>
@@ -302,7 +302,7 @@ APP_URL="MY_APP_URL"`;
           </div>
           <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
             <span className="text-slate-400 block text-[11px]">MongoDB Collection:</span>
-            <span className="font-mono text-amber-300">pdf_knowledge_embeddings</span>
+            <span className="font-mono text-amber-700">pdf_knowledge_embeddings</span>
           </div>
           <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
             <span className="text-slate-400 block text-[11px]">Vector Dimensions:</span>
@@ -322,10 +322,10 @@ APP_URL="MY_APP_URL"`;
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="text-lg">🍃</span>
-              <h3 className="text-sm font-bold text-white">MongoDB Database</h3>
+              <h3 className="text-sm font-bold text-slate-300">MongoDB Database</h3>
             </div>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-              mongoStatus.connected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300'
+              mongoStatus.connected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-700'
             }`}>
               {mongoStatus.connected ? 'DIRECT CLUSTER STORAGE ACTIVE' : 'AWAITING CLUSTER URI'}
             </span>
@@ -337,7 +337,7 @@ APP_URL="MY_APP_URL"`;
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Collections in DB:</span>
-              <strong className="text-white font-mono">pdf_knowledge_embeddings, customer_embeddings</strong>
+              <strong className="text-slate-300 font-mono">pdf_knowledge_embeddings, customer_embeddings</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Data Stored:</span>
@@ -345,7 +345,7 @@ APP_URL="MY_APP_URL"`;
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Total PDF & Customer Vectors:</span>
-              <strong className="text-amber-400 font-mono">{pdfEmbeddings.length + storedRecords.length} records</strong>
+              <strong className="text-amber-600 font-mono">{pdfEmbeddings.length + storedRecords.length} records</strong>
             </div>
           </div>
         </div>
@@ -355,7 +355,7 @@ APP_URL="MY_APP_URL"`;
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="text-lg">🔥</span>
-              <h3 className="text-sm font-bold text-white">Firebase Firestore</h3>
+              <h3 className="text-sm font-bold text-slate-300">Firebase Firestore</h3>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
               PROVISIONED & ACTIVE
@@ -364,7 +364,7 @@ APP_URL="MY_APP_URL"`;
           <div className="pt-2.5 text-xs text-slate-300 space-y-1.5">
             <div className="flex justify-between">
               <span className="text-slate-400">Collections:</span>
-              <strong className="text-amber-300 font-mono">leads, interactions, followups</strong>
+              <strong className="text-amber-700 font-mono">leads, interactions, followups</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Data Stored:</span>
@@ -387,10 +387,10 @@ APP_URL="MY_APP_URL"`;
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center space-x-2">
             <Server className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Connect Remote MongoDB Database (Atlas / VPS)</h3>
+            <h3 className="text-sm font-bold text-slate-300">Connect Remote MongoDB Database (Atlas / VPS)</h3>
           </div>
           <div className="text-[11px] text-slate-400">
-            Enter your MongoDB URI below or set <code className="text-amber-400 font-mono">MONGODB_URI</code> in <code className="text-amber-400 font-mono">.env</code>
+            Enter your MongoDB URI below or set <code className="text-amber-600 font-mono">MONGODB_URI</code> in <code className="text-amber-600 font-mono">.env</code>
           </div>
         </div>
 
@@ -400,12 +400,12 @@ APP_URL="MY_APP_URL"`;
             value={customUri}
             onChange={(e) => setCustomUri(e.target.value)}
             placeholder="mongodb+srv://<username>:<password>@cluster0.mongodb.net/lyka_realty?retryWrites=true&w=majority"
-            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-white placeholder-slate-600 outline-none focus:border-emerald-500"
+            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-300 placeholder-slate-600 outline-none focus:border-emerald-500"
           />
           <button
             type="submit"
             disabled={isConnectingMongo || !customUri.trim()}
-            className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-colors shrink-0 flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
+            className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs transition-colors shrink-0 flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
           >
             {isConnectingMongo ? (
               <>
@@ -439,14 +439,14 @@ APP_URL="MY_APP_URL"`;
           onClick={() => setActiveVectorTab('pdf_knowledge')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeVectorTab === 'pdf_knowledge'
-              ? 'bg-amber-500 text-slate-950 shadow'
-              : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+              ? 'bg-amber-500 text-amber-950 shadow'
+              : 'bg-slate-900 text-slate-300 hover:text-slate-300 border border-slate-800'
           }`}
         >
           <BookOpen className="w-4 h-4" />
           <span>PDF Document Embeddings (pdf_knowledge_embeddings)</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-            activeVectorTab === 'pdf_knowledge' ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-400'
+            activeVectorTab === 'pdf_knowledge' ? 'bg-slate-950 text-amber-600' : 'bg-slate-800 text-slate-400'
           }`}>
             {pdfEmbeddings.length}
           </span>
@@ -456,14 +456,14 @@ APP_URL="MY_APP_URL"`;
           onClick={() => setActiveVectorTab('customer_inquiries')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeVectorTab === 'customer_inquiries'
-              ? 'bg-amber-500 text-slate-950 shadow'
-              : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+              ? 'bg-amber-500 text-amber-950 shadow'
+              : 'bg-slate-900 text-slate-300 hover:text-slate-300 border border-slate-800'
           }`}
         >
           <Layers className="w-4 h-4" />
           <span>Customer Inquiry Vectors (customer_embeddings)</span>
           <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-            activeVectorTab === 'customer_inquiries' ? 'bg-slate-950 text-amber-400' : 'bg-slate-800 text-slate-400'
+            activeVectorTab === 'customer_inquiries' ? 'bg-slate-950 text-amber-600' : 'bg-slate-800 text-slate-400'
           }`}>
             {storedRecords.length}
           </span>
@@ -478,8 +478,8 @@ APP_URL="MY_APP_URL"`;
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-amber-400" />
-                  <h3 className="text-sm font-bold text-white">Document Information</h3>
+                  <FileText className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-sm font-bold text-slate-300">Document Information</h3>
                 </div>
                 <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded font-mono font-bold">
                   11 SECTIONS INGESTED
@@ -489,7 +489,7 @@ APP_URL="MY_APP_URL"`;
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-slate-400">PDF File:</span>
-                  <span className="font-semibold text-white">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</span>
+                  <span className="font-semibold text-slate-300">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">MongoDB Database:</span>
@@ -497,7 +497,7 @@ APP_URL="MY_APP_URL"`;
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">MongoDB Collection:</span>
-                  <span className="font-mono text-amber-300 font-bold">pdf_knowledge_embeddings</span>
+                  <span className="font-mono text-amber-700 font-bold">pdf_knowledge_embeddings</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Ingestion Method:</span>
@@ -514,11 +514,11 @@ APP_URL="MY_APP_URL"`;
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <h3 className="text-sm font-bold text-white">Selected PDF Vector Inspector</h3>
+                  <Layers className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-sm font-bold text-slate-300">Selected PDF Vector Inspector</h3>
                 </div>
                 {selectedRecord && (
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono font-bold">
+                  <span className="text-[10px] bg-amber-500/20 text-amber-700 border border-amber-500/30 px-2 py-0.5 rounded font-mono font-bold">
                     {selectedRecord.dimensions} FLOAT NUMBERS
                   </span>
                 )}
@@ -528,7 +528,7 @@ APP_URL="MY_APP_URL"`;
                 <div className="space-y-3">
                   <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-white font-bold">{selectedRecord.title}</span>
+                      <span className="text-slate-300 font-bold">{selectedRecord.title}</span>
                       <span className="text-emerald-400 font-mono text-[10px]">{selectedRecord._id}</span>
                     </div>
                     <p className="text-slate-400 text-[11px] line-clamp-2">{selectedRecord.text_content}</p>
@@ -539,15 +539,15 @@ APP_URL="MY_APP_URL"`;
                       <span className="text-xs text-slate-400">Numerical Float Values (128 Dimensions):</span>
                       <button
                         onClick={() => setViewingDocModal(selectedRecord)}
-                        className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center space-x-1"
+                        className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center space-x-1"
                       >
                         <Eye className="w-3 h-3" />
                         <span>View MongoDB JSON Doc</span>
                       </button>
                     </div>
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-36 overflow-y-auto font-mono text-[11px] text-amber-300 leading-relaxed break-all">
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-36 overflow-y-auto font-mono text-[11px] text-amber-700 leading-relaxed break-all">
                       [{selectedRecord.vector?.map((val: number, idx: number) => (
-                        <span key={idx} className={idx % 2 === 0 ? 'text-amber-400' : 'text-emerald-400'}>
+                        <span key={idx} className={idx % 2 === 0 ? 'text-amber-600' : 'text-emerald-400'}>
                           {val.toFixed(5)}{idx < selectedRecord.vector.length - 1 ? ', ' : ''}
                         </span>
                       ))}]
@@ -565,12 +565,12 @@ APP_URL="MY_APP_URL"`;
           {/* Table of PDF Section Embeddings */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-lg">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
                 <Database className="w-4 h-4 text-emerald-400" />
                 <span>All PDF Sections Stored in MongoDB ({pdfEmbeddings.length})</span>
               </h3>
               <span className="text-xs text-slate-400">
-                Database: <strong className="text-emerald-400">lyka_realty</strong> • Collection: <strong className="text-white">pdf_knowledge_embeddings</strong>
+                Database: <strong className="text-emerald-400">lyka_realty</strong> • Collection: <strong className="text-slate-300">pdf_knowledge_embeddings</strong>
               </span>
             </div>
 
@@ -589,7 +589,7 @@ APP_URL="MY_APP_URL"`;
                 <tbody className="divide-y divide-slate-800">
                   {pdfEmbeddings.map((sec, i) => (
                     <tr key={i} className="hover:bg-slate-800/50 transition-colors">
-                      <td className="p-2.5 font-mono text-amber-400 font-bold">
+                      <td className="p-2.5 font-mono text-amber-600 font-bold">
                         {sec._id}
                       </td>
                       <td className="p-2.5 text-slate-200 font-medium">
@@ -599,7 +599,7 @@ APP_URL="MY_APP_URL"`;
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                           sec.storage === 'MongoDB' || mongoStatus.connected
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                            : 'bg-amber-500/20 text-amber-700 border-amber-500/40'
                         }`}>
                           {sec.storage === 'MongoDB' || mongoStatus.connected
                             ? '🍃 MongoDB: lyka_realty.pdf_knowledge_embeddings'
@@ -616,7 +616,7 @@ APP_URL="MY_APP_URL"`;
                       <td className="p-2.5 text-right space-x-1.5 whitespace-nowrap">
                         <button
                           onClick={() => setSelectedRecord(sec)}
-                          className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
+                          className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-700 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
                         >
                           Vector
                         </button>
@@ -644,8 +644,8 @@ APP_URL="MY_APP_URL"`;
             {/* Left: Input & Generate */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
               <div className="flex items-center space-x-2">
-                <Cpu className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-bold text-white">Transform Inquiry into Numerical Vector</h3>
+                <Cpu className="w-4 h-4 text-amber-600" />
+                <h3 className="text-sm font-bold text-slate-300">Transform Inquiry into Numerical Vector</h3>
               </div>
 
               <form onSubmit={handleGenerateAndStore} className="space-y-3">
@@ -658,20 +658,20 @@ APP_URL="MY_APP_URL"`;
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="Enter customer requirement text or property description to transform into a numerical vector array..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500 font-mono resize-none"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500 font-mono resize-none"
                     required
                   />
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Embedding Model: <strong className="text-amber-400 font-mono">{mongoStatus.configuredModel}</strong></span>
+                  <span>Embedding Model: <strong className="text-amber-600 font-mono">{mongoStatus.configuredModel}</strong></span>
                   <span>Target: <strong className="text-emerald-400 font-mono">lyka_realty.customer_embeddings</strong></span>
                 </div>
 
                 <button
                   type="submit"
                   disabled={isGenerating || !inputText.trim()}
-                  className="w-full bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center space-x-2 shadow-md cursor-pointer"
+                  className="w-full bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-50 text-amber-950 font-bold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center space-x-2 shadow-md cursor-pointer"
                 >
                   {isGenerating ? (
                     <>
@@ -692,11 +692,11 @@ APP_URL="MY_APP_URL"`;
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col justify-between space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <h3 className="text-sm font-bold text-white">Numerical Vector Inspector</h3>
+                  <Layers className="w-4 h-4 text-amber-600" />
+                  <h3 className="text-sm font-bold text-slate-300">Numerical Vector Inspector</h3>
                 </div>
                 {selectedRecord && (
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono font-bold">
+                  <span className="text-[10px] bg-amber-500/20 text-amber-700 border border-amber-500/30 px-2 py-0.5 rounded font-mono font-bold">
                     {selectedRecord.dimensions} FLOAT DIMENSIONS
                   </span>
                 )}
@@ -706,7 +706,7 @@ APP_URL="MY_APP_URL"`;
                 <div className="space-y-3">
                   <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 text-xs">
                     <div className="flex items-center justify-between text-slate-400">
-                      <span>Record ID: <strong className="text-white font-mono">{selectedRecord._id}</strong></span>
+                      <span>Record ID: <strong className="text-slate-300 font-mono">{selectedRecord._id}</strong></span>
                       <span className="text-emerald-400 font-semibold">{selectedRecord.model}</span>
                     </div>
                     <p className="text-slate-300 line-clamp-2 italic">"{selectedRecord.text_content}"</p>
@@ -719,15 +719,15 @@ APP_URL="MY_APP_URL"`;
                       </span>
                       <button
                         onClick={() => setViewingDocModal(selectedRecord)}
-                        className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center space-x-1"
+                        className="text-[11px] text-amber-600 hover:text-amber-700 flex items-center space-x-1"
                       >
                         <Eye className="w-3 h-3" />
                         <span>View MongoDB JSON Doc</span>
                       </button>
                     </div>
-                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-48 overflow-y-auto font-mono text-[11px] text-amber-300 leading-relaxed break-all">
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 max-h-48 overflow-y-auto font-mono text-[11px] text-amber-700 leading-relaxed break-all">
                       [{selectedRecord.vector?.map((val: number, idx: number) => (
-                        <span key={idx} className={idx % 2 === 0 ? 'text-amber-400' : 'text-emerald-400'}>
+                        <span key={idx} className={idx % 2 === 0 ? 'text-amber-600' : 'text-emerald-400'}>
                           {val.toFixed(5)}{idx < selectedRecord.vector.length - 1 ? ', ' : ''}
                         </span>
                       ))}]
@@ -749,12 +749,12 @@ APP_URL="MY_APP_URL"`;
           {/* Stored Records in MongoDB table */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-lg">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
                 <Database className="w-4 h-4 text-emerald-400" />
                 <span>Customer Inquiries in MongoDB ({storedRecords.length})</span>
               </h3>
               <span className="text-xs text-slate-400">
-                Database: <strong className="text-emerald-400">lyka_realty</strong> • Collection: <strong className="text-white">customer_embeddings</strong>
+                Database: <strong className="text-emerald-400">lyka_realty</strong> • Collection: <strong className="text-slate-300">customer_embeddings</strong>
               </span>
             </div>
 
@@ -779,14 +779,14 @@ APP_URL="MY_APP_URL"`;
                   <tbody className="divide-y divide-slate-800">
                     {storedRecords.map((rec, i) => (
                       <tr key={i} className="hover:bg-slate-800/50 transition-colors">
-                        <td className="p-2.5 font-mono text-amber-400 font-bold">
+                        <td className="p-2.5 font-mono text-amber-600 font-bold">
                           {rec._id || `DOC-${i+1}`}
                         </td>
                         <td className="p-2.5">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                             rec.storage === 'MongoDB' || mongoStatus.connected
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                              : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-amber-500/20 text-amber-700 border-amber-500/40'
                           }`}>
                             {rec.storage === 'MongoDB' || mongoStatus.connected
                               ? '🍃 MongoDB: lyka_realty.customer_embeddings'
@@ -803,7 +803,7 @@ APP_URL="MY_APP_URL"`;
                         <td className="p-2.5 text-right space-x-1.5 whitespace-nowrap">
                           <button
                             onClick={() => setSelectedRecord(rec)}
-                            className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
+                            className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-700 px-2 py-1 rounded-lg border border-slate-700 transition-colors"
                           >
                             Vector
                           </button>
@@ -831,20 +831,20 @@ APP_URL="MY_APP_URL"`;
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center space-x-2">
                 <Database className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-base font-bold text-white">
+                <h3 className="text-base font-bold text-slate-300">
                   MongoDB BSON Document (Database: <span className="text-emerald-400 font-mono">lyka_realty</span>)
                 </h3>
               </div>
               <button 
                 onClick={() => setViewingDocModal(null)}
-                className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800"
+                className="p-1 rounded-full text-slate-400 hover:text-slate-300 hover:bg-slate-800"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 max-h-96 overflow-y-auto">
-              <pre className="font-mono text-xs text-amber-300 leading-relaxed whitespace-pre-wrap">
+              <pre className="font-mono text-xs text-amber-700 leading-relaxed whitespace-pre-wrap">
                 {JSON.stringify({
                   _id: viewingDocModal._id,
                   database: "lyka_realty",
@@ -867,13 +867,13 @@ APP_URL="MY_APP_URL"`;
                 onClick={() => copyMongoQuery(viewingDocModal)}
                 className="flex items-center space-x-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-700 transition-colors"
               >
-                {copiedQuery ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Terminal className="w-3.5 h-3.5 text-amber-400" />}
+                {copiedQuery ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Terminal className="w-3.5 h-3.5 text-amber-600" />}
                 <span>{copiedQuery ? 'Copied Query' : 'Copy MongoDB Compass Query'}</span>
               </button>
 
               <button
                 onClick={() => setViewingDocModal(null)}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl text-xs transition-colors"
+                className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-1.5 rounded-xl text-xs transition-colors"
               >
                 Close
               </button>

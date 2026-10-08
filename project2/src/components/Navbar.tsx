@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge'].includes(activeTab);
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-50">
+    <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50">
       <div className="px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
@@ -57,14 +57,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => { setActiveTab('chat'); }}
               className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
                 activeTab === 'chat'
-                  ? 'bg-amber-500 text-slate-950 shadow-md font-bold border-amber-400'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/50'
+                  ? 'bg-amber-500 text-amber-950 shadow-md font-bold border-amber-400'
+                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800 border-espresso-700/60'
               }`}
             >
               <MessageSquare className="w-4 h-4" />
               <span>Agentic AI Chat</span>
               {activeTab === 'chat' && (
-                <span className="text-[9px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-slate-950/40 text-amber-100">
+                <span className="text-[9px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-espresso-800/70 text-amber-300">
                   LIVE
                 </span>
               )}
@@ -75,21 +75,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center space-x-2">
             {/* Firebase badge */}
             <div
-              className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700 text-slate-300"
+              className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-espresso-800/80 px-2.5 py-1 rounded-md border border-espresso-700 text-espresso-300"
               title="Firebase Firestore Active"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="font-medium text-emerald-300">Firebase Live</span>
+              <span className="font-medium text-emerald-200">Firebase Live</span>
             </div>
 
             {/* Mongo badge */}
             <div
               onClick={() => { onToggleAdminPanel(); if (!adminPanelOpen) setActiveTab('embeddings'); }}
-              className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700 cursor-pointer hover:border-amber-500/50 transition-colors"
+              className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-espresso-800/80 px-2.5 py-1 rounded-md border border-espresso-700 cursor-pointer hover:border-amber-500/50 transition-colors"
               title="MongoDB Numerical Vector Storage"
             >
               <Layers className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-slate-300">
+              <span className="text-espresso-300">
                 {mongoStatus.connected ? 'MongoDB' : 'Vectors'}
               </span>
             </div>
@@ -101,8 +101,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 adminPanelOpen || isAdminTab
                   ? 'bg-violet-600 hover:bg-violet-500 text-white border-violet-500 shadow-md shadow-violet-500/20'
                   : adminAuthenticated
-                  ? 'bg-slate-800 hover:bg-slate-700 text-violet-300 border-violet-700/60'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700 hover:border-violet-500/60'
+                  ? 'bg-espresso-800 hover:bg-espresso-700 text-violet-300 border-violet-500/50'
+                  : 'bg-espresso-800 hover:bg-espresso-700 text-espresso-300 border-espresso-700 hover:border-amber-500/60'
               }`}
             >
               {adminAuthenticated ? (
@@ -115,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? <ChevronUp className="w-3 h-3" />
                 : <ChevronDown className="w-3 h-3" />}
               {leadCount > 0 && adminAuthenticated && (
-                <span className="text-[10px] px-1.5 rounded-full font-bold bg-amber-500/30 text-amber-300">
+                <span className="text-[10px] px-1.5 rounded-full font-bold bg-amber-500/25 text-amber-300">
                   {leadCount}
                 </span>
               )}
@@ -126,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 onClick={onAdminLogout}
                 title="Logout from Admin"
-                className="flex items-center space-x-1 text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800/70 hover:bg-red-950/60 hover:border-red-800/60 hover:text-red-400 text-slate-400 transition-all"
+                className="flex items-center space-x-1 text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-espresso-700 bg-espresso-800/70 hover:bg-red-900/40 hover:border-red-500/60 hover:text-red-300 text-espresso-400 transition-all"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -137,7 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={onStartNewChat}
-              className="flex items-center space-x-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+              className="flex items-center space-x-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-amber-950 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">New Customer</span>
@@ -148,9 +148,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Admin Sub-nav — only visible when Admin Panel is open */}
       {(adminPanelOpen || isAdminTab) && (
-        <div className="border-t border-violet-800/50 bg-slate-950/80 backdrop-blur-sm">
+        <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
           <div className="px-4 sm:px-6 flex items-center space-x-1 overflow-x-auto py-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-violet-400 mr-2 flex-shrink-0 flex items-center space-x-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-violet-300 mr-2 flex-shrink-0 flex items-center space-x-1">
               <ShieldCheck className="w-3 h-3" />
               <span>Admin</span>
             </span>
@@ -159,14 +159,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 activeTab === 'crm'
                   ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
               }`}
             >
               <Kanban className="w-3.5 h-3.5" />
               <span>CRM Pipeline</span>
               {leadCount > 0 && (
                 <span className={`text-[9px] px-1.5 rounded-full font-bold ${
-                  activeTab === 'crm' ? 'bg-white/20 text-white' : 'bg-violet-500/30 text-violet-300'
+                  activeTab === 'crm' ? 'bg-espresso-800/25 text-espresso-300' : 'bg-violet-500/30 text-violet-200'
                 }`}>
                   {leadCount}
                 </span>
@@ -178,7 +178,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 activeTab === 'properties'
                   ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
@@ -190,7 +190,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 activeTab === 'embeddings'
                   ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
               }`}
             >
               <Database className="w-3.5 h-3.5" />
@@ -202,7 +202,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 activeTab === 'knowledge'
                   ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
@@ -213,11 +213,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       {/* Mobile nav */}
-      <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-slate-950 border-t border-slate-800 text-xs">
+      <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
         <button
           onClick={() => setActiveTab('chat')}
           className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium ${
-            activeTab === 'chat' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+            activeTab === 'chat' ? 'bg-amber-500 text-amber-950' : 'text-espresso-400'
           }`}
         >
           AI Chat
@@ -227,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
             adminPanelOpen || isAdminTab
               ? 'bg-violet-600 text-white border-violet-500'
-              : 'text-slate-400 border-slate-700'
+              : 'text-espresso-400 border-espresso-700'
           }`}
         >
           Admin ▾

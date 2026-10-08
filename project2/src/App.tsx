@@ -616,12 +616,12 @@ export default function App() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-amber-400" />
-                <h3 className="text-sm font-bold text-white">Schedule Property Viewing</h3>
+                <Calendar className="w-5 h-5 text-amber-600" />
+                <h3 className="text-sm font-bold text-slate-300">Schedule Property Viewing</h3>
               </div>
               <button 
                 onClick={() => setViewingModalProperty(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -634,8 +634,8 @@ export default function App() {
                 className="w-16 h-14 rounded-lg object-cover" 
               />
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-bold text-white truncate">{viewingModalProperty.title}</h4>
-                <p className="text-[11px] text-amber-400 font-semibold mt-0.5">AED {viewingModalProperty.price_aed.toLocaleString()}</p>
+                <h4 className="text-xs font-bold text-slate-300 truncate">{viewingModalProperty.title}</h4>
+                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">AED {viewingModalProperty.price_aed.toLocaleString()}</p>
                 <p className="text-[10px] text-slate-400">{viewingModalProperty.community} • {viewingModalProperty.bedrooms} BR</p>
               </div>
             </div>
@@ -646,7 +646,7 @@ export default function App() {
                 <select
                   value={viewingMode}
                   onChange={(e) => setViewingMode(e.target.value as any)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                 >
                   <option value="In-person at property">In-person at property</option>
                   <option value="Virtual 3D walkthrough">Virtual 3D walkthrough / Video call</option>
@@ -660,7 +660,7 @@ export default function App() {
                     type="date"
                     value={viewingDate}
                     onChange={(e) => setViewingDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                     required
                   />
                 </div>
@@ -670,7 +670,7 @@ export default function App() {
                   <select
                     value={viewingTime}
                     onChange={(e) => setViewingTime(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   >
                     <option value="10:00 AM">10:00 AM</option>
                     <option value="11:30 AM">11:30 AM</option>
@@ -691,7 +691,7 @@ export default function App() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-2.5 rounded-xl font-bold shadow-md"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl font-bold shadow-md"
                 >
                   Confirm Viewing
                 </button>
@@ -707,12 +707,12 @@ export default function App() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <UserCheck className="w-5 h-5 text-amber-400" />
-                <h3 className="text-sm font-bold text-white">Escalate to Lyka Senior Agent</h3>
+                <UserCheck className="w-5 h-5 text-amber-600" />
+                <h3 className="text-sm font-bold text-slate-300">Escalate to Lyka Senior Agent</h3>
               </div>
               <button 
                 onClick={() => setShowHandoffModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-300"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -721,15 +721,15 @@ export default function App() {
             <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-400">Assigned Lyka Specialist:</span>
-                <span className="font-bold text-white">{currentLead.assigned_agent}</span>
+                <span className="font-bold text-slate-300">{currentLead.assigned_agent}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Customer Intent:</span>
-                <span className="text-amber-400 font-semibold">{currentLead.intent} ({currentLead.customer_type})</span>
+                <span className="text-amber-600 font-semibold">{currentLead.intent} ({currentLead.customer_type})</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Target Budget:</span>
-                <span className="text-white font-mono">AED {currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'In discussion'}</span>
+                <span className="text-slate-300 font-mono">AED {currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'In discussion'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Communities:</span>
@@ -744,7 +744,7 @@ export default function App() {
                 value={handoffNotes}
                 onChange={(e) => setHandoffNotes(e.target.value)}
                 placeholder="E.g., Client requested in-person meeting or price negotiation guidance on Marina 2BR..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white placeholder-slate-500 outline-none focus:border-amber-500 resize-none"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500 resize-none"
               />
             </div>
 
@@ -759,7 +759,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleConfirmHandoff}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 py-2.5 rounded-xl font-bold shadow-md text-xs flex items-center justify-center space-x-1.5"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl font-bold shadow-md text-xs flex items-center justify-center space-x-1.5"
               >
                 <PhoneCall className="w-3.5 h-3.5" />
                 <span>Confirm Handoff</span>
@@ -778,12 +778,12 @@ export default function App() {
             <div className="bg-gradient-to-r from-violet-700 via-violet-600 to-purple-700 px-6 py-5">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-white font-bold text-base">Admin Access</h2>
+                  <h2 className="text-slate-300 font-bold text-base">Admin Access</h2>
                   <p className="text-violet-200 text-xs mt-0.5">Lyka Realty CRM & Admin Panel</p>
                 </div>
               </div>
@@ -835,7 +835,7 @@ export default function App() {
                     placeholder="Enter admin email"
                     autoFocus
                     required
-                    className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                    className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -856,14 +856,14 @@ export default function App() {
                     onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminLoginError(''); }}
                     placeholder="Enter password"
                     required
-                    className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-colors"
+                    className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
                   />
                 </div>
               </div>
 
               {/* Error */}
               {adminLoginError && (
-                <div className="flex items-center space-x-2 bg-red-950/60 border border-red-800/60 rounded-xl px-3 py-2.5">
+                <div className="flex items-center space-x-2 bg-red-100/80 border border-red-300/60 rounded-xl px-3 py-2.5">
                   <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>

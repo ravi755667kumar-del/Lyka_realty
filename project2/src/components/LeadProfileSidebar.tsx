@@ -51,7 +51,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
   const getPriorityColor = (priority: LeadPriority) => {
     switch (priority) {
       case 'Urgent': return 'bg-rose-500/20 text-rose-300 border-rose-500/30';
-      case 'High': return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      case 'High': return 'bg-amber-500/20 text-amber-700 border-amber-500/30';
       case 'Medium': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
       default: return 'bg-slate-700 text-slate-300 border-slate-600';
     }
@@ -61,7 +61,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
     switch (status) {
       case 'Qualified': return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
       case 'Viewing': return 'bg-purple-500/20 text-purple-300 border-purple-500/30';
-      case 'Interested': return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+      case 'Interested': return 'bg-amber-500/20 text-amber-700 border-amber-500/30';
       case 'Negotiation': return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
       default: return 'bg-slate-700 text-slate-300 border-slate-600';
     }
@@ -72,7 +72,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
       {/* Header Profile Title */}
       <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60 shadow-sm">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-mono tracking-wider text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20 font-bold">
+          <span className="text-[11px] font-mono tracking-wider text-amber-600 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20 font-bold">
             {lead.id}
           </span>
           <div className="flex items-center space-x-1.5">
@@ -85,7 +85,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
             {onClose && (
               <button 
                 onClick={onClose}
-                className="p-1 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors ml-1"
+                className="p-1 hover:bg-slate-700 text-slate-400 hover:text-slate-300 rounded-lg transition-colors ml-1"
                 title="Close CRM profile"
               >
                 ✕
@@ -95,11 +95,11 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
         </div>
 
         <div className="flex items-center space-x-3 mt-2">
-          <div className="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-amber-400 font-bold">
+          <div className="w-10 h-10 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-amber-600 font-bold">
             {lead.full_name ? lead.full_name.charAt(0).toUpperCase() : <User className="w-5 h-5 text-slate-400" />}
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white leading-tight">
+            <h3 className="text-sm font-bold text-slate-300 leading-tight">
               {lead.full_name || 'Prospect Client'}
             </h3>
             <p className="text-xs text-slate-400 font-medium">
@@ -112,7 +112,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
         <div className="mt-3 pt-3 border-t border-slate-700/60">
           <div className="flex justify-between items-center text-xs mb-1">
             <span className="text-slate-300 font-medium">Requirement Completeness</span>
-            <span className="font-bold text-amber-400">{lead.requirement_completeness}%</span>
+            <span className="font-bold text-amber-600">{lead.requirement_completeness}%</span>
           </div>
           <div className="w-full bg-slate-700 h-2 rounded-full overflow-hidden">
             <div 
@@ -134,7 +134,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
                 {lead.handoff_reason || 'Client requested direct agent coordination or viewing.'}
               </p>
               <p className="text-[11px] text-slate-300 mt-1">
-                Assigned: <span className="font-semibold text-white">{lead.assigned_agent}</span>
+                Assigned: <span className="font-semibold text-slate-300">{lead.assigned_agent}</span>
               </p>
             </div>
           </div>
@@ -144,7 +144,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
       {/* Primary Extracted Fields */}
       <div className="bg-slate-800/60 rounded-xl p-3.5 border border-slate-700/60 space-y-3">
         <h4 className="text-xs font-bold text-slate-300 tracking-wider uppercase flex items-center space-x-1.5">
-          <FileText className="w-3.5 h-3.5 text-amber-400" />
+          <FileText className="w-3.5 h-3.5 text-amber-600" />
           <span>Extracted CRM Profile</span>
         </h4>
 
@@ -153,7 +153,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
           <Coins className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <span className="text-slate-400 block text-[11px]">Budget Range</span>
-            <span className="font-bold text-white">
+            <span className="font-bold text-slate-300">
               {lead.budget_max ? `${formatAED(lead.budget_min)} - ${formatAED(lead.budget_max)}` : 'In discussion...'}
             </span>
           </div>
@@ -167,7 +167,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
             {lead.preferred_communities && lead.preferred_communities.length > 0 ? (
               <div className="flex flex-wrap gap-1 mt-1">
                 {lead.preferred_communities.map((comm, idx) => (
-                  <span key={idx} className="bg-slate-700/80 text-amber-300 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-600">
+                  <span key={idx} className="bg-slate-700/80 text-amber-700 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-600">
                     {comm}
                   </span>
                 ))}
@@ -183,7 +183,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
           <Home className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
           <div className="flex-1">
             <span className="text-slate-400 block text-[11px]">Type & Configuration</span>
-            <span className="font-semibold text-white">
+            <span className="font-semibold text-slate-300">
               {lead.property_type || 'Unspecified Type'} • {lead.bedrooms ? `${lead.bedrooms} Bedroom` : 'Beds TBD'}
             </span>
           </div>
@@ -228,7 +228,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
       <div className="bg-slate-800/40 rounded-xl p-3 border border-slate-700/40">
         <h4 className="text-xs font-semibold text-slate-400 mb-2 flex items-center justify-between">
           <span>Information Still Needed</span>
-          <span className="text-[10px] text-amber-400 font-bold">{lead.missing_fields.length} items</span>
+          <span className="text-[10px] text-amber-600 font-bold">{lead.missing_fields.length} items</span>
         </h4>
         {lead.missing_fields.length === 0 ? (
           <div className="flex items-center space-x-2 text-xs text-emerald-400 py-1">
@@ -251,7 +251,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
       <div className="space-y-2 pt-1">
         <button
           onClick={onScheduleViewing}
-          className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-xs shadow-md transition-all"
+          className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-bold py-2.5 px-4 rounded-xl text-xs shadow-md transition-all"
         >
           <Calendar className="w-4 h-4" />
           <span>Book Property Viewing</span>
@@ -261,7 +261,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
           onClick={onTriggerHandoff}
           className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold py-2 px-4 rounded-xl text-xs transition-colors"
         >
-          <UserCheck className="w-4 h-4 text-amber-400" />
+          <UserCheck className="w-4 h-4 text-amber-600" />
           <span>Handoff to {lead.assigned_agent.split(' ')[0]}</span>
         </button>
       </div>
@@ -270,7 +270,7 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
       <div className="bg-slate-800/70 p-3 rounded-xl border border-slate-700/60 flex items-center justify-between text-xs">
         <div>
           <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Assigned Lyka Agent</span>
-          <span className="font-bold text-white text-xs">{lead.assigned_agent}</span>
+          <span className="font-bold text-slate-300 text-xs">{lead.assigned_agent}</span>
         </div>
         <span className="w-2 h-2 rounded-full bg-emerald-400" title="Active on CRM"></span>
       </div>
