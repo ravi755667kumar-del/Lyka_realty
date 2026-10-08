@@ -45,21 +45,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <div
-            className="flex items-center space-x-3 cursor-pointer flex-shrink-0"
+            className="flex items-center cursor-pointer flex-shrink-0"
             onClick={() => { setActiveTab('chat'); }}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-300 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/20 font-black text-xl">
-              LR
-            </div>
-            <div className="hidden sm:block">
-              <div className="flex items-center space-x-2">
-                <span className="font-extrabold tracking-tight text-lg text-white">LYKA REALTY</span>
-                <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  DUBAI
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 font-medium">Agentic AI & CRM Engine</p>
-            </div>
+            <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg mix-blend-screen" />
           </div>
 
           {/* Center: AI Chat tab (frontend) */}

@@ -1,18 +1,41 @@
 @import "tailwindcss";
 
+@theme {
+  /* Surfaces — dark warm browns. Safe for backgrounds, borders and chips. */
+  --color-slate-950: #120a05;
+  --color-slate-900: #1c1008;
+  --color-slate-800: #2c1a0e;
+  --color-slate-700: #422918;
+
+  /* Text tones — warm, and every one is >= 4.5:1 against all four surfaces
+     above (WCAG AA). Previously slate-600 was #5e3b23, which scored only
+     1.98:1 on the page background and made small labels nearly invisible.
+     slate-400/500 are defined here too so the whole ramp stays in one warm
+     hue instead of falling back to Tailwind's cold grey. */
+  --color-slate-600: #ad9781;
+  --color-slate-500: #c2ad93;
+  --color-slate-400: #d8c5ab;
+  --color-slate-300: #e8dcc8;
+
+  --color-amber-600: #b08133;
+  --color-amber-500: #c9973e;
+  --color-amber-400: #d4aa5e;
+  --color-amber-300: #e0b666;
+}
+
 @layer base {
   html, body {
     margin: 0;
     padding: 0;
     height: 100%;
     width: 100%;
-    background-color: #020617;
+    background-color: var(--color-slate-950);
     color: #f8fafc;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
 
   ::selection {
-    background-color: rgba(245, 158, 11, 0.3);
+    background-color: rgba(201, 151, 62, 0.3);
     color: #fef3c7;
   }
 }
@@ -24,14 +47,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: var(--color-slate-950);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: var(--color-slate-800);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: var(--color-slate-700);
 }
