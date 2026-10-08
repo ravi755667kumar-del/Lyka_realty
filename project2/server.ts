@@ -41,36 +41,112 @@ let mongoClient: MongoClient | null = null;
 let mongoDb: Db | null = null;
 let mongoStatus = {
   connected: false,
-  uriConfigured: Boolean(process.env.MONGODB_URI && !process.env.MONGODB_URI.includes('<username>')),
+  uriConfigured: validateMongoUri(process.env.MONGODB_URI) === null,
   error: null as string | null,
   collectionCount: 0,
 };
 
-// Initialize MongoDB if URI is configured
-async function initMongo() {
-  const uri = process.env.MONGODB_URI;
-  if (!uri || uri.includes('<username>') || uri.includes('MY_MONGODB')) {
-    mongoStatus.uriConfigured = false;
-    mongoStatus.error = 'MONGODB_URI is using placeholder credentials in .env. Falling back to active local vector store.';
-    return;
+// Validate MONGODB_URI shape before attempting a connection.
+//
+// Without this, a malformed host, a typo and a genuine outage all surface as the
+// same "querySrv ENOTFOUND" message, which blames DNS and hides the real cause.
+// Returns null when the URI looks usable, otherwise a specific, actionable reason.
+function validateMongoUri(uri: string | undefined): string | null {
+  if (!uri || !uri.trim()) {
+    return 'MONGODB_URI is not set in .env. Falling back to the in-memory vector store.';
+  }
+  if (uri.includes('<username>') || uri.includes('<password>') || uri.includes('MY_MONGODB')) {
+    return 'MONGODB_URI still contains placeholder credentials (<username>/<password>). Replace it with the real connection string from Atlas → Connect → Drivers.';
   }
 
-  try {
-    mongoClient = new MongoClient(uri, { serverSelectionTimeoutMS: 4000 });
-    await mongoClient.connect();
-    mongoDb = mongoClient.db('lyka_realty');
-    mongoStatus.connected = true;
-    mongoStatus.uriConfigured = true;
-    mongoStatus.error = null;
-    console.log('Successfully connected to MongoDB cluster for vector embedding persistence.');
-  } catch (err: any) {
-    mongoStatus.connected = false;
-    mongoStatus.error = err?.message || 'Failed to connect to MongoDB cluster';
-    console.warn('MongoDB connection notice:', mongoStatus.error);
+  const isSrv = uri.startsWith('mongodb+srv://');
+  if (!isSrv && !uri.startsWith('mongodb://')) {
+    return 'MONGODB_URI must start with mongodb+srv:// (Atlas) or mongodb://.';
   }
+  if (!isSrv) {
+    return null; // direct connection strings do not use SRV hostnames
+  }
+
+  let host = '';
+  try {
+    host = new URL(uri.replace('mongodb+srv://', 'https://')).hostname;
+  } catch {
+    return 'MONGODB_URI could not be parsed. Copy the full connection string from Atlas → Connect → Drivers.';
+  }
+
+  if (!host) {
+    return 'MONGODB_URI has no hostname.';
+  }
+  if (!host.endsWith('.mongodb.net')) {
+    return `MONGODB_URI host "${host}" is not a MongoDB Atlas hostname (expected something ending in .mongodb.net).`;
+  }
+  // Atlas SRV hosts always carry a shard id: cluster0.<id>.mongodb.net (4+ labels).
+  const labels = host.split('.');
+  if (labels.length < 4) {
+    return `MONGODB_URI host "${host}" is missing the Atlas shard subdomain — that hostname does not exist. A real Atlas SRV host looks like cluster0.<shard-id>.mongodb.net. Copy the full string from Atlas → Connect → Drivers.`;
+  }
+
+  const at = uri.indexOf('@');
+  const creds = at > 0 ? uri.slice(uri.indexOf('://') + 3, at) : '';
+  if (!creds.includes(':')) {
+    return 'MONGODB_URI is missing a username or password (expected mongodb+srv://user:password@host/db).';
+  }
+  if (!creds.split(':')[0]) {
+    return 'MONGODB_URI is missing a username (expected mongodb+srv://user:password@host/db).';
+  }
+  if (!creds.split(':')[1]) {
+    return 'MONGODB_URI is missing a password (expected mongodb+srv://user:password@host/db).';
+  }
+
+  return null;
 }
 
-initMongo();
+// Initialize MongoDB if URI is configured.
+// Safe to call repeatedly: concurrent callers share one in-flight attempt, and a
+// failure is retryable (the bootstrap loop depends on that).
+let mongoConnectAttempt: Promise<boolean> | null = null;
+
+async function initMongo(): Promise<boolean> {
+  if (mongoDb) return true;
+  if (mongoConnectAttempt) return mongoConnectAttempt;
+
+  mongoConnectAttempt = (async () => {
+    const uri = process.env.MONGODB_URI;
+
+    const invalid = validateMongoUri(uri);
+    if (!uri || invalid) {
+      mongoStatus.uriConfigured = false;
+      mongoStatus.error = invalid ?? 'MONGODB_URI is not set in .env.';
+      console.warn('MongoDB not attempted —', mongoStatus.error);
+      return false;
+    }
+
+    let candidate: MongoClient | null = null;
+    try {
+      candidate = new MongoClient(uri, { serverSelectionTimeoutMS: 4000 });
+      await candidate.connect();
+      const db = candidate.db('lyka_realty');
+      await db.command({ ping: 1 }); // confirm the handle is actually usable
+      mongoClient = candidate;
+      mongoDb = db;
+      mongoStatus.connected = true;
+      mongoStatus.uriConfigured = true;
+      mongoStatus.error = null;
+      console.log('Successfully connected to MongoDB cluster for vector embedding persistence.');
+      return true;
+    } catch (err: any) {
+      if (candidate) await candidate.close().catch(() => {});
+      mongoStatus.connected = false;
+      mongoStatus.error = err?.message || 'Failed to connect to MongoDB cluster';
+      console.warn('MongoDB connection notice:', mongoStatus.error);
+      return false;
+    } finally {
+      mongoConnectAttempt = null;
+    }
+  })();
+
+  return mongoConnectAttempt;
+}
 
 // Gemini AI Client
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -219,6 +295,13 @@ app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
     mongoStatus.uriConfigured = true;
     mongoStatus.error = null;
 
+    // PDF/property embeddings were held in memory only while MongoDB was
+    // unreachable. Persist them now that we have a working handle.
+    syncPdfEmbeddingsToMongo()
+      .then(() => syncPropertyEmbeddingsToMongo())
+      .then(() => injectAgentDependencies())
+      .catch(e => console.warn('Post-connect embedding sync notice:', e?.message));
+
     const count = await testDb.collection('customer_embeddings').countDocuments();
 
     res.json({
@@ -315,9 +398,35 @@ let PDF_DOCUMENT_SECTIONS: Array<{
   text_content: string;
 }> = [];
 
+const PDF_CANONICAL_FILENAME = 'Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf';
+
+// Resolve the instructions PDF. Browsers often append " (1)", " (2)" etc. to
+// downloads, so fall back to a pattern match instead of failing silently.
+function resolvePdfPath(): string | null {
+  const dataDir = path.join(__dirname, 'src', 'data');
+  const canonical = path.join(dataDir, PDF_CANONICAL_FILENAME);
+  if (fs.existsSync(canonical)) return canonical;
+
+  let files: string[] = [];
+  try {
+    files = fs.readdirSync(dataDir);
+  } catch {
+    return null;
+  }
+  const match = files
+    .filter(f => f.toLowerCase().endsWith('.pdf'))
+    .filter(f => f.startsWith('Real_Estate_Lead_Qualification_Agent_Instructions_v2'))
+    .sort()[0];
+  return match ? path.join(dataDir, match) : null;
+}
+
 async function loadPdfSections() {
   try {
-    const pdfPath = path.join(__dirname, 'src', 'data', 'Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf');
+    const pdfPath = resolvePdfPath();
+    if (!pdfPath) {
+      console.warn(`[PDF] No instructions PDF found in ${path.join(__dirname, 'src', 'data')} — RAG knowledge base will be empty.`);
+      return;
+    }
     const dataBuffer = fs.readFileSync(pdfPath);
     let fullText = '';
     const PDFClass = pdf.PDFParse || pdf;
@@ -329,9 +438,18 @@ async function loadPdfSections() {
           fullText = res?.text || (typeof res === 'string' ? res : '');
         }
       } catch (e: any) {
-        const res = await (PDFClass as any)(dataBuffer);
-        fullText = res?.text || '';
+        console.warn(`[PDF] getText() failed (${e.message}), trying callable form...`);
       }
+      if (!fullText) {
+        try {
+          const res = await (PDFClass as any)(dataBuffer);
+          fullText = res?.text || '';
+        } catch (e: any) {
+          console.warn(`[PDF] callable parse form failed: ${e.message}`);
+        }
+      }
+    } else {
+      console.warn('[PDF] pdf-parse exposed no callable parser (neither PDFParse nor default export).');
     }
 
     if (fullText) {
@@ -345,9 +463,13 @@ async function loadPdfSections() {
           text_content: chunk.trim(),
         };
       });
-      console.log(`[PDF] Loaded ${PDF_DOCUMENT_SECTIONS.length} structured sections from Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf`);
+      console.log(`[PDF] Loaded ${PDF_DOCUMENT_SECTIONS.length} structured sections from ${path.basename(pdfPath)}`);
+    } else {
+      PDF_DOCUMENT_SECTIONS = [];
+      console.warn(`[PDF] Parsed ${path.basename(pdfPath)} but extracted 0 characters of text — RAG knowledge base will be empty.`);
     }
   } catch (err: any) {
+    PDF_DOCUMENT_SECTIONS = [];
     console.warn('Failed to load PDF file:', err.message);
   }
 }
@@ -398,9 +520,12 @@ async function syncPdfEmbeddingsToMongo() {
     // Save directly to MongoDB collection pdf_knowledge_embeddings
     if (mongoDb) {
       try {
+        // `_id` is immutable — including it in $set makes MongoDB reject the
+        // whole update, which previously failed silently on every re-sync.
+        const { _id: _ignoredId, ...updatable } = doc;
         await mongoDb.collection('pdf_knowledge_embeddings').updateOne(
           { section_number: sec.section_number },
-          { $set: doc },
+          { $set: updatable },
           { upsert: true }
         );
       } catch (err: any) {
@@ -408,7 +533,11 @@ async function syncPdfEmbeddingsToMongo() {
       }
     }
   }
-  console.log(`Successfully embedded and synced ${PDF_DOCUMENT_SECTIONS.length} PDF sections into MongoDB collection 'pdf_knowledge_embeddings'!`);
+  if (mongoDb) {
+    console.log(`[PDF] Embedded ${PDF_DOCUMENT_SECTIONS.length} sections and persisted them to MongoDB collection 'pdf_knowledge_embeddings'.`);
+  } else {
+    console.warn(`[PDF] Embedded ${PDF_DOCUMENT_SECTIONS.length} sections into the IN-MEMORY STORE ONLY — nothing was persisted to MongoDB (${mongoStatus.error || 'MongoDB not connected'}). This knowledge base is lost on restart.`);
+  }
 }
 
 // Seed all Property embeddings into MongoDB
@@ -451,9 +580,11 @@ async function syncPropertyEmbeddingsToMongo() {
 
     if (mongoDb) {
       try {
+        // `_id` is immutable — strip it before $set (see pdf sync above).
+        const { _id: _ignoredId, ...updatable } = doc;
         await mongoDb.collection('property_embeddings').updateOne(
           { property_id: prop.id },
-          { $set: doc },
+          { $set: updatable },
           { upsert: true }
         );
       } catch (err: any) {
@@ -461,28 +592,83 @@ async function syncPropertyEmbeddingsToMongo() {
       }
     }
   }
-  console.log(`[Properties] Successfully embedded and synced ${ALL_VERIFIED_PROPERTIES.length} properties into MongoDB collection 'property_embeddings'!`);
+  if (mongoDb) {
+    console.log(`[Properties] Embedded ${ALL_VERIFIED_PROPERTIES.length} properties and persisted them to MongoDB collection 'property_embeddings'.`);
+  } else {
+    console.warn(`[Properties] Embedded ${ALL_VERIFIED_PROPERTIES.length} properties into the IN-MEMORY STORE ONLY — nothing was persisted to MongoDB (${mongoStatus.error || 'MongoDB not connected'}).`);
+  }
 }
 
-// Initial sync call + inject LangGraph dependencies after embeddings load
-setTimeout(() => {
-  syncPdfEmbeddingsToMongo()
-    .then(() => syncPropertyEmbeddingsToMongo())
-    .then(() => {
-      injectDependencies({
-        groq,
-        gemini: ai,
-        pdfChunks: localPdfEmbeddingsStore.map(s => ({
-          title: s.title,
-          text_content: s.text_content,
-          vector: s.vector,
-        })),
-        properties: (ALL_VERIFIED_PROPERTIES || []) as any[],
-      });
-      console.log(`[LangGraph] Agent initialized with ${localPdfEmbeddingsStore.length} PDF chunks and ${(ALL_VERIFIED_PROPERTIES || []).length} properties.`);
-    })
-    .catch(e => console.warn('Sync notice:', e));
-}, 1000);
+// Boot sequence.
+//
+// This used to be `setTimeout(..., 1000)`, which raced the 4s Atlas connect
+// timeout: on a slow or DNS-blocked connection both syncs took the in-memory
+// path and nothing was ever written to MongoDB, with no retry and no error.
+async function waitForMongo(maxAttempts = 3): Promise<boolean> {
+  // A malformed URI can never succeed, so don't burn the retry budget on it.
+  const invalid = validateMongoUri(process.env.MONGODB_URI);
+  if (invalid) {
+    // Record it here — initMongo() is never reached, so /api/health would
+    // otherwise keep reporting the raw env check and a null error.
+    mongoStatus.uriConfigured = false;
+    mongoStatus.error = invalid;
+    console.warn('MongoDB not attempted —', invalid);
+    return false;
+  }
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (await initMongo()) return true;
+    if (attempt < maxAttempts) {
+      const backoffMs = attempt * 2000;
+      console.warn(`[Boot] MongoDB unavailable, retrying in ${backoffMs / 1000}s (attempt ${attempt}/${maxAttempts}).`);
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+    }
+  }
+  return false;
+}
+
+async function injectAgentDependencies() {
+  injectDependencies({
+    groq,
+    gemini: ai,
+    groqModel,
+    pdfChunks: localPdfEmbeddingsStore.map(s => ({
+      title: s.title,
+      text_content: s.text_content,
+      vector: s.vector,
+    })),
+    properties: (ALL_VERIFIED_PROPERTIES || []) as any[],
+  });
+}
+
+async function bootstrapAgent() {
+  // The property inventory is static in-memory data, so hand it to the agent
+  // straight away — otherwise /api/chat would search an empty list (and, with
+  // hard filters, answer "no match") for the whole MongoDB connect window.
+  injectDependencies({
+    groq,
+    gemini: ai,
+    groqModel,
+    pdfChunks: [],
+    properties: (ALL_VERIFIED_PROPERTIES || []) as any[],
+  });
+
+  const connected = await waitForMongo();
+  if (!connected) {
+    console.warn(`[Boot] Starting WITHOUT MongoDB. Embeddings will be held in memory only and lost on restart. Reason: ${mongoStatus.error || 'MONGODB_URI not configured'}`);
+  }
+
+  try {
+    await syncPdfEmbeddingsToMongo();
+    await syncPropertyEmbeddingsToMongo();
+  } catch (err: any) {
+    console.warn('[Boot] Embedding sync failed:', err?.message);
+  } finally {
+    await injectAgentDependencies();
+    console.log(`[LangGraph] Agent initialized with ${localPdfEmbeddingsStore.length} PDF chunks and ${(ALL_VERIFIED_PROPERTIES || []).length} properties (storage: ${mongoDb ? 'MongoDB' : 'IN-MEMORY ONLY'}).`);
+  }
+}
+
+bootstrapAgent();
 
 // Endpoint to retrieve stored PDF embeddings
 app.get('/api/embeddings/pdf-list', async (_req: Request, res: Response) => {
@@ -726,6 +912,12 @@ app.post('/api/chat', async (req: Request, res: Response) => {
         move_in_date: currentLead?.move_in_date || '',
         investment_goal: currentLead?.investment_goal || '',
         full_name: currentLead?.full_name || '',
+        mobile: currentLead?.phone || '',
+        email: currentLead?.email || '',
+        contact_declined: currentLead?.contact_declined || false,
+        contact_pending: currentLead?.contact_pending,
+        contact_recheck_asked: currentLead?.contact_recheck_asked || false,
+        unsure_slots: currentLead?.unsure_slots || [],
         is_nri: currentLead?.is_nri || false,
         target_city: currentLead?.target_city || '',
         requirement_completeness: currentLead?.requirement_completeness || 0,

@@ -66,18 +66,28 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
 
   const words = lower.replace(/[^\w\s]/gi, '').split(/\s+/);
 
+  // Fuzzy tolerance must scale with word length. A flat distance of 2 lets
+  // unrelated short words collide: lev("want","rent")=2 and
+  // lev("already","ready")=2. Short words get distance 1, long ones keep 2.
+  const toleranceFor = (phrase: string): number => (phrase.length <= 7 ? 1 : 2);
+
   // Helper to fuzzy match a list of phrases against the user's text
   const fuzzyIncludes = (phrases: string[], maxDistance = 2): boolean => {
     for (const phrase of phrases) {
       const pWords = phrase.split(' ');
+      const tol = Math.min(maxDistance, toleranceFor(phrase));
       if (pWords.length === 1 && phrase.length > 3) {
-        if (words.some(w => w.length > 3 && levenshtein(w, phrase) <= maxDistance)) return true;
+        // Require a shared first letter so that same-length words which merely
+        // look alike never match ("invest" vs "divest", "want" vs "rent").
+        if (words.some(w => w.length > 3 && w[0] === phrase[0] && levenshtein(w, phrase) <= tol)) return true;
       } else if (pWords.length > 1) {
         for (let i = 0; i <= words.length - pWords.length; i++) {
           let matchCount = 0;
           for (let j = 0; j < pWords.length; j++) {
-            if (words[i+j].length > 3 && levenshtein(words[i+j], pWords[j]) <= maxDistance) matchCount++;
-            else if (words[i+j] === pWords[j]) matchCount++;
+            const pWord = pWords[j];
+            const wordTol = Math.min(maxDistance, toleranceFor(pWord));
+            if (words[i+j].length > 3 && words[i+j][0] === pWord[0] && levenshtein(words[i+j], pWord) <= wordTol) matchCount++;
+            else if (words[i+j] === pWord) matchCount++;
           }
           if (matchCount === pWords.length) return true;
         }
@@ -95,6 +105,8 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   const rentKeywords = ['rent', 'lease', 'tenant', 'monthly', 'renting', 'looking to rent', 'want to rent', 'short-term rental', 'furnished rental', 'holiday let'];
   const otherKeywords = ['partner', 'collaboration', 'media', 'press', 'journalist', 'blogger', 'influencer', 'agent', 'broker', 'developer', 'supplier', 'service provider', 'contractor', 'maintenance', 'property management'];
 
+  // Order matters: an explicit Buy signal must be tested before Rent, otherwise
+  // incidental words shared with rentKeywords ("monthly") steal the match.
   if (fuzzyIncludes(sellKeywords)) {
     extracted.intent = 'Sell';
     extracted.customer_type = 'Seller';
@@ -102,14 +114,14 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     extracted.intent = 'Invest';
     extracted.purpose = 'Investment';
     extracted.customer_type = 'Investor';
-  } else if (fuzzyIncludes(rentKeywords)) {
-    extracted.intent = 'Rent';
-    extracted.customer_type = 'Tenant/Renter';
   } else if (fuzzyIncludes(buyKeywords)) {
     extracted.intent = 'Buy';
     if (!currentLead.customer_type || currentLead.customer_type === 'Tenant/Renter') {
       extracted.customer_type = 'First-time buyer';
     }
+  } else if (fuzzyIncludes(rentKeywords)) {
+    extracted.intent = 'Rent';
+    extracted.customer_type = 'Tenant/Renter';
   } else if (fuzzyIncludes(otherKeywords)) {
     extracted.customer_type = 'Other stakeholder';
   }

@@ -317,6 +317,28 @@ export default function App() {
             if (serverUpdates.budget_max) mergedLead.budget_max = serverUpdates.budget_max;
             if (serverUpdates.rental_budget) mergedLead.rental_budget = serverUpdates.rental_budget;
             if (serverUpdates.property_type && !mergedLead.property_type) mergedLead.property_type = serverUpdates.property_type;
+            // Slots filled by the agent's regex/LLM extraction fallback — only
+            // fill empties so the browser extractor keeps priority.
+            for (const k of ['bedrooms', 'ready_or_offplan', 'financing', 'timeline',
+                             'furnishing', 'move_in_date', 'investment_goal', 'budget_max', 'rental_budget'] as const) {
+              const v = (serverUpdates as any)[k];
+              if (v !== undefined && v !== null && v !== '' && !(mergedLead as any)[k]) {
+                (mergedLead as any)[k] = v;
+              }
+            }
+            if (serverUpdates.preferred_communities?.length && !mergedLead.preferred_communities?.length) {
+              mergedLead.preferred_communities = serverUpdates.preferred_communities;
+            }
+            // Contact details collected by the agent (PDF Section 8 Step 6)
+            if (serverUpdates.full_name) mergedLead.full_name = serverUpdates.full_name;
+            if (serverUpdates.mobile) mergedLead.phone = serverUpdates.mobile;
+            if (serverUpdates.email) mergedLead.email = serverUpdates.email;
+            if (serverUpdates.contact_declined !== undefined) mergedLead.contact_declined = serverUpdates.contact_declined;
+            // Carry the re-ask state so "ask at most once" survives the next turn
+            if (serverUpdates.contact_pending) mergedLead.contact_pending = serverUpdates.contact_pending;
+            if (serverUpdates.contact_recheck_asked) mergedLead.contact_recheck_asked = serverUpdates.contact_recheck_asked;
+            // Slots the agent marked unsure — persist so they are never re-asked
+            if (serverUpdates.unsure_slots) mergedLead.unsure_slots = serverUpdates.unsure_slots;
           }
         }
       } catch (err) {

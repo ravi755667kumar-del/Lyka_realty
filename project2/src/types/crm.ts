@@ -100,6 +100,17 @@ export interface LeadProfile {
   engagement_level: 'Low' | 'Medium' | 'High';
   human_handoff_required: boolean;
   handoff_reason?: string;
+  /** Set when the prospect declines to share contact details (PDF Section 5.3). */
+  contact_declined?: boolean;
+  /** Which contact slot the agent asked for last, used to detect unusable replies. */
+  contact_pending?: 'name' | 'mobile' | 'email';
+  contact_recheck_asked?: boolean;
+  /**
+   * Qualification slots the prospect could not answer ("not sure", "open to
+   * suggestions"). Per PDF Section 5.3 these are marked unsure, never re-asked,
+   * and excluded from property filters.
+   */
+  unsure_slots?: string[];
   assigned_agent: string;
   next_action: string;
   follow_up_date: string | null;
