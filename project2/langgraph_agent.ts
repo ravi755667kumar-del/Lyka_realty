@@ -395,8 +395,15 @@ async function nodeQualifySell(state: AgentState): Promise<Partial<AgentState>> 
     question = `Of course! Could you tell me which community your property is located in? For example, Dubai Marina, Downtown, Palm Jumeirah, or Business Bay?`;
   } else if (!p.property_type) {
     question = `What type of property is it — an apartment, villa, townhouse, or penthouse?`;
-  } else {
+  } else if (!p.budget_max && !(p as any).asking_price) {
     question = `Do you have a target asking price in mind, or would you like a **free market valuation** from our certified Lyka Realty valuers? We can arrange that at no cost to you.`;
+  } else {
+    // All sell info collected - trigger human handoff
+    const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
+The customer has finished providing details to SELL their property: ${p.property_type} in ${p.preferred_communities[0]}, target price around AED ${(p.budget_max || (p as any).asking_price || 0).toLocaleString()}.
+Acknowledge this warmly, and state that you will connect them with a Lyka Realty valuation expert immediately to proceed. Do not ask any more questions.`;
+    const finalReply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || `Thank you for sharing those details. I've noted that you're looking to sell your property. I will connect you with a Lyka Realty valuation expert immediately to discuss the next steps!`;
+    return { reply: finalReply, provider: 'LangGraph → Sell Complete', currentNode: 'present_results', isComplete: true, ragContext: ragCtx };
   }
 
   const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.

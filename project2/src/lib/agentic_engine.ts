@@ -43,40 +43,79 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   const lower = text.toLowerCase();
   const extracted: Partial<LeadProfile> = {};
 
-  // Intent detection - detect role first per PDF with more robust matching
+  // Helper function for fuzzy string matching (Levenshtein distance)
+  const levenshtein = (a: string, b: string): number => {
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1,     // insertion
+            matrix[i - 1][j] + 1      // deletion
+          );
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  };
+
+  const words = lower.replace(/[^\w\s]/gi, '').split(/\s+/);
+
+  // Helper to fuzzy match a list of phrases against the user's text
+  const fuzzyIncludes = (phrases: string[], maxDistance = 2): boolean => {
+    for (const phrase of phrases) {
+      const pWords = phrase.split(' ');
+      if (pWords.length === 1 && phrase.length > 3) {
+        if (words.some(w => w.length > 3 && levenshtein(w, phrase) <= maxDistance)) return true;
+      } else if (pWords.length > 1) {
+        for (let i = 0; i <= words.length - pWords.length; i++) {
+          let matchCount = 0;
+          for (let j = 0; j < pWords.length; j++) {
+            if (words[i+j].length > 3 && levenshtein(words[i+j], pWords[j]) <= maxDistance) matchCount++;
+            else if (words[i+j] === pWords[j]) matchCount++;
+          }
+          if (matchCount === pWords.length) return true;
+        }
+      } else {
+        if (lower.includes(phrase)) return true; // fallback for short words
+      }
+    }
+    return false;
+  };
+
+  // Intent detection - now fully fuzzy matched
   const investKeywords = ['invest', 'investment', 'roi', 'yield', 'capital appreciation', 'buy and hold', 'rental income', 'passive income', 'golden visa', 'flip', 'flipping', 'developer project', 'off-plan'];
   const sellKeywords = ['sell', 'selling', 'list my property', 'list property', 'put on market', 'dispose', 'divest', 'estate sale', 'need to sell', 'want to sell'];
   const buyKeywords = ['buy', 'purchase', 'acquire', 'shopping for', 'looking to buy', 'want to buy', 'need to buy', 'first home', 'first-time buyer', 'end user', 'end-user', 'primary residence', 'vacation home', 'second home'];
   const rentKeywords = ['rent', 'lease', 'tenant', 'monthly', 'renting', 'looking to rent', 'want to rent', 'short-term rental', 'furnished rental', 'holiday let'];
   const otherKeywords = ['partner', 'collaboration', 'media', 'press', 'journalist', 'blogger', 'influencer', 'agent', 'broker', 'developer', 'supplier', 'service provider', 'contractor', 'maintenance', 'property management'];
 
-  const hasInvest = investKeywords.some(kw => lower.includes(kw));
-  const hasSell = sellKeywords.some(kw => lower.includes(kw));
-  const hasBuy = buyKeywords.some(kw => lower.includes(kw));
-  const hasRent = rentKeywords.some(kw => lower.includes(kw));
-  const hasOther = otherKeywords.some(kw => lower.includes(kw));
-
-  if (hasSell) {
+  if (fuzzyIncludes(sellKeywords)) {
     extracted.intent = 'Sell';
     extracted.customer_type = 'Seller';
-  } else if (hasInvest) {
+  } else if (fuzzyIncludes(investKeywords)) {
     extracted.intent = 'Invest';
     extracted.purpose = 'Investment';
     extracted.customer_type = 'Investor';
-  } else if (hasRent) {
+  } else if (fuzzyIncludes(rentKeywords)) {
     extracted.intent = 'Rent';
     extracted.customer_type = 'Tenant/Renter';
-  } else if (hasBuy) {
+  } else if (fuzzyIncludes(buyKeywords)) {
     extracted.intent = 'Buy';
     if (!currentLead.customer_type || currentLead.customer_type === 'Tenant/Renter') {
       extracted.customer_type = 'First-time buyer';
     }
-  } else if (hasOther) {
+  } else if (fuzzyIncludes(otherKeywords)) {
     extracted.customer_type = 'Other stakeholder';
   }
 
   // Seller specific fields
-  if (lower.includes('asking price') || lower.includes('ask price') || lower.includes('selling for')) {
+  if (fuzzyIncludes(['asking price', 'ask price', 'selling for'])) {
     const priceMatch = text.match(/(?:asking price|ask price|selling for)\s*(?:aed|inr|rs|₹)?\s*([1-9]\d{5,8})/i);
     if (priceMatch && priceMatch[1]) {
       extracted.asking_price = parseInt(priceMatch[1], 10);
@@ -84,37 +123,37 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   }
 
   // Current situation / motivation detection
-  if (lower.includes('relocating') || lower.includes('moving abroad') || lower.includes('downsizing') || lower.includes('upgrading') || lower.includes('change of plans')) {
-    extracted.current_situation = lower.includes('relocating') ? 'Relocating' 
-      : lower.includes('moving abroad') ? 'Moving abroad'
-      : lower.includes('downsizing') ? 'Downsizing'
-      : lower.includes('upgrading') ? 'Upgrading'
+  if (fuzzyIncludes(['relocating', 'moving abroad', 'downsizing', 'upgrading', 'change of plans'])) {
+    extracted.current_situation = fuzzyIncludes(['relocating']) ? 'Relocating' 
+      : fuzzyIncludes(['moving abroad']) ? 'Moving abroad'
+      : fuzzyIncludes(['downsizing']) ? 'Downsizing'
+      : fuzzyIncludes(['upgrading']) ? 'Upgrading'
       : 'Change of plans';
   }
 
-  if (lower.includes('quick sale') || lower.includes('fast sale') || lower.includes('need to sell fast')) {
+  if (fuzzyIncludes(['quick sale', 'fast sale', 'need to sell fast'])) {
     extracted.motivation = 'Quick sale needed';
-  } else if (lower.includes('max return') || lower.includes('maximum return') || lower.includes('best price') || lower.includes('highest price')) {
+  } else if (fuzzyIncludes(['max return', 'maximum return', 'best price', 'highest price'])) {
     extracted.motivation = 'Maximize return';
-  } else if (lower.includes('estate clearance') || lower.includes('family decision') || lower.includes('inherited')) {
+  } else if (fuzzyIncludes(['estate clearance', 'family decision', 'inherited'])) {
     extracted.motivation = 'Estate/inherited property';
   }
 
   // Other stakeholder fields
-  if (lower.includes('inquiry') || lower.includes('question') || lower.includes('interested in')) {
+  if (fuzzyIncludes(['inquiry', 'question', 'interested in'])) {
     extracted.inquiry_reason = text;
   }
 
-  if (lower.includes('help with') || lower.includes('looking to') || lower.includes('need help')) {
+  if (fuzzyIncludes(['help with', 'looking to', 'need help'])) {
     extracted.how_can_help = text;
   }
 
   // Investor experience level
-  if (lower.includes('first time investor') || lower.includes('beginner investor') || lower.includes('new to investing')) {
+  if (fuzzyIncludes(['first time investor', 'beginner investor', 'new to investing'])) {
     extracted.experience_level = 'Beginner';
-  } else if (lower.includes('experienced investor') || lower.includes('seasoned investor') || lower.includes('multiple properties')) {
+  } else if (fuzzyIncludes(['experienced investor', 'seasoned investor', 'multiple properties'])) {
     extracted.experience_level = 'Experienced';
-  } else if (lower.includes('professional investor') || lower.includes('portfolio') || lower.includes('institutional')) {
+  } else if (fuzzyIncludes(['professional investor', 'portfolio', 'institutional'])) {
     extracted.experience_level = 'Professional';
   }
 
@@ -182,12 +221,46 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   let hasDubai = false;
 
   for (const [kw, info] of Object.entries(communityKeywords)) {
+    // 1. Strict match for multi-word communities (e.g. "business bay")
     if (lower.includes(kw)) {
-      if (!detectedCommunities.includes(info.name)) {
-        detectedCommunities.push(info.name);
-      }
+      if (!detectedCommunities.includes(info.name)) detectedCommunities.push(info.name);
       if (info.city === 'Mumbai') hasMumbai = true;
       if (info.city === 'Dubai') hasDubai = true;
+      continue;
+    }
+
+    // 2. Fuzzy match for typos
+    const kwWords = kw.split(' ');
+    
+    // Single word keyword fuzzy match (e.g. 'marina', 'juhu')
+    if (kwWords.length === 1 && kw.length > 3) {
+      for (const word of words) {
+        if (word.length > 3 && levenshtein(word, kw) <= 2) { 
+          if (!detectedCommunities.includes(info.name)) detectedCommunities.push(info.name);
+          if (info.city === 'Mumbai') hasMumbai = true;
+          if (info.city === 'Dubai') hasDubai = true;
+          break;
+        }
+      }
+    } 
+    // Multi-word keyword fuzzy match (e.g. 'business bay')
+    else if (kwWords.length > 1) {
+      for (let i = 0; i <= words.length - kwWords.length; i++) {
+        let matchCount = 0;
+        for (let j = 0; j < kwWords.length; j++) {
+          if (words[i+j].length > 3 && levenshtein(words[i+j], kwWords[j]) <= 2) {
+            matchCount++;
+          } else if (words[i+j] === kwWords[j]) {
+            matchCount++;
+          }
+        }
+        if (matchCount === kwWords.length) {
+          if (!detectedCommunities.includes(info.name)) detectedCommunities.push(info.name);
+          if (info.city === 'Mumbai') hasMumbai = true;
+          if (info.city === 'Dubai') hasDubai = true;
+          break;
+        }
+      }
     }
   }
 
@@ -269,82 +342,96 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     'warehouse': 'Commercial / Office',
   };
   for (const [kw, type] of Object.entries(propTypeMap)) {
-    if (lower.includes(kw)) {
+    if (fuzzyIncludes([kw])) {
       extracted.property_type = type;
       break;
     }
   }
 
   // Bedrooms
-  if (lower.includes('studio')) {
+  if (fuzzyIncludes(['studio'])) {
     extracted.bedrooms = 'Studio';
   } else {
     const bedMatch = text.match(/(\d+)\s*(?:br|bed|bedroom|bhk|beds|bedrooms)/i);
     if (bedMatch && bedMatch[1]) {
       extracted.bedrooms = bedMatch[1];
-    } else if (lower.includes('one bed') || lower.includes('1 bed') || lower.includes('single bedroom')) {
+    } else if (fuzzyIncludes(['one bed', '1 bed', 'single bedroom'])) {
       extracted.bedrooms = '1';
-    } else if (lower.includes('two bed') || lower.includes('2 bed') || lower.includes('two bedroom')) {
+    } else if (fuzzyIncludes(['two bed', '2 bed', 'two bedroom'])) {
       extracted.bedrooms = '2';
-    } else if (lower.includes('three bed') || lower.includes('3 bed') || lower.includes('three bedroom')) {
+    } else if (fuzzyIncludes(['three bed', '3 bed', 'three bedroom'])) {
       extracted.bedrooms = '3';
-    } else if (lower.includes('four bed') || lower.includes('4 bed') || lower.includes('four bedroom')) {
+    } else if (fuzzyIncludes(['four bed', '4 bed', 'four bedroom'])) {
       extracted.bedrooms = '4';
     }
   }
 
   // Ready vs Off-plan
-  if (lower.includes('off-plan') || lower.includes('offplan') || lower.includes('off plan') || lower.includes('under construction') || lower.includes('payment plan') || lower.includes('developer') || lower.includes('launch')) {
+  if (fuzzyIncludes(['off-plan', 'offplan', 'off plan', 'under construction', 'payment plan', 'developer', 'launch'])) {
     extracted.ready_or_offplan = 'Off-plan';
-  } else if (lower.includes('ready') || lower.includes('immediate move') || lower.includes('vacant') || lower.includes('ready to move') || lower.includes('move-in ready') || lower.includes('completed') || lower.includes('handover')) {
+  } else if (fuzzyIncludes(['ready', 'immediate move', 'vacant', 'ready to move', 'move-in ready', 'completed', 'handover'])) {
     extracted.ready_or_offplan = 'Ready';
   }
 
   // Purpose
-  if (lower.includes('own use') || lower.includes('myself') || lower.includes('family') || lower.includes('relocating') || lower.includes('primary home') || lower.includes('primary residence') || lower.includes('living in')) {
+  if (fuzzyIncludes(['own use', 'myself', 'family', 'relocating', 'primary home', 'primary residence', 'living in'])) {
     extracted.purpose = 'Own use';
-  } else if (lower.includes('investment') || lower.includes('rental income') || lower.includes('high roi') || lower.includes('capital growth') || lower.includes('rental yield') || lower.includes('for rent') || lower.includes('to let')) {
+  } else if (fuzzyIncludes(['investment', 'rental income', 'high roi', 'capital growth', 'rental yield', 'for rent', 'to let'])) {
     extracted.purpose = 'Investment';
   }
 
   // Financing
-  if (lower.includes('mortgage') || lower.includes('bank loan') || lower.includes('financing') || lower.includes('finance') || lower.includes('home loan') || lower.includes('property loan')) {
+  if (fuzzyIncludes(['mortgage', 'bank loan', 'financing', 'finance', 'home loan', 'property loan'])) {
     extracted.financing = 'Mortgage';
-  } else if (lower.includes('cash') || lower.includes('ready funds') || lower.includes('cash buyer') || lower.includes('cash purchase') || lower.includes('no loan')) {
+  } else if (fuzzyIncludes(['cash', 'ready funds', 'cash buyer', 'cash purchase', 'no loan'])) {
     extracted.financing = 'Cash';
   }
 
-  // Timeline
-  if (lower.includes('immediately') || lower.includes('asap') || lower.includes('this month') || lower.includes('urgent')) {
+  // Timeline & Move-in date
+  if (fuzzyIncludes(['immediately', 'asap', 'this month', 'urgent', 'right now'])) {
     extracted.timeline = 'Immediate (within 1 month)';
-  } else if (lower.includes('1-3 months') || lower.includes('couple of months')) {
+    extracted.move_in_date = 'Immediate';
+  } else if (fuzzyIncludes(['1-3 months', 'couple of months', 'next month'])) {
     extracted.timeline = '1-3 months';
-  } else if (lower.includes('end of year') || lower.includes('next year') || lower.includes('6 months')) {
+    extracted.move_in_date = '1-3 months';
+  } else if (fuzzyIncludes(['end of year', 'next year', '6 months'])) {
     extracted.timeline = '3-6 months';
+    extracted.move_in_date = '3-6 months';
+  }
+
+  // Investment Goal
+  if (fuzzyIncludes(['yield', 'rental yield', 'cash flow', 'steady income', 'monthly income', 'rent it out'])) {
+    extracted.investment_goal = 'Rental Yield';
+  } else if (fuzzyIncludes(['capital appreciation', 'capital growth', 'value growth', 'sell later', 'flip', 'flipping'])) {
+    extracted.investment_goal = 'Capital Appreciation';
+  } else if (fuzzyIncludes(['balance', 'both', 'yield and growth', 'yield and appreciation'])) {
+    extracted.investment_goal = 'Balance of Both';
   }
 
   // Renter specific
-  if (lower.includes('furnished') && !lower.includes('unfurnished')) {
+  if (fuzzyIncludes(['furnished']) && !fuzzyIncludes(['unfurnished'])) {
     extracted.furnishing = 'Furnished';
-  } else if (lower.includes('unfurnished')) {
+  } else if (fuzzyIncludes(['unfurnished'])) {
     extracted.furnishing = 'Unfurnished';
   }
 
   // Human handoff detection
   if (
-    lower.includes('human') || 
-    lower.includes('talk to an agent') || 
-    lower.includes('real person') || 
-    lower.includes('call me') || 
-    lower.includes('schedule a viewing') || 
-    lower.includes('book viewing') || 
-    lower.includes('negotiate') || 
-    lower.includes('offer price')
+    fuzzyIncludes([
+      'human',
+      'talk to an agent',
+      'real person',
+      'call me',
+      'schedule a viewing',
+      'book viewing',
+      'negotiate',
+      'offer price'
+    ])
   ) {
     extracted.human_handoff_required = true;
-    extracted.handoff_reason = lower.includes('viewing') 
+    extracted.handoff_reason = fuzzyIncludes(['viewing', 'schedule a viewing', 'book viewing']) 
       ? 'Customer requested to schedule in-person viewing' 
-      : lower.includes('negotiate')
+      : fuzzyIncludes(['negotiate', 'offer price'])
       ? 'Customer requested price negotiation guidance'
       : 'Customer requested human Lyka Realty agent handoff';
   }
@@ -463,9 +550,11 @@ export function findMatchingProperties(lead: LeadProfile): PropertyListing[] {
     return true;
   });
 
-  // If strict filtering yields zero matches, return closest top 3 listings to ensure customer is helped
+  // If strict filtering yields zero matches, return empty array so LangGraph knows to offer human agent handoff
   if (matched.length === 0) {
-    matched = dataset.slice(0, 3);
+    // Optionally trigger human handoff flag on the lead itself so UI updates
+    lead.human_handoff_required = true;
+    lead.handoff_reason = 'No exact property matches found in inventory for the requested location/criteria.';
   }
 
   return matched;

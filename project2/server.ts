@@ -411,9 +411,63 @@ async function syncPdfEmbeddingsToMongo() {
   console.log(`Successfully embedded and synced ${PDF_DOCUMENT_SECTIONS.length} PDF sections into MongoDB collection 'pdf_knowledge_embeddings'!`);
 }
 
+// Seed all Property embeddings into MongoDB
+async function syncPropertyEmbeddingsToMongo() {
+  if (ALL_VERIFIED_PROPERTIES.length === 0) return;
+
+  if (mongoDb) {
+    try {
+      const existingDocs = await mongoDb.collection('property_embeddings').countDocuments();
+      if (existingDocs >= ALL_VERIFIED_PROPERTIES.length) {
+        console.log(`[Properties] Found ${existingDocs} properties already embedded in MongoDB. Skipping re-conversion.`);
+        return;
+      }
+    } catch (err: any) {
+      console.warn('Could not check existing property embeddings:', err.message);
+    }
+  }
+
+  console.log(`[Properties] Ingesting ${ALL_VERIFIED_PROPERTIES.length} properties into numerical vectors...`);
+  for (const prop of ALL_VERIFIED_PROPERTIES as any[]) {
+    const textContent = `${prop.title}. ${prop.property_type} in ${prop.community}, ${prop.city || 'Dubai'}. ${prop.bedrooms} Bedrooms. Price: AED ${prop.price_aed}. Status: ${prop.status}. Amenities: ${(prop.amenities || []).join(', ')}. ${prop.description || ''}`;
+    const { vector, model, dimensions } = await getEmbeddingVector(textContent);
+    
+    const doc = {
+      _id: `PROP-${prop.id}`,
+      property_id: prop.id,
+      title: prop.title,
+      community: prop.community,
+      city: prop.city || 'Dubai',
+      price_aed: prop.price_aed,
+      text_content: textContent,
+      vector,
+      dimensions,
+      model,
+      storage: mongoDb ? 'MongoDB' : 'LocalStore',
+      createdAt: new Date().toISOString()
+    };
+
+    localPropertyEmbeddingsStore.push(doc);
+
+    if (mongoDb) {
+      try {
+        await mongoDb.collection('property_embeddings').updateOne(
+          { property_id: prop.id },
+          { $set: doc },
+          { upsert: true }
+        );
+      } catch (err: any) {
+        console.warn('MongoDB property embedding sync notice:', err.message);
+      }
+    }
+  }
+  console.log(`[Properties] Successfully embedded and synced ${ALL_VERIFIED_PROPERTIES.length} properties into MongoDB collection 'property_embeddings'!`);
+}
+
 // Initial sync call + inject LangGraph dependencies after embeddings load
 setTimeout(() => {
   syncPdfEmbeddingsToMongo()
+    .then(() => syncPropertyEmbeddingsToMongo())
     .then(() => {
       injectDependencies({
         groq,
@@ -427,7 +481,7 @@ setTimeout(() => {
       });
       console.log(`[LangGraph] Agent initialized with ${localPdfEmbeddingsStore.length} PDF chunks and ${(ALL_VERIFIED_PROPERTIES || []).length} properties.`);
     })
-    .catch(e => console.warn('PDF sync notice:', e));
+    .catch(e => console.warn('Sync notice:', e));
 }, 1000);
 
 // Endpoint to retrieve stored PDF embeddings
