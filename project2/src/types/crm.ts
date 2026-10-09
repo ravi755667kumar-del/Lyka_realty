@@ -41,6 +41,7 @@ export type LeadPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export interface LeadProfile {
   id: string;
+  user_id?: string;
   full_name: string;
   phone: string;
   email: string;

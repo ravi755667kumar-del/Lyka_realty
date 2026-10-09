@@ -40,10 +40,21 @@ import {
   UserCircle,
   ChevronLeft,
   ChevronRight,
-  Search
+  Search,
+  LogOut,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
-import { auth, saveUserLoginToFirestore } from '../lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { 
+  auth, 
+  saveUserLoginToFirestore, 
+  deleteUserLoginFromFirestore,
+  getUserLeadsFromFirestore,
+  getMessagesForLead,
+  deleteLeadFromFirestore,
+  deleteMessagesForLead
+} from '../lib/firebase';
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 interface SavedSession {
   id: string;
@@ -51,6 +62,8 @@ interface SavedSession {
   preview: string;
   timestamp: string;
   messageCount: number;
+  leadProfile: LeadProfile;
+  messages: ChatMessage[];
 }
 
 interface AgenticChatProps {
@@ -64,6 +77,9 @@ interface AgenticChatProps {
   sidebarOpen: boolean;
   onUpdateLead?: (updates: Partial<LeadProfile>) => void;
   onStartNewChat: () => void;
+  onAuthChange?: (userId: string | null) => void;
+  onLoadChat?: (lead: LeadProfile, msgs: ChatMessage[]) => void;
+  onDeleteChat?: (leadId: string) => void;
 }
 
 export const AgenticChat: React.FC<AgenticChatProps> = ({
@@ -76,7 +92,10 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   onToggleSidebar,
   sidebarOpen,
   onUpdateLead,
-  onStartNewChat
+  onStartNewChat,
+  onAuthChange,
+  onLoadChat,
+  onDeleteChat
 }) => {
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -100,36 +119,16 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [userName, setUserName] = useState('');
   const [userFullName, setUserFullName] = useState('');
   const [userAge, setUserAge] = useState('');
+  const [userId, setUserId] = useState('');
+  const [authProviderName, setAuthProviderName] = useState<'Google' | 'Email' | ''>('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
 
-  // Saved sessions (mock data + real sessions derived from messages)
-  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([
-    {
-      id: 'SES-001',
-      title: 'Dubai Marina Inquiry',
-      preview: 'Looking for 2BR apartment near waterfront...',
-      timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-      messageCount: 8
-    },
-    {
-      id: 'SES-002',
-      title: 'Business Bay Investment',
-      preview: 'High ROI off-plan with flexible payment plan...',
-      timestamp: new Date(Date.now() - 3600000 * 24).toISOString(),
-      messageCount: 12
-    },
-    {
-      id: 'SES-003',
-      title: 'Downtown Dubai Villa',
-      preview: 'Family relocation, 4BR villa with pool...',
-      timestamp: new Date(Date.now() - 3600000 * 48).toISOString(),
-      messageCount: 6
-    }
-  ]);
+  const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('current');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -150,27 +149,72 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     }
   }, [inputText]);
 
-  // Save current session when messages grow
   useEffect(() => {
-    if (messages.length >= 3) {
-      const firstUserMsg = messages.find(m => m.role === 'user');
-      if (firstUserMsg) {
-        const sessionTitle = firstUserMsg.content.slice(0, 40) + (firstUserMsg.content.length > 40 ? '...' : '');
-        setSavedSessions(prev => {
-          const exists = prev.find(s => s.id === 'current');
-          const session: SavedSession = {
-            id: 'current',
-            title: sessionTitle,
-            preview: messages[messages.length - 1]?.content?.slice(0, 60) + '...',
-            timestamp: new Date().toISOString(),
-            messageCount: messages.length
-          };
-          if (exists) return prev.map(s => s.id === 'current' ? session : s);
-          return [session, ...prev];
-        });
+    async function loadSessions() {
+      if (userLoggedIn && userId) {
+        try {
+          const leads = await getUserLeadsFromFirestore(userId);
+          const sessions: SavedSession[] = [];
+          for (const lead of leads) {
+            const msgs = await getMessagesForLead(lead.id);
+            if (msgs.length > 0) {
+              sessions.push({
+                id: lead.id,
+                title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+                preview: msgs[msgs.length - 1].content.substring(0, 60) + '...',
+                timestamp: lead.updatedAt || msgs[msgs.length - 1].timestamp,
+                messageCount: msgs.length,
+                leadProfile: lead,
+                messages: msgs
+              });
+            }
+          }
+          setSavedSessions(sessions);
+        } catch (error) {
+          console.warn('Failed to load chat sessions', error);
+        }
+      } else {
+        try {
+          const localLeadsStr = localStorage.getItem('localLeads');
+          const localMsgsStr = localStorage.getItem('localInteractions');
+          if (localLeadsStr && localMsgsStr) {
+            const leads: LeadProfile[] = JSON.parse(localLeadsStr);
+            const allMsgs: ChatMessage[] = JSON.parse(localMsgsStr);
+            const sessions: SavedSession[] = [];
+            
+            for (const lead of leads) {
+              const msgs = allMsgs.filter(m => m.lead_id === lead.id).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+              if (msgs.length > 0) {
+                sessions.push({
+                  id: lead.id,
+                  title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+                  preview: msgs[msgs.length - 1].content.substring(0, 60) + '...',
+                  timestamp: lead.updatedAt || msgs[msgs.length - 1].timestamp,
+                  messageCount: msgs.length,
+                  leadProfile: lead,
+                  messages: msgs
+                });
+              }
+            }
+            // Sort sessions by timestamp descending
+            sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            setSavedSessions(sessions);
+          } else {
+            setSavedSessions([]);
+          }
+        } catch (e) {
+          console.warn('Failed to parse local sessions', e);
+          setSavedSessions([]);
+        }
       }
     }
-  }, [messages]);
+    loadSessions();
+  }, [userLoggedIn, userId, messages.length]); // Refresh if message length changes to reflect new messages
+
+  // Set active session id
+  useEffect(() => {
+    setActiveSessionId(currentLead.id);
+  }, [currentLead.id]);
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -250,6 +294,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       const result = await signInWithPopup(auth, provider);
       setUserName(result.user.displayName || 'Customer');
       setUserEmail(result.user.email || '');
+      setUserId(result.user.uid);
+      setAuthProviderName('Google');
       setUserLoggedIn(true);
       setShowAuthModal(false);
       
@@ -263,13 +309,19 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       
       if (onUpdateLead) {
         onUpdateLead({
-          id: result.user.uid,
+          user_id: result.user.uid,
           full_name: result.user.displayName || undefined,
           email: result.user.email || undefined
         });
       }
+      if (onAuthChange) onAuthChange(result.user.uid);
     } catch (error: any) {
-      setAuthError(error.message);
+      if (error?.code === 'auth/unauthorized-domain') {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
+        setAuthError(`Domain "${currentHost}" is not authorized in Firebase. Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
+      } else {
+        setAuthError(error.message);
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -324,6 +376,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       
       setUserLoggedIn(true);
       setUserName(finalUserName);
+      setUserId(userId);
+      setAuthProviderName('Email');
       setShowAuthModal(false);
       
       // Save to user-login collection (Password is NEVER stored here!)
@@ -337,11 +391,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       
       if (onUpdateLead) {
         onUpdateLead({
-          id: userId,
+          user_id: userId,
           full_name: finalUserName,
           email: userEmail
         });
       }
+      if (onAuthChange) onAuthChange(userId);
     } catch (error: any) {
       // Handle standard Firebase errors gracefully
       if (error.code === 'auth/email-already-in-use') {
@@ -351,6 +406,60 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       } else {
         setAuthError(error.message);
       }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('Sign out notice:', e);
+    }
+    setUserLoggedIn(false);
+    setUserEmail('');
+    setUserPassword('');
+    setUserName('');
+    setUserFullName('');
+    setUserAge('');
+    setUserId('');
+    setAuthProviderName('');
+    setDeleteConfirm(false);
+    setShowAuthModal(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const targetId = userId || auth.currentUser?.uid;
+      // 1. Delete user record from Firestore user-login collection
+      if (targetId) {
+        await deleteUserLoginFromFirestore(targetId);
+      }
+      // 2. Delete user authentication from Firebase Auth if currently logged in
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          await currentUser.delete();
+        } catch (authErr: any) {
+          console.warn('Firebase user delete note:', authErr);
+        }
+      }
+      // 3. Clear all active session state
+      setUserLoggedIn(false);
+      setUserEmail('');
+      setUserPassword('');
+      setUserName('');
+      setUserFullName('');
+      setUserAge('');
+      setUserId('');
+      setAuthProviderName('');
+      setDeleteConfirm(false);
+      setShowAuthModal(false);
+    } catch (err: any) {
+      setAuthError('Error deleting user: ' + err.message);
     } finally {
       setAuthLoading(false);
     }
@@ -427,11 +536,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           /* Collapsed icon rail */
           <div className="flex flex-col items-center py-4 space-y-3">
             <button
-              onClick={() => setLeftPanelCollapsed(false)}
-              className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-[#f3ede0] transition-colors"
+              onClick={() => { setLeftPanelCollapsed(false); setShowAuthModal(true); }}
+              className="p-2 rounded-lg text-amber-850 hover:text-amber-950 hover:bg-[#f3ede0] transition-colors"
               title="User Account"
             >
-              <UserCircle className="w-5 h-5" />
+              <UserCircle className="w-5 h-5 text-amber-800" />
             </button>
             <button
               onClick={() => setLeftPanelCollapsed(false)}
@@ -512,25 +621,36 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   <p className="text-[10px] text-slate-600 text-center py-4">No chats found</p>
                 )}
                 {filteredSessions.map(session => (
-                  <button
-                    key={session.id}
-                    onClick={() => setActiveSessionId(session.id)}
-                    className={`w-full text-left p-2.5 rounded-xl border transition-all group ${
-                      activeSessionId === session.id
-                        ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
-                        : 'bg-transparent border-transparent hover:bg-[#f3ede0] hover:border-[#e2d9c6] text-slate-400'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeSessionId === session.id ? 'text-amber-600' : 'text-slate-600'}`} />
-                      <p className="text-[11px] font-semibold truncate flex-1">{session.title}</p>
-                    </div>
-                    <p className="text-[9px] text-slate-500 truncate mt-1 ml-5">{session.preview}</p>
-                    <div className="flex items-center justify-between mt-1 ml-5">
-                      <span className="text-[9px] text-slate-600">{session.messageCount} msgs</span>
-                      <span className="text-[9px] text-slate-600">{formatTime(session.timestamp)}</span>
-                    </div>
-                  </button>
+                  <div key={session.id} className="relative group">
+                    <button
+                      onClick={() => onLoadChat && onLoadChat(session.leadProfile, session.messages)}
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all ${
+                        activeSessionId === session.id
+                          ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
+                          : 'bg-transparent border-transparent hover:bg-[#f3ede0] hover:border-[#e2d9c6] text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 pr-6">
+                        <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeSessionId === session.id ? 'text-amber-600' : 'text-slate-600'}`} />
+                        <p className="text-[11px] font-semibold truncate flex-1">{session.title}</p>
+                      </div>
+                      <p className="text-[9px] text-slate-500 truncate mt-1 ml-5">{session.preview}</p>
+                      <div className="flex items-center justify-between mt-1 ml-5">
+                        <span className="text-[9px] text-slate-600">{session.messageCount} msgs</span>
+                        <span className="text-[9px] text-slate-600">{formatTime(session.timestamp)}</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onDeleteChat) onDeleteChat(session.id);
+                      }}
+                      className="absolute right-2 top-2.5 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete chat"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))}
 
                 {!userLoggedIn && savedSessions.length > 0 && (
@@ -545,16 +665,18 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             <div className="p-3 border-t border-[#f3ede0] shrink-0 bg-[#f7f2e6]">
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-white transition-colors border border-transparent hover:border-[#e2d9c6]"
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white hover:bg-[#faf6ee] transition-all border border-[#e2d9c6] shadow-xs"
               >
-                <div className="flex items-center space-x-2">
-                  <UserCircle className="w-5 h-5 text-slate-500" />
-                  <div className="text-left">
-                    <p className="text-[11px] font-bold text-slate-700">{userLoggedIn ? userName : 'Account'}</p>
-                    <p className="text-[9px] text-slate-500">{userLoggedIn ? 'Manage Profile' : 'Sign In / Sign Up'}</p>
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-900 shrink-0 font-bold text-xs border border-amber-200">
+                    {userLoggedIn ? (userName[0]?.toUpperCase() || 'U') : <UserCircle className="w-5 h-5 text-amber-800" />}
+                  </div>
+                  <div className="text-left truncate">
+                    <p className="text-xs font-black text-[#1e1610] truncate">{userLoggedIn ? userName : 'Account'}</p>
+                    <p className="text-[11px] font-bold text-amber-700">{userLoggedIn ? 'Manage Profile' : 'Sign In / Sign Up'}</p>
                   </div>
                 </div>
-                <ChevronUp className="w-4 h-4 text-slate-400" />
+                <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" />
               </button>
             </div>
           </div>
@@ -936,8 +1058,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-[#ffffff] rounded-2xl w-full max-w-sm shadow-2xl border border-[#e2d9c6] overflow-hidden flex flex-col relative">
             <div className="flex justify-between items-center p-4 border-b border-[#f3ede0] bg-[#f7f2e6]">
-              <h3 className="font-bold text-slate-700">Account</h3>
-              <button onClick={() => setShowAuthModal(false)} className="text-slate-400 hover:text-slate-700 p-1 bg-white rounded-md border border-[#e2d9c6]">
+              <h3 className="font-extrabold text-base text-[#1e1610]">Account</h3>
+              <button onClick={() => setShowAuthModal(false)} className="text-slate-500 hover:text-slate-800 p-1 bg-white rounded-md border border-[#e2d9c6]">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -945,26 +1067,26 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             <div className="p-4">
               {!userLoggedIn ? (
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-[#f3ede0] border border-[#e2d9c6] flex items-center justify-center">
-                      <User className="w-4 h-4 text-slate-400" />
+                  <div className="flex items-center space-x-2.5 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center">
+                      <User className="w-4 h-4 text-amber-800" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-300">Welcome</p>
-                      <p className="text-[10px] text-slate-500">Sign in to save chats</p>
+                      <p className="text-sm font-bold text-slate-800">Welcome</p>
+                      <p className="text-xs font-medium text-slate-600">Sign in to save and sync your chats</p>
                     </div>
                   </div>
 
                   {/* Auth Tabs */}
-                  <div className="flex bg-[#ffffff] rounded-lg p-0.5 border border-[#f3ede0]">
+                  <div className="flex bg-[#f7f2e6] rounded-xl p-1 border border-[#e2d9c6]">
                     {(['login', 'signup'] as const).map(mode => (
                       <button
                         key={mode}
                         onClick={() => { setAuthMode(mode); setAuthError(''); }}
-                        className={`flex-1 text-[10px] font-semibold py-1.5 rounded-md transition-all capitalize ${
+                        className={`flex-1 text-xs font-bold py-1.5 rounded-lg transition-all capitalize ${
                           authMode === mode
-                            ? 'bg-amber-500 text-amber-950'
-                            : 'text-slate-400 hover:text-slate-300'
+                            ? 'bg-amber-500 text-amber-950 shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
                         }`}
                       >
                         {mode === 'login' ? 'Sign In' : 'Sign Up'}
@@ -973,11 +1095,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   </div>
 
                   {/* Auth Form */}
-                  <form onSubmit={handleAuth} className="space-y-2">
+                  <form onSubmit={handleAuth} className="space-y-2.5">
                     {authMode === 'signup' && (
                       <>
                         <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                           <input
                             type="text"
                             value={userFullName}
@@ -985,11 +1107,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             placeholder="Full name"
                             autoComplete="name"
                             required
-                            className="w-full bg-[#ffffff] border border-[#e2d9c6] focus:border-amber-500/60 rounded-lg pl-8 pr-3 py-2 text-[11px] text-slate-300 placeholder-slate-600 outline-none transition-colors"
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
                           />
                         </div>
                         <div className="relative">
-                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                           <input
                             type="number"
                             min={18}
@@ -999,43 +1121,43 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
                             placeholder="Age"
                             required
-                            className="w-full bg-[#ffffff] border border-[#e2d9c6] focus:border-amber-500/60 rounded-lg pl-8 pr-3 py-2 text-[11px] text-slate-300 placeholder-slate-600 outline-none transition-colors"
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
                           />
                         </div>
                       </>
                     )}
                     <div className="relative">
-                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                       <input
                         type="email"
                         value={userEmail}
                         onChange={e => { setUserEmail(e.target.value); setAuthError(''); }}
                         placeholder="Email address"
                         required
-                        className="w-full bg-[#ffffff] border border-[#e2d9c6] focus:border-amber-500/60 rounded-lg pl-8 pr-3 py-2 text-[11px] text-slate-300 placeholder-slate-600 outline-none transition-colors"
+                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
                       />
                     </div>
                     <div className="relative">
-                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={userPassword}
                         onChange={e => { setUserPassword(e.target.value); setAuthError(''); }}
                         placeholder="Password"
                         required
-                        className="w-full bg-[#ffffff] border border-[#e2d9c6] focus:border-amber-500/60 rounded-lg pl-8 pr-8 py-2 text-[11px] text-slate-300 placeholder-slate-600 outline-none transition-colors"
+                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(p => !p)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
                       >
-                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
 
                     {authError && (
-                      <p className="text-[10px] text-red-400 bg-red-100/70 border border-red-300 rounded-lg px-2 py-1.5">
+                      <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-medium">
                         {authError}
                       </p>
                     )}
@@ -1043,60 +1165,137 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <button
                       type="submit"
                       disabled={authLoading}
-                      className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2 rounded-lg text-[11px] transition-colors flex items-center justify-center space-x-1.5"
+                      className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
                     >
                       {authLoading ? (
-                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
                       ) : (
-                        <LogIn className="w-3.5 h-3.5" />
+                        <LogIn className="w-4 h-4" />
                       )}
                       <span>{authLoading ? 'Signing in...' : authMode === 'login' ? 'Sign In' : 'Create Account'}</span>
                     </button>
                   </form>
 
                   <div className="flex items-center my-3">
-                    <div className="flex-grow border-t border-slate-700"></div>
-                    <span className="mx-2 text-[10px] font-bold text-slate-300">OR</span>
-                    <div className="flex-grow border-t border-slate-700"></div>
+                    <div className="flex-grow border-t border-slate-200"></div>
+                    <span className="mx-2 text-xs font-bold text-slate-500">OR</span>
+                    <div className="flex-grow border-t border-slate-200"></div>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleGoogleSignIn}
                     disabled={authLoading}
-                    className="w-full bg-white hover:bg-slate-200 text-black font-bold py-2 rounded-lg text-[12px] transition-colors flex items-center justify-center space-x-2 shadow-sm"
+                    className="w-full bg-white hover:bg-slate-50 text-slate-900 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-slate-300 shadow-xs"
                   >
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
                     <span>Continue with Google</span>
                   </button>
 
-                  <p className="text-[9px] text-slate-600 text-center mt-3">
+                  <p className="text-xs font-medium text-slate-600 text-center mt-3">
                     Chat continues as guest without sign-in
                   </p>
                 </div>
               ) : (
-                /* Logged-in User Card */
-                <div className="flex items-center space-x-2.5 p-2 bg-[#f7f2e6] rounded-xl border border-[#e2d9c6]">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 font-black text-sm shrink-0">
-                    {userName[0]?.toUpperCase() || 'U'}
+                /* Logged-in User Profile Card & Controls */
+                <div className="space-y-4">
+                  {/* Profile Header */}
+                  <div className="flex items-center space-x-3 p-3 bg-[#f7f2e6] rounded-xl border border-[#e2d9c6]">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 font-black text-base shrink-0 shadow-sm">
+                      {userName[0]?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">{userName || userFullName || 'Lyka Client'}</p>
+                      <p className="text-xs text-slate-500 truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
+                      <div className="flex items-center space-x-1.5 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                        <span className="text-[10px] font-medium text-emerald-700">Database Synced (user-login)</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-300 truncate">{userName}</p>
-                    <p className="text-[10px] text-emerald-400 flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-                      <span>Active session</span>
-                    </p>
+
+                  {/* Account Details Box */}
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span className="font-medium">Sign-in Method:</span>
+                      <span className="font-semibold text-slate-800">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
+                    </div>
+                    {userAge && (
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span className="font-medium">Age:</span>
+                        <span className="font-semibold text-slate-800">{userAge} years</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span className="font-medium">User ID:</span>
+                      <span className="font-mono text-[10px] text-slate-500 truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => { setUserLoggedIn(false); setUserEmail(''); setUserPassword(''); setUserName(''); setUserFullName(''); setUserAge(''); }}
-                    className="p-1 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-100/70 transition-colors"
-                    title="Sign out"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+
+                  {authError && (
+                    <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{authError}</span>
+                    </div>
+                  )}
+
+                  {/* Actions: Logout & Delete */}
+                  <div className="pt-2 border-t border-[#f3ede0] space-y-2">
+                    {/* Log Out Button */}
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      disabled={authLoading}
+                      className="w-full bg-[#f3ede0] hover:bg-[#eee6d3] text-slate-800 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#e2d9c6]"
+                    >
+                      <LogOut className="w-4 h-4 text-slate-600" />
+                      <span>Log Out</span>
+                    </button>
+
+                    {/* Delete Account */}
+                    {!deleteConfirm ? (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirm(true)}
+                        disabled={authLoading}
+                        className="w-full bg-transparent hover:bg-red-50 text-red-600 font-medium py-2 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 border border-transparent hover:border-red-200"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Account & Data</span>
+                      </button>
+                    ) : (
+                      <div className="p-3 bg-red-50 rounded-xl border border-red-200 space-y-2.5">
+                        <div className="flex items-start space-x-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-red-800 leading-snug">
+                            Permanently delete your profile and remove your data from the <strong>user-login</strong> database?
+                          </p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            type="button"
+                            onClick={handleDeleteAccount}
+                            disabled={authLoading}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>{authLoading ? 'Deleting...' : 'Confirm Delete'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirm(false)}
+                            disabled={authLoading}
+                            className="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-slate-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -5,6 +5,7 @@ import {
   doc, 
   getDocFromServer, 
   setDoc, 
+  deleteDoc,
   getDocs, 
   collection, 
   query, 
@@ -92,6 +93,15 @@ export async function saveUserLoginToFirestore(
   }
 }
 
+export async function deleteUserLoginFromFirestore(userId: string): Promise<void> {
+  const path = `user-login/${userId}`;
+  try {
+    await deleteDoc(doc(db, 'user-login', userId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
 export async function getLeadsFromFirestore(): Promise<LeadProfile[]> {
   const path = 'leads';
   try {
@@ -104,6 +114,71 @@ export async function getLeadsFromFirestore(): Promise<LeadProfile[]> {
   } catch (error) {
     console.warn('Could not fetch leads from Firestore, falling back to local memory:', error);
     return [];
+  }
+}
+
+export async function getUserLeadsFromFirestore(userId: string): Promise<LeadProfile[]> {
+  const path = 'leads';
+  try {
+    const q = query(collection(db, path), orderBy('updatedAt', 'desc'));
+    const snap = await getDocs(q);
+    const leads: LeadProfile[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as LeadProfile;
+      if (data.user_id === userId) {
+        leads.push(data);
+      }
+    });
+    return leads;
+  } catch (error) {
+    console.warn('Could not fetch user leads from Firestore:', error);
+    return [];
+  }
+}
+
+export async function deleteLeadFromFirestore(leadId: string): Promise<void> {
+  const path = `leads/${leadId}`;
+  try {
+    await deleteDoc(doc(db, 'leads', leadId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function getMessagesForLead(leadId: string): Promise<ChatMessage[]> {
+  try {
+    const q = query(collection(db, 'interactions'));
+    const snap = await getDocs(q);
+    const messages: ChatMessage[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as ChatMessage;
+      if (data.lead_id === leadId) {
+        messages.push(data);
+      }
+    });
+    // Sort by timestamp
+    messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return messages;
+  } catch (error) {
+    console.warn('Could not fetch messages from Firestore:', error);
+    return [];
+  }
+}
+
+export async function deleteMessagesForLead(leadId: string): Promise<void> {
+  try {
+    const q = query(collection(db, 'interactions'));
+    const snap = await getDocs(q);
+    const deletePromises: Promise<void>[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as ChatMessage;
+      if (data.lead_id === leadId) {
+        deletePromises.push(deleteDoc(doc(db, 'interactions', data.id)));
+      }
+    });
+    await Promise.all(deletePromises);
+  } catch (error) {
+    console.warn('Could not delete messages from Firestore:', error);
   }
 }
 

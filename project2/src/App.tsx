@@ -23,7 +23,9 @@ import {
   getLeadsFromFirestore, 
   saveInteractionToFirestore, 
   saveFollowUpToFirestore, 
-  getFollowUpsFromFirestore 
+  getFollowUpsFromFirestore,
+  deleteLeadFromFirestore,
+  deleteMessagesForLead
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
 import { AgenticChat } from './components/AgenticChat';
@@ -61,6 +63,7 @@ export default function App() {
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
   const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Allowed admin credentials (configurable)
   const ADMIN_EMAIL = 'admin@lykarealty.ae';
@@ -158,8 +161,8 @@ export default function App() {
           }
         ];
         setLeadsList(seedLeads);
-        // Persist seed leads to firestore
-        seedLeads.forEach(l => saveLeadToFirestore(l));
+        // Persist seed leads to firestore or local
+        seedLeads.forEach(l => saveLeadData(l));
       }
 
       // Load follow-ups
@@ -185,6 +188,23 @@ export default function App() {
     init();
   }, []);
 
+  const saveLeadData = (lead: LeadProfile) => {
+    if (currentUserId) {
+      saveLeadToFirestore(lead);
+    } else {
+      try {
+        const localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
+        const existingIndex = localLeads.findIndex((l: LeadProfile) => l.id === lead.id);
+        if (existingIndex >= 0) {
+          localLeads[existingIndex] = lead;
+        } else {
+          localLeads.push(lead);
+        }
+        localStorage.setItem('localLeads', JSON.stringify(localLeads));
+      } catch (e) { console.warn(e); }
+    }
+  };
+
   // Update current lead state in leads list and Firestore
   const updateActiveLead = (updatedFields: Partial<LeadProfile>) => {
     setCurrentLead(prev => {
@@ -198,8 +218,8 @@ export default function App() {
         }
         return [merged, ...list];
       });
-      // Sync to firestore
-      saveLeadToFirestore(merged);
+      // Sync to firestore or local
+      saveLeadData(merged);
       // Sync to MongoDB database
       fetch('/api/leads/sync', {
         method: 'POST',
@@ -212,22 +232,70 @@ export default function App() {
 
   // Start new customer chat
   const handleStartNewChat = () => {
-    const newLead = createInitialLeadProfile();
+    const newLead = { ...createInitialLeadProfile(), user_id: currentUserId || undefined };
     setCurrentLead(newLead);
     setLeadsList(prev => [newLead, ...prev]);
-    saveLeadToFirestore(newLead);
+    saveLeadData(newLead);
 
-    setMessages([
-      {
-        id: 'MSG-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-        lead_id: newLead.id,
-        role: 'assistant',
-        content: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
-        timestamp: new Date().toISOString(),
-      }
-    ]);
+    const initMsg: ChatMessage = {
+      id: 'MSG-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      lead_id: newLead.id,
+      role: 'assistant',
+      content: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages([initMsg]);
+    saveInteractionData(initMsg);
+
     setActiveTab('chat');
     setAdminPanelOpen(false);
+  };
+
+  const handleLoadChat = (lead: LeadProfile, msgs: ChatMessage[]) => {
+    setCurrentLead(lead);
+    setMessages(msgs);
+    setActiveTab('chat');
+    setAdminPanelOpen(false);
+  };
+
+  const handleDeleteChat = async (leadId: string) => {
+    setLeadsList(prev => prev.filter(l => l.id !== leadId));
+    if (currentLead.id === leadId) {
+      handleStartNewChat();
+    }
+    
+    if (currentUserId) {
+      await deleteLeadFromFirestore(leadId);
+      await deleteMessagesForLead(leadId);
+    } else {
+      try {
+        let localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
+        localLeads = localLeads.filter((l: LeadProfile) => l.id !== leadId);
+        localStorage.setItem('localLeads', JSON.stringify(localLeads));
+
+        let localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+        localMsgs = localMsgs.filter((m: ChatMessage) => m.lead_id !== leadId);
+        localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
+      } catch (e) { console.warn(e); }
+    }
+  };
+
+  const saveInteractionData = (msg: ChatMessage) => {
+    if (currentUserId) {
+      saveInteractionToFirestore(msg);
+    } else {
+      try {
+        const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+        const existingIndex = localMsgs.findIndex((m: ChatMessage) => m.id === msg.id);
+        if (existingIndex >= 0) {
+          localMsgs[existingIndex] = msg;
+        } else {
+          localMsgs.push(msg);
+        }
+        localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
+      } catch (e) { console.warn(e); }
+    }
   };
 
   // Maps current lead state to the correct LangGraph conversation stage
@@ -388,9 +456,9 @@ export default function App() {
 
       setMessages(prev => [...prev, assistantMsg]);
 
-      // Save interactions to Firestore
-      saveInteractionToFirestore(userMsg);
-      saveInteractionToFirestore(assistantMsg);
+      // Save interactions to Firestore or local
+      saveInteractionData(userMsg);
+      saveInteractionData(assistantMsg);
 
       // Asynchronously generate numerical vector embedding and store into MongoDB
       fetch('/api/embeddings/store', {
@@ -460,7 +528,7 @@ export default function App() {
     };
 
     setMessages(prev => [...prev, confirmMsg]);
-    saveInteractionToFirestore(confirmMsg);
+    saveInteractionData(confirmMsg);
     setViewingModalProperty(null);
   };
 
@@ -482,7 +550,7 @@ export default function App() {
     };
 
     setMessages(prev => [...prev, handoffMsg]);
-    saveInteractionToFirestore(handoffMsg);
+    saveInteractionData(handoffMsg);
     setShowHandoffModal(false);
   };
 
@@ -543,6 +611,9 @@ export default function App() {
             sidebarOpen={sidebarOpen}
             onUpdateLead={updateActiveLead}
             onStartNewChat={handleStartNewChat}
+            onAuthChange={(uid) => setCurrentUserId(uid)}
+            onLoadChat={handleLoadChat}
+            onDeleteChat={handleDeleteChat}
           />
           {sidebarOpen && (
             <LeadProfileSidebar

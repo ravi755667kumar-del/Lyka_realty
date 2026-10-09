@@ -576,12 +576,17 @@ const SELL_SLOTS = ['preferred_communities', 'property_type', 'budget_max'];
 async function nodeGreet(state: AgentState): Promise<Partial<AgentState>> {
   const ragCtx = getRagContext(state.userMessage);
   const systemPrompt = `You are Lyka, a warm and professional AI real estate concierge for Lyka Realty Dubai.
-The customer has just reached out for the first time.
-Your job: greet them genuinely, briefly mention Lyka Realty's expertise (Dubai & Mumbai markets, 300+ clients), 
-then ask ONE polite question: what are they looking to do? (Buy / Rent / Invest / Sell)
+The customer has just reached out for the first time with: "${state.userMessage}"
 
-${ragCtx ? `KNOWLEDGE BASE CONTEXT:\n${ragCtx}\n` : ''}
-Keep your response conversational, warm, and under 80 words. No bullet points.`;
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION (e.g., "Where are you located?", "Who are you?", "What properties do you have?", etc.)
+2. If YES — answer their question helpfully and accurately using the context below. Then, warmly greet them, briefly mention Lyka Realty's expertise (Dubai & Mumbai markets, 300+ clients), and smoothly ask if they are looking to **buy**, **rent**, **invest**, or **sell** a property.
+3. If NO (just a "hi" or general greeting) — greet them genuinely, briefly mention Lyka Realty's expertise, and ask if they are looking to **buy**, **rent**, **invest**, or **sell**.
+
+NEVER ignore a user's question. Always answer it first.
+Keep your response conversational, warm, and under 120 words. No bullet points.
+
+${ragCtx ? `KNOWLEDGE BASE CONTEXT:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory)
     || `Hello and a very warm welcome to Lyka Realty! 🏙️ We're a premier Dubai-based real estate brokerage serving 300+ happy clients across Dubai and Mumbai.\n\nI'm Lyka, your personal AI property concierge. May I ask — are you looking to **buy**, **rent**, **invest**, or **sell** a property today?`;
@@ -604,11 +609,20 @@ async function nodeClassifyIntent(state: AgentState): Promise<Partial<AgentState
   const updatedProfile: CustomerProfile = { ...state.profile, intent: intent || undefined };
 
   if (!intent) {
-    const systemPrompt = `You are Lyka, a warm Lyka Realty AI assistant.
+    const systemPrompt = `You are Lyka, a warm Lyka Realty AI assistant for Dubai & Mumbai properties.
+
 The customer sent: "${state.userMessage}"
-You could not clearly detect their intent (Buy/Rent/Invest/Sell).
-Politely clarify with ONE natural question. Do not list bullet points. Keep it under 60 words.
-${ragCtx ? `CONTEXT:\n${ragCtx}` : ''}`;
+You could not clearly detect their primary intent (Buy/Rent/Invest/Sell).
+
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION (e.g., "Where is your office?", "What services do you offer?", "Tell me about Dubai real estate", etc.)
+2. If YES — answer their question helpfully and accurately using the context below. Then, smoothly ask if they are looking to **buy**, **rent**, **invest**, or **sell** a property.
+3. If NO — politely clarify their intent by asking if they are looking to **buy**, **rent**, **invest**, or **sell**.
+
+NEVER ignore a user's question. Always answer it first.
+Do not list bullet points. Keep it under 100 words.
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}` : ''}`;
     const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory)
       || `Thank you for reaching out! Just to make sure I find the perfect match for you — are you looking to **buy**, **rent**, **invest**, or are you thinking of **selling** a property?`;
     return { reply, provider: 'LangGraph → Intent Classifier', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
@@ -648,15 +662,22 @@ async function nodeQualifyBuy(state: AgentState): Promise<Partial<AgentState>> {
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
-  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
-The customer wants to BUY a property. You have collected this so far:
+  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge for Dubai & Mumbai properties.
+
+The customer wants to BUY a property. Profile collected so far:
 ${JSON.stringify(p, null, 2)}
 
-Ask ONLY this one question naturally and politely (don't list alternatives as bullet points, weave them into a sentence):
-"${question}"
+The customer's latest message: "${state.userMessage}"
 
-${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
-Keep your response under 80 words, warm, and conversational.`;
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION or asks for specific information (e.g., "What is the price?", "How far is it from the metro?", "Tell me about Dubai Marina", "What is the process?", "How long does buying take?", "What fees are involved?", etc.)
+2. If YES — answer their question helpfully and accurately using your knowledge of Dubai real estate and the knowledge base below. Then, on a new line, SMOOTHLY transition back to collecting the next missing piece of information by asking: "${question}"
+3. If NO (they answered your previous question) — acknowledge their answer warmly in 1 sentence, then ask: "${question}"
+
+NEVER ignore a user's question. Always answer it first before continuing the qualification.
+Keep the total response conversational and under 120 words.
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
   return { reply, provider: 'LangGraph → Buy Qualification', profile: p, currentNode: 'qualify_buy', ragContext: ragCtx };
@@ -685,15 +706,22 @@ async function nodeQualifyRent(state: AgentState): Promise<Partial<AgentState>> 
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
-  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
-The customer wants to RENT a property. You have collected this so far:
+  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge for Dubai & Mumbai properties.
+
+The customer wants to RENT a property. Profile collected so far:
 ${JSON.stringify(p, null, 2)}
 
-Ask ONLY this one question naturally and conversationally:
-"${question}"
+The customer's latest message: "${state.userMessage}"
 
-${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
-Keep your response under 80 words. Be warm and helpful.`;
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION or asks for specific information (e.g., "What is the rent like there?", "How far is it from the metro?", "Tell me about JLT", "Are pets allowed?", etc.)
+2. If YES — answer their question helpfully and accurately using your knowledge of Dubai real estate and the knowledge base below. Then, on a new line, SMOOTHLY transition back to collecting the next missing piece of information by asking: "${question}"
+3. If NO (they answered your previous question) — acknowledge their answer warmly in 1 sentence, then ask: "${question}"
+
+NEVER ignore a user's question. Always answer it first before continuing the qualification.
+Keep the total response conversational and under 120 words.
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
   return { reply, provider: 'LangGraph → Rent Qualification', profile: p, currentNode: 'qualify_rent', ragContext: ragCtx };
@@ -720,15 +748,22 @@ async function nodeQualifyInvest(state: AgentState): Promise<Partial<AgentState>
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
-  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
-The customer wants to INVEST in property. You have collected this so far:
+  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge for Dubai & Mumbai properties.
+
+The customer wants to INVEST in property. Profile collected so far:
 ${JSON.stringify(p, null, 2)}
 
-Ask ONLY this one question naturally:
-"${question}"
+The customer's latest message: "${state.userMessage}"
 
-${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
-Keep your response under 80 words. Be warm, professional, and concise.`;
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION or asks for specific information (e.g., "What is the ROI?", "How are property taxes?", "Tell me about off-plan", etc.)
+2. If YES — answer their question helpfully and accurately using your knowledge of Dubai real estate and the knowledge base below. Then, on a new line, SMOOTHLY transition back to collecting the next missing piece of information by asking: "${question}"
+3. If NO (they answered your previous question) — acknowledge their answer warmly in 1 sentence, then ask: "${question}"
+
+NEVER ignore a user's question. Always answer it first before continuing the qualification.
+Keep the total response conversational and under 120 words.
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
   return { reply, provider: 'LangGraph → Invest Qualification', profile: p, currentNode: 'qualify_invest', ragContext: ragCtx };
@@ -752,15 +787,22 @@ async function nodeQualifySell(state: AgentState): Promise<Partial<AgentState>> 
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
-  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
-The customer wants to SELL their property. You have collected this so far:
+  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge for Dubai & Mumbai properties.
+
+The customer wants to SELL their property. Profile collected so far:
 ${JSON.stringify(p, null, 2)}
 
-Ask ONLY this one question naturally:
-"${question}"
+The customer's latest message: "${state.userMessage}"
 
-${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
-Keep your response under 80 words. Be warm and helpful.`;
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION or asks for specific information (e.g., "What are the fees?", "How long does it take?", "Do you handle valuation?", etc.)
+2. If YES — answer their question helpfully and accurately using your knowledge of Dubai real estate and the knowledge base below. Then, on a new line, SMOOTHLY transition back to collecting the next missing piece of information by asking: "${question}"
+3. If NO (they answered your previous question) — acknowledge their answer warmly in 1 sentence, then ask: "${question}"
+
+NEVER ignore a user's question. Always answer it first before continuing the qualification.
+Keep the total response conversational and under 120 words.
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
   return { reply, provider: 'LangGraph → Sell Qualification', profile: p, currentNode: 'qualify_sell', ragContext: ragCtx };
@@ -824,24 +866,29 @@ async function nodeQualifyContact(state: AgentState): Promise<Partial<AgentState
   profile.contact_pending = slot;
   if (recheck) profile.contact_recheck_asked = true;
 
-  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
+  const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge for Dubai & Mumbai properties.
 
 The customer wants to ${(p.intent || 'buy').toLowerCase()} a property. You are now collecting contact details.
 
 Already collected:
 ${JSON.stringify({ name: profile.full_name, mobile: profile.mobile, email: profile.email }, null, 2)}
 
-Ask ONLY this one thing, naturally and warmly (no bullet lists):
-"${question}"
+The customer's latest message: "${state.userMessage}"
+
+CRITICAL INSTRUCTION — Follow this exact logic:
+1. First, check if the customer's message is a QUESTION or asks for specific information (e.g., "Why do you need my number?", "What are the next steps?", "Is my data safe?", etc.)
+2. If YES — answer their question helpfully and accurately. Then, on a new line, SMOOTHLY transition back to asking for the contact detail: "${question}"
+3. If NO (they just answered or gave their details) — acknowledge it warmly, then ask: "${question}"
 
 Rules:
+- NEVER ignore a user's question. Always answer it first before continuing.
 - Ask for exactly one item. Never stack questions.
 - Explain briefly that these details are only so the Lyka Realty sales team can follow up.
 - Do NOT ask for a password, bank/card details, an OTP, or any government ID number.
 - If they decline, accept it politely without pressing.
 
 ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
-Keep it under 60 words.`;
+Keep it under 100 words.`;
 
   const reply = await callLLM(systemPrompt, text, state.chatHistory) || question;
   return { reply, provider: 'LangGraph → Contact Details', profile, currentNode: 'qualify_contact', ragContext: ragCtx };
