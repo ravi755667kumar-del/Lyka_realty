@@ -81,12 +81,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [expandedThoughtId, setExpandedThoughtId] = useState<string | null>(null);
-  
-  // ... other code ...
-  
-  const handleAuth = async (e: React.FormEvent) => {
-    // This part is modified elsewhere in the file. Wait, I should not replace 350 lines just for this.
-    // I need to split this into two separate edits to avoid breaking the file!
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
@@ -447,7 +441,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               <Clock className="w-5 h-5" />
             </button>
             <button
-              onClick={() => onSendMessage('Hi, I am looking for properties with Lyka Realty.', {})}
+              onClick={onStartNewChat}
               className="p-2 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-[#f3ede0] transition-colors"
               title="New Chat"
             >
@@ -460,7 +454,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             {/* ─── NEW CHAT BUTTON ─── */}
             <div className="p-3 shrink-0">
               <button
-                onClick={() => onSendMessage('Hi, I am looking for properties with Lyka Realty.', {})}
+                onClick={onStartNewChat}
                 className="w-full flex items-center justify-center space-x-2 bg-[#f3ede0] hover:bg-[#eee6d3] border border-[#e2d9c6] hover:border-amber-500/40 text-slate-300 hover:text-slate-300 py-2 rounded-xl text-xs font-semibold transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -676,10 +670,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div className="bg-[#eee6d3] text-slate-300 px-4 py-3 rounded-3xl rounded-tr-md max-w-md text-sm leading-relaxed border border-[#d6cbb4]/50 shadow-sm">
                       {msg.content}
                     </div>
-                    {/* User avatar */}
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-violet-500 to-purple-400 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                      {userLoggedIn ? userName[0]?.toUpperCase() : 'U'}
-                    </div>
+
                   </div>
                 ) : (
                   <div className="flex items-start space-x-3">
@@ -700,42 +691,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         </span>
                       </div>
 
-                      {/* Agentic Thinking */}
-                      {msg.agentic_decision && (
-                        <div>
-                          <button
-                            onClick={() => setExpandedThoughtId(expandedThoughtId === msg.id ? null : msg.id)}
-                            className="flex items-center space-x-1.5 text-xs text-[#6b5843] hover:text-amber-600 transition-colors py-1 px-2.5 rounded-lg bg-[#f7f2e6] border border-[#d6cbb4]"
-                          >
-                            <Brain className="w-3.5 h-3.5 text-amber-600" />
-                            <span className="font-medium">
-                              Reasoning • Intent: <strong className="text-slate-300">{msg.agentic_decision.intent_detected}</strong>
-                            </span>
-                            {expandedThoughtId === msg.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </button>
-
-                          {expandedThoughtId === msg.id && (
-                            <div className="mt-2 bg-[#f7f2e6] border border-[#d6cbb4] rounded-2xl p-4 text-xs space-y-2.5 text-[#5a4835]">
-                              <div className="flex items-center justify-between pb-2 border-b border-[#d6cbb4]">
-                                <span className="text-[#6b5843]">Intent:</span>
-                                <span className="font-bold text-amber-700">
-                                  {msg.agentic_decision.intent_detected} ({msg.agentic_decision.confidence}%)
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[#6b5843] block mb-1">Reasoning:</span>
-                                <p className="bg-[#ffffff] p-2.5 rounded-xl border border-[#eee6d3] leading-relaxed">
-                                  {msg.agentic_decision.rationale}
-                                </p>
-                              </div>
-                              <div className="flex items-center justify-between pt-1">
-                                <span className="text-[#6b5843]">Next Step:</span>
-                                <span className="text-emerald-400 font-semibold">{msg.agentic_decision.next_question_intent}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {/* Agentic Thinking Hidden per user request */}
 
                       {/* Message Body */}
                       <div className="text-sm text-[#3a2e20] leading-relaxed whitespace-pre-wrap">

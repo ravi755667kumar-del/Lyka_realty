@@ -542,6 +542,7 @@ export default function App() {
             onToggleSidebar={() => setSidebarOpen(prev => !prev)}
             sidebarOpen={sidebarOpen}
             onUpdateLead={updateActiveLead}
+            onStartNewChat={handleStartNewChat}
           />
           {sidebarOpen && (
             <LeadProfileSidebar

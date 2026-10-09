@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase/config';
+import { auth, resolveRedirectSignIn } from './firebase/config';
+import { getAuthErrorMessage } from './firebase/authErrors';
 import { Lead, CampaignState } from './types';
 import { subscribeToLeads, updateLead, deleteLead, bulkCreateLeads } from './services/leadService';
 import {
@@ -27,7 +28,6 @@ import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
 import { CallSimulatorModal } from './components/CallSimulatorModal';
 import { BrowserCallModal } from './components/BrowserCallModal';
 import { Sparkles, Phone, Database, CheckCircle2, Building2 } from 'lucide-react';
-import { loginWithGoogle } from './firebase/config';
 import { AdminLoginModal } from './components/AdminLoginModal';
 
 export default function App() {
@@ -56,6 +56,15 @@ export default function App() {
       setUser(currentUser);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Complete a Google redirect sign-in (when the popup fallback was used)
+  useEffect(() => {
+    resolveRedirectSignIn().catch((err) => {
+      console.error('Google redirect sign-in failed:', err);
+      setStatusNotification(getAuthErrorMessage(err));
+      window.setTimeout(() => setStatusNotification(null), 8000);
+    });
   }, []);
 
   // Initialize campaign doc

@@ -1,7 +1,7 @@
 import React from 'react';
 import { User } from 'firebase/auth';
 import { Building2, PhoneCall, Settings, BookOpen, Upload, UserPlus, LogIn, LogOut, ShieldCheck } from 'lucide-react';
-import { loginWithGoogle, logout } from '../firebase/config';
+import { logout } from '../firebase/config';
 
 interface NavbarProps {
   user: User | null;
