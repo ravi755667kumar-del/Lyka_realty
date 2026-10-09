@@ -48,7 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center cursor-pointer flex-shrink-0"
             onClick={() => { setActiveTab('chat'); }}
           >
-            <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg mix-blend-screen" />
+            <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg" />
           </div>
 
           {/* Center: AI Chat tab (frontend) */}

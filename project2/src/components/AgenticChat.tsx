@@ -42,6 +42,8 @@ import {
   ChevronRight,
   Search
 } from 'lucide-react';
+import { auth } from '../lib/firebase';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 interface SavedSession {
   id: string;
@@ -91,6 +93,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [userEmail, setUserEmail] = useState('');
   const [userPassword, setUserPassword] = useState('');
   const [userName, setUserName] = useState('');
+  const [userFullName, setUserFullName] = useState('');
+  const [userAge, setUserAge] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authError, setAuthError] = useState('');
@@ -233,6 +237,22 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     recognition.start();
   };
 
+  const handleGoogleSignIn = async () => {
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      setUserName(result.user.displayName || 'Customer');
+      setUserEmail(result.user.email || '');
+      setUserLoggedIn(true);
+    } catch (error: any) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
@@ -248,9 +268,23 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       setAuthLoading(false);
       return;
     }
+    // Sign-up collects a real name and age; sign-in stays email + password only.
+    if (authMode === 'signup') {
+      if (userFullName.trim().length < 2) {
+        setAuthError('Please enter your full name.');
+        setAuthLoading(false);
+        return;
+      }
+      const age = Number(userAge);
+      if (!userAge.trim() || !Number.isInteger(age) || age < 18 || age > 120) {
+        setAuthError('Please enter a valid age between 18 and 120.');
+        setAuthLoading(false);
+        return;
+      }
+    }
     // Simulate success
     setUserLoggedIn(true);
-    setUserName(authMode === 'signup' ? userEmail.split('@')[0] : userEmail.split('@')[0]);
+    setUserName(authMode === 'signup' ? userFullName.trim() : userEmail.split('@')[0]);
     setAuthError('');
     setAuthLoading(false);
   };
@@ -383,6 +417,36 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
                   {/* Auth Form */}
                   <form onSubmit={handleAuth} className="space-y-2">
+                    {authMode === 'signup' && (
+                      <>
+                        <div className="relative">
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                          <input
+                            type="text"
+                            value={userFullName}
+                            onChange={e => { setUserFullName(e.target.value); setAuthError(''); }}
+                            placeholder="Full name"
+                            autoComplete="name"
+                            required
+                            className="w-full bg-[#ffffff] border border-[#e2d9c6] focus:border-amber-500/60 rounded-lg pl-8 pr-3 py-2 text-[11px] text-slate-300 placeholder-slate-600 outline-none transition-colors"
+                          />
+                        </div>
+                        <div className="relative">
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                          <input
+                            type="number"
+                            min={18}
+                            max={120}
+                            inputMode="numeric"
+                            value={userAge}
+                            onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
+                            placeholder="Age"
+                            required
+                            className="w-full bg-[#ffffff] border border-[#e2d9c6] focus:border-amber-500/60 rounded-lg pl-8 pr-3 py-2 text-[11px] text-slate-300 placeholder-slate-600 outline-none transition-colors"
+                          />
+                        </div>
+                      </>
+                    )}
                     <div className="relative">
                       <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
                       <input
@@ -436,7 +500,23 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     </button>
                   </form>
 
-                  <p className="text-[9px] text-slate-600 text-center">
+                  <div className="flex items-center my-3">
+                    <div className="flex-grow border-t border-slate-700"></div>
+                    <span className="mx-2 text-[10px] font-bold text-slate-300">OR</span>
+                    <div className="flex-grow border-t border-slate-700"></div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={authLoading}
+                    className="w-full bg-white hover:bg-slate-200 text-black font-bold py-2 rounded-lg text-[12px] transition-colors flex items-center justify-center space-x-2 shadow-sm"
+                  >
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
+                    <span>Continue with Google</span>
+                  </button>
+
+                  <p className="text-[9px] text-slate-600 text-center mt-3">
                     Chat continues as guest without sign-in
                   </p>
                 </div>
@@ -454,7 +534,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     </p>
                   </div>
                   <button
-                    onClick={() => { setUserLoggedIn(false); setUserEmail(''); setUserPassword(''); setUserName(''); }}
+                    onClick={() => { setUserLoggedIn(false); setUserEmail(''); setUserPassword(''); setUserName(''); setUserFullName(''); setUserAge(''); }}
                     className="p-1 rounded-md text-slate-500 hover:text-red-400 hover:bg-red-100/70 transition-colors"
                     title="Sign out"
                   >
