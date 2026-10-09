@@ -65,6 +65,33 @@ export async function saveLeadToFirestore(lead: LeadProfile): Promise<void> {
   }
 }
 
+// User Logins helper
+export async function saveUserLoginToFirestore(
+  userId: string, 
+  email: string, 
+  fullName: string, 
+  authProvider: string,
+  age?: number
+): Promise<void> {
+  const path = `user-login/${userId}`;
+  try {
+    const data: any = {
+      uid: userId,
+      email: email,
+      full_name: fullName,
+      auth_provider: authProvider,
+      last_login: new Date().toISOString(),
+    };
+    if (age) {
+      data.age = age;
+    }
+    
+    await setDoc(doc(db, 'user-login', userId), data, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
 export async function getLeadsFromFirestore(): Promise<LeadProfile[]> {
   const path = 'leads';
   try {

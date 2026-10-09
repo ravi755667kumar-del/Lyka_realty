@@ -541,6 +541,7 @@ export default function App() {
             onOpenAgentHandoff={() => setShowHandoffModal(true)}
             onToggleSidebar={() => setSidebarOpen(prev => !prev)}
             sidebarOpen={sidebarOpen}
+            onUpdateLead={updateActiveLead}
           />
           {sidebarOpen && (
             <LeadProfileSidebar
