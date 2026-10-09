@@ -82,17 +82,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-medium text-emerald-200">Firebase Live</span>
             </div>
 
-            {/* Mongo badge */}
-            <div
-              onClick={() => { onToggleAdminPanel(); if (!adminPanelOpen) setActiveTab('embeddings'); }}
-              className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-espresso-800/80 px-2.5 py-1 rounded-md border border-espresso-700 cursor-pointer hover:border-amber-500/50 transition-colors"
-              title="MongoDB Numerical Vector Storage"
-            >
-              <Layers className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-espresso-300">
-                {mongoStatus.connected ? 'MongoDB' : 'Vectors'}
-              </span>
-            </div>
 
             {/* Admin Panel toggle */}
             <button
