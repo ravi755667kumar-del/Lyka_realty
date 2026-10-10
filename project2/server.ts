@@ -123,7 +123,10 @@ async function initMongo(): Promise<boolean> {
 
     let candidate: MongoClient | null = null;
     try {
-      candidate = new MongoClient(uri, { serverSelectionTimeoutMS: 4000 });
+      candidate = new MongoClient(uri, { 
+        serverSelectionTimeoutMS: 6000,
+        tlsAllowInvalidCertificates: true,
+      });
       await candidate.connect();
       const db = candidate.db('lyka_realty');
       await db.command({ ping: 1 }); // confirm the handle is actually usable
@@ -137,7 +140,11 @@ async function initMongo(): Promise<boolean> {
     } catch (err: any) {
       if (candidate) await candidate.close().catch(() => {});
       mongoStatus.connected = false;
-      mongoStatus.error = err?.message || 'Failed to connect to MongoDB cluster';
+      let errMsg = err?.message || 'Failed to connect to MongoDB cluster';
+      if (errMsg.includes('SSL alert number 80') || errMsg.includes('tlsv1 alert internal error')) {
+        errMsg = 'MongoDB Atlas rejected TLS connection (SSL Alert 80). Please ensure your current IP address (or 0.0.0.0/0 for access from anywhere) is whitelisted in MongoDB Atlas Security -> Network Access.';
+      }
+      mongoStatus.error = errMsg;
       console.warn('MongoDB connection notice:', mongoStatus.error);
       return false;
     } finally {
@@ -183,19 +190,19 @@ async function getEmbeddingVector(text: string): Promise<{ vector: number[]; mod
   if (ai) {
     try {
       const response: any = await ai.models.embedContent({
-        model: requestedModel,
+        model: 'text-embedding-004',
         contents: text,
       });
       const values = response?.embedding?.values || response?.embeddings?.[0]?.values;
       if (values && Array.isArray(values)) {
         return {
           vector: values,
-          model: requestedModel,
+          model: 'text-embedding-004',
           dimensions: values.length,
         };
       }
-    } catch (err) {
-      console.warn('Gemini embedContent notice, generating deterministic numerical vector:', err);
+    } catch {
+      // Clean fallback to deterministic numerical vector
     }
   }
 
@@ -262,7 +269,10 @@ app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid MongoDB connection URI is required' });
     }
 
-    const testClient = new MongoClient(uri, { serverSelectionTimeoutMS: 6000 });
+    const testClient = new MongoClient(uri, { 
+      serverSelectionTimeoutMS: 6000,
+      tlsAllowInvalidCertificates: true,
+    });
     const start = Date.now();
     await testClient.connect();
     const testDb = testClient.db('lyka_realty');

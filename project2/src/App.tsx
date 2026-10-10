@@ -22,10 +22,14 @@ import {
   saveLeadToFirestore, 
   getLeadsFromFirestore, 
   saveInteractionToFirestore, 
+  saveUserChatToFirestore,
+  getMessagesForLead,
   saveFollowUpToFirestore, 
   getFollowUpsFromFirestore,
   deleteLeadFromFirestore,
-  deleteMessagesForLead
+  deleteMessagesForLead,
+  syncSessionToUserProfile,
+  deleteSessionFromUserProfile
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
 import { AgenticChat } from './components/AgenticChat';
@@ -64,6 +68,7 @@ export default function App() {
   const [adminLoginError, setAdminLoginError] = useState('');
   const [adminLoginLoading, setAdminLoginLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Allowed admin credentials (configurable)
   const ADMIN_EMAIL = 'admin@lykarealty.ae';
@@ -188,6 +193,59 @@ export default function App() {
     init();
   }, []);
 
+  useEffect(() => {
+    if (currentUserId && currentLead.id) {
+      // Sync the full JSON of this chat into the user's profile
+      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages);
+    }
+  }, [currentUserId, currentUserEmail, currentLead, messages]);
+
+  const handleAuthChange = async (uid: string | null, email?: string) => {
+    setCurrentUserId(uid);
+    if (email) setCurrentUserEmail(email);
+
+    if (uid) {
+      // Migrate local data to Firestore
+      try {
+        const localLeadsStr = localStorage.getItem('localLeads');
+        const localMsgsStr = localStorage.getItem('localInteractions');
+        
+        if (localLeadsStr) {
+          const leads: LeadProfile[] = JSON.parse(localLeadsStr);
+          for (const lead of leads) {
+            lead.user_id = uid;
+            if (email && !lead.email) lead.email = email;
+            await saveLeadToFirestore(lead);
+          }
+        }
+        
+        if (localMsgsStr) {
+          const msgs: ChatMessage[] = JSON.parse(localMsgsStr);
+          for (const msg of msgs) {
+            await saveInteractionToFirestore(msg);
+          }
+        }
+        
+        // Clear local storage after successful migration
+        localStorage.removeItem('localLeads');
+        localStorage.removeItem('localInteractions');
+        
+        // Update current lead state to ensure it has the user ID
+        setCurrentLead(prev => {
+          if (!prev.user_id) {
+            const updated = { ...prev, user_id: uid, email: prev.email || email || '' };
+            saveLeadToFirestore(updated);
+            return updated;
+          }
+          return prev;
+        });
+
+      } catch (e) {
+        console.warn('Failed to migrate local data', e);
+      }
+    }
+  };
+
   const saveLeadData = (lead: LeadProfile) => {
     if (currentUserId) {
       saveLeadToFirestore(lead);
@@ -268,6 +326,7 @@ export default function App() {
     if (currentUserId) {
       await deleteLeadFromFirestore(leadId);
       await deleteMessagesForLead(leadId);
+      await deleteSessionFromUserProfile(currentUserEmail, currentUserId, leadId);
     } else {
       try {
         let localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
@@ -284,6 +343,11 @@ export default function App() {
   const saveInteractionData = (msg: ChatMessage) => {
     if (currentUserId) {
       saveInteractionToFirestore(msg);
+      // Also save to user_chat collection for chat history per user
+      // Fetch all messages for this lead and save as a session
+      getMessagesForLead(msg.lead_id).then(messages => {
+        saveUserChatToFirestore(currentUserId, msg.lead_id, messages);
+      }).catch(() => {}); // fire-and-forget, don't block UI
     } else {
       try {
         const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
@@ -611,7 +675,7 @@ export default function App() {
             sidebarOpen={sidebarOpen}
             onUpdateLead={updateActiveLead}
             onStartNewChat={handleStartNewChat}
-            onAuthChange={(uid) => setCurrentUserId(uid)}
+            onAuthChange={handleAuthChange}
             onLoadChat={handleLoadChat}
             onDeleteChat={handleDeleteChat}
           />

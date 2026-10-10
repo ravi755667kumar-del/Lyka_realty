@@ -10,7 +10,9 @@ import {
   collection, 
   query, 
   orderBy, 
-  onSnapshot 
+  onSnapshot,
+  updateDoc,
+  deleteField
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing } from '../types/crm';
@@ -74,31 +76,64 @@ export async function saveUserLoginToFirestore(
   authProvider: string,
   age?: number
 ): Promise<void> {
-  const path = `user-login/${userId}`;
+  const docId = email || userId;
+  const path = `User_login/${docId}`;
   try {
     const data: any = {
       uid: userId,
-      email: email,
-      full_name: fullName,
+      Email_id: email,
+      Name: fullName,
       auth_provider: authProvider,
       last_login: new Date().toISOString(),
     };
     if (age) {
-      data.age = age;
+      data.Age = age;
     }
+    // Initialize User_chat as empty object so chat messages have a persistence target
+    data.User_chat = {};
     
-    await setDoc(doc(db, 'user-login', userId), data, { merge: true });
+    await setDoc(doc(db, 'User_login', docId), data, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
-export async function deleteUserLoginFromFirestore(userId: string): Promise<void> {
-  const path = `user-login/${userId}`;
+export async function deleteUserLoginFromFirestore(userId: string, email?: string): Promise<void> {
+  const docId = email || userId;
+  const path = `User_login/${docId}`;
   try {
-    await deleteDoc(doc(db, 'user-login', userId));
+    await deleteDoc(doc(db, 'User_login', docId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function syncSessionToUserProfile(email: string | null, userId: string, lead: LeadProfile, msgs: ChatMessage[]): Promise<void> {
+  const docId = email || userId;
+  if (!docId) return;
+  try {
+    await setDoc(doc(db, 'User_login', docId), {
+      User_chat: {
+        [lead.id]: {
+          leadProfile: lead,
+          messages: msgs
+        }
+      }
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Failed to sync chat history JSON to user profile', error);
+  }
+}
+
+export async function deleteSessionFromUserProfile(email: string | null, userId: string, leadId: string): Promise<void> {
+  const docId = email || userId;
+  if (!docId) return;
+  try {
+    await updateDoc(doc(db, 'User_login', docId), {
+      [`User_chat.${leadId}`]: deleteField()
+    });
+  } catch (error) {
+    console.warn('Failed to delete chat history JSON from user profile', error);
   }
 }
 
@@ -187,6 +222,26 @@ export async function saveInteractionToFirestore(msg: ChatMessage): Promise<void
   const path = `interactions/${msg.id}`;
   try {
     await setDoc(doc(db, 'interactions', msg.id), msg, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// User Chat Collection - stores chat history per user
+export async function saveUserChatToFirestore(
+  userId: string,
+  leadId: string,
+  messages: ChatMessage[]
+): Promise<void> {
+  const docId = `${userId}_${leadId}`;
+  const path = `user_chat/${docId}`;
+  try {
+    await setDoc(doc(db, 'user_chat', docId), {
+      userId,
+      leadId,
+      messages,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }

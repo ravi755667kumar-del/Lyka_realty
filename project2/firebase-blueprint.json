@@ -37,6 +37,21 @@
       },
       "required": ["id", "intent", "lead_status"]
     },
+    "User_login": {
+      "title": "User_login",
+      "description": "User account profiles and their complete JSON chat histories",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "Email_id": { "type": "string", "description": "User email address (also used as Document ID)" },
+        "Name": { "type": "string", "description": "User's full name" },
+        "Age": { "type": "number", "description": "User's age" },
+        "auth_provider": { "type": "string", "description": "Google or Email/Password" },
+        "last_login": { "type": "string", "description": "ISO timestamp of last login" },
+        "User_chat": { "type": "object", "description": "Map of all chat sessions and their messages as JSON" }
+      },
+      "required": ["uid", "Email_id", "Name"]
+    },
     "Interaction": {
       "title": "Interaction",
       "description": "Conversation messages and agentic decision logs between customer and AI assistant",
@@ -94,6 +109,10 @@
     "/leads/{leadId}": {
       "schema": "Lead",
       "description": "CRM customer profiles and lead qualification records"
+    },
+    "/User_login/{email}": {
+      "schema": "User_login",
+      "description": "User accounts and their synchronized JSON chat history"
     },
     "/interactions/{interactionId}": {
       "schema": "Interaction",

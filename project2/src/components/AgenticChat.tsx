@@ -54,7 +54,7 @@ import {
   deleteLeadFromFirestore,
   deleteMessagesForLead
 } from '../lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 
 interface SavedSession {
   id: string;
@@ -77,7 +77,7 @@ interface AgenticChatProps {
   sidebarOpen: boolean;
   onUpdateLead?: (updates: Partial<LeadProfile>) => void;
   onStartNewChat: () => void;
-  onAuthChange?: (userId: string | null) => void;
+  onAuthChange?: (userId: string | null, email?: string) => void;
   onLoadChat?: (lead: LeadProfile, msgs: ChatMessage[]) => void;
   onDeleteChat?: (leadId: string) => void;
 }
@@ -127,6 +127,33 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
+
+  // ── Auth state persistence ──────────────────────────────────────────────
+  // onAuthStateChanged restores user session from Firebase Auth on mount or page reload.
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserLoggedIn(true);
+        setUserName(user.displayName || user.email?.split('@')[0] || 'User');
+        setUserEmail(user.email || '');
+        setUserId(user.uid);
+        // Determine provider from the first available providerData entry
+        const provider = user.providerData?.[0]?.providerId;
+        setAuthProviderName(
+          provider === 'google.com' ? 'Google' : 'Email'
+        );
+      } else {
+        // No user — reset state (guest mode)
+        setUserLoggedIn(false);
+        setUserName('');
+        setUserEmail('');
+        setUserId('');
+        setAuthProviderName('Email');
+      }
+    });
+    return () => unsubscribe(); // unsubscribe on unmount
+  }, []); // run once on mount
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('current');
@@ -314,7 +341,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           email: result.user.email || undefined
         });
       }
-      if (onAuthChange) onAuthChange(result.user.uid);
+      if (onAuthChange) onAuthChange(result.user.uid, result.user.email || undefined);
     } catch (error: any) {
       if (error?.code === 'auth/unauthorized-domain') {
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
@@ -396,13 +423,23 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           email: userEmail
         });
       }
-      if (onAuthChange) onAuthChange(userId);
+      if (onAuthChange) onAuthChange(userId, userEmail);
     } catch (error: any) {
       // Handle standard Firebase errors gracefully
       if (error.code === 'auth/email-already-in-use') {
-        setAuthError('This email is already registered. Please sign in instead.');
-      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        setAuthError('Invalid email or password.');
+        setAuthMode('login');
+        setAuthError('This email is already registered. We have switched to Sign In for you. Please enter your password.');
+      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        // 'invalid-credential' is the modern Firebase error for both wrong password and missing user
+        // We can check if they are in 'login' mode, maybe they don't have an account
+        if (authMode === 'login') {
+          setAuthMode('signup');
+          setAuthError('Account not found (or invalid password). If you are new, please Sign Up below!');
+        } else {
+          setAuthError('Invalid email or password.');
+        }
+      } else if (error.code === 'auth/wrong-password') {
+        setAuthError('Invalid password. Please try again.');
       } else {
         setAuthError(error.message);
       }
@@ -1189,7 +1226,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     type="button"
                     onClick={handleGoogleSignIn}
                     disabled={authLoading}
-                    className="w-full bg-white hover:bg-slate-50 text-slate-900 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-slate-300 shadow-xs"
+                    className="w-full bg-espresso-900 hover:bg-espresso-800 text-espresso-300 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-espresso-700"
                   >
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
                     <span>Continue with Google</span>
