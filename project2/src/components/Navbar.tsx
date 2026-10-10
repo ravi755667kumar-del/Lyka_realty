@@ -9,12 +9,13 @@ import {
   Layers,
   ShieldCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  BarChart3
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge';
-  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge') => void;
+  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats';
+  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats') => void;
   leadCount: number;
   firestoreActive: boolean;
   mongoStatus: { connected: boolean; uriConfigured: boolean; count: number };
@@ -37,7 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   adminAuthenticated,
   onAdminLogout,
 }) => {
-  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats'].includes(activeTab);
 
   return (
     <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50">
@@ -196,6 +197,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BookOpen className="w-3.5 h-3.5" />
               <span>Knowledge Base</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('stats')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                activeTab === 'stats'
+                  ? 'bg-violet-600 text-white shadow-md'
+                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Statistics</span>
             </button>
           </div>
         </div>

@@ -38,6 +38,7 @@ import { CrmPipeline } from './components/CrmPipeline';
 import { PropertyInventory } from './components/PropertyInventory';
 import { MongoEmbeddingHub } from './components/MongoEmbeddingHub';
 import { KnowledgeBaseView } from './components/KnowledgeBaseView';
+import { AdminStats } from './components/AdminStats';
 import { 
   Calendar, 
   CheckCircle2, 
@@ -50,7 +51,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats'>('chat');
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
   const [propertiesList, setPropertiesList] = useState<PropertyListing[]>(ALL_VERIFIED_PROPERTIES);
@@ -742,6 +743,10 @@ export default function App() {
 
             {activeTab === 'knowledge' && (
               <KnowledgeBaseView />
+            )}
+
+            {activeTab === 'stats' && (
+              <AdminStats properties={propertiesList} />
             )}
           </div>
         )}
