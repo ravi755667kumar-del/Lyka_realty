@@ -978,7 +978,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 type="button"
                 onClick={toggleSpeechRecognition}
                 className={`p-2 rounded-full transition-all ${
-                  isListening ? 'bg-rose-500 text-white animate-pulse' : 'text-[#6b5843] hover:text-white hover:bg-[#eee6d3]'
+                  isListening ? 'bg-rose-500 text-white animate-pulse' : 'text-[#6b5843] hover:text-slate-300 hover:bg-[#eee6d3]'
                 }`}
                 title={isListening ? 'Listening... stop' : 'Voice input'}
               >
@@ -1096,7 +1096,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           <div className="bg-[#ffffff] rounded-2xl w-full max-w-sm shadow-2xl border border-[#e2d9c6] overflow-hidden flex flex-col relative">
             <div className="flex justify-between items-center p-4 border-b border-[#f3ede0] bg-[#f7f2e6]">
               <h3 className="font-extrabold text-base text-[#1e1610]">Account</h3>
-              <button onClick={() => setShowAuthModal(false)} className="text-slate-500 hover:text-slate-800 p-1 bg-white rounded-md border border-[#e2d9c6]">
+              <button onClick={() => setShowAuthModal(false)} className="text-slate-500 hover:text-slate-300 p-1 bg-white rounded-md border border-[#e2d9c6]">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1109,7 +1109,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       <User className="w-4 h-4 text-amber-800" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800">Welcome</p>
+                      <p className="text-sm font-bold text-slate-300">Welcome</p>
                       <p className="text-xs font-medium text-slate-600">Sign in to save and sync your chats</p>
                     </div>
                   </div>
@@ -1123,7 +1123,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         className={`flex-1 text-xs font-bold py-1.5 rounded-lg transition-all capitalize ${
                           authMode === mode
                             ? 'bg-amber-500 text-amber-950 shadow-xs'
-                            : 'text-slate-600 hover:text-slate-900'
+                            : 'text-slate-700 hover:text-slate-900'
                         }`}
                       >
                         {mode === 'login' ? 'Sign In' : 'Sign Up'}
@@ -1144,7 +1144,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             placeholder="Full name"
                             autoComplete="name"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
                           />
                         </div>
                         <div className="relative">
@@ -1158,7 +1158,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
                             placeholder="Age"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
                           />
                         </div>
                       </>
@@ -1171,7 +1171,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         onChange={e => { setUserEmail(e.target.value); setAuthError(''); }}
                         placeholder="Email address"
                         required
-                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
+                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
                       />
                     </div>
                     <div className="relative">
@@ -1182,12 +1182,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         onChange={e => { setUserPassword(e.target.value); setAuthError(''); }}
                         placeholder="Password"
                         required
-                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 outline-none transition-colors"
+                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(p => !p)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -1245,7 +1245,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       {userName[0]?.toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-800 truncate">{userName || userFullName || 'Lyka Client'}</p>
+                      <p className="text-sm font-bold text-slate-300 truncate">{userName || userFullName || 'Lyka Client'}</p>
                       <p className="text-xs text-slate-500 truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
                       <div className="flex items-center space-x-1.5 mt-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
@@ -1258,12 +1258,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
                     <div className="flex justify-between items-center text-slate-600">
                       <span className="font-medium">Sign-in Method:</span>
-                      <span className="font-semibold text-slate-800">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
+                      <span className="font-semibold text-slate-300">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
                     </div>
                     {userAge && (
                       <div className="flex justify-between items-center text-slate-600">
                         <span className="font-medium">Age:</span>
-                        <span className="font-semibold text-slate-800">{userAge} years</span>
+                        <span className="font-semibold text-slate-300">{userAge} years</span>
                       </div>
                     )}
                     <div className="flex justify-between items-center text-slate-600">
@@ -1286,7 +1286,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       type="button"
                       onClick={handleSignOut}
                       disabled={authLoading}
-                      className="w-full bg-[#f3ede0] hover:bg-[#eee6d3] text-slate-800 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#e2d9c6]"
+                      className="w-full bg-[#f3ede0] hover:bg-[#eee6d3] text-slate-300 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#e2d9c6]"
                     >
                       <LogOut className="w-4 h-4 text-slate-600" />
                       <span>Log Out</span>
