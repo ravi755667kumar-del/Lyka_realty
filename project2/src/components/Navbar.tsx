@@ -43,17 +43,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50">
       <div className="px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand */}
+        <div className="relative flex items-center h-16">
+          {/* Logo & Brand — Left */}
           <div
-            className="flex items-center cursor-pointer flex-shrink-0"
+            className="flex items-center cursor-pointer flex-shrink-0 absolute left-0"
             onClick={() => { setActiveTab('chat'); }}
           >
             <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg" />
           </div>
 
-          {/* Center: AI Chat tab (frontend) */}
-          <nav className="hidden md:flex items-center space-x-2">
+          {/* Center: AI Chat tab (frontend) — ABSOLUTELY CENTERED */}
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 z-10">
             <button
               onClick={() => { setActiveTab('chat'); }}
               className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
@@ -73,7 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
 
           {/* Right: Status badges + Admin toggle + New Customer */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 ml-auto">
             {/* Firebase badge */}
             <div
               className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-espresso-800/80 px-2.5 py-1 rounded-md border border-espresso-700 text-espresso-300"
