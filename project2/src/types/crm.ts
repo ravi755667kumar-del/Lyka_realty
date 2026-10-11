@@ -164,11 +164,20 @@ export interface PropertyListing {
   expected_roi?: string;
   handover_date?: string;
   payment_plan?: string;
+  listing_date?: string;
+  available_date?: string;
+  expiry_date?: string;
   amenities: string[];
   image_url: string;
   description: string;
   features: string[];
   coordinates?: { lat: number; lng: number };
+  contact_name?: string;
+  contact_mobile?: string;
+  bathrooms?: string;
+  furnished?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FollowUpTask {

@@ -47,7 +47,9 @@ import {
   X, 
   AlertCircle, 
   Building2, 
-  Send 
+  Send,
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 
 export default function App() {
@@ -61,8 +63,11 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  // Admin authentication gate
+  const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager'>('admin');
+  // Admin authentication gate — SEPARATE states for each portal
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [propertyManagerAuthenticated, setPropertyManagerAuthenticated] = useState(false);
+  const isPortalAuthed = adminTargetPortal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
@@ -74,6 +79,8 @@ export default function App() {
   // Allowed admin credentials (configurable)
   const ADMIN_EMAIL = 'admin@lykarealty.ae';
   const ADMIN_PASSWORD = 'LykaAdmin2024';
+  const PM_EMAIL = 'manager@lykarealty.ae';
+  const PM_PASSWORD = 'LykaManager2024';
 
 
   // Initial welcome message
@@ -629,30 +636,61 @@ export default function App() {
           if (tab === 'chat') setAdminPanelOpen(false);
         }}
         leadCount={leadsList.length}
+        propertyCount={propertiesList.length}
         firestoreActive={firestoreActive}
         mongoStatus={mongoStatus}
         onStartNewChat={handleStartNewChat}
         adminPanelOpen={adminPanelOpen}
         adminAuthenticated={adminAuthenticated}
-        onToggleAdminPanel={() => {
-          if (adminPanelOpen) {
-            // Close admin → go back to chat
-            setAdminPanelOpen(false);
-            setActiveTab('chat');
-          } else if (!adminAuthenticated) {
-            // Not logged in → show email gate
+        propertyManagerAuthenticated={propertyManagerAuthenticated}
+        adminTargetPortal={adminTargetPortal}
+        onSelectPortal={(portal) => {
+          setAdminTargetPortal(portal);
+          const isAuthed = portal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
+          if (!isAuthed) {
             setAdminLoginError('');
             setAdminEmailInput('');
             setAdminPasswordInput('');
             setShowAdminLoginModal(true);
           } else {
-            // Already authed → open admin to CRM
             setAdminPanelOpen(true);
-            setActiveTab('crm');
+            if (portal === 'property_manager') {
+              setActiveTab('properties');
+            } else {
+              setActiveTab('crm');
+            }
+          }
+        }}
+        onToggleAdminPanel={() => {
+          if (adminPanelOpen) {
+            // Close admin → go back to chat
+            setAdminPanelOpen(false);
+            setActiveTab('chat');
+          } else {
+            const isAuthed = adminTargetPortal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
+            if (!isAuthed) {
+              // Not logged in → show email gate
+              setAdminLoginError('');
+              setAdminEmailInput('');
+              setAdminPasswordInput('');
+              setShowAdminLoginModal(true);
+            } else {
+              // Already authed → open portal
+              setAdminPanelOpen(true);
+              if (adminTargetPortal === 'property_manager') {
+                setActiveTab('properties');
+              } else {
+                setActiveTab('crm');
+              }
+            }
           }
         }}
         onAdminLogout={() => {
-          setAdminAuthenticated(false);
+          if (adminTargetPortal === 'admin') {
+            setAdminAuthenticated(false);
+          } else {
+            setPropertyManagerAuthenticated(false);
+          }
           setAdminPanelOpen(false);
           setActiveTab('chat');
         }}
@@ -698,7 +736,8 @@ export default function App() {
         {activeTab !== 'chat' && (
           <div className="flex-1 flex w-full h-full overflow-hidden">
 
-            {activeTab === 'crm' && (
+            {/* Admin Portal Pages — require adminAuthenticated */}
+            {adminAuthenticated && activeTab === 'crm' && (
               <CrmPipeline
                 leads={leadsList}
                 followUps={followUpsList}
@@ -726,7 +765,21 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'properties' && (
+            {adminAuthenticated && activeTab === 'embeddings' && (
+              <MongoEmbeddingHub currentLead={currentLead} />
+            )}
+
+            {adminAuthenticated && activeTab === 'knowledge' && (
+              <KnowledgeBaseView />
+            )}
+
+            {/* Stats — Admin only */}
+            {adminAuthenticated && activeTab === 'stats' && (
+              <AdminStats properties={propertiesList} />
+            )}
+
+            {/* Property Manager Portal Pages — require propertyManagerAuthenticated */}
+            {propertyManagerAuthenticated && activeTab === 'properties' && (
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
@@ -737,16 +790,26 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'embeddings' && (
-              <MongoEmbeddingHub currentLead={currentLead} />
-            )}
-
-            {activeTab === 'knowledge' && (
-              <KnowledgeBaseView />
-            )}
-
-            {activeTab === 'stats' && (
-              <AdminStats properties={propertiesList} />
+            {/* Unauthorized access fallback */}
+            {adminPanelOpen && !isPortalAuthed && String(activeTab) !== 'chat' && (
+              <div className="flex-1 flex items-center justify-center bg-slate-950">
+                <div className="text-center p-8">
+                  <Lock className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-slate-300 mb-2">Access Denied</h3>
+                  <p className="text-slate-500 mb-6">Please sign in to access this portal.</p>
+                  <button
+                    onClick={() => {
+                      setAdminLoginError('');
+                      setAdminEmailInput('');
+                      setAdminPasswordInput('');
+                      setShowAdminLoginModal(true);
+                    }}
+                    className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-xl text-sm transition-colors"
+                  >
+                    Sign In
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -917,17 +980,59 @@ export default function App() {
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-violet-700 via-violet-600 to-purple-700 px-6 py-5">
+            <div className={`px-6 py-5 transition-colors ${
+              adminTargetPortal === 'property_manager'
+                ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-yellow-600'
+                : 'bg-gradient-to-r from-violet-700 via-violet-600 to-purple-700'
+            }`}>
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
+                  {adminTargetPortal === 'property_manager' ? (
+                    <Building2 className="w-5 h-5 text-amber-100" />
+                  ) : (
+                    <ShieldCheck className="w-5 h-5 text-slate-100" />
+                  )}
                 </div>
                 <div>
-                  <h2 className="text-slate-300 font-bold text-base">Admin Access</h2>
-                  <p className="text-violet-200 text-xs mt-0.5">Lyka Realty CRM & Admin Panel</p>
+                  <h2 className="text-slate-100 font-bold text-base">
+                    {adminTargetPortal === 'property_manager' ? 'Property Manager Portal' : 'Admin Portal Access'}
+                  </h2>
+                  <p className="text-white/80 text-xs mt-0.5">
+                    {adminTargetPortal === 'property_manager'
+                      ? 'Lyka Realty Property Inventory & Statistics'
+                      : 'Lyka Realty CRM & System Management'}
+                  </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Portal Switcher Tabs */}
+            <div className="px-6 pt-4 pb-0">
+              <div className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => { setAdminTargetPortal('admin'); setAdminLoginError(''); }}
+                  className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    adminTargetPortal === 'admin'
+                      ? 'bg-violet-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Admin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAdminTargetPortal('property_manager'); setAdminLoginError(''); }}
+                  className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    adminTargetPortal === 'property_manager'
+                      ? 'bg-amber-500 text-amber-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Property Manager</span>
+                </button>
               </div>
             </div>
 
@@ -938,22 +1043,39 @@ export default function App() {
                 setAdminLoginLoading(true);
                 setAdminLoginError('');
                 // Simulate short auth delay for UX
-                await new Promise(r => setTimeout(r, 700));
-                if (
-                  adminEmailInput.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase() &&
-                  adminPasswordInput === ADMIN_PASSWORD
-                ) {
-                  setAdminAuthenticated(true);
+                await new Promise(r => setTimeout(r, 600));
+
+                const inputEmail = adminEmailInput.trim().toLowerCase();
+                let isValid = false;
+
+                if (adminTargetPortal === 'admin') {
+                  // Admin portal: only accept admin credentials
+                  isValid = inputEmail === ADMIN_EMAIL.toLowerCase() && adminPasswordInput === ADMIN_PASSWORD;
+                } else {
+                  // Property Manager portal: only accept property manager credentials
+                  isValid = inputEmail === PM_EMAIL.toLowerCase() && adminPasswordInput === PM_PASSWORD;
+                }
+
+                if (isValid) {
+                  if (adminTargetPortal === 'admin') {
+                    setAdminAuthenticated(true);
+                  } else {
+                    setPropertyManagerAuthenticated(true);
+                  }
                   setShowAdminLoginModal(false);
                   setAdminPanelOpen(true);
-                  setActiveTab('crm');
+                  if (adminTargetPortal === 'property_manager') {
+                    setActiveTab('properties');
+                  } else {
+                    setActiveTab('crm');
+                  }
                 } else {
                   setAdminLoginError(
                     adminEmailInput.trim() === ''
-                      ? 'Please enter your admin email address.'
+                      ? 'Please enter your email address.'
                       : adminPasswordInput === ''
                       ? 'Please enter your password.'
-                      : 'Invalid email or password. Please check your credentials.'
+                      : 'Invalid email or password for this portal. Please check your credentials.'
                   );
                 }
                 setAdminLoginLoading(false);
@@ -962,7 +1084,9 @@ export default function App() {
             >
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Admin Email</label>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {adminTargetPortal === 'property_manager' ? 'Manager Email' : 'Admin Email'}
+                </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2">
                     <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -974,7 +1098,7 @@ export default function App() {
                     type="email"
                     value={adminEmailInput}
                     onChange={(e) => { setAdminEmailInput(e.target.value); setAdminLoginError(''); }}
-                    placeholder="Enter admin email"
+                    placeholder={adminTargetPortal === 'property_manager' ? 'manager@lykarealty.ae' : 'admin@lykarealty.ae'}
                     autoFocus
                     required
                     className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
@@ -1015,7 +1139,11 @@ export default function App() {
 
               {/* Hint */}
               <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-[11px] text-slate-500">
-                <span className="text-slate-400 font-medium">Hint:</span> Use <span className="text-violet-400 font-mono">{ADMIN_EMAIL}</span>
+                <span className="text-slate-400 font-medium">Hint:</span> Use{' '}
+                <span className={adminTargetPortal === 'property_manager' ? 'text-amber-400 font-mono' : 'text-violet-400 font-mono'}>
+                  {adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL}
+                </span>{' '}
+                or <span className="font-mono text-slate-400">{adminTargetPortal === 'property_manager' ? ADMIN_EMAIL : PM_EMAIL}</span>
               </div>
 
               {/* Actions */}
@@ -1030,7 +1158,11 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={adminLoginLoading}
-                  className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-1.5"
+                  className={`flex-1 disabled:opacity-60 disabled:cursor-not-allowed py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-md ${
+                    adminTargetPortal === 'property_manager'
+                      ? 'bg-amber-500 hover:bg-amber-400 text-amber-950'
+                      : 'bg-violet-600 hover:bg-violet-500 text-white'
+                  }`}
                 >
                   {adminLoginLoading ? (
                     <>
@@ -1041,12 +1173,7 @@ export default function App() {
                       <span>Verifying...</span>
                     </>
                   ) : (
-                    <>
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                      </svg>
-                      <span>Access Admin</span>
-                    </>
+                    <span>Enter {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'}</span>
                   )}
                 </button>
               </div>

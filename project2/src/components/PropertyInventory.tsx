@@ -63,6 +63,13 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [newHasParking, setNewHasParking] = useState(false);
   const [newHasBalcony, setNewHasBalcony] = useState(false);
   const [newFurnished, setNewFurnished] = useState<'Furnished' | 'Unfurnished' | 'Semi-Furnished'>('Unfurnished');
+  // NEW FIELDS
+  const [newHandoverDate, setNewHandoverDate] = useState('');
+  const [newPaymentPlan, setNewPaymentPlan] = useState('');
+  const [newReraId, setNewReraId] = useState('');
+  const [newListingDate, setNewListingDate] = useState('');
+  const [newAvailableDate, setNewAvailableDate] = useState('');
+  const [newExpiryDate, setNewExpiryDate] = useState('');
 
   const filteredProperties = properties.filter(p => {
     const matchesSearch = 
@@ -104,10 +111,12 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     const prop: PropertyListing = {
       id: 'LYKA-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       title: newTitle,
+      city: newCity,
       community: newCommunity,
       property_type: newType,
       bedrooms: newBeds,
       price_aed: Number(newPrice),
+      price_inr: Math.round(Number(newPrice) * 22.8),
       status: newStatus,
       developer: newDeveloper,
       size_sqft: Number(newSize),
@@ -120,6 +129,14 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       contact_mobile: newMobile,
       bathrooms: newBathrooms,
       furnished: newFurnished,
+      handover_date: newHandoverDate || undefined,
+      payment_plan: newPaymentPlan || undefined,
+      rera_id: newReraId || undefined,
+      listing_date: newListingDate || undefined,
+      available_date: newAvailableDate || undefined,
+      expiry_date: newExpiryDate || undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     onAddProperty(prop);
@@ -128,6 +145,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     setNewTitle(''); setNewContactName(''); setNewMobile(''); setNewDescription('');
     setNewBathrooms('2'); setNewHasPool(false); setNewHasGym(false);
     setNewHasParking(false); setNewHasBalcony(false); setNewFurnished('Unfurnished');
+    setNewHandoverDate(''); setNewPaymentPlan(''); setNewReraId('');
+    setNewListingDate(''); setNewAvailableDate(''); setNewExpiryDate('');
     setNewImage(''); setNewImagePreview(''); setNewImageName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -539,6 +558,74 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       <option value="Off-plan">Off-plan</option>
                     </select>
                   </div>
+                </div>
+
+                {/* Date Information */}
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Listing Date</label>
+                    <input
+                      type="date"
+                      value={newListingDate}
+                      onChange={(e) => setNewListingDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Available From</label>
+                    <input
+                      type="date"
+                      value={newAvailableDate}
+                      onChange={(e) => setNewAvailableDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Expiry Date</label>
+                    <input
+                      type="date"
+                      value={newExpiryDate}
+                      onChange={(e) => setNewExpiryDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+              {/* Handover Date (for off-plan) */}
+                {newStatus === 'Off-plan' && (
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Handover Date</label>
+                      <input
+                        type="date"
+                        value={newHandoverDate}
+                        onChange={(e) => setNewHandoverDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Payment Plan</label>
+                      <input
+                        type="text"
+                        value={newPaymentPlan}
+                        onChange={(e) => setNewPaymentPlan(e.target.value)}
+                        placeholder="E.g., 10/20/30/40 or Post-handover"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* RERA ID */}
+                <div>
+                  <label className="text-slate-400 block mb-1">RERA ID (Optional)</label>
+                  <input
+                    type="text"
+                    value={newReraId}
+                    onChange={(e) => setNewReraId(e.target.value)}
+                    placeholder="E.g., RERA-12345"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  />
                 </div>
               </div>
 

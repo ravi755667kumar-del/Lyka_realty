@@ -144,10 +144,25 @@ export const AdminStats: React.FC<AdminStatsProps> = ({ properties }) => {
   const [expandedCommunity, setExpandedCommunity] = useState<string | null>(null);
   const [expandedContact, setExpandedContact] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'count' | 'minPrice' | 'maxPrice' | 'avgPrice'>('count');
+  const [timePeriod, setTimePeriod] = useState<'all' | 'week' | 'month' | 'year'>('all');
+
+  // ── Time period filtering ──────────────────────────────────────────────────────
+  const now = new Date();
+  const filteredProperties = properties.filter(prop => {
+    if (timePeriod === 'all') return true;
+    const propDate = new Date(prop.updatedAt || prop.createdAt || now.toISOString());
+    const diffMs = now.getTime() - propDate.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    
+    if (timePeriod === 'week') return diffDays <= 7;
+    if (timePeriod === 'month') return diffDays <= 30;
+    if (timePeriod === 'year') return diffDays <= 365;
+    return true;
+  });
 
   // ── Community stats ──────────────────────────────────────────────────────────
   const statsMap: Record<string, CommunityStats> = {};
-  for (const prop of properties) {
+  for (const prop of filteredProperties) {
     const key = prop.community || 'Unknown';
     if (!statsMap[key]) {
       statsMap[key] = { community: key, count: 0, minPrice: Infinity, maxPrice: -Infinity, avgPrice: 0, properties: [], types: {} };
@@ -198,30 +213,55 @@ export const AdminStats: React.FC<AdminStatsProps> = ({ properties }) => {
   const fmt = (n: number) =>
     n >= 1_000_000 ? `AED ${(n / 1_000_000).toFixed(2)}M` : `AED ${n.toLocaleString()}`;
 
-  const totalProperties = properties.length;
-  const overallMin = totalProperties ? Math.min(...properties.map(p => p.price_aed)) : 0;
-  const overallMax = totalProperties ? Math.max(...properties.map(p => p.price_aed)) : 0;
-  const overallAvg = totalProperties ? Math.round(properties.reduce((s, p) => s + p.price_aed, 0) / totalProperties) : 0;
+  const filteredTotal = filteredProperties.length;
+  const overallMin = filteredTotal ? Math.min(...filteredProperties.map(p => p.price_aed)) : 0;
+  const overallMax = filteredTotal ? Math.max(...filteredProperties.map(p => p.price_aed)) : 0;
+  const overallAvg = filteredTotal ? Math.round(filteredProperties.reduce((s, p) => s + p.price_aed, 0) / filteredTotal) : 0;
   const maxCount = Math.max(...statsList.map(s => s.count), 1);
+
+  // Time period label
+  const periodLabel = timePeriod === 'all' ? 'All Time' : timePeriod === 'week' ? 'Last 7 Days' : timePeriod === 'month' ? 'Last 30 Days' : 'Last 365 Days';
 
   return (
     <div className="flex-1 bg-slate-950 text-slate-300 overflow-y-auto p-4 sm:p-6 space-y-8">
 
-      {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
-          <BarChart3 className="w-5 h-5 text-violet-400" />
+      {/* Header with Time Period Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
+            <BarChart3 className="w-5 h-5 text-violet-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-300">Property Statistics Dashboard</h2>
+            <p className="text-xs text-slate-500">Live breakdown of all listings by community, price, and contact</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-bold text-slate-300">Property Statistics Dashboard</h2>
-          <p className="text-xs text-slate-500">Live breakdown of all listings by community, price, and contact</p>
+        {/* Time Period Selector */}
+        <div className="flex items-center space-x-2">
+          <span className="text-xs text-slate-500 hidden sm:block">Period:</span>
+          <div className="flex bg-white border border-slate-700 rounded-xl p-1">
+            {(['all', 'week', 'month', 'year'] as const).map(period => (
+              <button
+                key={period}
+                onClick={() => setTimePeriod(period)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  timePeriod === period
+                    ? 'bg-amber-500 text-amber-950 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {period === 'all' ? 'All' : period === 'week' ? 'Week' : period === 'month' ? 'Month' : 'Year'}
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-slate-500 hidden sm:inline">({periodLabel})</span>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Properties', value: totalProperties.toString(), Icon: Building2, c: 'amber' },
+          { label: 'Total Properties', value: filteredTotal.toString(), Icon: Building2, c: 'amber' },
           { label: 'Communities',      value: statsList.length.toString(), Icon: MapPin,     c: 'violet' },
           { label: 'Lowest Price',     value: fmt(overallMin),              Icon: TrendingDown, c: 'emerald' },
           { label: 'Highest Price',    value: fmt(overallMax),              Icon: TrendingUp,   c: 'rose' },
