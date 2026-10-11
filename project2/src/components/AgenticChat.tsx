@@ -53,7 +53,10 @@ import {
   getUserLeadsFromFirestore,
   getMessagesForLead,
   deleteLeadFromFirestore,
-  deleteMessagesForLead
+  deleteMessagesForLead,
+  getUserChatSessionsFromFirestore,
+  syncSessionToUserProfile,
+  saveUserChatToFirestore
 } from '../lib/firebase';
 import { 
   GoogleAuthProvider, 
@@ -163,25 +166,42 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         setAuthProviderName(
           provider === 'google.com' ? 'Google' : 'Email'
         );
+        let restoredName = '';
         // Restore user name and age from Firestore User_login
         try {
           const profile = await getUserProfileFromFirestore(user.email || '', user.uid);
           if (profile && profile.Name) {
+            restoredName = profile.Name;
             setUserName(profile.Name);
             if (profile.Age !== undefined && profile.Age !== null) {
               setUserAge(String(profile.Age));
             }
           } else if (user.displayName && !/^\d+$/.test(user.displayName)) {
+            restoredName = user.displayName;
             setUserName(user.displayName);
           } else {
             // Avoid using numeric student ID as name
             const prefix = user.email?.split('@')[0] || '';
-            setUserName(!/^\d+$/.test(prefix) && prefix ? prefix : 'User');
+            restoredName = !/^\d+$/.test(prefix) && prefix ? prefix : 'User';
+            setUserName(restoredName);
           }
         } catch (e) {
           console.warn('Could not restore user profile info:', e);
           const prefix = user.email?.split('@')[0] || '';
-          setUserName(user.displayName || (!/^\d+$/.test(prefix) && prefix ? prefix : 'User'));
+          restoredName = user.displayName || (!/^\d+$/.test(prefix) && prefix ? prefix : 'User');
+          setUserName(restoredName);
+        }
+
+        // Notify parent App component of auth state so chat history syncs immediately
+        if (onAuthChange) {
+          onAuthChange(user.uid, user.email || '');
+        }
+        if (onUpdateLead) {
+          onUpdateLead({
+            user_id: user.uid,
+            full_name: restoredName || undefined,
+            email: user.email || undefined
+          });
         }
       } else {
         // No user — reset state (guest mode)
@@ -194,6 +214,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         setUserId('');
         setAuthProviderName('Email');
         setPendingGoogleUser(null);
+        if (onAuthChange) {
+          onAuthChange(null, '');
+        }
       }
     });
     return () => unsubscribe(); // unsubscribe on unmount
@@ -225,22 +248,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     async function loadSessions() {
       if (userLoggedIn && userId) {
         try {
-          const leads = await getUserLeadsFromFirestore(userId);
-          const sessions: SavedSession[] = [];
-          for (const lead of leads) {
-            const msgs = await getMessagesForLead(lead.id);
-            if (msgs.length > 0) {
-              sessions.push({
-                id: lead.id,
-                title: lead.summary || `${lead.intent || 'General'} Inquiry`,
-                preview: msgs[msgs.length - 1].content.substring(0, 60) + '...',
-                timestamp: lead.updatedAt || msgs[msgs.length - 1].timestamp,
-                messageCount: msgs.length,
-                leadProfile: lead,
-                messages: msgs
-              });
-            }
-          }
+          const sessions = await getUserChatSessionsFromFirestore(userId, userEmail);
           setSavedSessions(sessions);
         } catch (error) {
           console.warn('Failed to load chat sessions', error);
@@ -281,7 +289,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       }
     }
     loadSessions();
-  }, [userLoggedIn, userId, messages.length]); // Refresh if message length changes to reflect new messages
+  }, [userLoggedIn, userId, userEmail, messages.length]);
 
   // Set active session id
   useEffect(() => {
@@ -419,6 +427,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           });
         }
         if (onAuthChange) onAuthChange(gUid, gEmail);
+        if (messages.length > 0) {
+          syncSessionToUserProfile(gEmail, gUid, { ...currentLead, user_id: gUid, email: gEmail }, messages).catch(() => {});
+        }
       } else {
         // User is NEW (first time in Firebase)!
         // Check if user already wrote Name and Age before clicking Continue with Google:
@@ -461,6 +472,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             });
           }
           if (onAuthChange) onAuthChange(gUid, gEmail);
+          if (messages.length > 0) {
+            syncSessionToUserProfile(gEmail, gUid, { ...currentLead, user_id: gUid, email: gEmail }, messages).catch(() => {});
+          }
         } else {
           // USER HAS NOT WRITTEN NAME AND AGE:
           // They CANNOT login with Continue with Google!
@@ -535,6 +549,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         });
       }
       if (onAuthChange) onAuthChange(pendingGoogleUser.uid, pendingGoogleUser.email);
+      if (messages.length > 0) {
+        syncSessionToUserProfile(pendingGoogleUser.email, pendingGoogleUser.uid, { ...currentLead, user_id: pendingGoogleUser.uid, email: pendingGoogleUser.email }, messages).catch(() => {});
+      }
     } catch (err: any) {
       setAuthError('Failed to save profile: ' + err.message);
     } finally {
@@ -622,6 +639,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         });
       }
       if (onAuthChange) onAuthChange(userId, userEmail);
+      if (messages.length > 0) {
+        syncSessionToUserProfile(userEmail, userId, { ...currentLead, user_id: userId, email: userEmail }, messages).catch(() => {});
+      }
     } catch (error: any) {
       // Handle standard Firebase errors gracefully
       if (error.code === 'auth/email-already-in-use') {

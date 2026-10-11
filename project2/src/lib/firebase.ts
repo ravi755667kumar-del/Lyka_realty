@@ -180,33 +180,188 @@ export async function deleteUserLoginFromFirestore(userId: string, email?: strin
   }
 }
 
-export async function syncSessionToUserProfile(email: string | null, userId: string, lead: LeadProfile, msgs: ChatMessage[]): Promise<void> {
-  const docId = email || userId;
-  if (!docId) return;
-  try {
-    await setDoc(doc(db, 'User_login', docId), {
-      User_chat: {
-        [lead.id]: {
-          leadProfile: lead,
-          messages: msgs
+export interface UserChatSession {
+  id: string;
+  title: string;
+  preview: string;
+  timestamp: string;
+  messageCount: number;
+  leadProfile: LeadProfile;
+  messages: ChatMessage[];
+}
+
+export async function syncSessionToUserProfile(
+  email: string | null, 
+  userId: string, 
+  lead: LeadProfile, 
+  msgs: ChatMessage[]
+): Promise<void> {
+  const cleanEmail = email ? email.trim().toLowerCase() : null;
+  const targets = new Set<string>();
+  if (cleanEmail) targets.add(cleanEmail);
+  if (email && email.trim()) targets.add(email.trim());
+  if (userId && userId.trim()) targets.add(userId.trim());
+  if (targets.size === 0) return;
+
+  const sessionData = {
+    leadProfile: lead,
+    messages: msgs,
+    updatedAt: new Date().toISOString()
+  };
+
+  for (const docId of targets) {
+    try {
+      await setDoc(doc(db, 'User_login', docId), {
+        User_chat: {
+          [lead.id]: sessionData
         }
-      }
-    }, { merge: true });
-  } catch (error) {
-    console.warn('Failed to sync chat history JSON to user profile', error);
+      }, { merge: true });
+    } catch (error) {
+      console.warn(`Failed to sync chat history to User_login/${docId}:`, error);
+    }
+  }
+
+  // Also store into user_chat collection: user_chat/${userId}_${lead.id}
+  if (userId) {
+    try {
+      await saveUserChatToFirestore(userId, lead.id, msgs);
+    } catch (e) {
+      console.warn('Failed to save to user_chat collection:', e);
+    }
   }
 }
 
-export async function deleteSessionFromUserProfile(email: string | null, userId: string, leadId: string): Promise<void> {
-  const docId = email || userId;
-  if (!docId) return;
-  try {
-    await updateDoc(doc(db, 'User_login', docId), {
-      [`User_chat.${leadId}`]: deleteField()
-    });
-  } catch (error) {
-    console.warn('Failed to delete chat history JSON from user profile', error);
+export async function deleteSessionFromUserProfile(
+  email: string | null, 
+  userId: string, 
+  leadId: string
+): Promise<void> {
+  const cleanEmail = email ? email.trim().toLowerCase() : null;
+  const targets = new Set<string>();
+  if (cleanEmail) targets.add(cleanEmail);
+  if (email && email.trim()) targets.add(email.trim());
+  if (userId && userId.trim()) targets.add(userId.trim());
+
+  for (const docId of targets) {
+    try {
+      await updateDoc(doc(db, 'User_login', docId), {
+        [`User_chat.${leadId}`]: deleteField()
+      });
+    } catch (error) {
+      console.warn(`Failed to delete session from User_login/${docId}:`, error);
+    }
   }
+
+  if (userId) {
+    try {
+      await deleteDoc(doc(db, 'user_chat', `${userId}_${leadId}`));
+    } catch (_) {}
+  }
+}
+
+export async function getUserChatSessionsFromFirestore(
+  userId: string,
+  email?: string
+): Promise<UserChatSession[]> {
+  const sessionMap = new Map<string, UserChatSession>();
+
+  // 1. Fetch from User_login docs
+  const targets = new Set<string>();
+  if (email && email.trim()) {
+    targets.add(email.trim().toLowerCase());
+    targets.add(email.trim());
+  }
+  if (userId && userId.trim()) {
+    targets.add(userId.trim());
+  }
+
+  for (const docId of targets) {
+    try {
+      const snap = await getDoc(doc(db, 'User_login', docId));
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.User_chat && typeof data.User_chat === 'object') {
+          for (const [leadId, session] of Object.entries<any>(data.User_chat)) {
+            if (session && Array.isArray(session.messages) && session.messages.length > 0) {
+              const msgs = session.messages as ChatMessage[];
+              const lead = session.leadProfile || { id: leadId, user_id: userId };
+              const lastMsg = msgs[msgs.length - 1];
+              sessionMap.set(leadId, {
+                id: leadId,
+                title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+                preview: (lastMsg?.content || '').substring(0, 60) + '...',
+                timestamp: lead.updatedAt || session.updatedAt || lastMsg?.timestamp || new Date().toISOString(),
+                messageCount: msgs.length,
+                leadProfile: lead,
+                messages: msgs
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`Could not fetch User_login User_chat for ${docId}:`, e);
+    }
+  }
+
+  // 2. Fetch from user_chat collection
+  try {
+    const snap = await getDocs(collection(db, 'user_chat'));
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.userId === userId && data.leadId && Array.isArray(data.messages) && data.messages.length > 0) {
+        if (!sessionMap.has(data.leadId)) {
+          const msgs = data.messages as ChatMessage[];
+          const lastMsg = msgs[msgs.length - 1];
+          sessionMap.set(data.leadId, {
+            id: data.leadId,
+            title: `Inquiry (${data.leadId})`,
+            preview: (lastMsg?.content || '').substring(0, 60) + '...',
+            timestamp: data.updatedAt || lastMsg?.timestamp || new Date().toISOString(),
+            messageCount: msgs.length,
+            leadProfile: { id: data.leadId, user_id: userId } as any,
+            messages: msgs
+          });
+        }
+      }
+    });
+  } catch (e) {
+    console.warn('Could not fetch user_chat collection:', e);
+  }
+
+  // 3. Fetch from leads & interactions collections
+  try {
+    const leads = await getUserLeadsFromFirestore(userId);
+    for (const lead of leads) {
+      if (!sessionMap.has(lead.id)) {
+        const msgs = await getMessagesForLead(lead.id);
+        if (msgs.length > 0) {
+          const lastMsg = msgs[msgs.length - 1];
+          sessionMap.set(lead.id, {
+            id: lead.id,
+            title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+            preview: (lastMsg?.content || '').substring(0, 60) + '...',
+            timestamp: lead.updatedAt || lastMsg?.timestamp || new Date().toISOString(),
+            messageCount: msgs.length,
+            leadProfile: lead,
+            messages: msgs
+          });
+        }
+      } else {
+        const existing = sessionMap.get(lead.id)!;
+        if (!existing.leadProfile.intent && lead.intent) {
+          existing.leadProfile = { ...existing.leadProfile, ...lead };
+          existing.title = lead.summary || `${lead.intent || 'General'} Inquiry`;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch leads/interactions for user:', e);
+  }
+
+  const sessions = Array.from(sessionMap.values());
+  sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return sessions;
 }
 
 export async function getLeadsFromFirestore(): Promise<LeadProfile[]> {
@@ -227,8 +382,13 @@ export async function getLeadsFromFirestore(): Promise<LeadProfile[]> {
 export async function getUserLeadsFromFirestore(userId: string): Promise<LeadProfile[]> {
   const path = 'leads';
   try {
-    const q = query(collection(db, path), orderBy('updatedAt', 'desc'));
-    const snap = await getDocs(q);
+    let snap;
+    try {
+      const q = query(collection(db, path), orderBy('updatedAt', 'desc'));
+      snap = await getDocs(q);
+    } catch {
+      snap = await getDocs(collection(db, path));
+    }
     const leads: LeadProfile[] = [];
     snap.forEach((d) => {
       const data = d.data() as LeadProfile;
@@ -236,6 +396,7 @@ export async function getUserLeadsFromFirestore(userId: string): Promise<LeadPro
         leads.push(data);
       }
     });
+    leads.sort((a, b) => (new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()));
     return leads;
   } catch (error) {
     console.warn('Could not fetch user leads from Firestore:', error);

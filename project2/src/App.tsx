@@ -22,6 +22,7 @@ import {
   testConnection, 
   saveLeadToFirestore, 
   getLeadsFromFirestore, 
+  getUserLeadsFromFirestore,
   saveInteractionToFirestore, 
   saveUserChatToFirestore,
   getMessagesForLead,
@@ -229,23 +230,35 @@ export default function App() {
     if (email) setCurrentUserEmail(email);
 
     if (uid) {
-      // Migrate local data to Firestore
+      // 1. Migrate local guest data to Firestore
       try {
         const localLeadsStr = localStorage.getItem('localLeads');
         const localMsgsStr = localStorage.getItem('localInteractions');
+        let localMsgs: ChatMessage[] = [];
+        if (localMsgsStr) {
+          try { localMsgs = JSON.parse(localMsgsStr); } catch (_) {}
+        }
         
         if (localLeadsStr) {
-          const leads: LeadProfile[] = JSON.parse(localLeadsStr);
-          for (const lead of leads) {
-            lead.user_id = uid;
-            if (email && !lead.email) lead.email = email;
-            await saveLeadToFirestore(lead);
+          try {
+            const leads: LeadProfile[] = JSON.parse(localLeadsStr);
+            for (const lead of leads) {
+              lead.user_id = uid;
+              if (email && !lead.email) lead.email = email;
+              await saveLeadToFirestore(lead);
+              const msgsForThisLead = localMsgs.filter(m => m.lead_id === lead.id);
+              if (msgsForThisLead.length > 0) {
+                await saveUserChatToFirestore(uid, lead.id, msgsForThisLead);
+                await syncSessionToUserProfile(email || null, uid, lead, msgsForThisLead);
+              }
+            }
+          } catch (e) {
+            console.warn('Error migrating localLeads:', e);
           }
         }
         
-        if (localMsgsStr) {
-          const msgs: ChatMessage[] = JSON.parse(localMsgsStr);
-          for (const msg of msgs) {
+        if (localMsgs.length > 0) {
+          for (const msg of localMsgs) {
             await saveInteractionToFirestore(msg);
           }
         }
@@ -253,19 +266,36 @@ export default function App() {
         // Clear local storage after successful migration
         localStorage.removeItem('localLeads');
         localStorage.removeItem('localInteractions');
-        
-        // Update current lead state to ensure it has the user ID
-        setCurrentLead(prev => {
-          if (!prev.user_id) {
-            const updated = { ...prev, user_id: uid, email: prev.email || email || '' };
-            saveLeadToFirestore(updated);
-            return updated;
-          }
-          return prev;
-        });
-
       } catch (e) {
         console.warn('Failed to migrate local data', e);
+      }
+
+      // 2. Migrate and persist current active conversation in state to Firestore
+      setCurrentLead(prev => {
+        const updated = { ...prev, user_id: uid, email: prev.email || email || '' };
+        saveLeadToFirestore(updated).catch(() => {});
+        if (messages.length > 0) {
+          saveUserChatToFirestore(uid, updated.id, messages).catch(() => {});
+          syncSessionToUserProfile(email || updated.email || null, uid, updated, messages).catch(() => {});
+          for (const msg of messages) {
+            saveInteractionToFirestore(msg).catch(() => {});
+          }
+        }
+        return updated;
+      });
+
+      // 3. Load user's leads from Firestore to keep CRM pipeline updated
+      try {
+        const userLeads = await getUserLeadsFromFirestore(uid);
+        if (userLeads.length > 0) {
+          setLeadsList(prev => {
+            const existingIds = new Set(userLeads.map(l => l.id));
+            const otherLeads = prev.filter(l => !existingIds.has(l.id));
+            return [...userLeads, ...otherLeads];
+          });
+        }
+      } catch (e) {
+        console.warn('Could not fetch user leads on auth change:', e);
       }
     }
   };
@@ -557,11 +587,21 @@ export default function App() {
         recommended_properties: finalProperties,
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      const updatedMessages = [...messages, assistantMsg];
+      setMessages(updatedMessages);
 
       // Save interactions to Firestore or local
       saveInteractionData(userMsg);
       saveInteractionData(assistantMsg);
+
+      // Update lead state with any server-side extracted parameters
+      updateActiveLead(mergedLead);
+
+      // Explicitly persist full updated chat history to user_chat and User_login
+      if (currentUserId) {
+        saveUserChatToFirestore(currentUserId, mergedLead.id, updatedMessages).catch(() => {});
+        syncSessionToUserProfile(currentUserEmail || mergedLead.email || null, currentUserId, mergedLead, updatedMessages).catch(() => {});
+      }
 
       // Asynchronously generate numerical vector embedding and store into MongoDB
       fetch('/api/embeddings/store', {
