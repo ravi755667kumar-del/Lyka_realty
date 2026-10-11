@@ -89,11 +89,19 @@ export async function getUserProfileFromFirestore(email: string, userId?: string
       const snapUid = await getDoc(doc(db, 'User_login', userId));
       if (snapUid.exists()) return snapUid.data() as UserProfileData;
     }
-    return null;
   } catch (error) {
     console.warn('Could not retrieve user profile from Firestore:', error);
-    return null;
   }
+
+  // Fallback to local cached profile if offline or permission pending
+  try {
+    const local = localStorage.getItem(`user_profile_${docId}`) || localStorage.getItem('current_user_profile');
+    if (local) {
+      return JSON.parse(local) as UserProfileData;
+    }
+  } catch (_) {}
+
+  return null;
 }
 
 export async function saveUserLoginToFirestore(
@@ -105,31 +113,70 @@ export async function saveUserLoginToFirestore(
 ): Promise<void> {
   const docId = (email || userId || '').trim().toLowerCase();
   const path = `User_login/${docId}`;
+  
+  const data: any = {
+    uid: userId,
+    Email_id: email.trim(),
+    Name: fullName.trim(),
+    auth_provider: authProvider,
+    last_login: new Date().toISOString(),
+  };
+  if (age !== undefined && age !== null) {
+    data.Age = Number(age);
+  }
+
+  // Cache locally immediately so Name and Age are never lost
   try {
-    const data: any = {
-      uid: userId,
-      Email_id: email.trim(),
-      Name: fullName.trim(),
-      auth_provider: authProvider,
-      last_login: new Date().toISOString(),
-    };
-    if (age !== undefined && age !== null) {
-      data.Age = Number(age);
-    }
-    
+    localStorage.setItem(`user_profile_${docId}`, JSON.stringify(data));
+    localStorage.setItem('current_user_profile', JSON.stringify(data));
+  } catch (_) {}
+
+  try {
+    // Save to User_login with email as docId
     await setDoc(doc(db, 'User_login', docId), data, { merge: true });
+    // Also save with userId as docId so it's always found either way
+    if (userId && userId.toLowerCase() !== docId) {
+      try {
+        await setDoc(doc(db, 'User_login', userId), data, { merge: true });
+      } catch (_) {}
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
 export async function deleteUserLoginFromFirestore(userId: string, email?: string): Promise<void> {
-  const docId = email || userId;
-  const path = `User_login/${docId}`;
-  try {
-    await deleteDoc(doc(db, 'User_login', docId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const targets = new Set<string>();
+  if (cleanEmail) targets.add(cleanEmail);
+  if (email && email.trim()) targets.add(email.trim());
+  if (userId && userId.trim()) targets.add(userId.trim());
+
+  // Delete User_login and users documents
+  for (const target of targets) {
+    try {
+      await deleteDoc(doc(db, 'User_login', target));
+    } catch (err: any) {
+      console.warn(`Could not delete User_login doc for ${target}:`, err);
+    }
+    try {
+      await deleteDoc(doc(db, 'users', target));
+    } catch (_) {}
+  }
+
+  // Also delete all leads and messages owned by this user
+  if (userId) {
+    try {
+      const userLeads = await getUserLeadsFromFirestore(userId);
+      for (const lead of userLeads) {
+        try {
+          await deleteLeadFromFirestore(lead.id);
+          await deleteMessagesForLead(lead.id);
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.warn('Could not clean up user leads on account delete:', e);
+    }
   }
 }
 

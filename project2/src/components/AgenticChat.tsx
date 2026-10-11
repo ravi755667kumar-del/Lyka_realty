@@ -166,17 +166,22 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         // Restore user name and age from Firestore User_login
         try {
           const profile = await getUserProfileFromFirestore(user.email || '', user.uid);
-          if (profile) {
-            setUserName(profile.Name || user.displayName || user.email?.split('@')[0] || 'User');
+          if (profile && profile.Name) {
+            setUserName(profile.Name);
             if (profile.Age !== undefined && profile.Age !== null) {
               setUserAge(String(profile.Age));
             }
+          } else if (user.displayName && !/^\d+$/.test(user.displayName)) {
+            setUserName(user.displayName);
           } else {
-            setUserName(user.displayName || user.email?.split('@')[0] || 'User');
+            // Avoid using numeric student ID as name
+            const prefix = user.email?.split('@')[0] || '';
+            setUserName(!/^\d+$/.test(prefix) && prefix ? prefix : 'User');
           }
         } catch (e) {
           console.warn('Could not restore user profile info:', e);
-          setUserName(user.displayName || user.email?.split('@')[0] || 'User');
+          const prefix = user.email?.split('@')[0] || '';
+          setUserName(user.displayName || (!/^\d+$/.test(prefix) && prefix ? prefix : 'User'));
         }
       } else {
         // No user — reset state (guest mode)
@@ -356,12 +361,28 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     setAuthError('');
+
+    // If user is on the Sign Up tab (first-time user), they MUST write Name and Age first!
+    if (authMode === 'signup') {
+      if (!userFullName.trim() || userFullName.trim().length < 2) {
+        setAuthError('Please write your Full Name first before continuing with Google.');
+        setAuthLoading(false);
+        return;
+      }
+      const ageNum = Number(userAge);
+      if (!userAge.trim() || !Number.isInteger(ageNum) || ageNum < 18 || ageNum > 120) {
+        setAuthError('Please write a valid Age (between 18 and 120) first before continuing with Google.');
+        setAuthLoading(false);
+        return;
+      }
+    }
+
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const gEmail = result.user.email || '';
       const gUid = result.user.uid;
-      const gName = result.user.displayName || gEmail.split('@')[0] || 'Customer';
+      const gName = userFullName.trim() || result.user.displayName || gEmail.split('@')[0] || 'Customer';
 
       // Check whether user profile already exists in Firestore User_login
       const existingProfile = await getUserProfileFromFirestore(gEmail, gUid);
@@ -399,22 +420,66 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         }
         if (onAuthChange) onAuthChange(gUid, gEmail);
       } else {
-        // User is NEW (or profile missing Age) -> Sign Up required!
-        setPendingGoogleUser({
-          uid: gUid,
-          email: gEmail,
-          displayName: gName
-        });
-        setUserFullName(gName);
-        setUserEmail(gEmail);
-        setUserAge(existingProfile?.Age ? String(existingProfile.Age) : '');
-        setAuthMode('google_signup');
-        // Keep modal open so the user provides their age & completes signup
+        // User is NEW (first time in Firebase)!
+        // Check if user already wrote Name and Age before clicking Continue with Google:
+        const ageNum = Number(userAge);
+        const hasValidName = userFullName.trim().length >= 2;
+        const hasValidAge = userAge.trim() && Number.isInteger(ageNum) && ageNum >= 18 && ageNum <= 120;
+
+        if (hasValidName && hasValidAge) {
+          // Both Name and Age are provided -> complete sign up immediately!
+          const finalName = userFullName.trim();
+          try {
+            if (auth.currentUser) {
+              await updateProfile(auth.currentUser, { displayName: finalName });
+            }
+          } catch (_) {}
+
+          await saveUserLoginToFirestore(
+            gUid,
+            gEmail,
+            finalName,
+            'Google',
+            ageNum
+          );
+
+          setUserName(finalName);
+          setUserEmail(gEmail);
+          setUserAge(String(ageNum));
+          setUserId(gUid);
+          setAuthProviderName('Google');
+          setUserLoggedIn(true);
+          setShowAuthModal(false);
+          setPendingGoogleUser(null);
+          setAuthMode('login');
+
+          if (onUpdateLead) {
+            onUpdateLead({
+              user_id: gUid,
+              full_name: finalName,
+              email: gEmail
+            });
+          }
+          if (onAuthChange) onAuthChange(gUid, gEmail);
+        } else {
+          // USER HAS NOT WRITTEN NAME AND AGE:
+          // They CANNOT login with Continue with Google!
+          await signOut(auth);
+          setUserLoggedIn(false);
+          setPendingGoogleUser(null);
+          setAuthMode('signup');
+          if (!userFullName.trim()) {
+            setUserFullName(result.user.displayName || '');
+          }
+          setAuthError('You must write your Name and Age first before continuing with Google!');
+        }
       }
     } catch (error: any) {
       if (error?.code === 'auth/unauthorized-domain') {
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
         setAuthError(`Domain "${currentHost}" is not authorized in Firebase. Please add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`);
+      } else if (error?.code === 'auth/popup-closed-by-user') {
+        // user closed popup window
       } else {
         setAuthError(error.message);
       }
@@ -438,6 +503,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     }
 
     try {
+      if (auth.currentUser) {
+        try {
+          await updateProfile(auth.currentUser, { displayName: finalName });
+        } catch (_) {}
+      }
       // Store name, age, email in Firestore User_login
       await saveUserLoginToFirestore(
         pendingGoogleUser.uid,
@@ -562,7 +632,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         // We can check if they are in 'login' mode, maybe they don't have an account
         if (authMode === 'login') {
           setAuthMode('signup');
-          setAuthError('Account not found (or invalid password). If you are new, please Sign Up below!');
+          setAuthError('User not found in Firebase. You cannot sign in — please sign up first!');
         } else {
           setAuthError('Invalid email or password.');
         }
@@ -599,9 +669,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setAuthError('');
     try {
       const targetId = userId || auth.currentUser?.uid;
-      // 1. Delete user record from Firestore user-login collection
-      if (targetId) {
-        await deleteUserLoginFromFirestore(targetId);
+      const targetEmail = userEmail || auth.currentUser?.email;
+      // 1. Delete user record from Firestore User_login collection
+      if (targetId || targetEmail) {
+        try {
+          await deleteUserLoginFromFirestore(targetId || '', targetEmail || '');
+        } catch (dbErr: any) {
+          console.warn('Firestore user delete warning:', dbErr);
+        }
       }
       // 2. Delete user authentication from Firebase Auth if currently logged in
       const currentUser = auth.currentUser;
@@ -609,10 +684,21 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         try {
           await currentUser.delete();
         } catch (authErr: any) {
+          if (authErr?.code === 'auth/requires-recent-login') {
+            setAuthError('For security reasons, please log in again before deleting your account.');
+            setAuthLoading(false);
+            return;
+          }
           console.warn('Firebase user delete note:', authErr);
         }
       }
-      // 3. Clear all active session state
+      // 3. Clear local storage for this user
+      try {
+        localStorage.removeItem('localInteractions');
+        localStorage.removeItem('localLeads');
+      } catch (_) {}
+
+      // 4. Clear all active session state
       setUserLoggedIn(false);
       setUserEmail('');
       setUserPassword('');
@@ -623,6 +709,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       setAuthProviderName('');
       setDeleteConfirm(false);
       setShowAuthModal(false);
+
+      if (onAuthChange) onAuthChange(null, undefined);
+      if (onStartNewChat) onStartNewChat();
     } catch (err: any) {
       setAuthError('Error deleting user: ' + err.message);
     } finally {
@@ -1317,9 +1406,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Verified</span>
                     </div>
 
-                    <div className="text-xs text-slate-600">
-                      <p className="font-semibold text-slate-800">Complete your details to finish Sign Up</p>
-                      <p className="text-[11px] text-slate-500">Please provide your name and age to create your profile.</p>
+                    <div className="text-xs bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-amber-900 space-y-0.5">
+                      <p className="font-bold text-[12px]">First-time User: Sign Up Required</p>
+                      <p className="text-[11px] text-amber-800">
+                        You do not have an account in Firebase yet. Please provide your Name and Age first to complete registration before continuing with Google.
+                      </p>
                     </div>
 
                     <form onSubmit={handleCompleteGoogleSignUp} className="space-y-2.5">
@@ -1538,8 +1629,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     className="w-full bg-espresso-900 hover:bg-espresso-800 text-espresso-300 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-espresso-700"
                   >
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-                    <span>Continue with Google</span>
+                    <span>{authMode === 'signup' ? 'Sign Up with Google' : 'Continue with Google'}</span>
                   </button>
+
+                  {authMode === 'signup' && (
+                    <p className="text-[11px] text-amber-850 bg-amber-50/90 border border-amber-200/80 rounded-lg p-2 text-center font-medium leading-tight text-amber-900">
+                      * You must write your <strong>Name</strong> and <strong>Age</strong> above first before using Google Sign Up.
+                    </p>
+                  )}
 
                   <p className="text-xs font-medium text-slate-600 text-center mt-3">
                     Chat continues as guest without sign-in
