@@ -52,6 +52,7 @@ export const MongoEmbeddingHub: React.FC<MongoEmbeddingHubProps> = ({ currentLea
 
   // MongoDB URI live connect state
   const [customUri, setCustomUri] = useState('');
+  const [customDbName, setCustomDbName] = useState('');
   const [isConnectingMongo, setIsConnectingMongo] = useState(false);
   const [mongoConnectMessage, setMongoConnectMessage] = useState<{ text: string; success: boolean } | null>(null);
 
@@ -131,7 +132,10 @@ export const MongoEmbeddingHub: React.FC<MongoEmbeddingHubProps> = ({ currentLea
       const res = await fetch('/api/mongodb/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uri: customUri.trim() })
+        body: JSON.stringify({ 
+          uri: customUri.trim(),
+          databaseName: customDbName.trim() || undefined
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -281,7 +285,7 @@ APP_URL="MY_APP_URL"`;
         </div>
 
         <p className="text-xs text-slate-300 leading-relaxed">
-          <strong className="text-emerald-400 font-semibold">Yes!</strong> All 11 distinct sections from your document <strong className="text-slate-300">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> are chunked, transformed into multi-dimensional float vectors (e.g. 128 float numbers), and stored in your MongoDB database (<code className="text-emerald-300 font-mono">lyka_realty</code>) in collection <code className="text-amber-700 font-mono">pdf_knowledge_embeddings</code>.
+          <strong className="text-emerald-400 font-semibold">Yes!</strong> All 11 distinct sections from your document <strong className="text-slate-300">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> are chunked, transformed into multi-dimensional float vectors (e.g. 128 float numbers), and stored in your MongoDB database (<code className="text-emerald-300 font-mono">{mongoStatus.databaseName || 'lyka_realty'}</code>) in collection <code className="text-amber-700 font-mono">pdf_knowledge_embeddings</code>.
         </p>
 
         {pdfSyncMessage && (
@@ -333,7 +337,7 @@ APP_URL="MY_APP_URL"`;
           <div className="pt-2.5 text-xs text-slate-300 space-y-1.5">
             <div className="flex justify-between">
               <span className="text-slate-400">Target Database:</span>
-              <strong className="text-emerald-400 font-mono">lyka_realty</strong>
+              <strong className="text-emerald-400 font-mono">{mongoStatus.databaseName || 'lyka_realty'}</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Collections in DB:</span>
@@ -399,8 +403,15 @@ APP_URL="MY_APP_URL"`;
             type="text"
             value={customUri}
             onChange={(e) => setCustomUri(e.target.value)}
-            placeholder="mongodb+srv://<username>:<password>@cluster0.mongodb.net/lyka_realty?retryWrites=true&w=majority"
+            placeholder="mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority"
             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-300 placeholder-slate-600 outline-none focus:border-emerald-500"
+          />
+          <input
+            type="text"
+            value={customDbName}
+            onChange={(e) => setCustomDbName(e.target.value)}
+            placeholder={`Database Name (current: ${mongoStatus.databaseName || 'lyka_realty'})`}
+            className="w-full sm:w-64 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-300 placeholder-slate-600 outline-none focus:border-emerald-500"
           />
           <button
             type="submit"
@@ -415,7 +426,7 @@ APP_URL="MY_APP_URL"`;
             ) : (
               <>
                 <Database className="w-3.5 h-3.5" />
-                <span>Connect & Verify MongoDB</span>
+                <span>Connect & Verify</span>
               </>
             )}
           </button>
@@ -493,7 +504,7 @@ APP_URL="MY_APP_URL"`;
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">MongoDB Database:</span>
-                  <span className="font-mono text-emerald-400 font-bold">lyka_realty</span>
+                  <span className="font-mono text-emerald-400 font-bold">{mongoStatus.databaseName || 'lyka_realty'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">MongoDB Collection:</span>
@@ -570,7 +581,7 @@ APP_URL="MY_APP_URL"`;
                 <span>All PDF Sections Stored in MongoDB ({pdfEmbeddings.length})</span>
               </h3>
               <span className="text-xs text-slate-400">
-                Database: <strong className="text-emerald-400">lyka_realty</strong> • Collection: <strong className="text-slate-300">pdf_knowledge_embeddings</strong>
+                Database: <strong className="text-emerald-400">{mongoStatus.databaseName || 'lyka_realty'}</strong> • Collection: <strong className="text-slate-300">pdf_knowledge_embeddings</strong>
               </span>
             </div>
 
@@ -602,7 +613,7 @@ APP_URL="MY_APP_URL"`;
                             : 'bg-amber-500/20 text-amber-700 border-amber-500/40'
                         }`}>
                           {sec.storage === 'MongoDB' || mongoStatus.connected
-                            ? '🍃 MongoDB: lyka_realty.pdf_knowledge_embeddings'
+                            ? `🍃 MongoDB: ${mongoStatus.databaseName || 'lyka_realty'}.pdf_knowledge_embeddings`
                             : '💾 Local Buffer'
                           }
                         </span>
@@ -665,7 +676,7 @@ APP_URL="MY_APP_URL"`;
 
                 <div className="flex items-center justify-between text-xs text-slate-400">
                   <span>Embedding Model: <strong className="text-amber-600 font-mono">{mongoStatus.configuredModel}</strong></span>
-                  <span>Target: <strong className="text-emerald-400 font-mono">lyka_realty.customer_embeddings</strong></span>
+                  <span>Target: <strong className="text-emerald-400 font-mono">{mongoStatus.databaseName || 'lyka_realty'}.customer_embeddings</strong></span>
                 </div>
 
                 <button
@@ -754,7 +765,7 @@ APP_URL="MY_APP_URL"`;
                 <span>Customer Inquiries in MongoDB ({storedRecords.length})</span>
               </h3>
               <span className="text-xs text-slate-400">
-                Database: <strong className="text-emerald-400">lyka_realty</strong> • Collection: <strong className="text-slate-300">customer_embeddings</strong>
+                Database: <strong className="text-emerald-400">{mongoStatus.databaseName || 'lyka_realty'}</strong> • Collection: <strong className="text-slate-300">customer_embeddings</strong>
               </span>
             </div>
 
@@ -789,7 +800,7 @@ APP_URL="MY_APP_URL"`;
                               : 'bg-amber-500/20 text-amber-700 border-amber-500/40'
                           }`}>
                             {rec.storage === 'MongoDB' || mongoStatus.connected
-                              ? '🍃 MongoDB: lyka_realty.customer_embeddings'
+                              ? `🍃 MongoDB: ${mongoStatus.databaseName || 'lyka_realty'}.customer_embeddings`
                               : '💾 Local Vector Store'
                             }
                           </span>
@@ -832,7 +843,7 @@ APP_URL="MY_APP_URL"`;
               <div className="flex items-center space-x-2">
                 <Database className="w-5 h-5 text-emerald-400" />
                 <h3 className="text-base font-bold text-slate-300">
-                  MongoDB BSON Document (Database: <span className="text-emerald-400 font-mono">lyka_realty</span>)
+                  MongoDB BSON Document (Database: <span className="text-emerald-400 font-mono">{mongoStatus.databaseName || 'lyka_realty'}</span>)
                 </h3>
               </div>
               <button 
@@ -847,7 +858,7 @@ APP_URL="MY_APP_URL"`;
               <pre className="font-mono text-xs text-amber-700 leading-relaxed whitespace-pre-wrap">
                 {JSON.stringify({
                   _id: viewingDocModal._id,
-                  database: "lyka_realty",
+                  database: mongoStatus.databaseName || "lyka_realty",
                   collection: viewingDocModal.section_number ? "pdf_knowledge_embeddings" : "customer_embeddings",
                   document_name: viewingDocModal.document_name || "customer_requirement",
                   section_number: viewingDocModal.section_number,

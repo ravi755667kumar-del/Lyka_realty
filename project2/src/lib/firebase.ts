@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
+  getDoc,
   getDocFromServer, 
   setDoc, 
   deleteDoc,
@@ -15,10 +16,12 @@ import {
   deleteField
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = (firebaseConfig as any).firestoreDatabaseId
+  ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
+  : getFirestore(app);
 export const auth = getAuth(app);
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -68,7 +71,31 @@ export async function saveLeadToFirestore(lead: LeadProfile): Promise<void> {
   }
 }
 
-// User Logins helper
+// User Profile & Login helpers
+export async function getUserProfileFromFirestore(email: string, userId?: string): Promise<UserProfileData | null> {
+  const docId = (email || userId || '').trim().toLowerCase();
+  if (!docId) return null;
+  try {
+    const snap = await getDoc(doc(db, 'User_login', docId));
+    if (snap.exists()) {
+      return snap.data() as UserProfileData;
+    }
+    // Also try original casing or userId if email was lowercase
+    if (email && email !== docId) {
+      const snapOrig = await getDoc(doc(db, 'User_login', email));
+      if (snapOrig.exists()) return snapOrig.data() as UserProfileData;
+    }
+    if (userId && userId !== docId) {
+      const snapUid = await getDoc(doc(db, 'User_login', userId));
+      if (snapUid.exists()) return snapUid.data() as UserProfileData;
+    }
+    return null;
+  } catch (error) {
+    console.warn('Could not retrieve user profile from Firestore:', error);
+    return null;
+  }
+}
+
 export async function saveUserLoginToFirestore(
   userId: string, 
   email: string, 
@@ -76,21 +103,19 @@ export async function saveUserLoginToFirestore(
   authProvider: string,
   age?: number
 ): Promise<void> {
-  const docId = email || userId;
+  const docId = (email || userId || '').trim().toLowerCase();
   const path = `User_login/${docId}`;
   try {
     const data: any = {
       uid: userId,
-      Email_id: email,
-      Name: fullName,
+      Email_id: email.trim(),
+      Name: fullName.trim(),
       auth_provider: authProvider,
       last_login: new Date().toISOString(),
     };
-    if (age) {
-      data.Age = age;
+    if (age !== undefined && age !== null) {
+      data.Age = Number(age);
     }
-    // Initialize User_chat as empty object so chat messages have a persistence target
-    data.User_chat = {};
     
     await setDoc(doc(db, 'User_login', docId), data, { merge: true });
   } catch (error) {

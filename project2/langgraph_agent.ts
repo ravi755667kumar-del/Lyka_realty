@@ -15,7 +15,7 @@
 import Groq from 'groq-sdk';
 import { StateGraph, Annotation, END } from '@langchain/langgraph';
 // Reuse the browser's regex extractor as the fast path for answer extraction.
-import { extractEntitiesFromText, isPropertyQuery, queryPropertyDatabase, queryGeneralKnowledge } from './src/lib/agentic_engine.js';
+import { extractEntitiesFromText, isPropertyQuery, queryGeneralKnowledge } from './src/lib/agentic_engine.js';
 import { ALL_VERIFIED_PROPERTIES } from './src/data/all_properties.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -377,7 +377,7 @@ function searchProperties(profile: CustomerProfile, limit = 3): PropertyRecord[]
  * Handles queries like: "lowest property in Dubai Marina", "highest price in Downtown", 
  * "average price in Dubai Marina", "cheapest 2 bedroom apartment", etc.
  */
-export function queryPropertyDatabase(query: string): string {
+function queryPropertyDatabase(query: string): string {
   const text = query.toLowerCase().trim();
   let pool = [...allProperties];
   
@@ -804,7 +804,7 @@ const SELL_SLOTS = ['preferred_communities', 'property_type', 'budget_max'];
 
 async function nodeGreet(state: AgentState): Promise<Partial<AgentState>> {
   if (isPropertyQuery(state.userMessage)) {
-    const propAnswer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+    const propAnswer = queryPropertyDatabase(state.userMessage);
     const reply = `Hello, and welcome to Lyka Realty! 🏙️\n\n${propAnswer}\n\nTo help me tailor our listings to your specific journey — are you looking to **buy**, **rent**, **invest**, or **sell** a property today?`;
     return { reply, provider: 'LangGraph → Property DB & Greet', currentNode: 'classify_intent', ragContext: '' };
   }
@@ -845,7 +845,7 @@ async function nodeClassifyIntent(state: AgentState): Promise<Partial<AgentState
 
   if (!intent) {
     if (isPropertyQuery(state.userMessage)) {
-      const propAnswer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+      const propAnswer = queryPropertyDatabase(state.userMessage);
       const reply = `${propAnswer}\n\nTo help me guide you to the right properties from our collection — are you looking to **buy**, **rent**, **invest**, or **sell** a property?`;
       return { reply, provider: 'LangGraph → Property DB & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
     }
@@ -899,7 +899,7 @@ async function nodeQualifyBuy(state: AgentState): Promise<Partial<AgentState>> {
   if (digression && currentSlot) {
     let answer = '';
     if (isProp) {
-      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+      answer = queryPropertyDatabase(state.userMessage);
     } else {
       const generalAnswer = queryGeneralKnowledge(state.userMessage);
       if (generalAnswer) {
@@ -994,7 +994,7 @@ async function nodeQualifyRent(state: AgentState): Promise<Partial<AgentState>> 
   if (digression && currentSlot) {
     let answer = '';
     if (isProp) {
-      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+      answer = queryPropertyDatabase(state.userMessage);
     } else {
       const generalAnswer = queryGeneralKnowledge(state.userMessage);
       if (generalAnswer) {
@@ -1085,7 +1085,7 @@ async function nodeQualifyInvest(state: AgentState): Promise<Partial<AgentState>
   if (digression && currentSlot) {
     let answer = '';
     if (isProp) {
-      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+      answer = queryPropertyDatabase(state.userMessage);
     } else {
       const generalAnswer = queryGeneralKnowledge(state.userMessage);
       if (generalAnswer) {
@@ -1172,7 +1172,7 @@ async function nodeQualifySell(state: AgentState): Promise<Partial<AgentState>> 
   if (digression && currentSlot) {
     let answer = '';
     if (isProp) {
-      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+      answer = queryPropertyDatabase(state.userMessage);
     } else {
       const generalAnswer = queryGeneralKnowledge(state.userMessage);
       if (generalAnswer) {

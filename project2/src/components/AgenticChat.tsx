@@ -48,13 +48,25 @@ import {
 import { 
   auth, 
   saveUserLoginToFirestore, 
+  getUserProfileFromFirestore,
   deleteUserLoginFromFirestore,
   getUserLeadsFromFirestore,
   getMessagesForLead,
   deleteLeadFromFirestore,
   deleteMessagesForLead
 } from '../lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  updateEmail,
+  updateProfile,
+  reauthenticateWithCredential,
+  EmailAuthProvider
+} from 'firebase/auth';
 
 interface SavedSession {
   id: string;
@@ -122,8 +134,18 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [userId, setUserId] = useState('');
   const [authProviderName, setAuthProviderName] = useState<'Google' | 'Email' | ''>('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [showEmailUpdateModal, setShowEmailUpdateModal] = useState(false);
+  const [newEmailInput, setNewEmailInput] = useState('');
+  const [emailUpdatePassword, setEmailUpdatePassword] = useState('');
+  const [emailUpdateError, setEmailUpdateError] = useState('');
+  const [emailUpdateLoading, setEmailUpdateLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'google_signup'>('login');
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<{
+    uid: string;
+    email: string;
+    displayName: string;
+  } | null>(null);
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
@@ -131,10 +153,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   // ── Auth state persistence ──────────────────────────────────────────────
   // onAuthStateChanged restores user session from Firebase Auth on mount or page reload.
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUserLoggedIn(true);
-        setUserName(user.displayName || user.email?.split('@')[0] || 'User');
         setUserEmail(user.email || '');
         setUserId(user.uid);
         // Determine provider from the first available providerData entry
@@ -142,13 +163,32 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         setAuthProviderName(
           provider === 'google.com' ? 'Google' : 'Email'
         );
+        // Restore user name and age from Firestore User_login
+        try {
+          const profile = await getUserProfileFromFirestore(user.email || '', user.uid);
+          if (profile) {
+            setUserName(profile.Name || user.displayName || user.email?.split('@')[0] || 'User');
+            if (profile.Age !== undefined && profile.Age !== null) {
+              setUserAge(String(profile.Age));
+            }
+          } else {
+            setUserName(user.displayName || user.email?.split('@')[0] || 'User');
+          }
+        } catch (e) {
+          console.warn('Could not restore user profile info:', e);
+          setUserName(user.displayName || user.email?.split('@')[0] || 'User');
+        }
       } else {
         // No user — reset state (guest mode)
         setUserLoggedIn(false);
         setUserName('');
+        setUserFullName('');
+        setUserAge('');
         setUserEmail('');
+        setUserPassword('');
         setUserId('');
         setAuthProviderName('Email');
+        setPendingGoogleUser(null);
       }
     });
     return () => unsubscribe(); // unsubscribe on unmount
@@ -313,35 +353,64 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     recognition.start();
   };
 
-    const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     setAuthError('');
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      setUserName(result.user.displayName || 'Customer');
-      setUserEmail(result.user.email || '');
-      setUserId(result.user.uid);
-      setAuthProviderName('Google');
-      setUserLoggedIn(true);
-      setShowAuthModal(false);
-      
-      // Save specifically to the user-login collection
-      await saveUserLoginToFirestore(
-        result.user.uid,
-        result.user.email || '',
-        result.user.displayName || 'Customer',
-        'Google'
-      );
-      
-      if (onUpdateLead) {
-        onUpdateLead({
-          user_id: result.user.uid,
-          full_name: result.user.displayName || undefined,
-          email: result.user.email || undefined
+      const gEmail = result.user.email || '';
+      const gUid = result.user.uid;
+      const gName = result.user.displayName || gEmail.split('@')[0] || 'Customer';
+
+      // Check whether user profile already exists in Firestore User_login
+      const existingProfile = await getUserProfileFromFirestore(gEmail, gUid);
+
+      if (existingProfile && existingProfile.Age) {
+        // User is already registered with Age -> Sign In immediately!
+        const finalName = existingProfile.Name || gName;
+        const finalAge = existingProfile.Age;
+
+        setUserName(finalName);
+        setUserEmail(gEmail);
+        setUserAge(String(finalAge));
+        setUserId(gUid);
+        setAuthProviderName('Google');
+        setUserLoggedIn(true);
+        setShowAuthModal(false);
+        setPendingGoogleUser(null);
+        setAuthMode('login');
+
+        // Update last_login in Firestore
+        await saveUserLoginToFirestore(
+          gUid,
+          gEmail,
+          finalName,
+          'Google',
+          finalAge
+        );
+
+        if (onUpdateLead) {
+          onUpdateLead({
+            user_id: gUid,
+            full_name: finalName,
+            email: gEmail
+          });
+        }
+        if (onAuthChange) onAuthChange(gUid, gEmail);
+      } else {
+        // User is NEW (or profile missing Age) -> Sign Up required!
+        setPendingGoogleUser({
+          uid: gUid,
+          email: gEmail,
+          displayName: gName
         });
+        setUserFullName(gName);
+        setUserEmail(gEmail);
+        setUserAge(existingProfile?.Age ? String(existingProfile.Age) : '');
+        setAuthMode('google_signup');
+        // Keep modal open so the user provides their age & completes signup
       }
-      if (onAuthChange) onAuthChange(result.user.uid, result.user.email || undefined);
     } catch (error: any) {
       if (error?.code === 'auth/unauthorized-domain') {
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
@@ -349,6 +418,55 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       } else {
         setAuthError(error.message);
       }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleCompleteGoogleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingGoogleUser) return;
+    setAuthLoading(true);
+    setAuthError('');
+
+    const finalName = userFullName.trim() || pendingGoogleUser.displayName || 'Customer';
+    const ageNum = Number(userAge);
+    if (!userAge.trim() || !Number.isInteger(ageNum) || ageNum < 18 || ageNum > 120) {
+      setAuthError('Please enter a valid age between 18 and 120.');
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      // Store name, age, email in Firestore User_login
+      await saveUserLoginToFirestore(
+        pendingGoogleUser.uid,
+        pendingGoogleUser.email,
+        finalName,
+        'Google',
+        ageNum
+      );
+
+      setUserName(finalName);
+      setUserEmail(pendingGoogleUser.email);
+      setUserAge(String(ageNum));
+      setUserId(pendingGoogleUser.uid);
+      setAuthProviderName('Google');
+      setUserLoggedIn(true);
+      setShowAuthModal(false);
+      setPendingGoogleUser(null);
+      setAuthMode('login');
+
+      if (onUpdateLead) {
+        onUpdateLead({
+          user_id: pendingGoogleUser.uid,
+          full_name: finalName,
+          email: pendingGoogleUser.email
+        });
+      }
+      if (onAuthChange) onAuthChange(pendingGoogleUser.uid, pendingGoogleUser.email);
+    } catch (err: any) {
+      setAuthError('Failed to save profile: ' + err.message);
     } finally {
       setAuthLoading(false);
     }
@@ -398,7 +516,17 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         // Real Firebase Sign In
         const userCredential = await signInWithEmailAndPassword(auth, userEmail, userPassword);
         userId = userCredential.user.uid;
-        finalUserName = userCredential.user.displayName || userEmail.split('@')[0];
+        // Fetch profile to populate Age and Name
+        const profile = await getUserProfileFromFirestore(userEmail, userId);
+        if (profile) {
+          finalUserName = profile.Name || userCredential.user.displayName || userEmail.split('@')[0];
+          if (profile.Age) {
+            finalAge = profile.Age;
+            setUserAge(String(profile.Age));
+          }
+        } else {
+          finalUserName = userCredential.user.displayName || userEmail.split('@')[0];
+        }
       }
       
       setUserLoggedIn(true);
@@ -499,6 +627,80 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       setAuthError('Error deleting user: ' + err.message);
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    if (!newEmailInput.trim() || !emailUpdatePassword.trim()) {
+      setEmailUpdateError('Please enter both new email and current password.');
+      return;
+    }
+    if (!newEmailInput.includes('@')) {
+      setEmailUpdateError('Please enter a valid email address.');
+      return;
+    }
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setEmailUpdateError('No user logged in.');
+      return;
+    }
+
+    setEmailUpdateLoading(true);
+    setEmailUpdateError('');
+
+    try {
+      // Re-authenticate user with current password
+      const credential = EmailAuthProvider.credential(currentUser.email!, emailUpdatePassword);
+      await reauthenticateWithCredential(currentUser, credential);
+
+      // Update email in Firebase Auth
+      await updateEmail(currentUser, newEmailInput.trim().toLowerCase());
+
+      // Update display name if needed
+      await updateProfile(currentUser, {
+        displayName: userName || currentUser.displayName || undefined
+      });
+
+      // Update user_login document in Firestore with new email
+      const oldEmail = currentUser.email;
+      const userId = currentUser.uid;
+      const newEmail = newEmailInput.trim().toLowerCase();
+
+      // Update user_login document (delete old, create new with new email)
+      if (oldEmail) {
+        await deleteUserLoginFromFirestore(userId, oldEmail);
+      }
+      await saveUserLoginToFirestore(
+        userId,
+        newEmail,
+        userName || currentUser.displayName || 'User',
+        authProviderName || (currentUser.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email')
+      );
+
+      // Update local state
+      setUserEmail(newEmail);
+      setEmailUpdateError('');
+      setShowEmailUpdateModal(false);
+      setNewEmailInput('');
+      setEmailUpdatePassword('');
+
+      // Notify parent component of auth change
+      if (onAuthChange) onAuthChange(userId, newEmail);
+
+    } catch (err: any) {
+      if (err.code === 'auth/requires-recent-login') {
+        setEmailUpdateError('Please log in again to update your email.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setEmailUpdateError('This email is already in use by another account.');
+      } else if (err.code === 'auth/invalid-email') {
+        setEmailUpdateError('Invalid email format.');
+      } else if (err.code === 'auth/wrong-password') {
+        setEmailUpdateError('Incorrect password. Please try again.');
+      } else {
+        setEmailUpdateError(err.message || 'Failed to update email. Please try again.');
+      }
+    } finally {
+      setEmailUpdateLoading(false);
     }
   };
 
@@ -1103,6 +1305,113 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             {/* ─── USER AUTH SECTION ─── */}
             <div className="p-4">
               {!userLoggedIn ? (
+                authMode === 'google_signup' && pendingGoogleUser ? (
+                  /* ─── GOOGLE SIGN UP COMPLETION (NEW USER) ─── */
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-200">
+                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5 shrink-0" alt="Google" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-800">New User Registration</p>
+                        <p className="text-[11px] text-slate-600 truncate">{pendingGoogleUser.email}</p>
+                      </div>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Verified</span>
+                    </div>
+
+                    <div className="text-xs text-slate-600">
+                      <p className="font-semibold text-slate-800">Complete your details to finish Sign Up</p>
+                      <p className="text-[11px] text-slate-500">Please provide your name and age to create your profile.</p>
+                    </div>
+
+                    <form onSubmit={handleCompleteGoogleSignUp} className="space-y-2.5">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">Full Name</label>
+                        <div className="relative">
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <input
+                            type="text"
+                            value={userFullName}
+                            onChange={e => { setUserFullName(e.target.value); setAuthError(''); }}
+                            placeholder="Your full name"
+                            required
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">Age (Required)</label>
+                        <div className="relative">
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <input
+                            type="number"
+                            min={18}
+                            max={120}
+                            inputMode="numeric"
+                            value={userAge}
+                            onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
+                            placeholder="Enter your age (e.g. 28)"
+                            required
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">Email ID</label>
+                        <div className="relative">
+                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <input
+                            type="email"
+                            value={pendingGoogleUser.email}
+                            disabled
+                            readOnly
+                            className="w-full bg-slate-100 border border-[#e2d9c6] rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-600 outline-none cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+
+                      {authError && (
+                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-medium">
+                          {authError}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={authLoading}
+                        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                      >
+                        {authLoading ? (
+                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        <span>{authLoading ? 'Completing Sign Up...' : 'Complete Sign Up'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={authLoading}
+                        onClick={async () => {
+                          try {
+                            await signOut(auth);
+                          } catch (e) {
+                            // ignore
+                          }
+                          setPendingGoogleUser(null);
+                          setAuthMode('login');
+                          setAuthError('');
+                        }}
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-xl text-xs transition-colors"
+                      >
+                        Cancel / Switch Account
+                      </button>
+                    </form>
+                  </div>
+                ) : (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2.5 mb-2">
                     <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center">
@@ -1236,6 +1545,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     Chat continues as guest without sign-in
                   </p>
                 </div>
+                )
               ) : (
                 /* Logged-in User Profile Card & Controls */
                 <div className="space-y-4">
@@ -1279,8 +1589,19 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     </div>
                   )}
 
-                  {/* Actions: Logout & Delete */}
+                  {/* Actions: Update Email, Logout & Delete */}
                   <div className="pt-2 border-t border-[#f3ede0] space-y-2">
+                    {/* Update Email Button */}
+                    <button
+                      type="button"
+                      onClick={() => { setShowEmailUpdateModal(true); setEmailUpdateError(''); setNewEmailInput(''); setEmailUpdatePassword(''); }}
+                      disabled={authLoading || authProviderName === 'Google'}
+                      className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-amber-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>Update Email</span>
+                    </button>
+
                     {/* Log Out Button */}
                     <button
                       type="button"

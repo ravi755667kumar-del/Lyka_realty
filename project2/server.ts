@@ -102,6 +102,28 @@ function validateMongoUri(uri: string | undefined): string | null {
 }
 
 // Initialize MongoDB if URI is configured.
+// Dynamic MongoDB Database Name Resolver
+function getMongoDatabaseName(uri?: string, explicitDbName?: string): string {
+  if (explicitDbName && explicitDbName.trim()) {
+    return explicitDbName.trim();
+  }
+  if (process.env.MONGODB_DB_NAME && process.env.MONGODB_DB_NAME.trim()) {
+    return process.env.MONGODB_DB_NAME.trim();
+  }
+  const targetUri = uri || process.env.MONGODB_URI;
+  if (targetUri) {
+    try {
+      const match = targetUri.match(/mongodb(?:\+srv)?:\/\/[^/]+\/([^?]+)/);
+      if (match && match[1] && match[1].trim()) {
+        return match[1].trim();
+      }
+    } catch {}
+  }
+  return 'lyka_realty';
+}
+
+let activeMongoDbName = getMongoDatabaseName();
+
 // Safe to call repeatedly: concurrent callers share one in-flight attempt, and a
 // failure is retryable (the bootstrap loop depends on that).
 let mongoConnectAttempt: Promise<boolean> | null = null;
@@ -128,14 +150,16 @@ async function initMongo(): Promise<boolean> {
         tlsAllowInvalidCertificates: true,
       });
       await candidate.connect();
-      const db = candidate.db('lyka_realty');
+      const dbName = getMongoDatabaseName(uri);
+      activeMongoDbName = dbName;
+      const db = candidate.db(dbName);
       await db.command({ ping: 1 }); // confirm the handle is actually usable
       mongoClient = candidate;
       mongoDb = db;
       mongoStatus.connected = true;
       mongoStatus.uriConfigured = true;
       mongoStatus.error = null;
-      console.log('Successfully connected to MongoDB cluster for vector embedding persistence.');
+      console.log(`Successfully connected to MongoDB cluster (Database: ${dbName}) for vector embedding persistence.`);
       return true;
     } catch (err: any) {
       if (candidate) await candidate.close().catch(() => {});
@@ -250,7 +274,7 @@ app.get('/api/mongodb/status', async (_req: Request, res: Response) => {
 
   res.json({
     ...mongoStatus,
-    databaseName: 'lyka_realty',
+    databaseName: activeMongoDbName,
     embeddingsCount: count,
     leadsCount,
     followupsCount,
@@ -264,18 +288,19 @@ app.get('/api/mongodb/status', async (_req: Request, res: Response) => {
 // Dynamic MongoDB connection endpoint
 app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
   try {
-    const { uri } = req.body;
+    const { uri, databaseName: requestedDbName } = req.body;
     if (!uri || typeof uri !== 'string') {
       return res.status(400).json({ error: 'Valid MongoDB connection URI is required' });
     }
 
+    const dbName = getMongoDatabaseName(uri, requestedDbName);
     const testClient = new MongoClient(uri, { 
       serverSelectionTimeoutMS: 6000,
       tlsAllowInvalidCertificates: true,
     });
     const start = Date.now();
     await testClient.connect();
-    const testDb = testClient.db('lyka_realty');
+    const testDb = testClient.db(dbName);
     await testDb.command({ ping: 1 });
     const pingMs = Date.now() - start;
 
@@ -301,6 +326,7 @@ app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
     // Set as active client
     mongoClient = testClient;
     mongoDb = testDb;
+    activeMongoDbName = dbName;
     mongoStatus.connected = true;
     mongoStatus.uriConfigured = true;
     mongoStatus.error = null;
@@ -316,8 +342,8 @@ app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: `Connected successfully to MongoDB! Database: lyka_realty`,
-      databaseName: 'lyka_realty',
+      message: `Connected successfully to MongoDB! Database: ${dbName}`,
+      databaseName: dbName,
       collection: 'customer_embeddings',
       count,
       pingMs
@@ -384,10 +410,10 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
       success: true,
       storage: record.storage,
       message: record.storage === 'MongoDB'
-        ? `Successfully saved directly in MongoDB Database 'lyka_realty', collection 'customer_embeddings' with _id: ${record._id}`
+        ? `Successfully saved directly in MongoDB Database '${activeMongoDbName}', collection 'customer_embeddings' with _id: ${record._id}`
         : `Saved to local vector buffer. Connect your MongoDB URI to persist directly into MongoDB.`,
       record,
-      mongoDatabase: mongoDb ? 'lyka_realty' : null,
+      mongoDatabase: mongoDb ? activeMongoDbName : null,
       mongoCollection: 'customer_embeddings',
       mongoDocumentId: mongoDocId || record._id
     });
@@ -689,7 +715,7 @@ app.get('/api/embeddings/pdf-list', async (_req: Request, res: Response) => {
         return res.json({
           items,
           source: 'MongoDB',
-          database: 'lyka_realty',
+          database: activeMongoDbName,
           collection: 'pdf_knowledge_embeddings',
           totalSections: items.length,
           allStoredInMongo: true
@@ -699,7 +725,7 @@ app.get('/api/embeddings/pdf-list', async (_req: Request, res: Response) => {
     res.json({
       items: localPdfEmbeddingsStore,
       source: 'LocalStore',
-      database: 'lyka_realty',
+      database: activeMongoDbName,
       collection: 'pdf_knowledge_embeddings',
       totalSections: localPdfEmbeddingsStore.length,
       allStoredInMongo: Boolean(mongoDb)
@@ -716,7 +742,7 @@ app.post('/api/embeddings/sync-pdf', async (_req: Request, res: Response) => {
     res.json({
       success: true,
       message: `Successfully embedded all ${PDF_DOCUMENT_SECTIONS.length} sections of Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf and stored them in MongoDB collection 'pdf_knowledge_embeddings'`,
-      database: 'lyka_realty',
+      database: activeMongoDbName,
       collection: 'pdf_knowledge_embeddings',
       storage: mongoDb ? 'MongoDB' : 'LocalStore',
       count: PDF_DOCUMENT_SECTIONS.length

@@ -247,3 +247,14 @@ export interface FirestoreErrorInfo {
     }[];
   };
 }
+
+export interface UserProfileData {
+  uid: string;
+  Name: string;
+  Age?: number;
+  Email_id: string;
+  auth_provider: string;
+  createdAt?: string;
+  last_login?: string;
+  User_chat?: Record<string, any>;
+}
