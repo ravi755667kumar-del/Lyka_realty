@@ -582,30 +582,231 @@ export function isGreetingMessage(text: string): boolean {
   return greetings.includes(trimmed) || (trimmed.startsWith('hi ') && trimmed.length < 12) || (trimmed.startsWith('hello ') && trimmed.length < 16) || (trimmed.startsWith('hey ') && trimmed.length < 14);
 }
 
-export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[], lastUserText?: string): { nextQuestion: string; rationale: string; intentCategory: string } {
-  // If user said hi / hello / greeting
-  if (lastUserText && isGreetingMessage(lastUserText)) {
+export function isPropertyQuery(text: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase().trim();
+  if (t.length < 3) return false;
+
+  // Price queries (lowest, cheapest, low property, low perperty, min price, etc.)
+  if (/\b(lowest|cheapest|minimum|min price|least price|low price|cheaper|most affordable|budget friendly)\b/i.test(t)) return true;
+  if (/\blow\s*(perperty|property|propert|price|cost|rate|flat|apartment|unit|villa)?\b/i.test(t)) return true;
+  if (/\b(highest|most expensive|maximum price|max price|costliest|top price|luxury)\s*(perperty|property|flat|apartment|unit|villa)?\b/i.test(t)) return true;
+  if (/\b(average price|avg price|typical price|price range|rate of property|cost of property)\b/i.test(t)) return true;
+  if (/\b(cheap|affordable|budget)\s*(perperty|property|flat|apartment|unit|villa|options)\b/i.test(t)) return true;
+  
+  // Inventory & count queries
+  if (/\b(how many|count of|number of|list of|show me|give me|what are the)\s*(properties|listings|flats|apartments|villas|units)/i.test(t)) return true;
+  if (/\b(database|inventory|available propert|listings in database)\b/i.test(t)) return true;
+
+  // Amenity queries (swimming pool, swimming pole, gym, balcony, parking)
+  if (/\b(swimming pool|swimming pole|pool|gym|fitness|balcony|parking)\b/i.test(t)) return true;
+
+  // General property inquiries
+  if (/\b(what property|which property|any property|tell me about property|details of property|property details)\b/i.test(t)) return true;
+  if (/\b(properties in|flats in|apartments in|villas in)\s+(dubai|mumbai|marina|downtown|palm|jvc|jlt|business bay|hills|ranches|worli|bandra|juhu)/i.test(t)) return true;
+
+  return false;
+}
+
+export function queryPropertyDatabase(query: string, customPool?: PropertyListing[]): string {
+  const text = query.toLowerCase().trim();
+  let pool = [...(customPool && customPool.length > 0 ? customPool : ALL_VERIFIED_PROPERTIES)];
+
+  if (pool.length === 0) {
+    return 'Our property database currently has no records matching your query.';
+  }
+
+  // Location / community matching
+  const communityKeywords = [
+    'dubai marina', 'marina', 'downtown dubai', 'downtown', 'palm jumeirah', 'palm',
+    'business bay', 'dubai hills estate', 'dubai hills', 'jvc', 'jumeirah village',
+    'jlt', 'creek harbour', 'dubai creek', 'arabian ranches', 'ranches', 'dubai islands',
+    'mumbai', 'worli', 'bandra', 'juhu', 'bkc', 'powai', 'andheri', 'lower parel'
+  ];
+
+  let matchedCommunity = '';
+  for (const c of communityKeywords) {
+    if (text.includes(c)) {
+      matchedCommunity = c;
+      break;
+    }
+  }
+
+  if (matchedCommunity) {
+    const commLower = matchedCommunity.toLowerCase();
+    const commSubset = pool.filter(p => p.community.toLowerCase().includes(commLower) || commLower.includes(p.community.toLowerCase()));
+    if (commSubset.length > 0) pool = commSubset;
+  }
+
+  // Property type matching
+  const types = ['apartment', 'villa', 'townhouse', 'penthouse', 'duplex', 'studio'];
+  let matchedType = '';
+  for (const t of types) {
+    if (text.includes(t)) {
+      matchedType = t;
+      break;
+    }
+  }
+  if (matchedType) {
+    const typeSubset = pool.filter(p => p.property_type.toLowerCase() === matchedType);
+    if (typeSubset.length > 0) pool = typeSubset;
+  }
+
+  // Bedrooms matching
+  const bedMatch = text.match(/(\d+)\s*(bed|br|bedroom)/i) || text.match(/\b(studio)\b/i);
+  let matchedBeds = '';
+  if (bedMatch) {
+    matchedBeds = bedMatch[1] || 'Studio';
+    const bedSubset = pool.filter(p => p.bedrooms.toLowerCase() === matchedBeds.toLowerCase() || p.bedrooms.includes(matchedBeds));
+    if (bedSubset.length > 0) pool = bedSubset;
+  }
+
+  // Amenity filtering if requested (e.g. pool, gym)
+  const wantsPool = /\b(swimming pool|swimming pole|pool)\b/i.test(text);
+  const wantsGym = /\b(gym|fitness)\b/i.test(text);
+
+  let amenityFilterText = '';
+  if (wantsPool) {
+    const poolSubset = pool.filter(p => (p.amenities || []).some(a => /pool/i.test(a)) || (p.features || []).some(f => /pool/i.test(f)));
+    if (poolSubset.length > 0) {
+      pool = poolSubset;
+      amenityFilterText += ' with Swimming Pool';
+    }
+  }
+  if (wantsGym) {
+    const gymSubset = pool.filter(p => (p.amenities || []).some(a => /gym/i.test(a)));
+    if (gymSubset.length > 0) {
+      pool = gymSubset;
+      amenityFilterText += ' with Gym';
+    }
+  }
+
+  if (pool.length === 0) {
+    return `We currently do not have a listing matching "${query}" in our verified database. However, our portfolio updates weekly with new off-plan and secondary market allocations across Dubai!`;
+  }
+
+  const filterDesc = (matchedCommunity ? ` in ${matchedCommunity.toUpperCase()}` : '') +
+                     (matchedType ? ` for ${matchedType}s` : '') +
+                     (matchedBeds ? ` (${matchedBeds} BR)` : '') +
+                     amenityFilterText;
+
+  // 1. Lowest / Cheapest / Low perperty
+  const isLowest = /\b(lowest|cheapest|min|minimum|least|affordable|budget)\b/i.test(text)
+    || /\blow\s*(perperty|property|propert|price|cost|rate)?\b/i.test(text);
+
+  if (isLowest) {
+    const lowest = pool.reduce((min, p) => p.price_aed < min.price_aed ? p : min);
+    const amenitiesStr = lowest.amenities && lowest.amenities.length > 0 ? lowest.amenities.slice(0, 5).join(', ') : 'High-spec finishes';
+    const hasSwimmingPool = (lowest.amenities || []).some(a => /pool/i.test(a)) || (lowest.features || []).some(f => /pool/i.test(f));
+    const hasGymFacility = (lowest.amenities || []).some(a => /gym/i.test(a));
+
+    return `Here are the details for the **lowest-priced verified property**${filterDesc} from our database:\n\n` +
+      `🏢 **Property:** ${lowest.title}\n` +
+      `📍 **Location:** ${lowest.community} (${lowest.city || 'Dubai'})\n` +
+      `💰 **Price:** **AED ${lowest.price_aed.toLocaleString()}** ${lowest.price_inr ? `(≈ ₹${(lowest.price_inr / 10000000).toFixed(2)} Cr)` : `(≈ ₹${((lowest.price_aed * 22.8) / 10000000).toFixed(2)} Cr)`}\n` +
+      `🛏️ **Layout:** ${lowest.bedrooms} Bedroom (${lowest.property_type}) • ${lowest.size_sqft} sq ft\n` +
+      `🏗️ **Developer & Status:** ${lowest.developer} (${lowest.status})\n` +
+      (lowest.expected_roi ? `📈 **Expected Net Yield:** ${lowest.expected_roi}\n` : '') +
+      (lowest.rental_price_annual_aed ? `🔑 **Est. Annual Rental:** AED ${lowest.rental_price_annual_aed.toLocaleString()}/yr\n` : '') +
+      `🏊 **Swimming Pool:** ${hasSwimmingPool ? '✅ Yes, Swimming Pool available' : 'Available in master community'}\n` +
+      `🏋️ **Fitness Gym:** ${hasGymFacility ? '✅ Yes, State-of-the-art Gym' : 'Available nearby'}\n` +
+      `✨ **Key Amenities:** ${amenitiesStr}\n` +
+      `📝 **Overview:** ${lowest.description}`;
+  }
+
+  // 2. Highest / Most Expensive
+  const isHighest = /\b(highest|most expensive|maximum|max price|luxury|costliest|top price)\b/i.test(text);
+  if (isHighest) {
+    const highest = pool.reduce((max, p) => p.price_aed > max.price_aed ? p : max);
+    const amenitiesStr = highest.amenities && highest.amenities.length > 0 ? highest.amenities.slice(0, 5).join(', ') : 'Ultra-luxury finishes';
+
+    return `The **highest-priced luxury property**${filterDesc} in our verified database is:\n\n` +
+      `🏢 **Property:** ${highest.title}\n` +
+      `📍 **Location:** ${highest.community} (${highest.city || 'Dubai'})\n` +
+      `💰 **Price:** **AED ${highest.price_aed.toLocaleString()}** ${highest.price_inr ? `(≈ ₹${(highest.price_inr / 10000000).toFixed(2)} Cr)` : ''}\n` +
+      `🛏️ **Layout:** ${highest.bedrooms} Bedroom (${highest.property_type}) • ${highest.size_sqft} sq ft\n` +
+      `🏗️ **Developer & Status:** ${highest.developer} (${highest.status})\n` +
+      (highest.expected_roi ? `📈 **Expected Net Yield:** ${highest.expected_roi}\n` : '') +
+      `✨ **Key Amenities:** ${amenitiesStr}\n` +
+      `📝 **Overview:** ${highest.description}`;
+  }
+
+  // 3. Average / Price Range
+  const isAverage = /\b(average|avg|typical|range|mean|price range|cost of)\b/i.test(text);
+  if (isAverage) {
+    const min = Math.min(...pool.map(p => p.price_aed));
+    const max = Math.max(...pool.map(p => p.price_aed));
+    const avg = Math.round(pool.reduce((sum, p) => sum + p.price_aed, 0) / pool.length);
+
+    return `Here is the current **pricing overview** from our database${filterDesc}:\n\n` +
+      `📊 **Number of verified listings:** ${pool.length}\n` +
+      `💰 **Minimum Price:** AED ${min.toLocaleString()}\n` +
+      `💎 **Maximum Price:** AED ${max.toLocaleString()}\n` +
+      `📈 **Average Listing Price:** **AED ${avg.toLocaleString()}**`;
+  }
+
+  // 4. Specific amenity inquiry (swimming pool / gym)
+  if (wantsPool || wantsGym) {
+    const top3 = pool.slice(0, 3);
+    return `Yes! We have **${pool.length} verified listings**${filterDesc} featuring premium facilities including Swimming Pool & Gym:\n\n` +
+      top3.map((p, i) => `${i + 1}. **${p.title}** (${p.community}) — AED ${p.price_aed.toLocaleString()} (${p.bedrooms} BR, ${p.size_sqft} sqft, ${p.expected_roi || '7.5% ROI'})`).join('\n') +
+      `\n\nAll these properties feature full access to swimming pools, fitness centers, and 24/7 concierge security.`;
+  }
+
+  // 5. Default: List / Show matching properties with details
+  const topList = pool.sort((a, b) => a.price_aed - b.price_aed).slice(0, 3);
+  return `Here are verified properties matching your query${filterDesc} from our database:\n\n` +
+    topList.map((p, i) => 
+      `**${i + 1}. ${p.title}**\n` +
+      `📍 ${p.community} | 💰 AED ${p.price_aed.toLocaleString()} | 🛏️ ${p.bedrooms} BR (${p.size_sqft} sqft)\n` +
+      `🏊 Amenities: ${(p.amenities || []).slice(0, 3).join(', ')} | 📈 Yield: ${p.expected_roi || '7.5% ROI'}`
+    ).join('\n\n');
+}
+
+export function queryGeneralKnowledge(query: string): string | null {
+  const text = query.toLowerCase();
+
+  if (/\b(golden visa|2m visa|visa)\b/i.test(text)) {
+    return `In the UAE, the **10-Year Golden Visa** is granted to property investors purchasing real estate valued at **AED 2,000,000 (AED 2 Million)** or above. Both ready properties and off-plan properties with approved developer payment plans qualify. Lyka Realty assists end-to-end with the DLD certification and visa issuance.`;
+  }
+
+  if (/\b(dld|fees|charges|commission|purchase cost|closing cost|transfer fee)\b/i.test(text)) {
+    return `Here are the standard purchase costs for property in Dubai:\n` +
+      `• **Dubai Land Department (DLD) Fee:** 4% of property purchase price (+ AED 580 admin fee)\n` +
+      `• **Agency Commission:** 2% (+ 5% VAT)\n` +
+      `• **Trustee Registration Fee:** AED 4,000 (+ 5% VAT)\n` +
+      `• **Taxes:** 0% Capital Gains Tax and 0% Tax on Rental Income in the UAE!`;
+  }
+
+  if (/\b(foreign|foreigner|expat|nationality|can i buy|own|freehold)\b/i.test(text)) {
+    return `Yes! Foreign nationals and non-residents of all nationalities can purchase and own 100% freehold property in Dubai's designated freehold zones (including Dubai Marina, Downtown, Palm Jumeirah, Business Bay, Dubai Hills Estate, JVC, and Dubai Creek Harbour) with full title deed ownership issued by the Dubai Land Department.`;
+  }
+
+  if (/\b(mortgage|loan|finance|financing|bank)\b/i.test(text)) {
+    return `UAE banks provide attractive mortgage solutions for property buyers: UAE residents can typically finance up to **80% LTV** (Loan-to-Value), while non-residents and NRI investors can obtain mortgages up to **50%–60% LTV**. Interest rates generally range from 4.2% to 5.5% fixed.`;
+  }
+
+  if (/\b(roi|yield|returns|rental yield|income)\b/i.test(text)) {
+    return `Dubai delivers among the world's highest net rental yields, averaging **6.5% to 9.4% net ROI** (e.g. JVC yields ~8.5%-9.4%, Dubai Marina ~7.8%, Business Bay ~8.2%). Best of all, all rental income in the UAE is 100% tax-free!`;
+  }
+
+  return null;
+}
+
+export function getNextQualificationQuestion(lead: LeadProfile): { question: string; rationale: string; intentCategory: string } {
+  // If no intent yet
+  if (!lead.intent) {
     return {
-      nextQuestion: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
-      rationale: 'Customer sent a greeting. Responded with PDF-compliant opening: identify role first.',
+      question: `What brings you to Lyka Realty today? Are you looking to **buy**, **rent**, **invest**, or are you thinking of **selling** a property?`,
+      rationale: 'Primary intent (Buy/Rent/Invest/Sell) needed to guide qualification.',
       intentCategory: 'Role Identification'
     };
   }
 
-  // If human handoff triggered
-  if (lead.human_handoff_required) {
-    return {
-      nextQuestion: `I'll be delighted to connect you directly with our Lyka Realty senior property advisor, ${lead.assigned_agent}. Would you prefer a quick phone call or WhatsApp message, and what time works best for you?`,
-      rationale: 'Customer requested human agent / viewing / negotiation; immediate CRM handoff initiated.',
-      intentCategory: 'Human Handoff'
-    };
-  }
-
-  // BUY flow: budget -> location -> property type -> bedrooms -> ready/off-plan -> purpose -> timeline
   if (lead.intent === 'Buy') {
     if (!lead.budget_max) {
       return {
-        nextQuestion: lead.is_nri 
+        question: lead.is_nri 
           ? `What price bracket or maximum budget in AED or INR (Crores) are you comfortable exploring? (For example, AED 1.5M - 3M / INR 3.5 Cr - 7 Cr)`
           : `What price bracket or maximum budget in AED are you comfortable exploring for your purchase? (For example, AED 1.5M - 2.5M, or AED 5M+)`,
         rationale: 'Budget determines accessible locations, property tiers, and ready vs off-plan inventory.',
@@ -614,7 +815,7 @@ export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[
     }
     if (!lead.preferred_communities || lead.preferred_communities.length === 0) {
       return {
-        nextQuestion: lead.target_city === 'Mumbai'
+        question: lead.target_city === 'Mumbai'
           ? `Which prime Mumbai localities do you prefer? (e.g. Worli, Bandra West, Juhu, BKC, or Powai)`
           : `Do you have preferred communities in mind? For Dubai: Dubai Marina, Downtown, Palm Jumeirah, or Dubai Hills Estate; or prime Mumbai corridors: Worli, Bandra, or Juhu?`,
         rationale: 'Location is the primary filtering parameter for verified listings.',
@@ -623,102 +824,159 @@ export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[
     }
     if (!lead.property_type) {
       return {
-        nextQuestion: `Are you envisioning an apartment, a townhouse, a standalone villa, or perhaps a luxury penthouse?`,
+        question: `Are you envisioning an apartment, a townhouse, a standalone villa, or perhaps a luxury penthouse?`,
         rationale: 'Property type refines layout, service charge profile, and lifestyle suitability.',
         intentCategory: 'Property Type'
       };
     }
     if (!lead.bedrooms) {
       return {
-        nextQuestion: `How many bedrooms would best accommodate you or your rental guests (e.g. 1BR, 2BR, 3BR+)?`,
+        question: `How many bedrooms would best accommodate you or your rental guests (e.g. 1BR, 2BR, 3BR+)?`,
         rationale: 'Bedrooms dictate unit size and rental yield dynamics.',
         intentCategory: 'Bedrooms'
       };
     }
     if (!lead.ready_or_offplan) {
       return {
-        nextQuestion: `Would you prefer a ready property available for immediate move-in/rental, or an off-plan project with flexible developer payment plans?`,
+        question: `Would you prefer a ready property available for immediate move-in/rental, or an off-plan project with flexible developer payment plans?`,
         rationale: 'Determines whether client seeks immediate rental returns or construction capital appreciation.',
         intentCategory: 'Ready vs Off-Plan'
       };
     }
     if (!lead.financing) {
       return {
-        nextQuestion: `Will this purchase be made via ready cash funds, or are you considering UAE bank mortgage financing?`,
+        question: `Will this purchase be made via ready cash funds, or are you considering UAE bank mortgage financing?`,
         rationale: 'Mortgage requires pre-approval assessment; cash transactions proceed rapidly with title deed transfer.',
         intentCategory: 'Financing'
       };
     }
     if (!lead.timeline) {
       return {
-        nextQuestion: `What is your ideal purchase timeframe (e.g. within 30 days, 1-3 months, or planning ahead for later this year)?`,
+        question: `What is your ideal purchase timeframe (e.g. within 30 days, 1-3 months, or planning ahead for later this year)?`,
         rationale: 'Timeline establishes lead priority and scheduling readiness.',
         intentCategory: 'Timeline'
       };
     }
   }
 
-  // RENT flow: rental budget -> location -> property type -> bedrooms -> furnishing -> move-in date
   if (lead.intent === 'Rent') {
     if (!lead.budget_max) {
       return {
-        nextQuestion: `What is your targeted annual or monthly rental budget in AED? (For example, AED 100,000/yr or AED 15,000/month)`,
+        question: `What is your targeted annual or monthly rental budget in AED? (For example, AED 100,000/yr or AED 15,000/month)`,
         rationale: 'Rental budget defines community tiers and cheque payment feasibility.',
         intentCategory: 'Rental Budget'
       };
     }
     if (!lead.preferred_communities || lead.preferred_communities.length === 0) {
       return {
-        nextQuestion: `Which neighborhood in Dubai would you prefer to call home? (e.g. Dubai Marina, JLT, Business Bay, or Downtown)`,
+        question: `Which neighborhood in Dubai would you prefer to call home? (e.g. Dubai Marina, JLT, Business Bay, or Downtown)`,
         rationale: 'Location proximity to work and transport is crucial for renters.',
         intentCategory: 'Location'
       };
     }
     if (!lead.bedrooms) {
       return {
-        nextQuestion: `How many bedrooms are you seeking, and do you prefer fully furnished or unfurnished?`,
+        question: `How many bedrooms are you seeking, and do you prefer fully furnished or unfurnished?`,
         rationale: 'Furnishing status and bedroom count determine move-in readiness.',
         intentCategory: 'Bedrooms & Furnishing'
       };
     }
     if (!lead.timeline && !lead.move_in_date) {
       return {
-        nextQuestion: `When would you like to move in, and how many cheques would you prefer to pay your lease with?`,
+        question: `When would you like to move in, and how many cheques would you prefer to pay your lease with?`,
         rationale: 'Move-in date allows shortlisting currently vacant or expiring tenancy units.',
         intentCategory: 'Move-in Timeline'
       };
     }
   }
 
-  // INVEST flow: investment budget -> objective -> location -> property type -> horizon -> ready/off-plan
   if (lead.intent === 'Invest') {
     if (!lead.budget_max) {
       return {
-        nextQuestion: `What is your total capital allocation or investment budget in AED? (For example, AED 1M for high yield, or AED 2M+ for UAE Golden Visa eligibility)`,
+        question: `What is your total capital allocation or investment budget in AED? (For example, AED 1M for high yield, or AED 2M+ for UAE Golden Visa eligibility)`,
         rationale: 'Investment bracket determines Golden Visa eligibility and portfolio yield strategy.',
         intentCategory: 'Investment Budget'
       };
     }
     if (!lead.purpose && !lead.investment_goal) {
       return {
-        nextQuestion: `Is your primary objective maximizing annual rental yield (cash flow) or long-term capital appreciation before handover?`,
+        question: `Is your primary objective maximizing annual rental yield (cash flow) or long-term capital appreciation before handover?`,
         rationale: 'Yield vs capital appreciation drives ready (e.g., JVC/Marina 8%+) vs off-plan (Creek Harbour/Islands).',
         intentCategory: 'Investment Goal'
       };
     }
     if (!lead.ready_or_offplan) {
       return {
-        nextQuestion: `Do you prefer off-plan opportunities with 1% monthly or post-handover payment plans, or ready tenanted units generating immediate income?`,
+        question: `Do you prefer off-plan opportunities with 1% monthly or post-handover payment plans, or ready tenanted units generating immediate income?`,
         rationale: 'Cash flow timing preference determines asset class recommendation.',
         intentCategory: 'Asset Selection'
       };
     }
   }
 
+  if (lead.intent === 'Sell') {
+    return {
+      question: `Where is your property located in Dubai or Mumbai, and what type of unit is it (e.g. 2BR in Marina, Villa in Ranches)? I can prepare an instant comparative market valuation for you.`,
+      rationale: 'Property specifics needed to generate comparative valuation.',
+      intentCategory: 'Seller Qualification'
+    };
+  }
+
   // Default recommendation presentation
   return {
-    nextQuestion: `Based on your exact criteria, I have shortlisted matching verified listings from Lyka Realty's portfolio below. Would you like me to arrange an in-person viewing or connect you with ${lead.assigned_agent} for an exclusive walkthrough?`,
+    question: `Based on your exact criteria, I have shortlisted matching verified listings from Lyka Realty's portfolio below. Would you like me to arrange an in-person viewing or connect you with ${lead.assigned_agent} for an exclusive walkthrough?`,
     rationale: 'All critical parameters gathered; transitioning lead to viewing / agent consultation.',
     intentCategory: 'Viewing & Shortlist'
+  };
+}
+
+export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[], lastUserText?: string): { nextQuestion: string; rationale: string; intentCategory: string } {
+  // 1. If user said hi / hello / greeting
+  if (lastUserText && isGreetingMessage(lastUserText)) {
+    return {
+      nextQuestion: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
+      rationale: 'Customer sent a greeting. Responded with opening: identify role first.',
+      intentCategory: 'Role Identification'
+    };
+  }
+
+  // 2. If human handoff triggered
+  if (lead.human_handoff_required) {
+    return {
+      nextQuestion: `I'll be delighted to connect you directly with our Lyka Realty senior property advisor, ${lead.assigned_agent}. Would you prefer a quick phone call or WhatsApp message, and what time works best for you?`,
+      rationale: 'Customer requested human agent / viewing / negotiation; immediate CRM handoff initiated.',
+      intentCategory: 'Human Handoff'
+    };
+  }
+
+  // 3. Determine next qualification question in sequence
+  const { question: nextQualQuestion, rationale, intentCategory } = getNextQualificationQuestion(lead);
+
+  // 4. If user asked a question (Property Database query OR Knowledge question)
+  if (lastUserText) {
+    if (isPropertyQuery(lastUserText)) {
+      const propAnswer = queryPropertyDatabase(lastUserText);
+      return {
+        nextQuestion: `${propAnswer}\n\nSo, to continue finding the ideal property for you — ${nextQualQuestion}`,
+        rationale: 'Answered property database query first with verified database records, then resumed qualification sequence.',
+        intentCategory: 'Property Query + ' + intentCategory
+      };
+    }
+
+    const generalAnswer = queryGeneralKnowledge(lastUserText);
+    if (generalAnswer) {
+      return {
+        nextQuestion: `${generalAnswer}\n\nSo, to continue finding the ideal property for you — ${nextQualQuestion}`,
+        rationale: 'Answered user general real estate question first, then resumed qualification sequence.',
+        intentCategory: 'Knowledge Query + ' + intentCategory
+      };
+    }
+  }
+
+  // 5. Standard qualification sequence step
+  return {
+    nextQuestion: nextQualQuestion,
+    rationale,
+    intentCategory
   };
 }

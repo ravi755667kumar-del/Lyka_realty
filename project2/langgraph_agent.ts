@@ -15,7 +15,8 @@
 import Groq from 'groq-sdk';
 import { StateGraph, Annotation, END } from '@langchain/langgraph';
 // Reuse the browser's regex extractor as the fast path for answer extraction.
-import { extractEntitiesFromText } from './src/lib/agentic_engine.js';
+import { extractEntitiesFromText, isPropertyQuery, queryPropertyDatabase, queryGeneralKnowledge } from './src/lib/agentic_engine.js';
+import { ALL_VERIFIED_PROPERTIES } from './src/data/all_properties.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ let geminiClient: any | null = null;
 // so editing .env had no effect on which model answered.
 let groqModelName = 'llama-3.3-70b-versatile';
 let pdfKnowledgeChunks: PdfKnowledgeChunk[] = [];
-let allProperties: PropertyRecord[] = [];
+let allProperties: PropertyRecord[] = (ALL_VERIFIED_PROPERTIES || []) as any[];
 
 export function injectDependencies(opts: {
   groq: Groq | null;
@@ -148,7 +149,7 @@ function deterministicVector(text: string, dim = 128): number[] {
   return vec.map(v => v / mag);
 }
 
-function getRagContext(userMessage: string): string {
+export function getRagContext(userMessage: string): string {
   if (pdfKnowledgeChunks.length === 0) return '';
   const qVec = deterministicVector(userMessage);
   const scored = pdfKnowledgeChunks
@@ -156,6 +157,123 @@ function getRagContext(userMessage: string): string {
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
   return scored.map(c => `📋 ${c.title}:\n${c.text_content}`).join('\n\n');
+}
+
+/**
+ * Detect if user message is a DIGRESSION (general knowledge question)
+ * vs an ANSWER to the current qualification slot.
+ * 
+ * Returns true if user is asking a general question unrelated to the slot.
+ */
+export function isDigression(userMessage: string, currentSlot: string | null): boolean {
+  const text = userMessage.toLowerCase().trim();
+  
+  // Empty or very short messages are likely answers, not questions
+  if (text.length < 5) return false;
+  
+  // Explicit question patterns
+  const questionPatterns = [
+    /^\s*(what|how|why|when|where|who|which|can|could|would|will|is|are|do|does|did)\s/i,
+    /\?\s*$/,
+    /tell me about/i,
+    /explain/i,
+    /what is/i,
+    /how much/i,
+    /how many/i,
+    /how long/i,
+    /what are/i,
+    /which is/i,
+    /give me/i,
+    /show me/i,
+    /know about/i,
+    /information about/i,
+    /details? about/i,
+  ];
+  
+  // Slot-specific answer patterns (for NON-questions - direct answers)
+  const slotAnswerPatterns: Record<string, RegExp[]> = {
+    budget_max: [
+      /^\s*\d+/,  // starts with number
+      /\b(aed|inr|usd|\$|crore|lakh|million|k)\b/i,
+      /between|around|about|approx|roughly|max|maximum|upto|up to/i,
+    ],
+    rental_budget: [
+      /^\s*\d+/,
+      /\b(aed|inr|usd|\$|per year|per month|monthly|annual|yearly)\b/i,
+      /between|around|about|approx|roughly|max|maximum|upto|up to/i,
+    ],
+    preferred_communities: [
+      /\b(marina|downtown|palm|business bay|hills|jvc|jlt|marina|creek|arabian ranches|emirates hills|dubai hills)\b/i,
+      /\b(mumbai|worli|bandra|juhu|bkc|powai|andheri|thane|navi mumbai)\b/i,
+      /any|anywhere|no preference|surprise me/i,
+    ],
+    property_type: [
+      /\b(apartment|villa|townhouse|penthouse|duplex|studio)\b/i,
+    ],
+    bedrooms: [
+      /^\s*(studio|1|2|3|4|5)\b/i,
+      /\b(bed|br)\b/i,
+    ],
+    ready_or_offplan: [
+      /\b(ready|off.?plan|offplan|off plan)\b/i,
+    ],
+    financing: [
+      /\b(cash|mortgage|loan|finance|bank)\b/i,
+    ],
+    timeline: [
+      /\b(days?|weeks?|months?|years?|soon|asap|immediate|flexible|no rush)\b/i,
+      /within|in\s+\d+/i,
+    ],
+    move_in_date: [
+      /\b(this month|next month|in \d+|soon|asap|flexible)\b/i,
+      /^\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i,
+    ],
+    furnishing: [
+      /\b(furnished|unfurnished|semi.?furnished|semi furnished)\b/i,
+    ],
+    purpose: [
+      /\b(yield|roi|capital|appreciation|golden visa|income|rental)\b/i,
+    ],
+    contact_name: [/^[a-z]+\s+[a-z]+/i],
+    contact_mobile: [/^\+?\d/],
+    contact_email: [/@/],
+  };
+  
+  // Check if it looks like a question
+  const isQuestion = questionPatterns.some(p => p.test(text));
+  
+  // If it's a question, it's ALWAYS a digression (user asking something unrelated)
+  if (isQuestion) return true;
+  
+  // If it's NOT a question, check if it matches expected answer pattern for current slot
+  if (currentSlot && slotAnswerPatterns[currentSlot]) {
+    const matchesAnswer = slotAnswerPatterns[currentSlot].some(p => p.test(text));
+    if (matchesAnswer) return false; // It's a direct answer, not a digression
+  }
+  
+  // Non-question that doesn't match expected answer pattern
+  return false;
+}
+
+/**
+ * Get the current slot being asked in the qualification flow
+ */
+export function getCurrentSlot(profile: CustomerProfile, intent: string): string | null {
+  const slots = intent === 'Buy' 
+    ? ['budget_max', 'preferred_communities', 'property_type', 'bedrooms', 'ready_or_offplan', 'financing', 'timeline']
+    : intent === 'Rent'
+      ? ['rental_budget', 'preferred_communities', 'property_type', 'bedrooms', 'furnishing', 'move_in_date']
+      : intent === 'Invest'
+        ? ['budget_max', 'purpose', 'preferred_communities', 'property_type', 'ready_or_offplan']
+        : [];
+  
+  for (const slot of slots) {
+    const val = (profile as any)[slot];
+    if (val === null || val === undefined || val === '' || (Array.isArray(val) && val.length === 0)) {
+      return slot;
+    }
+  }
+  return null;
 }
 
 // Bedrooms arrive in several shapes ("2", 2, "2BR", "2 bed", "Studio"), so
@@ -252,6 +370,117 @@ function searchProperties(profile: CustomerProfile, limit = 3): PropertyRecord[]
   }
 
   return pool.slice(0, limit);
+}
+
+/**
+ * Query properties database for contextual answers
+ * Handles queries like: "lowest property in Dubai Marina", "highest price in Downtown", 
+ * "average price in Dubai Marina", "cheapest 2 bedroom apartment", etc.
+ */
+export function queryPropertyDatabase(query: string): string {
+  const text = query.toLowerCase().trim();
+  let pool = [...allProperties];
+  
+  if (pool.length === 0) {
+    return 'No property data available in the database.';
+  }
+  
+  // Extract community/location from query
+  const communities = [
+    'dubai marina', 'downtown dubai', 'downtown', 'palm jumeirah', 'palm', 
+    'business bay', 'dubai hills estate', 'dubai hills', 'jvc', 'jlt', 
+    'arabian ranches', 'emirates hills', 'creek harbour', 'dubai creek harbour',
+    'mumbai', 'worli', 'bandra', 'juhu', 'bkc', 'powai', 'andheri', 'thane', 'navi mumbai'
+  ];
+  
+  let matchedCommunity = '';
+  for (const comm of communities) {
+    if (text.includes(comm)) {
+      matchedCommunity = comm;
+      break;
+    }
+  }
+  
+  // Extract property type
+  let matchedType = '';
+  const types = ['apartment', 'villa', 'townhouse', 'penthouse', 'duplex', 'studio'];
+  for (const t of types) {
+    if (text.includes(t)) {
+      matchedType = t;
+      break;
+    }
+  }
+  
+  // Extract bedrooms
+  let matchedBeds = '';
+  const bedMatch = text.match(/(\d+)\s*(bed|br|bedroom)/i) || text.match(/\b(studio)\b/i);
+  if (bedMatch) {
+    matchedBeds = bedMatch[1] || 'Studio';
+  }
+  
+  // Apply filters
+  if (matchedCommunity) {
+    const commLower = matchedCommunity.toLowerCase();
+    pool = pool.filter(p => p.community.toLowerCase().includes(commLower) || commLower.includes(p.community.toLowerCase()));
+  }
+  
+  if (matchedType) {
+    pool = pool.filter(p => p.property_type.toLowerCase() === matchedType);
+  }
+  
+  if (matchedBeds) {
+    const normBeds = normalizeBedrooms(matchedBeds);
+    pool = pool.filter(p => normalizeBedrooms(p.bedrooms) === normBeds);
+  }
+  
+  if (pool.length === 0) {
+    let filterDesc = '';
+    if (matchedCommunity) filterDesc += ` in ${matchedCommunity}`;
+    if (matchedType) filterDesc += ` for ${matchedType}s`;
+    if (matchedBeds) filterDesc += ` with ${matchedBeds} bedroom${matchedBeds !== 'Studio' ? 's' : ''}`;
+    return `No properties found${filterDesc}.`;
+  }
+  
+  // Determine query type
+  const isLowest = text.includes('lowest') || text.includes('cheapest') || text.includes('minimum') || text.includes('lowest price');
+  const isHighest = text.includes('highest') || text.includes('most expensive') || text.includes('maximum') || text.includes('top price');
+  const isAverage = text.includes('average') || text.includes('mean') || text.includes('typical price');
+  const isCount = text.includes('how many') || text.includes('count') || text.includes('number of');
+  const isList = text.includes('list') || text.includes('show') || text.includes('what are');
+  
+  let answer = '';
+  const filterDesc = (matchedCommunity ? ` in ${matchedCommunity}` : '') + 
+                     (matchedType ? ` for ${matchedType}s` : '') + 
+                     (matchedBeds ? ` with ${matchedBeds} bedroom${matchedBeds !== 'Studio' ? 's' : ''}` : '');
+  
+  if (isLowest) {
+    const lowest = pool.reduce((min, p) => p.price_aed < min.price_aed ? p : min);
+    answer = `The lowest priced property${filterDesc} is **${lowest.title}** in **${lowest.community}** at **AED ${lowest.price_aed.toLocaleString()}** (${lowest.bedrooms} BR, ${lowest.size_sqft} sq ft).`;
+  } else if (isHighest) {
+    const highest = pool.reduce((max, p) => p.price_aed > max.price_aed ? p : max);
+    answer = `The highest priced property${filterDesc} is **${highest.title}** in **${highest.community}** at **AED ${highest.price_aed.toLocaleString()}** (${highest.bedrooms} BR, ${highest.size_sqft} sq ft).`;
+  } else if (isAverage) {
+    const avg = Math.round(pool.reduce((sum, p) => sum + p.price_aed, 0) / pool.length);
+    const min = Math.min(...pool.map(p => p.price_aed));
+    const max = Math.max(...pool.map(p => p.price_aed));
+    answer = `The average price${filterDesc} is **AED ${avg.toLocaleString()}** across ${pool.length} propert${pool.length === 1 ? 'y' : 'ies'} (range: AED ${min.toLocaleString()} – AED ${max.toLocaleString()}).`;
+  } else if (isCount) {
+    answer = `There are **${pool.length}** propert${pool.length === 1 ? 'y' : 'ies'}${filterDesc}.`;
+  } else if (isList) {
+    const top5 = pool.sort((a, b) => a.price_aed - b.price_aed).slice(0, 5);
+    answer = `Here are the top ${top5.length} propert${top5.length === 1 ? 'y' : 'ies'}${filterDesc}:\n` + 
+      top5.map((p, i) => `${i+1}. **${p.title}** – AED ${p.price_aed.toLocaleString()} (${p.community}, ${p.bedrooms} BR, ${p.size_sqft} sq ft)`).join('\n');
+  } else {
+    // Default: show summary stats
+    const min = Math.min(...pool.map(p => p.price_aed));
+    const max = Math.max(...pool.map(p => p.price_aed));
+    const avg = Math.round(pool.reduce((sum, p) => sum + p.price_aed, 0) / pool.length);
+    answer = `Found **${pool.length}** propert${pool.length === 1 ? 'y' : 'ies'}${filterDesc}.\n` +
+      `💰 Price range: **AED ${min.toLocaleString()} – AED ${max.toLocaleString()}**\n` +
+      `📊 Average: **AED ${avg.toLocaleString()}**`;
+  }
+  
+  return answer;
 }
 
 async function callLLM(systemPrompt: string, userMessage: string, history: { role: string; content: string }[]): Promise<string> {
@@ -574,6 +803,12 @@ const SELL_SLOTS = ['preferred_communities', 'property_type', 'budget_max'];
 // ─── Graph Nodes ─────────────────────────────────────────────────────────────
 
 async function nodeGreet(state: AgentState): Promise<Partial<AgentState>> {
+  if (isPropertyQuery(state.userMessage)) {
+    const propAnswer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+    const reply = `Hello, and welcome to Lyka Realty! 🏙️\n\n${propAnswer}\n\nTo help me tailor our listings to your specific journey — are you looking to **buy**, **rent**, **invest**, or **sell** a property today?`;
+    return { reply, provider: 'LangGraph → Property DB & Greet', currentNode: 'classify_intent', ragContext: '' };
+  }
+
   const ragCtx = getRagContext(state.userMessage);
   const systemPrompt = `You are Lyka, a warm and professional AI real estate concierge for Lyka Realty Dubai.
 The customer has just reached out for the first time with: "${state.userMessage}"
@@ -609,6 +844,18 @@ async function nodeClassifyIntent(state: AgentState): Promise<Partial<AgentState
   const updatedProfile: CustomerProfile = { ...state.profile, intent: intent || undefined };
 
   if (!intent) {
+    if (isPropertyQuery(state.userMessage)) {
+      const propAnswer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+      const reply = `${propAnswer}\n\nTo help me guide you to the right properties from our collection — are you looking to **buy**, **rent**, **invest**, or **sell** a property?`;
+      return { reply, provider: 'LangGraph → Property DB & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
+    }
+
+    const generalAnswer = queryGeneralKnowledge(state.userMessage);
+    if (generalAnswer) {
+      const reply = `${generalAnswer}\n\nTo help guide your search — are you looking to **buy**, **rent**, **invest**, or **sell** a property?`;
+      return { reply, provider: 'LangGraph → Knowledge & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
+    }
+
     const systemPrompt = `You are Lyka, a warm Lyka Realty AI assistant for Dubai & Mumbai properties.
 
 The customer sent: "${state.userMessage}"
@@ -641,8 +888,58 @@ async function nodeQualifyBuy(state: AgentState): Promise<Partial<AgentState>> {
   let p: CustomerProfile = await fillMissingSlots(state, state.profile, BUY_SLOTS);
   const ragCtx = getRagContext(state.userMessage);
   markUncertainSlot(p, BUY_SLOTS, state.userMessage);
-  let question = '';
+  
+  // Detect current slot being asked
+  const currentSlot = getCurrentSlot(p, 'Buy');
+  
+  // Check for digression (user asking general question vs answering slot)
+  const isProp = isPropertyQuery(state.userMessage);
+  const digression = isProp || isDigression(state.userMessage, currentSlot);
+  
+  if (digression && currentSlot) {
+    let answer = '';
+    if (isProp) {
+      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+    } else {
+      const generalAnswer = queryGeneralKnowledge(state.userMessage);
+      if (generalAnswer) {
+        answer = generalAnswer;
+      } else {
+        // Use knowledge base for general questions
+        const systemPrompt = `You are Lyka, Lyka Realty's AI property concierge. The customer asked a general question during our qualification flow.
+      
+Answer their question helpfully using the knowledge base below. Be concise and accurate.
+Then, on a new line, SMOOTHLY transition back to the qualification by asking: "So, to continue — [current qualification question]"
 
+Current missing slot: ${currentSlot}
+Customer question: "${state.userMessage}"
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
+        answer = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || '';
+      }
+    }
+    
+    const question = currentSlot === 'budget_max' 
+      ? `What's your budget range for the purchase? For example, AED 1.5M – 3M (or in INR if you prefer).`
+      : currentSlot === 'preferred_communities'
+        ? `Great! Which Dubai community appeals to you most? Popular choices include Dubai Marina, Downtown, Palm Jumeirah, Business Bay, or Dubai Hills Estate. Any preferences?`
+        : currentSlot === 'property_type'
+          ? `Are you envisioning an apartment, a villa, a townhouse, or a penthouse?`
+          : currentSlot === 'bedrooms'
+            ? `How many bedrooms would suit you best — 1BR, 2BR, 3BR, or larger?`
+            : currentSlot === 'ready_or_offplan'
+              ? `Would you prefer a **ready** property (immediate move-in) or an **off-plan** project (flexible payment plans)?`
+              : currentSlot === 'financing'
+                ? `Will this be a cash purchase or are you considering UAE bank mortgage financing?`
+                : `What's your ideal purchase timeline — within 30 days, 1–3 months, or later this year?`;
+    
+    const finalReply = `${answer}\n\nSo, to continue — ${question}`;
+    
+    return { reply: finalReply, provider: 'LangGraph → Buy Qualification (Digression)', profile: p, currentNode: 'qualify_buy', ragContext: ragCtx };
+  }
+  
+  // Normal qualification flow
+  let question = '';
   if (slotMissing(p, 'budget_max')) {
     question = `What's your budget range for the purchase? For example, AED 1.5M – 3M (or in INR if you prefer). This helps me shortlist the best communities for you.`;
   } else if (slotMissing(p, 'preferred_communities')) {
@@ -658,7 +955,6 @@ async function nodeQualifyBuy(state: AgentState): Promise<Partial<AgentState>> {
   } else if (slotMissing(p, 'timeline')) {
     question = `What's your ideal purchase timeline — within 30 days, 1–3 months, or later this year?`;
   } else {
-    // Profile complete — collect contact details before searching
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
@@ -687,8 +983,56 @@ async function nodeQualifyRent(state: AgentState): Promise<Partial<AgentState>> 
   let p: CustomerProfile = await fillMissingSlots(state, state.profile, RENT_SLOTS);
   const ragCtx = getRagContext(state.userMessage);
   markUncertainSlot(p, RENT_SLOTS, state.userMessage);
-  let question = '';
+  
+  // Detect current slot being asked
+  const currentSlot = getCurrentSlot(p, 'Rent');
+  
+  // Check for digression
+  const isProp = isPropertyQuery(state.userMessage);
+  const digression = isProp || isDigression(state.userMessage, currentSlot);
+  
+  if (digression && currentSlot) {
+    let answer = '';
+    if (isProp) {
+      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+    } else {
+      const generalAnswer = queryGeneralKnowledge(state.userMessage);
+      if (generalAnswer) {
+        answer = generalAnswer;
+      } else {
+        // Use knowledge base for general questions
+        const systemPrompt = `You are Lyka, Lyka Realty's AI property concierge. The customer asked a general question during our rental qualification flow.
+      
+Answer their question helpfully using the knowledge base below. Be concise and accurate.
+Then, on a new line, SMOOTHLY transition back to the qualification by asking the current rental question.
 
+Current missing slot: ${currentSlot}
+Customer question: "${state.userMessage}"
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
+        answer = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || '';
+      }
+    }
+    
+    const question = currentSlot === 'rental_budget' 
+      ? `What's your rental budget? For example, AED 80,000 – 130,000 per year, or a monthly amount — whatever is easier for you.`
+      : currentSlot === 'preferred_communities'
+        ? `Which area of Dubai are you thinking of living in? Dubai Marina, JLT, Business Bay, Downtown, or JVC are all popular with renters. Any preference?`
+        : currentSlot === 'property_type'
+          ? `Are you looking for an apartment, a villa, or a townhouse?`
+          : currentSlot === 'bedrooms'
+            ? `How many bedrooms do you need — studio, 1BR, 2BR, or more?`
+            : currentSlot === 'furnishing'
+              ? `Would you prefer a **furnished** apartment (ready to move in) or **unfurnished** (you bring your own furniture)?`
+              : `When are you looking to move in? For example, this month, next month, or in 3 months?`;
+    
+    const finalReply = `${answer}\n\nSo, to continue — ${question}`;
+    
+    return { reply: finalReply, provider: 'LangGraph → Rent Qualification (Digression)', profile: p, currentNode: 'qualify_rent', ragContext: ragCtx };
+  }
+  
+  // Normal qualification flow
+  let question = '';
   if (slotMissing(p, 'rental_budget')) {
     question = `What's your rental budget? For example, AED 80,000 – 130,000 per year, or a monthly amount — whatever is easier for you.`;
   } else if (slotMissing(p, 'preferred_communities')) {
@@ -702,7 +1046,6 @@ async function nodeQualifyRent(state: AgentState): Promise<Partial<AgentState>> 
   } else if (slotMissing(p, 'move_in_date')) {
     question = `When are you looking to move in? For example, this month, next month, or in 3 months?`;
   } else {
-    // Profile complete — collect contact details before searching
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
@@ -731,8 +1074,54 @@ async function nodeQualifyInvest(state: AgentState): Promise<Partial<AgentState>
   let p: CustomerProfile = await fillMissingSlots(state, state.profile, INVEST_SLOTS);
   const ragCtx = getRagContext(state.userMessage);
   markUncertainSlot(p, INVEST_SLOTS, state.userMessage);
-  let question = '';
+  
+  // Detect current slot being asked
+  const currentSlot = getCurrentSlot(p, 'Invest');
+  
+  // Check for digression
+  const isProp = isPropertyQuery(state.userMessage);
+  const digression = isProp || isDigression(state.userMessage, currentSlot);
+  
+  if (digression && currentSlot) {
+    let answer = '';
+    if (isProp) {
+      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+    } else {
+      const generalAnswer = queryGeneralKnowledge(state.userMessage);
+      if (generalAnswer) {
+        answer = generalAnswer;
+      } else {
+        // Use knowledge base for general questions
+        const systemPrompt = `You are Lyka, Lyka Realty's AI property concierge. The customer asked a general question during our investment qualification flow.
+      
+Answer their question helpfully using the knowledge base below. Be concise and accurate.
+Then, on a new line, SMOOTHLY transition back to the qualification by asking the current investment question.
 
+Current missing slot: ${currentSlot}
+Customer question: "${state.userMessage}"
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
+        answer = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || '';
+      }
+    }
+    
+    const question = currentSlot === 'budget_max' 
+      ? `What is your investment budget? (e.g. AED 1M – 3M, or equivalent in INR/USD)`
+      : currentSlot === 'investment_goal'
+        ? `Are you primarily targeting **rental yield** (steady monthly income) or **capital appreciation** (long-term value growth)? Or perhaps a balance of both?`
+        : currentSlot === 'preferred_communities'
+          ? `Which Dubai community are you interested in? Dubai Marina, Business Bay, and Dubai Creek Harbour are popular for investors right now. Any preference?`
+          : currentSlot === 'property_type'
+            ? `What type of investment property suits you — an apartment for holiday rentals, a villa, or a commercial unit?`
+            : `Are you looking at **ready** properties (immediate rental income) or **off-plan** (lower entry price, developer payment plans)?`;
+    
+    const finalReply = `${answer}\n\nSo, to continue — ${question}`;
+    
+    return { reply: finalReply, provider: 'LangGraph → Invest Qualification (Digression)', profile: p, currentNode: 'qualify_invest', ragContext: ragCtx };
+  }
+  
+  // Normal qualification flow
+  let question = '';
   if (slotMissing(p, 'budget_max')) {
     question = `What is your investment budget? (e.g. AED 1M – 3M, or equivalent in INR/USD)`;
   } else if (slotMissing(p, 'investment_goal')) {
@@ -744,7 +1133,6 @@ async function nodeQualifyInvest(state: AgentState): Promise<Partial<AgentState>
   } else if (slotMissing(p, 'ready_or_offplan')) {
     question = `Are you looking at **ready** properties (immediate rental income) or **off-plan** (lower entry price, developer payment plans)?`;
   } else {
-    // Profile complete — collect contact details before searching
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 
@@ -773,8 +1161,51 @@ async function nodeQualifySell(state: AgentState): Promise<Partial<AgentState>> 
   let p: CustomerProfile = await fillMissingSlots(state, state.profile, SELL_SLOTS);
   const ragCtx = getRagContext(state.userMessage);
   markUncertainSlot(p, SELL_SLOTS, state.userMessage);
-  let question = '';
+  
+  // Detect current slot being asked
+  const currentSlot = getCurrentSlot(p, 'Sell');
+  
+  // Check for digression
+  const isProp = isPropertyQuery(state.userMessage);
+  const digression = isProp || isDigression(state.userMessage, currentSlot);
+  
+  if (digression && currentSlot) {
+    let answer = '';
+    if (isProp) {
+      answer = queryPropertyDatabase(state.userMessage, allProperties as any[]);
+    } else {
+      const generalAnswer = queryGeneralKnowledge(state.userMessage);
+      if (generalAnswer) {
+        answer = generalAnswer;
+      } else {
+        // Use knowledge base for general questions
+        const systemPrompt = `You are Lyka, Lyka Realty's AI property concierge. The customer asked a general question during our selling qualification flow.
+      
+Answer their question helpfully using the knowledge base below. Be concise and accurate.
+Then, on a new line, SMOOTHLY transition back to the qualification by asking the current selling question.
 
+Current missing slot: ${currentSlot}
+Customer question: "${state.userMessage}"
+
+${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
+      
+        answer = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || '';
+      }
+    }
+    
+    const question = currentSlot === 'preferred_communities' 
+      ? `Of course! Could you tell me which community your property is located in? For example, Dubai Marina, Downtown, Palm Jumeirah, or Business Bay?`
+      : currentSlot === 'property_type'
+        ? `What type of property is it — an apartment, villa, townhouse, or penthouse?`
+        : `Do you have a target asking price in mind, or would you like a **free market valuation** from our certified Lyka Realty valuers? We can arrange that at no cost to you.`;
+    
+    const finalReply = `${answer}\n\nSo, to continue — ${question}`;
+    
+    return { reply: finalReply, provider: 'LangGraph → Sell Qualification (Digression)', profile: p, currentNode: 'qualify_sell', ragContext: ragCtx };
+  }
+  
+  // Normal qualification flow
+  let question = '';
   if (slotMissing(p, 'preferred_communities')) {
     question = `Of course! Could you tell me which community your property is located in? For example, Dubai Marina, Downtown, Palm Jumeirah, or Business Bay?`;
   } else if (slotMissing(p, 'property_type')) {
@@ -782,8 +1213,6 @@ async function nodeQualifySell(state: AgentState): Promise<Partial<AgentState>> 
   } else if (slotMissing(p, 'budget_max') && !(p as any).asking_price) {
     question = `Do you have a target asking price in mind, or would you like a **free market valuation** from our certified Lyka Realty valuers? We can arrange that at no cost to you.`;
   } else {
-    // All sell info collected — collect contact details before the human handoff
-    // (Section 8 Step 6, and Section 13 lists name + mobile as must-collect for sellers).
     return { profile: p, currentNode: 'qualify_contact', ragContext: ragCtx, reply: '' };
   }
 

@@ -13,7 +13,8 @@ import {
   computeCompletenessAndMissing, 
   evaluateLeadStatusAndPriority, 
   findMatchingProperties, 
-  generateNextAdaptiveQuestion 
+  generateNextAdaptiveQuestion,
+  isPropertyQuery 
 } from './lib/agentic_engine';
 import { ALL_VERIFIED_PROPERTIES } from './data/all_properties';
 import { LYKA_AGENTS } from './data/dubai_knowledge';
@@ -56,8 +57,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats'>('chat');
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
-  const [propertiesList, setPropertiesList] = useState<PropertyListing[]>(ALL_VERIFIED_PROPERTIES);
   const [followUpsList, setFollowUpsList] = useState<FollowUpTask[]>([]);
+  const [propertiesList, setPropertiesList] = useState<PropertyListing[]>(() => {
+    try {
+      const saved = localStorage.getItem('localProperties');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(ALL_VERIFIED_PROPERTIES.map(p => p.id));
+          const customOnly = parsed.filter((p: any) => !existingIds.has(p.id));
+          return [...customOnly, ...ALL_VERIFIED_PROPERTIES];
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading localProperties from localStorage:', e);
+    }
+    return ALL_VERIFIED_PROPERTIES;
+  });
   const [firestoreActive, setFirestoreActive] = useState(false);
   const [mongoStatus, setMongoStatus] = useState({ connected: false, uriConfigured: false, count: 0 });
   const [isLoading, setIsLoading] = useState(false);
@@ -422,9 +438,24 @@ export default function App() {
         }
       }
 
-      // 5. Match properties if enough criteria collected
+      // 5. Match properties if user asked a property query OR if enough criteria collected
       let matchingProps: PropertyListing[] = [];
-      if (completeness >= 40 || mergedLead.preferred_communities.length > 0 || mergedLead.budget_max) {
+      const isPropInquiry = isPropertyQuery(userText);
+      if (isPropInquiry) {
+        const pool = propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES;
+        const isLowest = /\b(lowest|cheapest|min|minimum|least|affordable|budget)\b/i.test(userText) || /\blow\s*(perperty|property|price)?\b/i.test(userText);
+        const isHighest = /\b(highest|most expensive|maximum|max price|luxury|costliest)\b/i.test(userText);
+        if (isLowest) {
+          const sorted = [...pool].sort((a, b) => a.price_aed - b.price_aed);
+          matchingProps = sorted.slice(0, 2);
+        } else if (isHighest) {
+          const sorted = [...pool].sort((a, b) => b.price_aed - a.price_aed);
+          matchingProps = sorted.slice(0, 2);
+        } else {
+          const commMatch = pool.filter(p => userText.toLowerCase().includes(p.community.toLowerCase()));
+          matchingProps = commMatch.length > 0 ? commMatch.slice(0, 2) : pool.slice(0, 2);
+        }
+      } else if (completeness >= 40 || mergedLead.preferred_communities.length > 0 || mergedLead.budget_max) {
         matchingProps = findMatchingProperties(mergedLead);
       }
 
@@ -785,7 +816,15 @@ export default function App() {
                 currentLead={currentLead}
                 onBookViewing={(prop) => setViewingModalProperty(prop)}
                 onAddProperty={(newProp) => {
-                  setPropertiesList(prev => [newProp, ...prev]);
+                  setPropertiesList(prev => {
+                    const updated = [newProp, ...prev];
+                    try {
+                      localStorage.setItem('localProperties', JSON.stringify(updated));
+                    } catch (e) {
+                      console.warn('Could not save localProperties to localStorage:', e);
+                    }
+                    return updated;
+                  });
                 }}
               />
             )}
