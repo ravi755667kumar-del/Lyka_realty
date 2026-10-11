@@ -940,22 +940,23 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               </div>
 
               <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
-                {/* Current active chat */}
-                {messages.length > 1 && (
+                {/* Current active chat if not yet in saved sessions list */}
+                {messages.length > 1 && !savedSessions.some(s => s.id === currentLead.id) && (
                   <button
-                    onClick={() => setActiveSessionId('current')}
+                    onClick={() => setActiveSessionId(currentLead.id)}
                     className={`w-full text-left p-2.5 rounded-xl border transition-all group ${
-                      activeSessionId === 'current'
+                      activeSessionId === currentLead.id || activeSessionId === 'current'
                         ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
                         : 'bg-transparent border-transparent hover:bg-[#f3ede0] hover:border-[#e2d9c6] text-slate-400'
                     }`}
                   >
                     <div className="flex items-center space-x-2">
-                      <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeSessionId === 'current' ? 'text-amber-600' : 'text-slate-600'}`} />
+                      <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeSessionId === currentLead.id ? 'text-amber-600' : 'text-slate-600'}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold truncate">Current Chat</p>
+                        <p className="text-[11px] font-semibold truncate">Active Conversation</p>
                         <p className="text-[9px] text-slate-500 truncate">{messages[messages.length - 1]?.content?.slice(0, 35)}...</p>
                       </div>
+                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
                     </div>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-[9px] text-slate-600">{messages.length} msgs</span>
@@ -968,38 +969,47 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 {filteredSessions.length === 0 && sessionSearch && (
                   <p className="text-[10px] text-slate-600 text-center py-4">No chats found</p>
                 )}
-                {filteredSessions.map(session => (
-                  <div key={session.id} className="relative group">
-                    <button
-                      onClick={() => onLoadChat && onLoadChat(session.leadProfile, session.messages)}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all ${
-                        activeSessionId === session.id
-                          ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
-                          : 'bg-transparent border-transparent hover:bg-[#f3ede0] hover:border-[#e2d9c6] text-slate-400'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2 pr-6">
-                        <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeSessionId === session.id ? 'text-amber-600' : 'text-slate-600'}`} />
-                        <p className="text-[11px] font-semibold truncate flex-1">{session.title}</p>
-                      </div>
-                      <p className="text-[9px] text-slate-500 truncate mt-1 ml-5">{session.preview}</p>
-                      <div className="flex items-center justify-between mt-1 ml-5">
-                        <span className="text-[9px] text-slate-600">{session.messageCount} msgs</span>
-                        <span className="text-[9px] text-slate-600">{formatTime(session.timestamp)}</span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onDeleteChat) onDeleteChat(session.id);
-                      }}
-                      className="absolute right-2 top-2.5 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete chat"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                {filteredSessions.map(session => {
+                  const isActive = activeSessionId === session.id || currentLead.id === session.id;
+                  return (
+                    <div key={session.id} className="relative group">
+                      <button
+                        onClick={() => {
+                          setActiveSessionId(session.id);
+                          if (onLoadChat) onLoadChat(session.leadProfile, session.messages);
+                        }}
+                        className={`w-full text-left p-2.5 rounded-xl border transition-all ${
+                          isActive
+                            ? 'bg-amber-500/10 border-amber-500/40 text-slate-300 shadow-sm'
+                            : 'bg-transparent border-transparent hover:bg-[#f3ede0] hover:border-[#e2d9c6] text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2 pr-6">
+                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-500' : 'text-slate-600'}`} />
+                          <p className={`text-[11px] font-semibold truncate flex-1 ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>{session.title}</p>
+                          {isActive && (
+                            <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
+                          )}
+                        </div>
+                        <p className="text-[9px] text-slate-500 truncate mt-1 ml-5">{session.preview}</p>
+                        <div className="flex items-center justify-between mt-1 ml-5">
+                          <span className="text-[9px] text-slate-600">{session.messageCount} msgs</span>
+                          <span className="text-[9px] text-slate-600">{formatTime(session.timestamp)}</span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDeleteChat) onDeleteChat(session.id);
+                        }}
+                        className="absolute right-2 top-2.5 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                        title="Delete chat"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
 
                 {!userLoggedIn && savedSessions.length > 0 && (
                   <div className="mt-2 p-2.5 bg-[#f7f2e6] border border-dashed border-[#e2d9c6] rounded-xl text-center">

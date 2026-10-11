@@ -344,7 +344,14 @@ export default function App() {
 
   // Start new customer chat
   const handleStartNewChat = () => {
-    const newLead = { ...createInitialLeadProfile(), user_id: currentUserId || undefined };
+    // Save active chat before switching to a new one
+    if (currentUserId && currentLead.id && messages.length > 1) {
+      saveLeadToFirestore(currentLead).catch(() => {});
+      saveUserChatToFirestore(currentUserId, currentLead.id, messages).catch(() => {});
+      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
+    }
+
+    const newLead = { ...createInitialLeadProfile(), user_id: currentUserId || undefined, email: currentUserEmail || undefined };
     setCurrentLead(newLead);
     setLeadsList(prev => [newLead, ...prev]);
     saveLeadData(newLead);
@@ -365,8 +372,30 @@ export default function App() {
   };
 
   const handleLoadChat = (lead: LeadProfile, msgs: ChatMessage[]) => {
-    setCurrentLead(lead);
-    setMessages(msgs);
+    // 1. If currently in another chat with messages, save it first before switching
+    if (currentUserId && currentLead.id && messages.length > 1 && currentLead.id !== lead.id) {
+      saveLeadToFirestore(currentLead).catch(() => {});
+      saveUserChatToFirestore(currentUserId, currentLead.id, messages).catch(() => {});
+      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
+    }
+
+    // 2. Reconstruct full lead profile with safe defaults
+    const fullLead: LeadProfile = {
+      ...createInitialLeadProfile(),
+      ...(lead || {}),
+      user_id: currentUserId || (lead && lead.user_id) || undefined
+    };
+
+    setCurrentLead(fullLead);
+    setMessages(msgs && msgs.length > 0 ? msgs : [
+      {
+        id: 'MSG-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+        lead_id: fullLead.id,
+        role: 'assistant',
+        content: `Continuing conversation for ${fullLead.summary || 'your property search'}. How can I assist you further?`,
+        timestamp: new Date().toISOString()
+      }
+    ]);
     setActiveTab('chat');
     setAdminPanelOpen(false);
   };
@@ -587,7 +616,7 @@ export default function App() {
         recommended_properties: finalProperties,
       };
 
-      const updatedMessages = [...messages, assistantMsg];
+      const updatedMessages = [...messages, userMsg, assistantMsg];
       setMessages(updatedMessages);
 
       // Save interactions to Firestore or local
