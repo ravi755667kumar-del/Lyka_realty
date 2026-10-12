@@ -13,10 +13,11 @@ import {
   orderBy, 
   onSnapshot,
   updateDoc,
-  deleteField
+  deleteField,
+  arrayUnion
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
 export const db = (firebaseConfig as any).firestoreDatabaseId
@@ -113,13 +114,15 @@ export async function saveUserLoginToFirestore(
 ): Promise<void> {
   const docId = (email || userId || '').trim().toLowerCase();
   const path = `User_login/${docId}`;
+  const now = new Date().toISOString();
   
   const data: any = {
     uid: userId,
     Email_id: email.trim(),
     Name: fullName.trim(),
     auth_provider: authProvider,
-    last_login: new Date().toISOString(),
+    last_login: now,
+    login_history: arrayUnion(now)
   };
   if (age !== undefined && age !== null) {
     data.Age = Number(age);
@@ -140,8 +143,75 @@ export async function saveUserLoginToFirestore(
         await setDoc(doc(db, 'User_login', userId), data, { merge: true });
       } catch (_) {}
     }
+
+    // Record login event for time/date/month/year statistics
+    try {
+      const eventId = `EVT-${userId.substring(0, 8)}-${Date.now()}`;
+      await setDoc(doc(db, 'login_events', eventId), {
+        userId,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        authProvider,
+        age: age !== undefined && age !== null ? Number(age) : null,
+        timestamp: now
+      }, { merge: true });
+    } catch (_) {}
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getAllUsersFromFirestore(): Promise<UserProfileData[]> {
+  try {
+    const snap = await getDocs(collection(db, 'User_login'));
+    const userMap = new Map<string, UserProfileData>();
+
+    snap.forEach((d) => {
+      const data = d.data() as UserProfileData;
+      // Unique user identifier: normalize email lowercase or UID
+      const key = (data.Email_id || data.uid || d.id).trim().toLowerCase();
+      if (!userMap.has(key)) {
+        userMap.set(key, { ...data, uid: data.uid || d.id });
+      } else {
+        const existing = userMap.get(key)!;
+        userMap.set(key, {
+          ...existing,
+          ...data,
+          Name: data.Name || existing.Name,
+          Age: data.Age ?? existing.Age,
+          auth_provider: data.auth_provider || existing.auth_provider,
+          last_login: data.last_login || existing.last_login,
+          createdAt: existing.createdAt || data.createdAt || existing.last_login,
+          login_history: Array.from(new Set([...(existing.login_history || []), ...(data.login_history || [])]))
+        });
+      }
+    });
+
+    const users = Array.from(userMap.values());
+    users.sort((a, b) => new Date(b.last_login || 0).getTime() - new Date(a.last_login || 0).getTime());
+    return users;
+  } catch (error) {
+    console.warn('Could not fetch all users from Firestore:', error);
+    const local = localStorage.getItem('current_user_profile');
+    if (local) {
+      try { return [JSON.parse(local)]; } catch (_) {}
+    }
+    return [];
+  }
+}
+
+export async function getLoginEventsFromFirestore(): Promise<LoginEvent[]> {
+  try {
+    const snap = await getDocs(collection(db, 'login_events'));
+    const events: LoginEvent[] = [];
+    snap.forEach((d) => {
+      events.push({ id: d.id, ...(d.data() as any) });
+    });
+    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return events;
+  } catch (error) {
+    console.warn('Could not fetch login_events from Firestore:', error);
+    return [];
   }
 }
 

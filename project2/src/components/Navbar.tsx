@@ -10,13 +10,16 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
-  BarChart3
+  BarChart3,
+  Users,
+  TrendingUp
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats';
-  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats') => void;
+  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats';
+  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats') => void;
   leadCount: number;
+  customerCount?: number;
   propertyCount?: number;
   firestoreActive: boolean;
   mongoStatus: { connected: boolean; uriConfigured: boolean; count: number };
@@ -34,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   leadCount,
+  customerCount,
   propertyCount,
   firestoreActive,
   mongoStatus,
@@ -47,7 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAdminLogout,
 }) => {
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
-  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats', 'customers', 'login_stats'].includes(activeTab);
 
   // Determine which portal is currently authenticated
   const currentPortal = adminTargetPortal;
@@ -364,6 +368,37 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('customers')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'customers'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Customer Profiles</span>
+                  {customerCount !== undefined && customerCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'customers' ? 'bg-amber-900/30 text-amber-950' : 'bg-amber-500/20 text-amber-300'
+                    }`}>
+                      {customerCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('login_stats')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'login_stats'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Login Trends</span>
+                </button>
+
+                <button
                   onClick={() => setActiveTab('stats')}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'stats'
@@ -372,7 +407,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  <span>Statistics</span>
+                  <span>Property Stats</span>
                 </button>
               </div>
             )}

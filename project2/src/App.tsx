@@ -31,7 +31,8 @@ import {
   deleteLeadFromFirestore,
   deleteMessagesForLead,
   syncSessionToUserProfile,
-  deleteSessionFromUserProfile
+  deleteSessionFromUserProfile,
+  getAllUsersFromFirestore
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
 import { AgenticChat } from './components/AgenticChat';
@@ -41,6 +42,8 @@ import { PropertyInventory } from './components/PropertyInventory';
 import { MongoEmbeddingHub } from './components/MongoEmbeddingHub';
 import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
+import { CustomerAnalytics } from './components/CustomerAnalytics';
+import { CustomerProfiles } from './components/CustomerProfiles';
 import { 
   Calendar, 
   CheckCircle2, 
@@ -55,7 +58,8 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats'>('chat');
+  const [customerCount, setCustomerCount] = useState<number>(0);
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
   const [followUpsList, setFollowUpsList] = useState<FollowUpTask[]>([]);
@@ -143,9 +147,7 @@ export default function App() {
         setLeadsList(existingLeads);
       } else {
         // Seed initial representative leads for CRM pipeline
-        const initialLead = currentLead;
         const seedLeads: LeadProfile[] = [
-          initialLead,
           {
             ...createInitialLeadProfile(),
             id: 'LEAD-DXB102',
@@ -212,6 +214,14 @@ export default function App() {
         });
       } catch (err) {
         console.warn('MongoDB status check:', err);
+      }
+
+      // Load user count for customer analytics
+      try {
+        const users = await getAllUsersFromFirestore();
+        setCustomerCount(users.length);
+      } catch (err) {
+        console.warn('Customer count fetch notice:', err);
       }
     }
 
@@ -735,8 +745,9 @@ export default function App() {
           setActiveTab(tab);
           if (tab === 'chat') setAdminPanelOpen(false);
         }}
-        leadCount={leadsList.length}
+        leadCount={leadsList.filter(l => l.lead_status !== 'New').length}
         propertyCount={propertiesList.length}
+        customerCount={customerCount}
         firestoreActive={firestoreActive}
         mongoStatus={mongoStatus}
         onStartNewChat={handleStartNewChat}
@@ -876,6 +887,16 @@ export default function App() {
             {/* Stats — Admin only */}
             {adminAuthenticated && activeTab === 'stats' && (
               <AdminStats properties={propertiesList} />
+            )}
+
+            {/* Customer Profiles & Activity (Which Customer Logged In) — Admin only */}
+            {adminAuthenticated && activeTab === 'customers' && (
+              <CustomerProfiles onNavigateToTrends={() => setActiveTab('login_stats')} />
+            )}
+
+            {/* Login Trends & Aggregates (Date/Day/Month/Year) — Admin only */}
+            {adminAuthenticated && activeTab === 'login_stats' && (
+              <CustomerAnalytics onNavigateToProfiles={() => setActiveTab('customers')} />
             )}
 
             {/* Property Manager Portal Pages — require propertyManagerAuthenticated */}

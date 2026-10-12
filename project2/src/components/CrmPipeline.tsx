@@ -33,7 +33,6 @@ interface CrmPipelineProps {
 }
 
 const STAGES: { id: LeadStatus; label: string; color: string }[] = [
-  { id: 'New', label: 'New Inquiries', color: 'border-slate-500 bg-slate-500/10' },
   { id: 'Contacted', label: 'Contacted', color: 'border-blue-500 bg-blue-500/10' },
   { id: 'Interested', label: 'Interested', color: 'border-amber-500 bg-amber-500/10' },
   { id: 'Qualified', label: 'Qualified', color: 'border-emerald-500 bg-emerald-500/10' },
@@ -61,6 +60,9 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
   const [taskAction, setTaskAction] = useState('Contact customer via WhatsApp');
 
   const filteredLeads = leads.filter(l => {
+    // Exclude New Inquiries stage from CRM pipeline
+    if (l.lead_status === 'New') return false;
+
     const matchesSearch = 
       l.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (l.full_name && l.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -191,7 +193,9 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
 
           <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800">
             <span>Filtered Leads:</span>
-            <span className="font-bold text-amber-600">{filteredLeads.length} of {leads.length}</span>
+            <span className="font-bold text-amber-600">
+              {filteredLeads.length} of {leads.filter(l => l.lead_status !== 'New').length}
+            </span>
           </div>
         </div>
       </div>

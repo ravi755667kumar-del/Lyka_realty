@@ -256,5 +256,16 @@ export interface UserProfileData {
   auth_provider: string;
   createdAt?: string;
   last_login?: string;
+  login_history?: string[];
   User_chat?: Record<string, any>;
+}
+
+export interface LoginEvent {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  authProvider: string;
+  timestamp: string;
+  age?: number | null;
 }
