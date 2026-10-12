@@ -16,7 +16,10 @@ import {
   X, 
   MessageSquare,
   CheckCircle2,
-  CalendarDays
+  CalendarDays,
+  Phone,
+  PhoneCall,
+  MessageCircle
 } from 'lucide-react';
 import { UserProfileData, LoginEvent } from '../types/crm';
 import { getAllUsersFromFirestore, getLoginEventsFromFirestore } from '../lib/firebase';
@@ -795,7 +798,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800">
               <tr>
                 <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Email</th>
+                <th className="py-3 px-4">Contact (Email & Phone)</th>
                 <th className="py-3 px-4">Age</th>
                 <th className="py-3 px-4">Login Method</th>
                 <th className="py-3 px-4">Last Login</th>
@@ -832,9 +835,21 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                         </div>
                       </td>
 
-                      {/* Email */}
-                      <td className="py-3 px-4 text-slate-300 font-mono text-[11px]">
-                        {u.Email_id || 'N/A'}
+                      {/* Contact Info (Email & Phone) */}
+                      <td className="py-3 px-4">
+                        <div className="text-slate-300 font-mono text-[11px] truncate max-w-[180px]">{u.Email_id || 'N/A'}</div>
+                        {(u.talk_to_agent_phone || u.phone) && (
+                          <div className="flex items-center space-x-1 text-emerald-400 font-mono text-[10px] mt-0.5">
+                            <Phone className="w-2.5 h-2.5" />
+                            <span>{u.talk_to_agent_phone || u.phone}</span>
+                          </div>
+                        )}
+                        {u.talk_to_agent_requested && (
+                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 mt-1">
+                            <PhoneCall className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+                            <span>Agent Call Requested</span>
+                          </span>
+                        )}
                       </td>
 
                       {/* Age */}
@@ -903,7 +918,14 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">{selectedUserDetail.Name || 'Customer Profile'}</h3>
-                  <p className="text-[11px] text-slate-400 font-mono">{selectedUserDetail.Email_id}</p>
+                  <div className="flex items-center space-x-2 text-[11px] text-slate-400 font-mono">
+                    <span>{selectedUserDetail.Email_id}</span>
+                    {(selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone) && (
+                      <span className="text-emerald-400 font-semibold">
+                        · {selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
@@ -913,6 +935,62 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Agent Escalation Alert Banner */}
+            {selectedUserDetail.talk_to_agent_requested && (
+              <div className="bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/30 text-amber-300 flex items-center justify-center">
+                      <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-300">Talk to Human Agent Requested</h4>
+                      <p className="text-[10px] text-amber-200/70">Customer requested agent callback</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500 text-slate-950 uppercase tracking-wider">
+                    Callback
+                  </span>
+                </div>
+
+                <div className="bg-slate-950/80 p-2.5 rounded-lg border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold">Mobile Number</span>
+                      <p className="text-xs font-bold text-white font-mono mt-0.5">
+                        {selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone || 'Not provided'}
+                      </p>
+                    </div>
+                    {(selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone) && (
+                      <div className="flex items-center space-x-1.5">
+                        <a
+                          href={`tel:${selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone}`}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition-colors flex items-center space-x-1"
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span>Call</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/${(selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone || '').replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition-colors flex items-center space-x-1"
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  {selectedUserDetail.talk_to_agent_reason && (
+                    <p className="text-[10px] text-amber-300/80 italic border-t border-slate-800 pt-1.5">
+                      "{selectedUserDetail.talk_to_agent_reason}"
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Profile Info Grid */}
             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -925,8 +1003,10 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                 <span className="text-sm font-bold text-white mt-0.5 block">{selectedUserDetail.auth_provider || 'Email'}</span>
               </div>
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Last Login</span>
-                <span className="text-xs font-semibold text-white mt-0.5 block">{formatDateTime(selectedUserDetail.last_login)}</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Contact Phone</span>
+                <span className="text-xs font-semibold text-white mt-0.5 block font-mono truncate">
+                  {selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone || 'Not provided'}
+                </span>
               </div>
               <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Firebase UID</span>

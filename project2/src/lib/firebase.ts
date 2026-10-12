@@ -180,12 +180,38 @@ export async function getAllUsersFromFirestore(): Promise<UserProfileData[]> {
           Name: data.Name || existing.Name,
           Age: data.Age ?? existing.Age,
           auth_provider: data.auth_provider || existing.auth_provider,
+          phone: data.phone || data.Phone_number || data.talk_to_agent_phone || existing.phone || existing.Phone_number || existing.talk_to_agent_phone,
+          Phone_number: data.Phone_number || data.phone || existing.Phone_number || existing.phone,
+          talk_to_agent_requested: data.talk_to_agent_requested ?? existing.talk_to_agent_requested ?? false,
+          talk_to_agent_time: data.talk_to_agent_time || existing.talk_to_agent_time,
+          talk_to_agent_reason: data.talk_to_agent_reason || existing.talk_to_agent_reason,
+          talk_to_agent_phone: data.talk_to_agent_phone || data.phone || data.Phone_number || existing.talk_to_agent_phone || existing.phone,
           last_login: data.last_login || existing.last_login,
           createdAt: existing.createdAt || data.createdAt || existing.last_login,
           login_history: Array.from(new Set([...(existing.login_history || []), ...(data.login_history || [])]))
         });
       }
     });
+
+    // Cross-reference with leads to link talk_to_agent requests and phone numbers
+    try {
+      const leadsSnap = await getDocs(collection(db, 'leads'));
+      leadsSnap.forEach(ld => {
+        const leadData = ld.data() as LeadProfile;
+        const uKeyEmail = (leadData.email || '').trim().toLowerCase();
+        const uKeyId = (leadData.user_id || '').trim().toLowerCase();
+        const target = (uKeyEmail && userMap.get(uKeyEmail)) || (uKeyId && userMap.get(uKeyId));
+        if (target) {
+          if (leadData.phone && !target.phone) target.phone = leadData.phone;
+          if (leadData.human_handoff_required) {
+            target.talk_to_agent_requested = true;
+            if (leadData.phone && !target.talk_to_agent_phone) target.talk_to_agent_phone = leadData.phone;
+            if (leadData.handoff_reason && !target.talk_to_agent_reason) target.talk_to_agent_reason = leadData.handoff_reason;
+            if (leadData.updatedAt && !target.talk_to_agent_time) target.talk_to_agent_time = leadData.updatedAt;
+          }
+        }
+      });
+    } catch (_) {}
 
     const users = Array.from(userMap.values());
     users.sort((a, b) => new Date(b.last_login || 0).getTime() - new Date(a.last_login || 0).getTime());
@@ -197,6 +223,67 @@ export async function getAllUsersFromFirestore(): Promise<UserProfileData[]> {
       try { return [JSON.parse(local)]; } catch (_) {}
     }
     return [];
+  }
+}
+
+export async function saveTalkToAgentRequest(
+  userId: string | null,
+  email: string | null,
+  phone: string,
+  reason: string,
+  lead: LeadProfile
+): Promise<void> {
+  const cleanPhone = phone.trim();
+  const cleanEmail = email ? email.trim().toLowerCase() : null;
+  const now = new Date().toISOString();
+
+  const updatePayload = {
+    phone: cleanPhone,
+    Phone_number: cleanPhone,
+    talk_to_agent_requested: true,
+    talk_to_agent_time: now,
+    talk_to_agent_reason: reason.trim(),
+    talk_to_agent_phone: cleanPhone,
+    updatedAt: now
+  };
+
+  // 1. Update User_login collection
+  const targets = new Set<string>();
+  if (cleanEmail) targets.add(cleanEmail);
+  if (email && email.trim()) targets.add(email.trim());
+  if (userId && userId.trim()) targets.add(userId.trim());
+
+  for (const docId of targets) {
+    try {
+      await setDoc(doc(db, 'User_login', docId), updatePayload, { merge: true });
+    } catch (err) {
+      console.warn(`Could not update User_login/${docId} with talk-to-agent request:`, err);
+    }
+  }
+
+  // Update local storage cache
+  try {
+    const currentCached = localStorage.getItem('current_user_profile');
+    if (currentCached) {
+      const parsed = JSON.parse(currentCached);
+      localStorage.setItem('current_user_profile', JSON.stringify({ ...parsed, ...updatePayload }));
+    }
+  } catch (_) {}
+
+  // 2. Update lead in Firestore
+  try {
+    const updatedLead: LeadProfile = {
+      ...lead,
+      phone: cleanPhone,
+      human_handoff_required: true,
+      handoff_reason: reason.trim(),
+      lead_status: 'Viewing',
+      lead_priority: 'Urgent',
+      updatedAt: now
+    };
+    await saveLeadToFirestore(updatedLead);
+  } catch (err) {
+    console.warn('Could not update lead with talk-to-agent request:', err);
   }
 }
 

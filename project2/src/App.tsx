@@ -32,7 +32,8 @@ import {
   deleteMessagesForLead,
   syncSessionToUserProfile,
   deleteSessionFromUserProfile,
-  getAllUsersFromFirestore
+  getAllUsersFromFirestore,
+  saveTalkToAgentRequest
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
 import { AgenticChat } from './components/AgenticChat';
@@ -44,10 +45,12 @@ import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
+import { talkToAgentSchema, mobilePhoneSchema } from './schemas/validation';
 import { 
   Calendar, 
   CheckCircle2, 
   PhoneCall, 
+  Phone,
   UserCheck, 
   X, 
   AlertCircle, 
@@ -134,6 +137,8 @@ export default function App() {
 
   const [showHandoffModal, setShowHandoffModal] = useState(false);
   const [handoffNotes, setHandoffNotes] = useState('');
+  const [handoffPhone, setHandoffPhone] = useState('');
+  const [handoffError, setHandoffError] = useState('');
 
   // Initial data loading & connection testing
   useEffect(() => {
@@ -714,26 +719,63 @@ export default function App() {
     setViewingModalProperty(null);
   };
 
-  // Human handoff confirmation
+  // Human handoff confirmation (Strict Zod validation)
   const handleConfirmHandoff = () => {
-    updateActiveLead({
+    const rawPhone = handoffPhone.trim() || currentLead.phone || '';
+    
+    // Validate payload strictly using Zod
+    const validationResult = talkToAgentSchema.safeParse({
+      phone: rawPhone,
+      notes: handoffNotes.trim()
+    });
+
+    if (!validationResult.success) {
+      const firstIssue = validationResult.error.issues[0]?.message || 'Please enter a valid mobile number.';
+      setHandoffError(firstIssue);
+      return;
+    }
+
+    const { phone: finalPhone, notes } = validationResult.data;
+    const finalNotes = notes || 'Client requested direct coordination with Lyka agent';
+
+    const updatedLead: LeadProfile = {
+      ...currentLead,
+      phone: finalPhone,
       human_handoff_required: true,
       lead_status: 'Viewing',
       lead_priority: 'Urgent',
-      handoff_reason: handoffNotes || 'Client requested direct coordination with Lyka agent'
+      handoff_reason: finalNotes
+    };
+
+    updateActiveLead({
+      phone: finalPhone,
+      human_handoff_required: true,
+      lead_status: 'Viewing',
+      lead_priority: 'Urgent',
+      handoff_reason: finalNotes
     });
+
+    // Store in Firestore User_login & leads
+    saveTalkToAgentRequest(
+      currentUserId,
+      currentUserEmail || currentLead.email || null,
+      finalPhone,
+      finalNotes,
+      updatedLead
+    ).catch(err => console.warn('saveTalkToAgentRequest notice:', err));
 
     const handoffMsg: ChatMessage = {
       id: 'MSG-HANDOFF-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       lead_id: currentLead.id,
       role: 'assistant',
-      content: `### Lyka Realty CRM Handoff Summary\n\n- **Client:** ${currentLead.full_name || 'Prospect Client'}\n- **Phone:** ${currentLead.phone || 'Pending verification'}\n- **Intent:** ${currentLead.intent} (${currentLead.customer_type})\n- **Budget:** AED ${currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'TBD'}\n- **Target Community:** ${(currentLead.preferred_communities || []).join(', ') || 'Open'}\n- **Assigned Agent:** ${currentLead.assigned_agent}\n- **Recommended Next Action:** Connect directly for personalized portfolio presentation and viewing arrangements.\n\n${currentLead.assigned_agent} has been alerted and will reach out shortly.`,
+      content: `### 📞 Lyka Realty Human Agent Escalation Confirmed\n\n- **Client:** ${currentLead.full_name || 'Prospect Client'}\n- **Direct Mobile / WhatsApp:** **${finalPhone}**\n- **Intent:** ${currentLead.intent || 'Property Inquiry'} (${currentLead.customer_type || 'Buyer'})\n- **Budget:** AED ${currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'In discussion'}\n- **Target Community:** ${(currentLead.preferred_communities || []).join(', ') || 'Prime Dubai'}\n- **Assigned Lyka Specialist:** **${currentLead.assigned_agent}**\n- **Request Details:** ${finalNotes}\n\nOur senior property advisor, **${currentLead.assigned_agent}**, has been alerted with high priority and will contact you directly at **${finalPhone}** shortly.`,
       timestamp: new Date().toISOString()
     };
 
     setMessages(prev => [...prev, handoffMsg]);
     saveInteractionData(handoffMsg);
     setShowHandoffModal(false);
+    setHandoffError('');
   };
 
   return (
@@ -820,7 +862,12 @@ export default function App() {
             onSendMessage={handleSendMessage}
             isLoading={isLoading}
             onBookViewing={(prop) => setViewingModalProperty(prop)}
-            onOpenAgentHandoff={() => setShowHandoffModal(true)}
+            onOpenAgentHandoff={() => {
+              const initialDigits = (currentLead.phone || '').replace(/\D/g, '').slice(0, 10);
+              setHandoffPhone(initialDigits);
+              setHandoffError('');
+              setShowHandoffModal(true);
+            }}
             onToggleSidebar={() => setSidebarOpen(prev => !prev)}
             sidebarOpen={sidebarOpen}
             onUpdateLead={updateActiveLead}
@@ -833,7 +880,12 @@ export default function App() {
             <LeadProfileSidebar
               lead={currentLead}
               onUpdateLead={updateActiveLead}
-              onTriggerHandoff={() => setShowHandoffModal(true)}
+              onTriggerHandoff={() => {
+                const initialDigits = (currentLead.phone || '').replace(/\D/g, '').slice(0, 10);
+                setHandoffPhone(initialDigits);
+                setHandoffError('');
+                setShowHandoffModal(true);
+              }}
               onScheduleViewing={() => {
                 const sampleProp = propertiesList[0];
                 setViewingModalProperty(sampleProp);
@@ -1068,6 +1120,55 @@ export default function App() {
               <div className="flex justify-between">
                 <span className="text-slate-400">Communities:</span>
                 <span className="text-slate-200">{(currentLead.preferred_communities || []).join(', ') || 'Any prime community'}</span>
+              </div>
+            </div>
+
+            {/* Mobile Number Input */}
+            <div className="space-y-1.5 text-xs">
+              <label className="text-slate-300 font-semibold flex items-center justify-between">
+                <span className="flex items-center space-x-1.5">
+                  <Phone className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Mobile Number (10 digits): <span className="text-amber-400">*</span></span>
+                </span>
+                {handoffPhone.length === 10 ? (
+                  <span className="text-[10px] text-emerald-400 font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Valid 10 Digits</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-amber-400 font-medium">10 digits required</span>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={handoffPhone}
+                  onChange={(e) => {
+                    // Strictly numbers only: accept only 0-9, maximum 10 digits
+                    const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setHandoffPhone(onlyDigits);
+                    setHandoffError('');
+                  }}
+                  placeholder="e.g. 9876543210 (10 digits)"
+                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-slate-100 placeholder-slate-500 text-xs outline-none transition-colors font-mono tracking-wider ${
+                    handoffError ? 'border-rose-500/80 focus:border-rose-500' : 'border-slate-800 focus:border-amber-500'
+                  }`}
+                  required
+                />
+              </div>
+              {handoffError && (
+                <p className="text-[11px] text-rose-400 flex items-center space-x-1">
+                  <AlertCircle className="w-3 h-3 shrink-0" />
+                  <span>{handoffError}</span>
+                </p>
+              )}
+              <div className="text-[10px] text-slate-500 flex items-center justify-between">
+                <span>Must be exactly 10 digits (Numbers only). Verified by Zod.</span>
+                <span className={`font-mono font-bold ${handoffPhone.length === 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {handoffPhone.length}/10 digits
+                </span>
               </div>
             </div>
 

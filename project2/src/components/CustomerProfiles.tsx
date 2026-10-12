@@ -21,7 +21,10 @@ import {
   Grid, 
   List, 
   Download,
-  AlertCircle
+  AlertCircle,
+  Phone,
+  PhoneCall,
+  MessageCircle
 } from 'lucide-react';
 import { UserProfileData, LoginEvent } from '../types/crm';
 import { getAllUsersFromFirestore, getLoginEventsFromFirestore } from '../lib/firebase';
@@ -30,7 +33,7 @@ interface CustomerProfilesProps {
   onNavigateToTrends?: () => void;
 }
 
-type ActivityFilter = 'all' | 'today' | 'week' | 'month' | 'inactive';
+type ActivityFilter = 'all' | 'today' | 'week' | 'month' | 'agent_requested' | 'inactive';
 type ViewMode = 'cards' | 'table';
 type SortOption = 'recent' | 'logins' | 'name' | 'age';
 
@@ -211,6 +214,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
 
     const totalLoginsCount = customerStats.reduce((s, c) => s + c.totalLogins, 0);
     const avgLoginsPerCustomer = totalCustomers > 0 ? (totalLoginsCount / totalCustomers).toFixed(1) : '0';
+    const agentRequestsCount = customerStats.filter(c => c.user.talk_to_agent_requested).length;
 
     // Top active customer
     const sortedByLogins = [...customerStats].sort((a, b) => b.totalLogins - a.totalLogins);
@@ -225,7 +229,8 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
       emailUsers,
       totalLoginsCount,
       avgLoginsPerCustomer,
-      topCustomer
+      topCustomer,
+      agentRequestsCount
     };
   }, [customerStats]);
 
@@ -257,7 +262,8 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
         const nameMatch = (c.user.Name || '').toLowerCase().includes(q);
         const emailMatch = (c.user.Email_id || '').toLowerCase().includes(q);
         const uidMatch = (c.user.uid || '').toLowerCase().includes(q);
-        if (!nameMatch && !emailMatch && !uidMatch) return false;
+        const phoneMatch = ((c.user.talk_to_agent_phone || c.user.phone || '')).toLowerCase().includes(q);
+        if (!nameMatch && !emailMatch && !uidMatch && !phoneMatch) return false;
       }
 
       // 2. Auth provider filter
@@ -268,6 +274,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
       }
 
       // 3. Activity status filter
+      if (activityFilter === 'agent_requested' && !c.user.talk_to_agent_requested) return false;
       if (activityFilter === 'today' && c.activityStatus !== 'today') return false;
       if (activityFilter === 'week' && c.activityStatus !== 'today' && c.activityStatus !== 'week') return false;
       if (activityFilter === 'month' && c.activityStatus === 'inactive') return false;
@@ -428,7 +435,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
       </div>
 
       {/* ─── SUMMARY KPI METRICS ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         
         {/* Total Customers */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden group hover:border-amber-500/40 transition-all">
@@ -475,6 +482,23 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
           <p className="text-[10px] text-slate-500 mt-0.5">Last 7 days active rate</p>
         </div>
 
+        {/* Agent Requests */}
+        <div className={`bg-slate-900/90 border rounded-2xl p-4 relative overflow-hidden group transition-all ${
+          summaryKpis.agentRequestsCount > 0 ? 'border-amber-500/60 bg-amber-500/10 shadow-lg shadow-amber-500/5' : 'border-slate-800'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider">Agent Calls</span>
+            <div className="w-7 h-7 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+              <PhoneCall className={`w-3.5 h-3.5 ${summaryKpis.agentRequestsCount > 0 ? 'animate-bounce' : ''}`} />
+            </div>
+          </div>
+          <div className="mt-2.5 flex items-baseline space-x-2">
+            <span className="text-2xl font-extrabold text-amber-400">{summaryKpis.agentRequestsCount}</span>
+            <span className="text-[10px] text-amber-300 font-medium">Requested</span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-0.5">Submitted mobile numbers</p>
+        </div>
+
         {/* Total App Logins Recorded */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden group hover:border-violet-500/40 transition-all">
           <div className="flex items-center justify-between">
@@ -491,7 +515,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
         </div>
 
         {/* Most Active Customer */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden group hover:border-amber-500/40 transition-all col-span-2 lg:col-span-1">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 relative overflow-hidden group hover:border-amber-500/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Top Customer</span>
             <div className="w-7 h-7 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
@@ -666,6 +690,17 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
               This Month ({summaryKpis.activeThisMonth})
             </button>
             <button
+              onClick={() => setActivityFilter('agent_requested')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                activityFilter === 'agent_requested'
+                  ? 'bg-amber-500 text-amber-950 font-bold shadow-sm'
+                  : 'text-amber-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
+              <span>Talk to Agent ({summaryKpis.agentRequestsCount})</span>
+            </button>
+            <button
               onClick={() => setActivityFilter('inactive')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activityFilter === 'inactive' ? 'bg-slate-700 text-slate-200 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -838,6 +873,33 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                     </span>
                   </div>
 
+                  {/* Agent Call Request Banner if user requested talk to agent */}
+                  {item.user.talk_to_agent_requested && (
+                    <div className="mt-3 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                          <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide block">Agent Call Requested</span>
+                          <span className="text-xs font-mono font-semibold text-white truncate block">
+                            {item.user.talk_to_agent_phone || item.user.phone || 'Phone pending'}
+                          </span>
+                        </div>
+                      </div>
+                      {(item.user.talk_to_agent_phone || item.user.phone) && (
+                        <a
+                          href={`tel:${item.user.talk_to_agent_phone || item.user.phone}`}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-[11px] hover:bg-amber-400 transition-colors flex items-center space-x-1 shrink-0 shadow-sm"
+                          title="Call customer directly"
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span>Call</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+
                   {/* Demographic & Auth Tags */}
                   <div className="flex items-center flex-wrap gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px]">
                     {item.user.Age ? (
@@ -847,6 +909,13 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                     ) : (
                       <span className="px-2 py-0.5 rounded-lg bg-slate-950 border border-slate-800 text-slate-500">
                         Age: N/A
+                      </span>
+                    )}
+
+                    {(item.user.talk_to_agent_phone || item.user.phone) && (
+                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-mono font-medium">
+                        <Phone className="w-3 h-3 text-emerald-400" />
+                        <span>{item.user.talk_to_agent_phone || item.user.phone}</span>
                       </span>
                     )}
 
@@ -921,9 +990,10 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
               <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800">
                 <tr>
                   <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Email</th>
+                  <th className="py-3.5 px-4">Contact (Email & Phone)</th>
                   <th className="py-3.5 px-4">Age</th>
                   <th className="py-3.5 px-4">Provider</th>
+                  <th className="py-3.5 px-4">Agent Call</th>
                   <th className="py-3.5 px-4">Total Logins</th>
                   <th className="py-3.5 px-4">Traffic Share</th>
                   <th className="py-3.5 px-4">Last Login</th>
@@ -955,8 +1025,14 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 font-mono text-slate-300 text-[11px]">
-                        {item.user.Email_id || 'N/A'}
+                      <td className="py-3 px-4">
+                        <div className="font-mono text-slate-300 text-[11px] truncate max-w-[180px]">{item.user.Email_id || 'N/A'}</div>
+                        {(item.user.talk_to_agent_phone || item.user.phone) && (
+                          <div className="flex items-center space-x-1 text-emerald-400 font-mono text-[10px] mt-0.5">
+                            <Phone className="w-2.5 h-2.5" />
+                            <span>{item.user.talk_to_agent_phone || item.user.phone}</span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-slate-300">
@@ -969,6 +1045,28 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                         }`}>
                           {isGoogle ? 'Google' : 'Email'}
                         </span>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        {item.user.talk_to_agent_requested ? (
+                          <div className="flex items-center space-x-1.5">
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              <PhoneCall className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+                              <span>Requested</span>
+                            </span>
+                            {(item.user.talk_to_agent_phone || item.user.phone) && (
+                              <a
+                                href={`tel:${item.user.talk_to_agent_phone || item.user.phone}`}
+                                className="p-1 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition-colors"
+                                title="Direct call"
+                              >
+                                <Phone className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-600 font-mono">—</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4">
@@ -1027,7 +1125,14 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                       {selectedCustomer.totalLogins} Logins
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400 font-mono">{selectedCustomer.user.Email_id}</p>
+                  <div className="flex items-center space-x-2 text-xs text-slate-400 font-mono mt-0.5">
+                    <span>{selectedCustomer.user.Email_id}</span>
+                    {(selectedCustomer.user.talk_to_agent_phone || selectedCustomer.user.phone) && (
+                      <span className="text-emerald-400 font-semibold">
+                        · {selectedCustomer.user.talk_to_agent_phone || selectedCustomer.user.phone}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1038,6 +1143,65 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Agent Escalation Alert Banner */}
+            {selectedCustomer.user.talk_to_agent_requested && (
+              <div className="bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-slate-950 border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/30 text-amber-300 flex items-center justify-center">
+                      <PhoneCall className="w-4 h-4 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-amber-300">Talk to Human Agent Requested</h4>
+                      <p className="text-[11px] text-amber-200/70">Customer asked for direct agent phone callback</p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-slate-950 uppercase tracking-wider shadow-sm">
+                    Urgent Call
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/30 space-y-2">
+                    <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">Customer Phone Number</span>
+                    <span className="text-sm font-bold text-white font-mono block">
+                      {selectedCustomer.user.talk_to_agent_phone || selectedCustomer.user.phone || 'Phone number not provided'}
+                    </span>
+                    {(selectedCustomer.user.talk_to_agent_phone || selectedCustomer.user.phone) && (
+                      <div className="flex items-center space-x-2 pt-1">
+                        <a
+                          href={`tel:${selectedCustomer.user.talk_to_agent_phone || selectedCustomer.user.phone}`}
+                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-sm"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>Call Direct</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/${(selectedCustomer.user.talk_to_agent_phone || selectedCustomer.user.phone || '').replace(/[^0-9]/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-sm"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-amber-500/30 space-y-1">
+                    <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">Handoff Reason & Time</span>
+                    <span className="text-xs font-semibold text-slate-200 block">
+                      {selectedCustomer.user.talk_to_agent_time ? formatDateTime(selectedCustomer.user.talk_to_agent_time) : 'Recent activity'}
+                    </span>
+                    <p className="text-xs text-amber-300/90 italic pt-1">
+                      "{selectedCustomer.user.talk_to_agent_reason || 'Customer selected Talk to Agent from the assistant.'}"
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Profile Info Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">

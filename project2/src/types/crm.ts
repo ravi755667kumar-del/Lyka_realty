@@ -254,6 +254,12 @@ export interface UserProfileData {
   Age?: number;
   Email_id: string;
   auth_provider: string;
+  phone?: string;
+  Phone_number?: string;
+  talk_to_agent_requested?: boolean;
+  talk_to_agent_time?: string;
+  talk_to_agent_reason?: string;
+  talk_to_agent_phone?: string;
   createdAt?: string;
   last_login?: string;
   login_history?: string[];

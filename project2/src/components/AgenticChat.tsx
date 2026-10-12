@@ -1078,10 +1078,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             </button>
             <button
               onClick={onOpenAgentHandoff}
-              className="hidden sm:flex items-center space-x-1.5 text-xs bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#3a2e20] border border-[#d6cbb4] px-3 py-1.5 rounded-full transition-colors font-medium"
+              className="flex items-center space-x-1.5 text-xs bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#3a2e20] border border-[#d6cbb4] px-2.5 sm:px-3 py-1.5 rounded-full transition-colors font-medium shadow-xs"
+              title="Talk to Human Agent"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-amber-600" />
-              <span>Talk to Agent</span>
+              <PhoneCall className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="hidden xs:inline sm:inline">Talk to Agent</span>
             </button>
             <button
               onClick={onToggleSidebar}
