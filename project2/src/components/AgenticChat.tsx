@@ -43,12 +43,15 @@ import {
   Search,
   LogOut,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Pencil,
+  Save
 } from 'lucide-react';
 import { 
   auth, 
   saveUserLoginToFirestore, 
   getUserProfileFromFirestore,
+  updateUserProfileInFirestore,
   deleteUserLoginFromFirestore,
   getUserLeadsFromFirestore,
   getMessagesForLead,
@@ -152,6 +155,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
+
+  // Edit profile (Name & Age) state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editNameInput, setEditNameInput] = useState('');
+  const [editAgeInput, setEditAgeInput] = useState('');
+  const [editProfileLoading, setEditProfileLoading] = useState(false);
+  const [editProfileError, setEditProfileError] = useState('');
+  const [editProfileSuccess, setEditProfileSuccess] = useState('');
 
   // ── Auth state persistence ──────────────────────────────────────────────
   // onAuthStateChanged restores user session from Firebase Auth on mount or page reload.
@@ -810,6 +821,82 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       }
     } finally {
       setEmailUpdateLoading(false);
+    }
+  };
+
+  const handleStartEditProfile = () => {
+    setEditNameInput(userName || userFullName || '');
+    setEditAgeInput(userAge ? String(userAge) : '');
+    setEditProfileError('');
+    setEditProfileSuccess('');
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfileChanges = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = editNameInput.trim();
+    if (!trimmedName) {
+      setEditProfileError('Please enter your name.');
+      return;
+    }
+
+    const ageStr = editAgeInput.trim();
+    let ageNum: number | undefined = undefined;
+    if (ageStr) {
+      const parsedAge = parseInt(ageStr, 10);
+      if (isNaN(parsedAge) || parsedAge < 18 || parsedAge > 120) {
+        setEditProfileError('Please enter a valid age between 18 and 120.');
+        return;
+      }
+      ageNum = parsedAge;
+    }
+
+    const targetUserId = userId || auth.currentUser?.uid || '';
+    const targetEmail = userEmail || auth.currentUser?.email || '';
+
+    if (!targetUserId && !targetEmail) {
+      setEditProfileError('User session not found.');
+      return;
+    }
+
+    setEditProfileLoading(true);
+    setEditProfileError('');
+    setEditProfileSuccess('');
+
+    try {
+      // 1. Update in Firestore User_login & local cache (replaces old Name and Age with new values)
+      await updateUserProfileInFirestore(targetUserId, targetEmail, trimmedName, ageNum);
+
+      // 2. Also update Firebase Auth profile displayName if current user is signed in
+      if (auth.currentUser) {
+        try {
+          await updateProfile(auth.currentUser, { displayName: trimmedName });
+        } catch (_) {}
+      }
+
+      // 3. Update React local states
+      setUserName(trimmedName);
+      setUserFullName(trimmedName);
+      if (ageNum !== undefined) {
+        setUserAge(String(ageNum));
+      }
+
+      // 4. Update parent CRM lead profile
+      if (onUpdateLead) {
+        onUpdateLead({
+          full_name: trimmedName
+        });
+      }
+
+      setEditProfileSuccess('Profile saved successfully!');
+      setTimeout(() => {
+        setIsEditingProfile(false);
+        setEditProfileSuccess('');
+      }, 1200);
+    } catch (err: any) {
+      setEditProfileError(err.message || 'Failed to update profile. Please try again.');
+    } finally {
+      setEditProfileLoading(false);
     }
   };
 
@@ -1687,28 +1774,125 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       <p className="text-xs text-slate-500 truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
                       <div className="flex items-center space-x-1.5 mt-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                        <span className="text-[10px] font-medium text-emerald-700">Database Synced (user-login)</span>
+                        <span className="text-[10px] font-medium text-emerald-700">Database Synced (User_login)</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Account Details Box */}
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span className="font-medium">Sign-in Method:</span>
-                      <span className="font-semibold text-slate-300">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
-                    </div>
-                    {userAge && (
+                  {/* Account Details & Edit Profile Section */}
+                  {isEditingProfile ? (
+                    <form onSubmit={handleSaveProfileChanges} className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/90 space-y-3">
+                      <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                        <span className="text-xs font-bold text-amber-950 flex items-center space-x-1.5">
+                          <Pencil className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Edit Name & Age</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setIsEditingProfile(false); setEditProfileError(''); setEditProfileSuccess(''); }}
+                          className="text-[11px] text-slate-500 hover:text-slate-800 font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-700 block">Full Name</label>
+                        <div className="relative">
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input
+                            type="text"
+                            value={editNameInput}
+                            onChange={(e) => { setEditNameInput(e.target.value); setEditProfileError(''); }}
+                            placeholder="Your full name"
+                            required
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-700 block">Age (Years)</label>
+                        <div className="relative">
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <input
+                            type="number"
+                            min={18}
+                            max={120}
+                            inputMode="numeric"
+                            value={editAgeInput}
+                            onChange={(e) => { setEditAgeInput(e.target.value); setEditProfileError(''); }}
+                            placeholder="Enter age (18 - 120)"
+                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {editProfileError && (
+                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-2.5 py-1.5 font-medium">
+                          {editProfileError}
+                        </p>
+                      )}
+
+                      {editProfileSuccess && (
+                        <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 font-bold flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{editProfileSuccess}</span>
+                        </p>
+                      )}
+
+                      <div className="flex space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => { setIsEditingProfile(false); setEditProfileError(''); }}
+                          className="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-xl text-xs transition-colors border border-slate-200"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={editProfileLoading}
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                        >
+                          {editProfileLoading ? (
+                            <span className="text-[11px]">Saving...</span>
+                          ) : (
+                            <>
+                              <Save className="w-3.5 h-3.5" />
+                              <span>Save</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span className="font-medium">Full Name:</span>
+                        <span className="font-bold text-slate-800">{userName || userFullName || 'Not set'}</span>
+                      </div>
                       <div className="flex justify-between items-center text-slate-600">
                         <span className="font-medium">Age:</span>
-                        <span className="font-semibold text-slate-300">{userAge} years</span>
+                        <span className="font-semibold text-slate-800">{userAge ? `${userAge} years` : 'Not recorded'}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span className="font-medium">User ID:</span>
-                      <span className="font-mono text-[10px] text-slate-500 truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span className="font-medium">Sign-in Method:</span>
+                        <span className="font-semibold text-slate-800">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span className="font-medium">User ID:</span>
+                        <span className="font-mono text-[10px] text-slate-500 truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStartEditProfile}
+                        className="w-full mt-2 bg-white hover:bg-amber-50 text-amber-800 border border-[#e2d9c6] hover:border-amber-300 font-bold py-2 px-3 rounded-lg text-xs transition-all flex items-center justify-center space-x-1.5 shadow-2xs"
+                      >
+                        <Pencil className="w-3 h-3 text-amber-700" />
+                        <span>Edit Name & Age</span>
+                      </button>
                     </div>
-                  </div>
+                  )}
 
                   {authError && (
                     <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-start space-x-2">

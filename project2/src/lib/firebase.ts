@@ -161,6 +161,54 @@ export async function saveUserLoginToFirestore(
   }
 }
 
+/**
+ * Update user's Name and Age in User_login collection.
+ * Replaces old Name and Age with new values in Firestore.
+ */
+export async function updateUserProfileInFirestore(
+  userId: string,
+  email: string,
+  newName: string,
+  newAge?: number | string
+): Promise<void> {
+  const docId = (email || userId || '').trim().toLowerCase();
+  const now = new Date().toISOString();
+
+  const updateData: any = {
+    Name: newName.trim(),
+    updatedAt: now
+  };
+  if (newAge !== undefined && newAge !== null && newAge !== '') {
+    updateData.Age = Number(newAge);
+  }
+
+  // 1. Update in User_login collection for all docId targets (email and UID)
+  const targets = new Set<string>();
+  if (docId) targets.add(docId);
+  if (email && email.trim()) targets.add(email.trim());
+  if (userId && userId.trim()) targets.add(userId.trim());
+
+  for (const target of targets) {
+    try {
+      await setDoc(doc(db, 'User_login', target), updateData, { merge: true });
+    } catch (err) {
+      console.warn(`Could not update User_login/${target}:`, err);
+    }
+  }
+
+  // 2. Update local storage caches so state persists across reloads immediately
+  try {
+    const keys = [`user_profile_${docId}`, 'current_user_profile'];
+    for (const k of keys) {
+      const cached = localStorage.getItem(k);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        localStorage.setItem(k, JSON.stringify({ ...parsed, ...updateData }));
+      }
+    }
+  } catch (_) {}
+}
+
 export async function getAllUsersFromFirestore(): Promise<UserProfileData[]> {
   try {
     const snap = await getDocs(collection(db, 'User_login'));
