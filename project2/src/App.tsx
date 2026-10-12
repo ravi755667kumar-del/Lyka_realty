@@ -768,7 +768,7 @@ export default function App() {
       id: 'MSG-HANDOFF-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       lead_id: currentLead.id,
       role: 'assistant',
-      content: `### 📞 Lyka Realty Human Agent Escalation Confirmed\n\n- **Client:** ${currentLead.full_name || 'Prospect Client'}\n- **Direct Mobile / WhatsApp:** **${finalPhone}**\n- **Intent:** ${currentLead.intent || 'Property Inquiry'} (${currentLead.customer_type || 'Buyer'})\n- **Budget:** AED ${currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'In discussion'}\n- **Target Community:** ${(currentLead.preferred_communities || []).join(', ') || 'Prime Dubai'}\n- **Assigned Lyka Specialist:** **${currentLead.assigned_agent}**\n- **Request Details:** ${finalNotes}\n\nOur senior property advisor, **${currentLead.assigned_agent}**, has been alerted with high priority and will contact you directly at **${finalPhone}** shortly.`,
+      content: `### ✅ Submitted\n\nYour request has been submitted successfully. Our property advisor has been notified and will contact you shortly.`,
       timestamp: new Date().toISOString()
     };
 
@@ -1196,8 +1196,8 @@ export default function App() {
                 onClick={handleConfirmHandoff}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl font-bold shadow-md text-xs flex items-center justify-center space-x-1.5"
               >
-                <PhoneCall className="w-3.5 h-3.5" />
-                <span>Confirm Handoff</span>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Submit</span>
               </button>
             </div>
           </div>
