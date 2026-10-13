@@ -38,7 +38,8 @@ import {
   ensurePortalCredentialsInFirestore,
   verifyPortalLoginFromFirestore,
   savePortalCredentialToFirestore,
-  savePortalEmailOtpToFirestore
+  savePortalEmailOtpToFirestore,
+  auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
 import { AgenticChat } from './components/AgenticChat';
@@ -561,26 +562,37 @@ export default function App() {
   };
 
   const handleDeleteChat = async (leadId: string) => {
+    // 1. Remove from active state
     setLeadsList(prev => prev.filter(l => l.id !== leadId));
     if (currentLead.id === leadId) {
       handleStartNewChat();
     }
     
-    if (currentUserId) {
+    // 2. Resolve effective user ID & email
+    const effectiveUid = currentUserId || auth.currentUser?.uid;
+    const effectiveEmail = currentUserEmail || auth.currentUser?.email;
+
+    // 3. Delete from Firebase Firestore (leads, interactions, user_chat, User_login)
+    try {
       await deleteLeadFromFirestore(leadId);
       await deleteMessagesForLead(leadId);
-      await deleteSessionFromUserProfile(currentUserEmail, currentUserId, leadId);
-    } else {
-      try {
-        let localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
-        localLeads = localLeads.filter((l: LeadProfile) => l.id !== leadId);
-        localStorage.setItem('localLeads', JSON.stringify(localLeads));
-
-        let localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
-        localMsgs = localMsgs.filter((m: ChatMessage) => m.lead_id !== leadId);
-        localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
-      } catch (e) { console.warn(e); }
+      if (effectiveUid) {
+        await deleteSessionFromUserProfile(effectiveEmail || null, effectiveUid, leadId);
+      }
+    } catch (err) {
+      console.warn('Error deleting chat from Firestore:', err);
     }
+
+    // 4. Also clean local storage
+    try {
+      let localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
+      localLeads = localLeads.filter((l: LeadProfile) => l.id !== leadId);
+      localStorage.setItem('localLeads', JSON.stringify(localLeads));
+
+      let localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+      localMsgs = localMsgs.filter((m: ChatMessage) => m.lead_id !== leadId);
+      localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
+    } catch (e) { console.warn(e); }
   };
 
   const saveInteractionData = (msg: ChatMessage) => {

@@ -447,6 +447,7 @@ export async function deleteSessionFromUserProfile(
   if (email && email.trim()) targets.add(email.trim());
   if (userId && userId.trim()) targets.add(userId.trim());
 
+  // 1. Delete from targeted User_login docs
   for (const docId of targets) {
     try {
       await updateDoc(doc(db, 'User_login', docId), {
@@ -457,11 +458,36 @@ export async function deleteSessionFromUserProfile(
     }
   }
 
+  // 2. Scan User_login collection to remove this leadId from any other User_chat map
+  try {
+    const userLoginSnap = await getDocs(collection(db, 'User_login'));
+    userLoginSnap.forEach(d => {
+      const data = d.data();
+      if (data?.User_chat && data.User_chat[leadId]) {
+        updateDoc(d.ref, {
+          [`User_chat.${leadId}`]: deleteField()
+        }).catch(() => {});
+      }
+    });
+  } catch (_) {}
+
+  // 3. Delete from user_chat collection
   if (userId) {
     try {
       await deleteDoc(doc(db, 'user_chat', `${userId}_${leadId}`));
     } catch (_) {}
   }
+  try {
+    const ucSnap = await getDocs(collection(db, 'user_chat'));
+    const ucDeletes: Promise<void>[] = [];
+    ucSnap.forEach((d) => {
+      const data = d.data();
+      if (data.leadId === leadId || d.id === `${userId}_${leadId}`) {
+        ucDeletes.push(deleteDoc(d.ref));
+      }
+    });
+    await Promise.all(ucDeletes);
+  } catch (_) {}
 }
 
 export async function getUserChatSessionsFromFirestore(
@@ -616,6 +642,17 @@ export async function deleteLeadFromFirestore(leadId: string): Promise<void> {
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
+  try {
+    const q = query(collection(db, 'leads'));
+    const snap = await getDocs(q);
+    const promises: Promise<void>[] = [];
+    snap.forEach(d => {
+      if (d.id === leadId || d.data()?.id === leadId) {
+        promises.push(deleteDoc(d.ref));
+      }
+    });
+    await Promise.all(promises);
+  } catch (_) {}
 }
 
 export async function getMessagesForLead(leadId: string): Promise<ChatMessage[]> {
@@ -646,7 +683,7 @@ export async function deleteMessagesForLead(leadId: string): Promise<void> {
     snap.forEach((d) => {
       const data = d.data() as ChatMessage;
       if (data.lead_id === leadId) {
-        deletePromises.push(deleteDoc(doc(db, 'interactions', data.id)));
+        deletePromises.push(deleteDoc(d.ref));
       }
     });
     await Promise.all(deletePromises);
