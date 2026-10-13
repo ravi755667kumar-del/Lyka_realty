@@ -913,25 +913,25 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     {
       title: 'Say "Hi" to Concierge',
       desc: 'Warm welcome from Lyka Realty',
-      icon: <Sparkles className="w-4 h-4 text-amber-600" />,
+      icon: <Sparkles className="w-5 h-5 text-amber-600" />,
       prompt: 'Hi, I am looking for properties with Lyka Realty.'
     },
     {
       title: 'Buy Waterfront 2BR',
       desc: 'Dubai Marina ~AED 1.8M',
-      icon: <Building2 className="w-4 h-4 text-emerald-400" />,
+      icon: <Building2 className="w-5 h-5 text-emerald-600" />,
       prompt: 'I want to buy a 2-bedroom apartment in Dubai Marina around AED 1.8M ready to move in.'
     },
     {
       title: 'High ROI Off-Plan',
       desc: 'Business Bay, 80/20 plan',
-      icon: <Coins className="w-4 h-4 text-amber-700" />,
+      icon: <Coins className="w-5 h-5 text-amber-700" />,
       prompt: 'I am an investor looking for high rental yield off-plan properties in Business Bay.'
     },
     {
       title: 'NRI Investment',
       desc: 'Mumbai or Dubai comparison',
-      icon: <Compass className="w-4 h-4 text-cyan-400" />,
+      icon: <Compass className="w-5 h-5 text-cyan-600" />,
       prompt: 'I am an NRI from Mumbai comparing luxury 3BHK in Worli vs Dubai tax-free yields.'
     }
   ];
@@ -1187,43 +1187,43 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         </div>
 
         {/* ─── Conversation Stream ─── */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
-          <div className="max-w-2xl mx-auto w-full space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
+          <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto space-y-6">
 
             {/* Welcome Hero */}
             {messages.length <= 1 && (
-              <div className="py-6 sm:py-10 space-y-6 animate-fade-in">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 shadow-xl shadow-amber-500/20">
-                      <Sparkles className="w-8 h-8 fill-slate-950" />
+              <div className="py-6 sm:py-10 space-y-8 animate-fade-in">
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-center mb-1">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 shadow-md shadow-amber-500/20 border border-amber-300/60">
+                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 fill-amber-950 text-amber-950" />
                     </div>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl font-semibold bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 bg-clip-text text-transparent text-center">
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-amber-800 via-amber-900 to-amber-950 bg-clip-text text-transparent text-center tracking-tight">
                     Hello{userLoggedIn ? `, ${userName}` : ''}! Welcome to Lyka Realty.
                   </h1>
-                  <p className="text-sm text-[#6b5843] leading-relaxed text-center max-w-lg mx-auto">
+                  <p className="text-base sm:text-lg text-[#6b5843] leading-relaxed text-center max-w-2xl mx-auto">
                     I'm your AI Property Advisor for Dubai & prime India corridors. Tell me what you're looking for — I'll qualify your requirements and find matching verified properties.
                   </p>
                 </div>
 
                 {/* Prompt Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 pt-3">
                   {promptCards.map((card, i) => (
                     <div
                       key={i}
                       onClick={() => onSendMessage(card.prompt, { groqApiKey: groqKeyInput.trim() || undefined, groqModel: activeModel })}
-                      className="bg-[#f7f2e6] hover:bg-[#eee6d3] border border-[#d6cbb4] hover:border-amber-400/50 p-4 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-2 group"
+                      className="bg-[#f7f2e6] hover:bg-[#eee6d3] border border-[#d6cbb4] hover:border-amber-400/60 p-5 sm:p-6 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-3 group shadow-xs hover:shadow-md"
                     >
                       <div className="flex items-start justify-between">
-                        <span className="font-semibold text-slate-300 text-xs group-hover:text-amber-700 transition-colors">
+                        <span className="font-bold text-slate-300 text-sm sm:text-base group-hover:text-amber-800 transition-colors">
                           {card.title}
                         </span>
-                        <div className="p-1.5 rounded-lg bg-[#ffffff] border border-[#d6cbb4] group-hover:border-amber-400/40 transition-colors">
+                        <div className="p-2 sm:p-2.5 rounded-xl bg-[#ffffff] border border-[#d6cbb4] group-hover:border-amber-400/60 transition-colors">
                           {card.icon}
                         </div>
                       </div>
-                      <p className="text-[11px] text-[#6b5843] leading-relaxed">{card.desc}</p>
+                      <p className="text-xs sm:text-sm text-[#6b5843] leading-relaxed">{card.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -1232,29 +1232,29 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
             {/* Messages */}
             {messages.map((msg) => (
-              <div key={msg.id} className="space-y-2">
+              <div key={msg.id} className="space-y-3">
                 {msg.role === 'user' ? (
                   <div className="flex justify-end items-end space-x-2">
-                    <div className="bg-[#eee6d3] text-slate-300 px-4 py-3 rounded-3xl rounded-tr-md max-w-md text-sm leading-relaxed border border-[#d6cbb4]/50 shadow-sm">
+                    <div className="bg-[#eee6d3] text-slate-300 px-5 py-3.5 rounded-3xl rounded-tr-md max-w-xl sm:max-w-2xl text-base sm:text-lg leading-relaxed border border-[#d6cbb4]/60 shadow-sm">
                       {msg.content}
                     </div>
 
                   </div>
                 ) : (
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center text-amber-950 shrink-0 mt-0.5 shadow-md">
-                      <Sparkles className="w-4 h-4 fill-slate-950" />
+                  <div className="flex items-start space-x-3.5 sm:space-x-4">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center text-amber-950 shrink-0 mt-0.5 shadow-md border border-amber-300/50">
+                      <Sparkles className="w-5 h-5 fill-amber-950" />
                     </div>
 
                     <div className="flex-1 space-y-3 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-semibold text-slate-300">Lyka Realty AI</span>
+                      <div className="flex items-center space-x-2.5">
+                        <span className="text-sm sm:text-base font-bold text-slate-300">Lyka Realty AI</span>
                         {msg.provider && (
-                          <span className="text-[10px] bg-[#f7f2e6] text-amber-700/90 border border-[#d6cbb4] px-2 py-0.5 rounded-full font-mono">
+                          <span className="text-xs bg-[#f7f2e6] text-amber-700 border border-[#d6cbb4] px-2.5 py-0.5 rounded-full font-mono">
                             {msg.provider}
                           </span>
                         )}
-                        <span className="text-[10px] text-[#6b5843]">
+                        <span className="text-xs text-[#6b5843]">
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
@@ -1262,57 +1262,57 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       {/* Agentic Thinking Hidden per user request */}
 
                       {/* Message Body */}
-                      <div className="text-sm text-[#3a2e20] leading-relaxed whitespace-pre-wrap">
+                      <div className="text-base sm:text-lg text-[#3a2e20] leading-relaxed whitespace-pre-wrap">
                         {msg.content}
                       </div>
 
                       {/* Property Cards */}
                       {msg.recommended_properties && msg.recommended_properties.length > 0 && (
                         <div className="pt-3 space-y-3">
-                          <div className="flex items-center space-x-1.5 text-xs font-bold text-amber-600 uppercase tracking-wider">
-                            <Building2 className="w-4 h-4" />
+                          <div className="flex items-center space-x-2 text-xs sm:text-sm font-bold text-amber-600 uppercase tracking-wider">
+                            <Building2 className="w-4 h-4 sm:w-5 sm:h-5" />
                             <span>Matching Properties ({msg.recommended_properties.length})</span>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {msg.recommended_properties.map((prop) => (
                               <div
                                 key={prop.id}
-                                className="bg-[#f7f2e6] border border-[#d6cbb4] hover:border-amber-400/60 rounded-2xl overflow-hidden transition-all duration-200 group flex flex-col"
+                                className="bg-[#f7f2e6] border border-[#d6cbb4] hover:border-amber-400/60 rounded-2xl overflow-hidden transition-all duration-200 group flex flex-col shadow-xs hover:shadow-md"
                               >
-                                <div className="relative h-32 overflow-hidden">
+                                <div className="relative h-40 sm:h-44 overflow-hidden">
                                   <img
                                     src={prop.image_url}
                                     alt={prop.title}
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                   />
-                                  <div className="absolute top-2 left-2 flex items-center space-x-1">
-                                    <span className="bg-amber-500/90 text-amber-950 px-1.5 py-0.5 rounded text-[9px] font-black">
+                                  <div className="absolute top-2.5 left-2.5 flex items-center space-x-1.5">
+                                    <span className="bg-amber-500/90 text-amber-950 px-2 py-0.5 rounded text-[10px] sm:text-xs font-black">
                                       {prop.city || 'Dubai'}
                                     </span>
-                                    <span className="bg-[#ffffff]/90 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-amber-600 border border-[#d6cbb4]">
+                                    <span className="bg-[#ffffff]/90 backdrop-blur-md px-2.5 py-0.5 rounded text-xs font-bold text-amber-600 border border-[#d6cbb4]">
                                       {prop.community}
                                     </span>
                                   </div>
                                 </div>
-                                <div className="p-3 space-y-1 flex-1">
+                                <div className="p-4 space-y-1.5 flex-1">
                                   <div className="flex items-baseline justify-between">
-                                    <span className="text-sm font-extrabold text-amber-600">
+                                    <span className="text-base sm:text-lg font-extrabold text-amber-600">
                                       AED {prop.price_aed.toLocaleString()}
                                     </span>
-                                    <span className="text-[10px] text-slate-400">{prop.bedrooms} BR · {prop.size_sqft} sqft</span>
+                                    <span className="text-xs sm:text-sm text-slate-400">{prop.bedrooms} BR · {prop.size_sqft} sqft</span>
                                   </div>
-                                  <h4 className="font-bold text-slate-300 text-xs line-clamp-1 group-hover:text-amber-700 transition-colors">{prop.title}</h4>
-                                  <p className="text-[11px] text-[#6b5843] line-clamp-2">{prop.description}</p>
-                                  <div className="text-[10px] text-emerald-400 font-semibold">{prop.expected_roi || 'High Capital Upside'}</div>
+                                  <h4 className="font-bold text-slate-300 text-sm sm:text-base line-clamp-1 group-hover:text-amber-700 transition-colors">{prop.title}</h4>
+                                  <p className="text-xs sm:text-sm text-[#6b5843] line-clamp-2 leading-relaxed">{prop.description}</p>
+                                  <div className="text-xs sm:text-sm text-emerald-400 font-semibold">{prop.expected_roi || 'High Capital Upside'}</div>
                                 </div>
-                                <div className="p-3 pt-0 border-t border-[#eee6d3] flex items-center justify-between">
-                                  <span className="text-[10px] text-[#6b5843]">{prop.developer}</span>
+                                <div className="p-4 pt-0 border-t border-[#eee6d3] flex items-center justify-between">
+                                  <span className="text-xs sm:text-sm text-[#6b5843]">{prop.developer}</span>
                                   <button
                                     onClick={() => onBookViewing(prop)}
-                                    className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-3 py-1 rounded-xl text-xs transition-colors flex items-center space-x-1"
+                                    className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-1.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center space-x-1.5"
                                   >
-                                    <Calendar className="w-3 h-3" />
-                                    <span>Book</span>
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span>Book Viewing</span>
                                   </button>
                                 </div>
                               </div>
@@ -1344,19 +1344,19 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
             {/* Loading */}
             {isLoading && (
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center text-amber-950 shrink-0 animate-pulse">
-                  <Sparkles className="w-4 h-4 fill-slate-950" />
+              <div className="flex items-start space-x-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 to-yellow-300 flex items-center justify-center text-amber-950 shrink-0 animate-pulse shadow-md border border-amber-300/50">
+                  <Sparkles className="w-5 h-5 fill-amber-950" />
                 </div>
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold text-slate-300">Lyka Realty AI</span>
-                    <span className="text-[10px] text-amber-600 animate-pulse">Analyzing requirements...</span>
+                    <span className="text-sm font-bold text-slate-300">Lyka Realty AI</span>
+                    <span className="text-xs text-amber-600 animate-pulse">Analyzing requirements...</span>
                   </div>
                   <div className="flex space-x-1.5 py-1">
-                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce"></div>
-                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce [animation-delay:0.2s]"></div>
-                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.2s]"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce [animation-delay:0.4s]"></div>
                   </div>
                 </div>
               </div>
@@ -1367,11 +1367,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         </div>
 
         {/* ─── Input Bar ─── */}
-        <div className="p-4 sm:p-5 bg-gradient-to-t from-[#ffffff] via-[#ffffff]/95 to-transparent shrink-0">
-          <div className="max-w-2xl mx-auto w-full">
+        <div className="p-4 sm:p-6 bg-gradient-to-t from-[#ffffff] via-[#ffffff]/95 to-transparent shrink-0">
+          <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto">
             <form
               onSubmit={handleSubmit}
-              className="bg-[#f7f2e6] border border-[#d6cbb4] focus-within:border-amber-400/70 rounded-3xl p-2 sm:p-2.5 flex items-end space-x-2 shadow-2xl transition-all duration-200"
+              className="bg-[#f7f2e6] border border-[#d6cbb4] focus-within:border-amber-400/70 rounded-3xl p-2.5 sm:p-3 flex items-end space-x-2.5 shadow-2xl transition-all duration-200"
             >
               <textarea
                 ref={textareaRef}
@@ -1381,27 +1381,27 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about Dubai properties, investment yields, communities..."
                 disabled={isLoading}
-                className="flex-1 bg-transparent border-0 px-3 py-1.5 text-sm text-slate-300 placeholder-[#6b5843] outline-none resize-none leading-relaxed min-h-[36px] max-h-[140px]"
+                className="flex-1 bg-transparent border-0 px-4 py-2 text-base sm:text-lg text-slate-300 placeholder-[#6b5843] outline-none resize-none leading-relaxed min-h-[44px] max-h-[160px]"
               />
               <button
                 type="button"
                 onClick={toggleSpeechRecognition}
-                className={`p-2 rounded-full transition-all ${
+                className={`p-2.5 sm:p-3 rounded-full transition-all ${
                   isListening ? 'bg-rose-500 text-white animate-pulse' : 'text-[#6b5843] hover:text-slate-300 hover:bg-[#eee6d3]'
                 }`}
                 title={isListening ? 'Listening... stop' : 'Voice input'}
               >
-                {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                {isListening ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
               </button>
               <button
                 type="submit"
                 disabled={!inputText.trim() || isLoading}
-                className="p-2 rounded-full bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-amber-950 transition-all shrink-0 font-bold"
+                className="p-2.5 sm:p-3 rounded-full bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-amber-950 transition-all shrink-0 font-bold"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </form>
-            <p className="text-[10px] text-[#6b5843] text-center mt-2">
+            <p className="text-xs sm:text-sm text-[#6b5843] text-center mt-2.5">
               Lyka Realty AI · <span className="text-amber-600/80 font-mono">{engineProvider === 'groq' ? `Groq (${activeModel})` : 'Gemini 2.5 Flash'}</span> · Verified Dubai & Mumbai Inventory
             </p>
           </div>
