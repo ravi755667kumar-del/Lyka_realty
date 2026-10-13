@@ -1092,5 +1092,110 @@ export async function verifyFirebasePhoneOtp(
   return !!userCredential?.user;
 }
 
+/**
+ * Saves a structured PDF knowledge embedding to Firestore collection `pdf_knowledge_embeddings`.
+ * Stores text chunk, numerical vector, dimensions, and vector_sum.
+ */
+export async function savePdfEmbeddingToFirestore(record: {
+  id: string;
+  section_number: number;
+  title: string;
+  document_name: string;
+  text_content: string;
+  vector: number[];
+  dimensions: number;
+  vector_sum?: number;
+  model: string;
+  createdAt?: string;
+}): Promise<void> {
+  const docId = record.id || `PDF-SEC-${String(record.section_number).padStart(2, '0')}`;
+  const vector_sum = record.vector_sum !== undefined
+    ? record.vector_sum
+    : parseFloat(record.vector.reduce((a, b) => a + b, 0).toFixed(6));
+
+  const payload = {
+    ...record,
+    id: docId,
+    _id: docId,
+    vector_sum,
+    storage: 'Firebase',
+    createdAt: record.createdAt || new Date().toISOString()
+  };
+
+  try {
+    await setDoc(doc(db, 'pdf_knowledge_embeddings', docId), payload, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `pdf_knowledge_embeddings/${docId}`);
+  }
+}
+
+/**
+ * Retrieves all PDF knowledge embeddings stored in Firestore collection `pdf_knowledge_embeddings`.
+ */
+export async function getPdfEmbeddingsFromFirestore(): Promise<any[]> {
+  try {
+    const snap = await getDocs(collection(db, 'pdf_knowledge_embeddings'));
+    const items: any[] = [];
+    snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
+    return items.sort((a, b) => (a.section_number || 0) - (b.section_number || 0));
+  } catch (error) {
+    console.warn('Could not read pdf_knowledge_embeddings from Firestore:', error);
+    return [];
+  }
+}
+
+/**
+ * Saves a customer inquiry or search text numerical embedding into Firestore collection `customer_embeddings`.
+ */
+export async function saveCustomerEmbeddingToFirestore(record: {
+  id?: string;
+  lead_id?: string;
+  text_content: string;
+  vector: number[];
+  dimensions: number;
+  vector_sum?: number;
+  model: string;
+  metadata?: Record<string, any>;
+  createdAt?: string;
+}): Promise<any> {
+  const docId = record.id || 'VEC-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+  const vector_sum = record.vector_sum !== undefined
+    ? record.vector_sum
+    : parseFloat(record.vector.reduce((a, b) => a + b, 0).toFixed(6));
+
+  const payload = {
+    ...record,
+    id: docId,
+    _id: docId,
+    vector_sum,
+    storage: 'Firebase',
+    createdAt: record.createdAt || new Date().toISOString()
+  };
+
+  try {
+    await setDoc(doc(db, 'customer_embeddings', docId), payload, { merge: true });
+    return payload;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `customer_embeddings/${docId}`);
+    return payload;
+  }
+}
+
+/**
+ * Retrieves customer inquiry numerical embeddings from Firestore collection `customer_embeddings`.
+ */
+export async function getCustomerEmbeddingsFromFirestore(): Promise<any[]> {
+  try {
+    const snap = await getDocs(collection(db, 'customer_embeddings'));
+    const items: any[] = [];
+    snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
+    return items.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  } catch (error) {
+    console.warn('Could not read customer_embeddings from Firestore:', error);
+    return [];
+  }
+}
+
+
 
 

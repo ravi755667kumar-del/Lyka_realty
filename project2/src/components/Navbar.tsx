@@ -135,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="fixed inset-0 z-40 bg-transparent" 
                     onClick={() => setAdminDropdownOpen(false)} 
                   />
-                  <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 text-slate-100 backdrop-blur-xl">
+                  <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 text-neutral-800 backdrop-blur-xl">
                     <div className="flex items-center justify-between px-2 pt-1 pb-1 border-b border-slate-800">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                         Management Portal
@@ -168,15 +168,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }`}
                         >
                           <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                            <ShieldCheck className="w-5 h-5 text-violet-400" />
+                            <ShieldCheck className="w-5 h-5 text-violet-700" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-slate-100 group-hover:text-violet-300 transition-colors">
+                              <span className="text-xs font-bold text-neutral-800 group-hover:text-black transition-colors">
                                 Admin
                               </span>
                               {leadCount > 0 && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-neutral-800 border border-violet-500/40">
                                   {leadCount} leads
                                 </span>
                               )}
@@ -199,20 +199,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                           }}
                           className={`w-full text-left p-3 rounded-xl border transition-all flex items-start space-x-3 group ${
                             isAdminTab && ['properties', 'stats'].includes(activeTab)
-                              ? 'bg-amber-500/20 border-amber-500/60 shadow-sm'
-                              : 'bg-slate-800/40 border-slate-800 hover:bg-slate-800 hover:border-amber-500/40'
+                              ? 'bg-slate-900/40 border-slate-700/60 shadow-sm'
+                              : 'bg-slate-800/40 border-slate-800 hover:bg-slate-800 hover:border-slate-600/40'
                           }`}
                         >
-                          <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                            <Building2 className="w-5 h-5 text-amber-700" />
+                          <div className="w-9 h-9 rounded-xl bg-slate-900/40 border border-slate-700/40 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                            <Building2 className="w-5 h-5 text-neutral-700" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-slate-300 group-hover:text-amber-700 transition-colors">
+                              <span className="text-xs font-bold text-neutral-800 group-hover:text-black transition-colors">
                                 Property Manager
                               </span>
                               {propertyCount !== undefined && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-950 border border-amber-500/30">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-900/40 text-neutral-800 border border-slate-700/30">
                                   {propertyCount} units
                                 </span>
                               )}
@@ -229,13 +229,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                         {currentPortal === 'admin' && (
                           <div className="w-full text-left p-3 rounded-xl border bg-violet-600/20 border-violet-500/60 flex items-start space-x-3">
                             <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/40 flex items-center justify-center flex-shrink-0">
-                              <ShieldCheck className="w-5 h-5 text-violet-400" />
+                              <ShieldCheck className="w-5 h-5 text-violet-700" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-100">Admin Portal</span>
+                                <span className="text-xs font-bold text-neutral-800">Admin Portal</span>
                                 {leadCount > 0 && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-neutral-800 border border-violet-500/40">
                                     {leadCount} leads
                                   </span>
                                 )}
@@ -247,15 +247,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </div>
                         )}
                         {currentPortal === 'property_manager' && (
-                          <div className="w-full text-left p-3 rounded-xl border bg-amber-500/20 border-amber-500/60 flex items-start space-x-3">
-                            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center flex-shrink-0">
-                              <Building2 className="w-5 h-5 text-amber-700" />
+                          <div className="w-full text-left p-3 rounded-xl border bg-slate-900/40 border-slate-700/60 flex items-start space-x-3">
+                            <div className="w-9 h-9 rounded-xl bg-slate-900/40 border border-slate-700/40 flex items-center justify-center flex-shrink-0">
+                              <Building2 className="w-5 h-5 text-neutral-700" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-100">Property Manager Portal</span>
+                                <span className="text-xs font-bold text-neutral-800">Property Manager Portal</span>
                                 {propertyCount !== undefined && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-950 border border-amber-500/30">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-900/40 text-neutral-800 border border-slate-700/30">
                                     {propertyCount} units
                                   </span>
                                 )}
@@ -352,7 +352,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <Database className="w-3.5 h-3.5" />
-                  <span>MongoDB Embeddings</span>
+                  <span>Vector Embeddings</span>
                 </button>
 
                 <button

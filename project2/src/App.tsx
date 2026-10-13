@@ -1369,10 +1369,10 @@ export default function App() {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-slate-300 font-bold text-base">
+                  <h2 className="text-slate-800 font-bold text-base">
                     {adminTargetPortal === 'property_manager' ? 'Property Manager Portal' : 'Admin Portal Access'}
                   </h2>
-                  <p className="text-slate-500 text-xs mt-0.5">
+                  <p className="text-slate-700 text-xs mt-0.5">
                     {adminTargetPortal === 'property_manager'
                       ? 'Lyka Realty Property Inventory & Statistics'
                       : 'Lyka Realty CRM & System Management'}

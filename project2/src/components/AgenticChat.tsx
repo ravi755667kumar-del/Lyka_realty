@@ -1504,8 +1504,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-[#ffffff] rounded-2xl w-full max-w-sm shadow-2xl border border-[#e2d9c6] overflow-hidden flex flex-col relative">
             <div className="flex justify-between items-center p-4 border-b border-[#f3ede0] bg-[#f7f2e6]">
-              <h3 className="font-extrabold text-base text-[#1e1610]">Account</h3>
-              <button onClick={() => setShowAuthModal(false)} className="text-slate-500 hover:text-slate-300 p-1 bg-white rounded-md border border-[#e2d9c6]">
+              <h3 className="font-bold text-base text-neutral-800">Account</h3>
+              <button onClick={() => setShowAuthModal(false)} className="text-slate-500 hover:text-slate-700 p-1 bg-white rounded-md border border-[#e2d9c6]">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1766,15 +1766,15 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 <div className="space-y-4">
                   {/* Profile Header */}
                   <div className="flex items-center space-x-3 p-3 bg-[#f7f2e6] rounded-xl border border-[#e2d9c6]">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-black font-black text-base shrink-0 shadow-sm">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-neutral-800 font-bold text-base shrink-0 shadow-sm">
                       {userName[0]?.toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-extrabold text-black truncate">{userName || userFullName || 'Lyka Client'}</p>
-                      <p className="text-xs font-bold text-black truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
+                      <p className="text-sm font-bold text-neutral-800 truncate">{userName || userFullName || 'Lyka Client'}</p>
+                      <p className="text-xs font-medium text-neutral-600 truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
                       <div className="flex items-center space-x-1.5 mt-1">
                         <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block"></span>
-                        <span className="text-[11px] font-extrabold text-emerald-800">Database Synced (User_login)</span>
+                        <span className="text-[11px] font-semibold text-emerald-800">Database Synced (User_login)</span>
                       </div>
                     </div>
                   </div>
@@ -1783,38 +1783,38 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   {isEditingProfile ? (
                     <form onSubmit={handleSaveProfileChanges} className="p-3.5 bg-[#fdfbf5] rounded-xl border border-[#d6c7ab] space-y-3 shadow-xs">
                       <div className="flex items-center justify-between border-b border-[#e2d9c6] pb-2">
-                        <span className="text-xs font-extrabold text-black flex items-center space-x-1.5">
-                          <Pencil className="w-3.5 h-3.5 text-black" />
+                        <span className="text-xs font-bold text-neutral-800 flex items-center space-x-1.5">
+                          <Pencil className="w-3.5 h-3.5 text-neutral-600" />
                           <span>Edit Name & Age</span>
                         </span>
                         <button
                           type="button"
                           onClick={() => { setIsEditingProfile(false); setEditProfileError(''); setEditProfileSuccess(''); }}
-                          className="text-[11px] text-black hover:text-neutral-700 font-bold"
+                          className="text-[11px] text-neutral-600 hover:text-neutral-900 font-medium"
                         >
                           Cancel
                         </button>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-black block">Full Name</label>
+                        <label className="text-[11px] font-medium text-neutral-700 block">Full Name</label>
                         <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                           <input
                             type="text"
                             value={editNameInput}
                             onChange={(e) => { setEditNameInput(e.target.value); setEditProfileError(''); }}
                             placeholder="Your full name"
                             required
-                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black outline-none transition-colors placeholder:text-neutral-400"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-neutral-800 outline-none transition-colors placeholder:text-neutral-400"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-black block">Age (Years)</label>
+                        <label className="text-[11px] font-medium text-neutral-700 block">Age (Years)</label>
                         <div className="relative">
-                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                           <input
                             type="number"
                             min={18}
@@ -1823,7 +1823,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             value={editAgeInput}
                             onChange={(e) => { setEditAgeInput(e.target.value); setEditProfileError(''); }}
                             placeholder="Enter age (18 - 120)"
-                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black outline-none transition-colors placeholder:text-neutral-400"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-neutral-800 outline-none transition-colors placeholder:text-neutral-400"
                           />
                         </div>
                       </div>
@@ -1845,21 +1845,21 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <button
                           type="button"
                           onClick={() => { setIsEditingProfile(false); setEditProfileError(''); }}
-                          className="flex-1 bg-white hover:bg-neutral-100 text-black font-bold py-2 rounded-xl text-xs transition-colors border border-neutral-300 shadow-xs"
+                          className="flex-1 bg-white hover:bg-neutral-100 text-neutral-700 font-medium py-2 rounded-xl text-xs transition-colors border border-neutral-300 shadow-xs"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={editProfileLoading}
-                          className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-neutral-900 font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
                         >
                           {editProfileLoading ? (
-                            <span className="text-[11px] text-black font-bold">Saving...</span>
+                            <span className="text-[11px] text-neutral-900 font-semibold">Saving...</span>
                           ) : (
                             <>
-                              <Save className="w-3.5 h-3.5 text-black" />
-                              <span className="text-black font-bold">Save</span>
+                              <Save className="w-3.5 h-3.5 text-neutral-900" />
+                              <span className="text-neutral-900 font-bold">Save</span>
                             </>
                           )}
                         </button>
@@ -1868,28 +1868,28 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   ) : (
                     <div className="bg-[#faf7f0] p-3.5 rounded-xl border border-[#d6c7ab] text-xs space-y-2.5 shadow-xs">
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-neutral-800">Full Name:</span>
-                        <span className="font-extrabold text-black text-xs">{userName || userFullName || 'Not set'}</span>
+                        <span className="font-medium text-neutral-600">Full Name:</span>
+                        <span className="font-semibold text-neutral-800 text-xs">{userName || userFullName || 'Not set'}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-neutral-800">Age:</span>
-                        <span className="font-extrabold text-black text-xs">{userAge ? `${userAge} years` : 'Not recorded'}</span>
+                        <span className="font-medium text-neutral-600">Age:</span>
+                        <span className="font-semibold text-neutral-800 text-xs">{userAge ? `${userAge} years` : 'Not recorded'}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-neutral-800">Sign-in Method:</span>
-                        <span className="font-extrabold text-black text-xs">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
+                        <span className="font-medium text-neutral-600">Sign-in Method:</span>
+                        <span className="font-semibold text-neutral-800 text-xs">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-neutral-800">User ID:</span>
-                        <span className="font-mono text-[11px] text-black font-bold truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
+                        <span className="font-medium text-neutral-600">User ID:</span>
+                        <span className="font-mono text-[11px] text-neutral-700 font-medium truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
                       </div>
                       <button
                         type="button"
                         onClick={handleStartEditProfile}
-                        className="w-full mt-2 bg-white hover:bg-amber-50 text-black border border-[#c4a468] hover:border-amber-600 font-extrabold py-2 px-3 rounded-lg text-xs transition-all flex items-center justify-center space-x-1.5 shadow-xs"
+                        className="w-full mt-2 bg-white hover:bg-amber-50/70 text-neutral-700 hover:text-neutral-900 border border-[#c4a468]/60 hover:border-amber-600 font-semibold py-2 px-3 rounded-lg text-xs transition-all flex items-center justify-center space-x-1.5 shadow-xs"
                       >
-                        <Pencil className="w-3.5 h-3.5 text-black" />
-                        <span className="text-black font-extrabold">Edit Name & Age</span>
+                        <Pencil className="w-3.5 h-3.5 text-neutral-600" />
+                        <span className="text-neutral-700 font-semibold">Edit Name & Age</span>
                       </button>
                     </div>
                   )}
@@ -1908,14 +1908,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       type="button"
                       onClick={() => { setShowEmailUpdateModal(true); setEmailUpdateError(''); setNewEmailInput(''); setEmailUpdatePassword(''); }}
                       disabled={authLoading || authProviderName === 'Google'}
-                      className={`w-full font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border shadow-xs ${
+                      className={`w-full font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border shadow-xs ${
                         authProviderName === 'Google'
                           ? 'bg-[#f7f2e6] text-neutral-500 border-[#d6c7ab] cursor-not-allowed opacity-75'
-                          : 'bg-amber-50 hover:bg-amber-100 text-black border-[#c4a468]'
+                          : 'bg-amber-50 hover:bg-amber-100 text-neutral-700 border-[#c4a468]'
                       }`}
                     >
-                      <Mail className={`w-4 h-4 ${authProviderName === 'Google' ? 'text-neutral-500' : 'text-black'}`} />
-                      <span className={authProviderName === 'Google' ? 'text-neutral-600 font-bold' : 'text-black font-bold'}>
+                      <Mail className={`w-4 h-4 ${authProviderName === 'Google' ? 'text-neutral-500' : 'text-neutral-700'}`} />
+                      <span className={authProviderName === 'Google' ? 'text-neutral-600 font-medium' : 'text-neutral-700 font-semibold'}>
                         {authProviderName === 'Google' ? 'Email Managed by Google' : 'Update Email'}
                       </span>
                     </button>
@@ -1925,10 +1925,10 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       type="button"
                       onClick={handleSignOut}
                       disabled={authLoading}
-                      className="w-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-black font-extrabold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#d6c7ab] shadow-xs"
+                      className="w-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-neutral-700 hover:text-neutral-900 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#d6c7ab] shadow-xs"
                     >
-                      <LogOut className="w-4 h-4 text-black" />
-                      <span className="text-black font-extrabold">Log Out</span>
+                      <LogOut className="w-4 h-4 text-neutral-600" />
+                      <span className="text-neutral-700 font-semibold">Log Out</span>
                     </button>
 
                     {/* Delete Account */}

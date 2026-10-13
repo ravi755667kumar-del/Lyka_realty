@@ -69,6 +69,20 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // PDF Knowledge and Vector Embeddings
+    match /pdf_knowledge_embeddings/{docId} {
+      allow read, write: if true;
+    }
+    match /customer_embeddings/{docId} {
+      allow read, write: if true;
+    }
+    match /property_embeddings/{docId} {
+      allow read, write: if true;
+    }
+    match /vector_embeddings/{docId} {
+      allow read, write: if true;
+    }
+
     // Fallback for authenticated users
     match /{document=**} {
       allow read, write: if request.auth != null;

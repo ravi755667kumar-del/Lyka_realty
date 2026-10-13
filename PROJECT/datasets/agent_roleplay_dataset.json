@@ -1,0 +1,298 @@
+{
+  "title": "Agent Role-Play Practice Script & Tanglish Training Dataset",
+  "version": "1.0.0",
+  "tanglish_vocabulary": [
+    { "tanglish": "Vanakkam", "meaning": "Hello / Greetings" },
+    { "tanglish": "Sollunga", "meaning": "Please tell / say" },
+    { "tanglish": "Enna / Epdi", "meaning": "What / How" },
+    { "tanglish": "Aama / Illa", "meaning": "Yes / No" },
+    { "tanglish": "Seri", "meaning": "Okay" },
+    { "tanglish": "Konjam", "meaning": "A little / a bit" },
+    { "tanglish": "Oru nimisham", "meaning": "Just a minute" },
+    { "tanglish": "Puriyala", "meaning": "I didn't understand" },
+    { "tanglish": "Marupadiyum sollunga", "meaning": "Please say again" },
+    { "tanglish": "Romba nandri", "meaning": "Thank you very much" },
+    { "tanglish": "Mannichidunga", "meaning": "Sorry / Excuse me" },
+    { "tanglish": "Kavalai padathinga", "meaning": "Don't worry" },
+    { "tanglish": "Irukku / Venum", "meaning": "There is / Want or need" },
+    { "tanglish": "Panren / Pannitten", "meaning": "I'm doing / I have done" }
+  ],
+  "agent_phrases": {
+    "greeting": "Hi, thanks for calling. My name is [Agent]. How can I help you today?",
+    "asking": "Could I get your full name, please?",
+    "confirming": "Just to make sure I have it right, that's [Details], correct?",
+    "clarifying": "Sorry, could you repeat that? / Could you spell that for me?",
+    "pausing": "Give me just a moment while I note that down.",
+    "closing": "Is there anything else I can help you with? Have a great day!"
+  },
+  "scenarios_english": [
+    {
+      "id": "scenario_1_en",
+      "title": "Scenario 1: General Customer Details",
+      "information_to_collect": ["Full name", "Phone number", "Email address", "City"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Hello, thank you for calling. My name is Sam. How can I help you today?" },
+        { "speaker": "CUSTOMER", "line": "Hi Sam. I'd like to open an account with your company." },
+        { "speaker": "AGENT", "line": "Of course, I'd be happy to help with that. Before we start, may I have your full name, please?" },
+        { "speaker": "CUSTOMER", "line": "Sure. It's Daniel Roberts." },
+        { "speaker": "AGENT", "line": "Thank you, Daniel. Could you spell your last name for me?" },
+        { "speaker": "CUSTOMER", "line": "R-O-B-E-R-T-S." },
+        { "speaker": "AGENT", "line": "Perfect. And what's the best phone number to reach you on?" },
+        { "speaker": "CUSTOMER", "line": "It's 555-0142." },
+        { "speaker": "AGENT", "line": "Great, 555-0142. Do you also have an email address I can use?" },
+        { "speaker": "CUSTOMER", "line": "Yes, it's daniel.roberts at example dot com." },
+        { "speaker": "AGENT", "line": "Let me read that back: daniel dot roberts at example dot com. Is that right?" },
+        { "speaker": "CUSTOMER", "line": "Yes, that's correct." },
+        { "speaker": "AGENT", "line": "Wonderful. And which city do you live in?" },
+        { "speaker": "CUSTOMER", "line": "I live in Chicago." },
+        { "speaker": "AGENT", "line": "Thanks, Daniel. I have everything I need. Is there anything else I can help you with today?" },
+        { "speaker": "CUSTOMER", "line": "No, that's all. Thank you!" },
+        { "speaker": "AGENT", "line": "You're very welcome. Have a great day!" }
+      ],
+      "practice_tip": "Always repeat phone numbers and emails back to the customer.",
+      "customer_details": {
+        "name": "Daniel Roberts",
+        "phone": "555-0142",
+        "email": "daniel.roberts@example.com",
+        "city": "Chicago"
+      }
+    },
+    {
+      "id": "scenario_2_en",
+      "title": "Scenario 2: Booking an Appointment",
+      "information_to_collect": ["Name", "Preferred date and time", "Reason for visit", "Contact number"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Good morning! Thanks for calling Brightside Clinic. This is Sam speaking. How may I help you?" },
+        { "speaker": "CUSTOMER", "line": "Hi, I'd like to book an appointment, please." },
+        { "speaker": "AGENT", "line": "Sure, no problem. May I have your name?" },
+        { "speaker": "CUSTOMER", "line": "Maria Lopez." },
+        { "speaker": "AGENT", "line": "Thank you, Maria. What day would you like to come in?" },
+        { "speaker": "CUSTOMER", "line": "Maybe next Tuesday, if possible." },
+        { "speaker": "AGENT", "line": "Let me check. Would morning or afternoon work better for you?" },
+        { "speaker": "CUSTOMER", "line": "Morning is better. Around 10 o'clock." },
+        { "speaker": "AGENT", "line": "I have 10:30 available. Would that be okay?" },
+        { "speaker": "CUSTOMER", "line": "Yes, 10:30 is fine." },
+        { "speaker": "AGENT", "line": "Great. And may I ask what the visit is for?" },
+        { "speaker": "CUSTOMER", "line": "It's just a regular check-up." },
+        { "speaker": "AGENT", "line": "Got it. Could I have a phone number in case we need to reschedule?" },
+        { "speaker": "CUSTOMER", "line": "Sure, it's 555-0187." },
+        { "speaker": "AGENT", "line": "Thank you. So that's Maria Lopez, next Tuesday at 10:30 AM for a check-up. Is that correct?" },
+        { "speaker": "CUSTOMER", "line": "Yes, perfect." },
+        { "speaker": "AGENT", "line": "All set! We'll see you then. Take care, Maria!" }
+      ],
+      "practice_tip": "Confirm the date, time, and name at the end to avoid mistakes.",
+      "customer_details": {
+        "name": "Maria Lopez",
+        "phone": "555-0187",
+        "appointment_date": "Next Tuesday",
+        "appointment_time": "10:30 AM",
+        "reason": "Regular check-up"
+      }
+    },
+    {
+      "id": "scenario_3_en",
+      "title": "Scenario 3: Handling a Complaint (Order Problem)",
+      "information_to_collect": ["Name", "Order number", "What went wrong", "Preferred solution"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Hello, thanks for contacting support. I'm Sam. How can I help?" },
+        { "speaker": "CUSTOMER", "line": "Hi, my order hasn't arrived yet and it's been two weeks." },
+        { "speaker": "AGENT", "line": "I'm so sorry to hear that. I'll do my best to sort it out. Could I have your name, please?" },
+        { "speaker": "CUSTOMER", "line": "It's James Carter." },
+        { "speaker": "AGENT", "line": "Thank you, James. Do you have your order number handy?" },
+        { "speaker": "CUSTOMER", "line": "Yes, it's 48291." },
+        { "speaker": "AGENT", "line": "Thanks. Give me a moment while I look that up... I can see the order was shipped but seems delayed. When did you place it?" },
+        { "speaker": "CUSTOMER", "line": "On the 1st of this month." },
+        { "speaker": "AGENT", "line": "Okay, thank you. Would you prefer that we send a replacement, or would you like a refund?" },
+        { "speaker": "CUSTOMER", "line": "A replacement would be great." },
+        { "speaker": "AGENT", "line": "Understood. Could you confirm your delivery address so I can make sure it's correct?" },
+        { "speaker": "CUSTOMER", "line": "12 Oak Street, Springfield." },
+        { "speaker": "AGENT", "line": "Thank you. I've arranged a replacement and you'll receive an email confirmation shortly. Again, I'm sorry for the trouble." },
+        { "speaker": "CUSTOMER", "line": "Thanks for your help, Sam." },
+        { "speaker": "AGENT", "line": "My pleasure, James. Is there anything else I can do for you?" },
+        { "speaker": "CUSTOMER", "line": "No, that's everything." },
+        { "speaker": "AGENT", "line": "Have a lovely day!" }
+      ],
+      "practice_tip": "Show empathy first, then ask for details. A calm, kind voice helps a lot.",
+      "customer_details": {
+        "name": "James Carter",
+        "order_number": "48291",
+        "issue": "Order delayed by two weeks",
+        "solution": "Replacement",
+        "address": "12 Oak Street, Springfield"
+      }
+    },
+    {
+      "id": "scenario_4_en",
+      "title": "Scenario 4: Job Application Screening",
+      "information_to_collect": ["Name", "Current job", "Experience", "Availability", "Expected salary"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Hi, this is Sam from the HR team. Is this a good time to talk for a few minutes?" },
+        { "speaker": "CUSTOMER", "line": "Yes, I have time now." },
+        { "speaker": "AGENT", "line": "Great. Thanks for applying. Could you tell me your full name?" },
+        { "speaker": "CUSTOMER", "line": "Priya Sharma." },
+        { "speaker": "AGENT", "line": "Nice to meet you, Priya. What are you doing currently, work-wise?" },
+        { "speaker": "CUSTOMER", "line": "I'm working as a customer service executive at a telecom company." },
+        { "speaker": "AGENT", "line": "Interesting. How many years of experience do you have?" },
+        { "speaker": "CUSTOMER", "line": "About three years." },
+        { "speaker": "AGENT", "line": "Wonderful. If selected, when would you be able to start?" },
+        { "speaker": "CUSTOMER", "line": "I need to give one month's notice." },
+        { "speaker": "AGENT", "line": "That's fine. And what salary range are you expecting?" },
+        { "speaker": "CUSTOMER", "line": "Somewhere around 40,000 per month." },
+        { "speaker": "AGENT", "line": "Thank you for sharing that. I've noted everything down. Do you have any questions for me?" },
+        { "speaker": "CUSTOMER", "line": "When will I hear back?" },
+        { "speaker": "AGENT", "line": "You'll hear from us within a week. Thanks for your time, Priya, and good luck!" }
+      ],
+      "practice_tip": "Ask one question at a time and let the person finish speaking.",
+      "customer_details": {
+        "name": "Priya Sharma",
+        "current_role": "Customer Service Executive at Telecom Company",
+        "experience": "About 3 years",
+        "notice_period": "1 month",
+        "expected_salary": "₹40,000 / month"
+      }
+    }
+  ],
+  "scenarios_tanglish": [
+    {
+      "id": "scenario_1_ta",
+      "title": "Scenario 1: General Customer Details (Tanglish)",
+      "information_to_collect": ["Full name", "Phone number", "Email", "City"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Hello sir, vanakkam. Naan Sam pesuren. Epdi help panna mudiyum?" },
+        { "speaker": "CUSTOMER", "line": "Hi Sam, naan oru account open panna venum." },
+        { "speaker": "AGENT", "line": "Sure sir, no problem. Mudhalla ungal full name sollunga, please." },
+        { "speaker": "CUSTOMER", "line": "Daniel Roberts." },
+        { "speaker": "AGENT", "line": "Thank you sir. Last name spelling konjam sollunga?" },
+        { "speaker": "CUSTOMER", "line": "R-O-B-E-R-T-S." },
+        { "speaker": "AGENT", "line": "Seri, note pannitten. Ungal phone number enna sir?" },
+        { "speaker": "CUSTOMER", "line": "555-0142." },
+        { "speaker": "AGENT", "line": "Naan repeat panren, 555-0142. Correct ah sir?" },
+        { "speaker": "CUSTOMER", "line": "Aama, correct." },
+        { "speaker": "AGENT", "line": "Email ID irukka sir?" },
+        { "speaker": "CUSTOMER", "line": "Irukku. daniel.roberts at example dot com." },
+        { "speaker": "AGENT", "line": "Super sir. Neenga yenga irukkinga, which city?" },
+        { "speaker": "CUSTOMER", "line": "Naan Chennai la irukken." },
+        { "speaker": "AGENT", "line": "Romba nandri sir. Vera edhavadhu help venuma?" },
+        { "speaker": "CUSTOMER", "line": "Illa, that's all. Thanks." },
+        { "speaker": "AGENT", "line": "Welcome sir, have a nice day!" }
+      ],
+      "practice_tip": "Phone number and email ah eppavum repeat panni confirm pannunga.",
+      "customer_details": {
+        "name": "Daniel Roberts",
+        "phone": "555-0142",
+        "email": "daniel.roberts@example.com",
+        "city": "Chennai"
+      }
+    },
+    {
+      "id": "scenario_2_ta",
+      "title": "Scenario 2: Booking an Appointment (Tanglish)",
+      "information_to_collect": ["Name", "Date and time", "Reason for visit", "Contact number"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Good morning madam, vanakkam. Brightside Clinic la irundhu Sam pesuren. Enna help venum?" },
+        { "speaker": "CUSTOMER", "line": "Hi, naan oru appointment book panna venum." },
+        { "speaker": "AGENT", "line": "Sure madam. Ungal peru enna?" },
+        { "speaker": "CUSTOMER", "line": "Maria Lopez." },
+        { "speaker": "AGENT", "line": "Thank you Maria madam. Ethu nalaikku varanum nu nenaikkireenga?" },
+        { "speaker": "CUSTOMER", "line": "Next Tuesday venumna possible ah?" },
+        { "speaker": "AGENT", "line": "Oru nimisham, check panren. Morning ah, illa afternoon ah?" },
+        { "speaker": "CUSTOMER", "line": "Morning dhaan better. Around 10 o'clock." },
+        { "speaker": "AGENT", "line": "10:30 slot irukku madam. Ok va?" },
+        { "speaker": "CUSTOMER", "line": "Aama, 10:30 fine." },
+        { "speaker": "AGENT", "line": "Seri. Enna reason ku varaporeenga?" },
+        { "speaker": "CUSTOMER", "line": "Regular check-up dhaan." },
+        { "speaker": "AGENT", "line": "Ok madam. Reschedule panna venumna, phone number konjam sollunga?" },
+        { "speaker": "CUSTOMER", "line": "555-0187." },
+        { "speaker": "AGENT", "line": "So Maria Lopez, next Tuesday 10:30 AM, check-up. Correct ah?" },
+        { "speaker": "CUSTOMER", "line": "Aama, perfect." },
+        { "speaker": "AGENT", "line": "Super madam. Romba nandri, see you then!" }
+      ],
+      "practice_tip": "Date, time, name ellam last la oru dhadava confirm pannunga.",
+      "customer_details": {
+        "name": "Maria Lopez",
+        "phone": "555-0187",
+        "date": "Next Tuesday",
+        "time": "10:30 AM",
+        "reason": "Regular check-up"
+      }
+    },
+    {
+      "id": "scenario_3_ta",
+      "title": "Scenario 3: Handling a Complaint (Order Problem - Tanglish)",
+      "information_to_collect": ["Name", "Order number", "What went wrong", "Preferred solution"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Hello sir, support team ku call pannadhuku thanks. Naan Sam. Epdi help panna?" },
+        { "speaker": "CUSTOMER", "line": "Hi, en order innum varala. Two weeks aachu." },
+        { "speaker": "AGENT", "line": "Ayyo, romba mannichidunga sir. Naan idha sari pannuren. Ungal name sollunga?" },
+        { "speaker": "CUSTOMER", "line": "James Carter." },
+        { "speaker": "AGENT", "line": "Thank you James sir. Order number irukka?" },
+        { "speaker": "CUSTOMER", "line": "Irukku, 48291." },
+        { "speaker": "AGENT", "line": "Oru nimisham sir, check panren... Order ship aagiduchu, but konjam delay aagirukku. Eppo order panneenga?" },
+        { "speaker": "CUSTOMER", "line": "Intha month 1st date la." },
+        { "speaker": "AGENT", "line": "Seri sir. Replacement venuma, illa refund venuma?" },
+        { "speaker": "CUSTOMER", "line": "Replacement anuppunga." },
+        { "speaker": "AGENT", "line": "Ok sir. Delivery address confirm pannunga, please." },
+        { "speaker": "CUSTOMER", "line": "12 Oak Street, Coimbatore." },
+        { "speaker": "AGENT", "line": "Thank you sir. Replacement arrange pannitten. Email confirmation konjam neram la varum. Kavalai padathinga." },
+        { "speaker": "CUSTOMER", "line": "Thanks Sam." },
+        { "speaker": "AGENT", "line": "Welcome sir. Vera edhavadhu venuma?" },
+        { "speaker": "CUSTOMER", "line": "Illa, that's all." },
+        { "speaker": "AGENT", "line": "Seri sir, have a nice day!" }
+      ],
+      "practice_tip": "Mudhalla sorry sollunga, apram details kelunga. Calm ah pesunga.",
+      "customer_details": {
+        "name": "James Carter",
+        "order_number": "48291",
+        "issue": "Order delayed by two weeks",
+        "solution": "Replacement",
+        "address": "12 Oak Street, Coimbatore"
+      }
+    },
+    {
+      "id": "scenario_4_ta",
+      "title": "Scenario 4: Job Application Screening (Tanglish)",
+      "information_to_collect": ["Name", "Current job", "Experience", "Joining time", "Expected salary"],
+      "dialogue": [
+        { "speaker": "AGENT", "line": "Hi, naan Sam, HR team la irundhu pesuren. Ippo pesa time irukka?" },
+        { "speaker": "CUSTOMER", "line": "Aama, pesalaam." },
+        { "speaker": "AGENT", "line": "Great. Apply pannadhuku thanks. Ungal full name sollunga?" },
+        { "speaker": "CUSTOMER", "line": "Priya Sharma." },
+        { "speaker": "AGENT", "line": "Nice to meet you Priya. Ippo enna job pannreenga?" },
+        { "speaker": "CUSTOMER", "line": "Telecom company la customer service executive ah irukken." },
+        { "speaker": "AGENT", "line": "Super. Evlo years experience irukku?" },
+        { "speaker": "CUSTOMER", "line": "Almost three years." },
+        { "speaker": "AGENT", "line": "Seri. Select aana, eppo join panna mudiyum?" },
+        { "speaker": "CUSTOMER", "line": "One month notice period irukku." },
+        { "speaker": "AGENT", "line": "No problem. Expected salary evlo?" },
+        { "speaker": "CUSTOMER", "line": "Around 40,000 per month." },
+        { "speaker": "AGENT", "line": "Ok, note pannitten. Edhavadhu questions irukka?" },
+        { "speaker": "CUSTOMER", "line": "Result eppo theriyum?" },
+        { "speaker": "AGENT", "line": "One week ku ulla solrom Priya. Romba nandri, all the best!" }
+      ],
+      "practice_tip": "Oru time la oru question dhaan kelunga. Avanga pesi mudikkura varaikum wait pannunga.",
+      "customer_details": {
+        "name": "Priya Sharma",
+        "current_role": "Telecom company customer service executive",
+        "experience": "Almost 3 years",
+        "notice_period": "1 month",
+        "expected_salary": "Around ₹40,000 / month"
+      }
+    }
+  ],
+  "follow_up_templates": {
+    "email": {
+      "subject": "Confirmation of Your Details",
+      "body": "Hi [Name],\n\nThank you for speaking with me today. I'm writing to confirm the details you gave me:\n\n• Name: [Name]\n• Phone: [Phone]\n• Email: [Email]\n• City: [City]\n\nIf anything looks incorrect, please reply to this email and I'll fix it right away.\n\nKind regards,\n[Agent Name]\nCustomer Support Team"
+    },
+    "whatsapp_tanglish": {
+      "body": "Hi [Name] sir/madam, vanakkam. [Agent Name] here from Customer Support.\n\nCall la neenga sonna details confirm panren:\n• Name: [Name]\n• Phone: [Phone]\n• Email: [Email]\n• City: [City]\n\nEdhavadhu thappu irundha, please reply pannunga. Naan udane correct panren.\n\nThanks,\n[Agent Name]"
+    }
+  },
+  "self_check_checklist": [
+    "I greeted the customer politely and introduced myself / Vanakkam sollitu introduce pannitten.",
+    "I asked one question at a time / Oru time la oru question dhaan kettein.",
+    "I repeated important details (phone, email, dates) back / Phone, email, date ellam repeat panni confirm pannitten.",
+    "I thanked the customer and asked if they needed anything else / Last la 'Vera edhavadhu help venuma?' nu kettein.",
+    "I closed the conversation warmly / Nandri sollitu polite ah call mudichen."
+  ]
+}

@@ -207,20 +207,28 @@ export interface LykaAgent {
 
 export interface MongoEmbeddingRecord {
   _id?: string;
+  id?: string;
   lead_id?: string;
+  section_number?: number;
+  title?: string;
+  document_name?: string;
   text_content: string;
   vector: number[];
   dimensions: number;
+  vector_sum?: number;
   model: string;
   storage?: string;
-  metadata: {
+  metadata?: {
     customer_name?: string;
     intent?: string;
     budget_max?: number | null;
     communities?: string[];
+    [key: string]: any;
   };
   createdAt: string;
 }
+
+export type FirebaseVectorEmbeddingRecord = MongoEmbeddingRecord;
 
 export enum OperationType {
   CREATE = 'create',

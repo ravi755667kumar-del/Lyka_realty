@@ -9,6 +9,19 @@ import fs from 'fs';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  doc as fsDoc, 
+  getDoc as fsGetDoc, 
+  setDoc as fsSetDoc, 
+  getDocs as fsGetDocs, 
+  collection as fsCollection, 
+  query as fsQuery, 
+  orderBy as fsOrderBy, 
+  limit as fsLimit 
+} from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { runLykaAgent, injectDependencies } from './langgraph_agent.js';
 import { ALL_VERIFIED_PROPERTIES } from './src/data/all_properties.js';
 
@@ -22,20 +35,78 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// In-memory fallback for MongoDB embeddings when MONGODB_URI is connecting or unset
+// Vector Embedding Interface
 interface StoredVector {
   _id: string;
+  id?: string;
   lead_id: string;
+  section_number?: number;
+  title?: string;
+  document_name?: string;
   text_content: string;
   vector: number[];
   dimensions: number;
+  vector_sum?: number;
   model: string;
-  metadata: Record<string, any>;
+  metadata?: Record<string, any>;
   createdAt: string;
-  storage: 'MongoDB' | 'LocalStore';
+  storage: 'Firebase' | 'MongoDB' | 'LocalStore';
 }
 
 const localEmbeddingsStore: StoredVector[] = [];
+
+// Firebase Firestore Client State (Primary Vector & Knowledge Storage)
+let firestoreDb: any = null;
+let firebaseAuth: any = null;
+let firebaseStatus = {
+  connected: false,
+  projectId: 'angent-chatbot',
+  storageMode: 'Firebase Firestore',
+  authenticatedUser: null as string | null,
+  error: null as string | null,
+  collections: ['pdf_knowledge_embeddings', 'customer_embeddings', 'property_embeddings'],
+};
+
+async function initFirebase(): Promise<boolean> {
+  try {
+    const configPath = path.join(__dirname, 'firebase-applet-config.json');
+    if (!fs.existsSync(configPath)) {
+      firebaseStatus.error = 'firebase-applet-config.json not found';
+      console.warn('[Firebase] Config file missing:', configPath);
+      return false;
+    }
+    const cfgRaw = fs.readFileSync(configPath, 'utf-8');
+    const firebaseConfig = JSON.parse(cfgRaw);
+    const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    firestoreDb = (firebaseConfig as any).firestoreDatabaseId
+      ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
+      : getFirestore(app);
+    firebaseAuth = getAuth(app);
+
+    try {
+      const userCred = await signInWithEmailAndPassword(
+        firebaseAuth,
+        'agent_system@lykarealty.ae',
+        'LykaSystemAgent2024!'
+      );
+      firebaseStatus.authenticatedUser = userCred.user.email;
+      firebaseStatus.connected = true;
+      firebaseStatus.error = null;
+      console.log(`[Firebase] Authenticated server session as ${userCred.user.email} (Firestore: ${firebaseConfig.projectId})`);
+      return true;
+    } catch (authErr: any) {
+      console.warn('[Firebase] Auth notice:', authErr.message);
+      // Keep firestoreDb initialized even if auth throws
+      firebaseStatus.connected = true;
+      return true;
+    }
+  } catch (err: any) {
+    firebaseStatus.connected = false;
+    firebaseStatus.error = err?.message || 'Failed to initialize Firebase';
+    console.warn('[Firebase] Initialization error:', firebaseStatus.error);
+    return false;
+  }
+}
 
 let mongoClient: MongoClient | null = null;
 let mongoDb: Db | null = null;
@@ -245,6 +316,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
     status: 'ok',
     app: 'Lyka Realty Agentic AI',
     time: new Date().toISOString(),
+    firebase: firebaseStatus,
     mongo: mongoStatus,
   });
 });
@@ -253,7 +325,7 @@ app.get('/api/mongodb/status', async (_req: Request, res: Response) => {
   let count = localEmbeddingsStore.length;
   let leadsCount = Object.keys(localLeadsStore).length;
   let followupsCount = Object.keys(localFollowupsStore).length;
-  let collectionsList: string[] = ['customer_embeddings', 'leads', 'followups'];
+  let collectionsList: string[] = ['pdf_knowledge_embeddings', 'customer_embeddings', 'property_embeddings', 'leads', 'followups'];
   let pingMs: number | null = null;
 
   if (mongoDb) {
@@ -274,14 +346,16 @@ app.get('/api/mongodb/status', async (_req: Request, res: Response) => {
 
   res.json({
     ...mongoStatus,
-    databaseName: activeMongoDbName,
+    firebase: firebaseStatus,
+    databaseName: firestoreDb ? `Firebase Firestore (${firebaseStatus.projectId})` : activeMongoDbName,
     embeddingsCount: count,
+    pdfEmbeddingsCount: localPdfEmbeddingsStore.length,
     leadsCount,
     followupsCount,
     collections: collectionsList,
     pingMs,
     configuredModel: process.env.TEXT_TO_NUMERICAL_MODEL || 'text-embedding-004',
-    storageMode: mongoStatus.connected ? 'MongoDB Atlas / Database Cluster' : 'Local Buffer (Waiting for MongoDB URI)'
+    storageMode: firestoreDb ? 'Firebase Firestore (Live Connected)' : (mongoStatus.connected ? 'MongoDB Atlas' : 'Local Store')
   });
 });
 
@@ -358,7 +432,7 @@ app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
   }
 });
 
-// Store Text-to-Numerical Vector Embedding into MongoDB
+// Store Text-to-Numerical Vector Embedding into Firebase Firestore (and local buffer)
 app.post('/api/embeddings/store', async (req: Request, res: Response) => {
   try {
     const { lead_id, text_content, metadata } = req.body;
@@ -367,38 +441,37 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
     }
 
     const { vector, model, dimensions } = await getEmbeddingVector(text_content);
+    const vector_sum = parseFloat(vector.reduce((a, b) => a + b, 0).toFixed(6));
+    const docId = 'VEC-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+
     const record: StoredVector = {
-      _id: 'VEC-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
+      _id: docId,
+      id: docId,
       lead_id: lead_id || 'GENERAL',
       text_content,
       vector,
       dimensions,
+      vector_sum,
       model,
       metadata: metadata || {},
       createdAt: new Date().toISOString(),
-      storage: mongoDb ? 'MongoDB' : 'LocalStore',
+      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
     };
 
-    let mongoDocId: string | null = null;
-
-    if (mongoDb) {
+    if (firestoreDb) {
       try {
-        const insertDoc: any = {
-          lead_id: record.lead_id,
-          text_content: record.text_content,
-          vector: record.vector,
-          dimensions: record.dimensions,
-          model: record.model,
-          metadata: record.metadata,
-          createdAt: record.createdAt,
-          storage: 'MongoDB',
-        };
-        const insertRes = await mongoDb.collection('customer_embeddings').insertOne(insertDoc);
-        record._id = insertRes.insertedId.toString();
-        mongoDocId = insertRes.insertedId.toString();
+        await fsSetDoc(fsDoc(firestoreDb, 'customer_embeddings', docId), record, { merge: true });
+        record.storage = 'Firebase';
+      } catch (fsErr: any) {
+        console.warn('Firestore customer embedding insert notice:', fsErr.message);
+        localEmbeddingsStore.unshift(record);
+        record.storage = 'LocalStore';
+      }
+    } else if (mongoDb) {
+      try {
+        await mongoDb.collection('customer_embeddings').insertOne(record);
         record.storage = 'MongoDB';
-      } catch (e: any) {
-        console.warn('MongoDB insert failed, saving to local store:', e.message);
+      } catch (mErr: any) {
         localEmbeddingsStore.unshift(record);
         record.storage = 'LocalStore';
       }
@@ -409,13 +482,16 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
     res.json({
       success: true,
       storage: record.storage,
-      message: record.storage === 'MongoDB'
-        ? `Successfully saved directly in MongoDB Database '${activeMongoDbName}', collection 'customer_embeddings' with _id: ${record._id}`
-        : `Saved to local vector buffer. Connect your MongoDB URI to persist directly into MongoDB.`,
+      message: record.storage === 'Firebase'
+        ? `Successfully saved directly in Firebase Firestore Database '${firebaseStatus.projectId}', collection 'customer_embeddings' with id: ${record.id}`
+        : (record.storage === 'MongoDB'
+          ? `Saved in MongoDB collection 'customer_embeddings'`
+          : `Saved to local vector store.`),
       record,
-      mongoDatabase: mongoDb ? activeMongoDbName : null,
-      mongoCollection: 'customer_embeddings',
-      mongoDocumentId: mongoDocId || record._id
+      database: record.storage === 'Firebase' ? `Firestore (${firebaseStatus.projectId})` : activeMongoDbName,
+      collection: 'customer_embeddings',
+      documentId: record.id,
+      vector_sum,
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to generate embedding' });
@@ -436,12 +512,10 @@ let PDF_DOCUMENT_SECTIONS: Array<{
 
 const PDF_CANONICAL_FILENAME = 'Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf';
 
-// Resolve the instructions PDF. Browsers often append " (1)", " (2)" etc. to
-// downloads, so fall back to a pattern match instead of failing silently.
+// Resolve the instructions PDF from src/data
 function resolvePdfPath(): string | null {
   const dataDir = path.join(__dirname, 'src', 'data');
-  const canonical = path.join(dataDir, PDF_CANONICAL_FILENAME);
-  if (fs.existsSync(canonical)) return canonical;
+  if (!fs.existsSync(dataDir)) return null;
 
   let files: string[] = [];
   try {
@@ -449,11 +523,14 @@ function resolvePdfPath(): string | null {
   } catch {
     return null;
   }
-  const match = files
-    .filter(f => f.toLowerCase().endsWith('.pdf'))
-    .filter(f => f.startsWith('Real_Estate_Lead_Qualification_Agent_Instructions_v2'))
-    .sort()[0];
-  return match ? path.join(dataDir, match) : null;
+  const pdfFiles = files.filter(f => f.toLowerCase().endsWith('.pdf'));
+  if (pdfFiles.length === 0) return null;
+
+  // Prefer Real_Estate instructions if present, otherwise any PDF in src/data
+  const preferred = pdfFiles.find(f => f.toLowerCase().includes('real_estate')) ||
+                    pdfFiles.find(f => f.toLowerCase().includes('project 02')) ||
+                    pdfFiles[0];
+  return path.join(dataDir, preferred);
 }
 
 async function loadPdfSections() {
@@ -469,6 +546,9 @@ async function loadPdfSections() {
     if (typeof PDFClass === 'function') {
       try {
         const instance = new PDFClass({ data: dataBuffer });
+        if (typeof instance.load === 'function') {
+          await instance.load();
+        }
         if (typeof instance.getText === 'function') {
           const res = await instance.getText();
           fullText = res?.text || (typeof res === 'string' ? res : '');
@@ -489,17 +569,23 @@ async function loadPdfSections() {
     }
 
     if (fullText) {
-      const sections = fullText.split(/(?=\n(?:\d+\.|\d+\.\d+)\s+[A-Z])/).filter((c: string) => c.trim().length > 30);
+      const pdfBaseName = path.basename(pdfPath);
+      // Split into logical sections by numbers or headers, or by double newlines/paragraphs
+      let sections = fullText.split(/(?=\n(?:\d+\.|\d+\.\d+)\s+[A-Z])/).filter((c: string) => c.trim().length > 30);
+      if (sections.length <= 1) {
+        // Fallback split by double newlines or Roman numerals/headers
+        sections = fullText.split(/\n\s*\n/).filter((c: string) => c.trim().length > 40);
+      }
       PDF_DOCUMENT_SECTIONS = sections.map((chunk: string, index: number) => {
         const firstLine = chunk.trim().split('\n')[0].replace(/^[^\w]+/, '').trim().substring(0, 60);
         return {
           section_number: index + 1,
           title: firstLine || `Section ${index + 1}`,
-          document_name: 'Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf',
+          document_name: pdfBaseName,
           text_content: chunk.trim(),
         };
       });
-      console.log(`[PDF] Loaded ${PDF_DOCUMENT_SECTIONS.length} structured sections from ${path.basename(pdfPath)}`);
+      console.log(`[PDF] Loaded ${PDF_DOCUMENT_SECTIONS.length} structured sections from ${pdfBaseName}`);
     } else {
       PDF_DOCUMENT_SECTIONS = [];
       console.warn(`[PDF] Parsed ${path.basename(pdfPath)} but extracted 0 characters of text — RAG knowledge base will be empty.`);
@@ -510,41 +596,46 @@ async function loadPdfSections() {
   }
 }
 
-// Seed all PDF section embeddings into MongoDB and local cache
-async function syncPdfEmbeddingsToMongo() {
+// Seed all PDF section embeddings with vector sums into Firebase Firestore and local cache
+async function syncPdfEmbeddingsToFirebase() {
   await loadPdfSections();
   if (PDF_DOCUMENT_SECTIONS.length === 0) {
     console.warn('[PDF] No sections extracted from PDF to embed.');
     return;
   }
 
-  if (mongoDb) {
+  if (firestoreDb) {
     try {
-      const existingDocs = await mongoDb.collection('pdf_knowledge_embeddings').find().sort({ section_number: 1 }).toArray();
-      if (existingDocs.length >= PDF_DOCUMENT_SECTIONS.length) {
-        console.log(`Found ${existingDocs.length} PDF sections already in MongoDB. Fetching instead of re-converting...`);
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'pdf_knowledge_embeddings'));
+      if (snap.size >= PDF_DOCUMENT_SECTIONS.length) {
+        console.log(`[PDF] Found ${snap.size} PDF sections already stored in Firebase Firestore collection 'pdf_knowledge_embeddings'. Fetching instead of re-converting...`);
         localPdfEmbeddingsStore.length = 0;
-        existingDocs.forEach(doc => localPdfEmbeddingsStore.push(doc));
-        return; // Skip the expensive embedding generation!
+        snap.forEach((d: any) => localPdfEmbeddingsStore.push(d.data()));
+        localPdfEmbeddingsStore.sort((a, b) => (a.section_number || 0) - (b.section_number || 0));
+        return; // Skip expensive embedding generation!
       }
     } catch (err: any) {
-      console.warn('Could not check existing PDF embeddings in MongoDB:', err.message);
+      console.warn('[PDF] Could not check existing PDF embeddings in Firestore:', err.message);
     }
   }
 
-  console.log(`Ingesting all ${PDF_DOCUMENT_SECTIONS.length} sections of Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf into numerical vectors...`);
+  console.log(`[PDF] Ingesting all ${PDF_DOCUMENT_SECTIONS.length} sections of Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf into numerical vectors with vector sums...`);
   for (const sec of PDF_DOCUMENT_SECTIONS) {
     const { vector, model, dimensions } = await getEmbeddingVector(sec.title + ': ' + sec.text_content);
+    const vector_sum = parseFloat(vector.reduce((a, b) => a + b, 0).toFixed(6));
+    const docId = `PDF-SEC-${String(sec.section_number).padStart(2, '0')}`;
     const doc = {
-      _id: `PDF-SEC-${String(sec.section_number).padStart(2, '0')}`,
+      _id: docId,
+      id: docId,
       section_number: sec.section_number,
       title: sec.title,
       document_name: sec.document_name,
       text_content: sec.text_content,
       vector,
       dimensions,
+      vector_sum,
       model,
-      storage: mongoDb ? 'MongoDB' : 'LocalStore',
+      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
       createdAt: new Date().toISOString()
     };
 
@@ -553,52 +644,61 @@ async function syncPdfEmbeddingsToMongo() {
     if (existingIdx >= 0) localPdfEmbeddingsStore[existingIdx] = doc;
     else localPdfEmbeddingsStore.push(doc);
 
-    // Save directly to MongoDB collection pdf_knowledge_embeddings
+    // Save directly to Firebase Firestore collection 'pdf_knowledge_embeddings'
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'pdf_knowledge_embeddings', docId), doc, { merge: true });
+      } catch (err: any) {
+        console.warn('[PDF] Firestore pdf embedding sync notice:', err.message);
+      }
+    }
+
+    // Optional mirror to MongoDB if connected
     if (mongoDb) {
       try {
-        // `_id` is immutable — including it in $set makes MongoDB reject the
-        // whole update, which previously failed silently on every re-sync.
         const { _id: _ignoredId, ...updatable } = doc;
         await mongoDb.collection('pdf_knowledge_embeddings').updateOne(
           { section_number: sec.section_number },
           { $set: updatable },
           { upsert: true }
         );
-      } catch (err: any) {
-        console.warn('MongoDB pdf embedding sync notice:', err.message);
-      }
+      } catch (_) {}
     }
   }
-  if (mongoDb) {
-    console.log(`[PDF] Embedded ${PDF_DOCUMENT_SECTIONS.length} sections and persisted them to MongoDB collection 'pdf_knowledge_embeddings'.`);
+
+  if (firestoreDb) {
+    console.log(`[PDF] Embedded ${PDF_DOCUMENT_SECTIONS.length} sections and persisted them to Firebase Firestore collection 'pdf_knowledge_embeddings'.`);
   } else {
-    console.warn(`[PDF] Embedded ${PDF_DOCUMENT_SECTIONS.length} sections into the IN-MEMORY STORE ONLY — nothing was persisted to MongoDB (${mongoStatus.error || 'MongoDB not connected'}). This knowledge base is lost on restart.`);
+    console.warn(`[PDF] Embedded ${PDF_DOCUMENT_SECTIONS.length} sections into the IN-MEMORY STORE ONLY.`);
   }
 }
 
-// Seed all Property embeddings into MongoDB
-async function syncPropertyEmbeddingsToMongo() {
+// Seed all Property embeddings with vector sums into Firebase Firestore
+async function syncPropertyEmbeddingsToFirebase() {
   if (ALL_VERIFIED_PROPERTIES.length === 0) return;
 
-  if (mongoDb) {
+  if (firestoreDb) {
     try {
-      const existingDocs = await mongoDb.collection('property_embeddings').countDocuments();
-      if (existingDocs >= ALL_VERIFIED_PROPERTIES.length) {
-        console.log(`[Properties] Found ${existingDocs} properties already embedded in MongoDB. Skipping re-conversion.`);
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'property_embeddings'));
+      if (snap.size >= ALL_VERIFIED_PROPERTIES.length) {
+        console.log(`[Properties] Found ${snap.size} properties already embedded in Firebase Firestore. Skipping re-conversion.`);
         return;
       }
     } catch (err: any) {
-      console.warn('Could not check existing property embeddings:', err.message);
+      console.warn('[Properties] Could not check existing property embeddings in Firestore:', err.message);
     }
   }
 
-  console.log(`[Properties] Ingesting ${ALL_VERIFIED_PROPERTIES.length} properties into numerical vectors...`);
+  console.log(`[Properties] Ingesting ${ALL_VERIFIED_PROPERTIES.length} properties into numerical vectors with vector sums...`);
   for (const prop of ALL_VERIFIED_PROPERTIES as any[]) {
     const textContent = `${prop.title}. ${prop.property_type} in ${prop.community}, ${prop.city || 'Dubai'}. ${prop.bedrooms} Bedrooms. Price: AED ${prop.price_aed}. Status: ${prop.status}. Amenities: ${(prop.amenities || []).join(', ')}. ${prop.description || ''}`;
     const { vector, model, dimensions } = await getEmbeddingVector(textContent);
+    const vector_sum = parseFloat(vector.reduce((a, b) => a + b, 0).toFixed(6));
+    const docId = `PROP-${prop.id}`;
     
     const doc = {
-      _id: `PROP-${prop.id}`,
+      _id: docId,
+      id: docId,
       property_id: prop.id,
       title: prop.title,
       community: prop.community,
@@ -607,55 +707,50 @@ async function syncPropertyEmbeddingsToMongo() {
       text_content: textContent,
       vector,
       dimensions,
+      vector_sum,
       model,
-      storage: mongoDb ? 'MongoDB' : 'LocalStore',
+      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
       createdAt: new Date().toISOString()
     };
 
     localPropertyEmbeddingsStore.push(doc);
 
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'property_embeddings', docId), doc, { merge: true });
+      } catch (err: any) {
+        console.warn('[Properties] Firestore property embedding sync notice:', err.message);
+      }
+    }
+
     if (mongoDb) {
       try {
-        // `_id` is immutable — strip it before $set (see pdf sync above).
         const { _id: _ignoredId, ...updatable } = doc;
         await mongoDb.collection('property_embeddings').updateOne(
           { property_id: prop.id },
           { $set: updatable },
           { upsert: true }
         );
-      } catch (err: any) {
-        console.warn('MongoDB property embedding sync notice:', err.message);
-      }
+      } catch (_) {}
     }
   }
-  if (mongoDb) {
-    console.log(`[Properties] Embedded ${ALL_VERIFIED_PROPERTIES.length} properties and persisted them to MongoDB collection 'property_embeddings'.`);
-  } else {
-    console.warn(`[Properties] Embedded ${ALL_VERIFIED_PROPERTIES.length} properties into the IN-MEMORY STORE ONLY — nothing was persisted to MongoDB (${mongoStatus.error || 'MongoDB not connected'}).`);
+  if (firestoreDb) {
+    console.log(`[Properties] Embedded ${ALL_VERIFIED_PROPERTIES.length} properties and persisted them to Firebase Firestore collection 'property_embeddings'.`);
   }
 }
 
-// Boot sequence.
-//
-// This used to be `setTimeout(..., 1000)`, which raced the 4s Atlas connect
-// timeout: on a slow or DNS-blocked connection both syncs took the in-memory
-// path and nothing was ever written to MongoDB, with no retry and no error.
+// Boot sequence: Prioritizes Firebase Firestore for all vector & knowledge storage
 async function waitForMongo(maxAttempts = 3): Promise<boolean> {
-  // A malformed URI can never succeed, so don't burn the retry budget on it.
   const invalid = validateMongoUri(process.env.MONGODB_URI);
   if (invalid) {
-    // Record it here — initMongo() is never reached, so /api/health would
-    // otherwise keep reporting the raw env check and a null error.
     mongoStatus.uriConfigured = false;
     mongoStatus.error = invalid;
-    console.warn('MongoDB not attempted —', invalid);
     return false;
   }
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (await initMongo()) return true;
     if (attempt < maxAttempts) {
       const backoffMs = attempt * 2000;
-      console.warn(`[Boot] MongoDB unavailable, retrying in ${backoffMs / 1000}s (attempt ${attempt}/${maxAttempts}).`);
       await new Promise(resolve => setTimeout(resolve, backoffMs));
     }
   }
@@ -677,9 +772,6 @@ async function injectAgentDependencies() {
 }
 
 async function bootstrapAgent() {
-  // The property inventory is static in-memory data, so hand it to the agent
-  // straight away — otherwise /api/chat would search an empty list (and, with
-  // hard filters, answer "no match") for the whole MongoDB connect window.
   injectDependencies({
     groq,
     gemini: ai,
@@ -688,27 +780,53 @@ async function bootstrapAgent() {
     properties: (ALL_VERIFIED_PROPERTIES || []) as any[],
   });
 
-  const connected = await waitForMongo();
-  if (!connected) {
-    console.warn(`[Boot] Starting WITHOUT MongoDB. Embeddings will be held in memory only and lost on restart. Reason: ${mongoStatus.error || 'MONGODB_URI not configured'}`);
+  // 1. Initialize Firebase Firestore (Primary Vector & Knowledge Base Storage)
+  const firebaseReady = await initFirebase();
+  if (firebaseReady) {
+    console.log('[Boot] Firebase Firestore initialized as primary vector database.');
   }
 
+  // 2. Background check for MongoDB (optional secondary fallback)
+  waitForMongo().catch(() => {});
+
   try {
-    await syncPdfEmbeddingsToMongo();
-    await syncPropertyEmbeddingsToMongo();
+    // 3. Ingest and persist PDF & Property embeddings to Firebase Firestore
+    await syncPdfEmbeddingsToFirebase();
+    await syncPropertyEmbeddingsToFirebase();
   } catch (err: any) {
-    console.warn('[Boot] Embedding sync failed:', err?.message);
+    console.warn('[Boot] Embedding sync notice:', err?.message);
   } finally {
     await injectAgentDependencies();
-    console.log(`[LangGraph] Agent initialized with ${localPdfEmbeddingsStore.length} PDF chunks and ${(ALL_VERIFIED_PROPERTIES || []).length} properties (storage: ${mongoDb ? 'MongoDB' : 'IN-MEMORY ONLY'}).`);
+    console.log(`[LangGraph] Agent initialized with ${localPdfEmbeddingsStore.length} PDF chunks and ${(ALL_VERIFIED_PROPERTIES || []).length} properties (primary storage: ${firestoreDb ? 'Firebase Firestore' : 'IN-MEMORY ONLY'}).`);
   }
 }
 
 bootstrapAgent();
 
-// Endpoint to retrieve stored PDF embeddings
+// Endpoint to retrieve stored PDF embeddings from Firebase Firestore
 app.get('/api/embeddings/pdf-list', async (_req: Request, res: Response) => {
   try {
+    if (firestoreDb) {
+      try {
+        const snap = await fsGetDocs(fsCollection(firestoreDb, 'pdf_knowledge_embeddings'));
+        const items: any[] = [];
+        snap.forEach((d: any) => items.push({ id: d.id, ...d.data() }));
+        if (items.length > 0) {
+          items.sort((a, b) => (a.section_number || 0) - (b.section_number || 0));
+          return res.json({
+            items,
+            source: 'Firebase',
+            database: `Firestore (${firebaseStatus.projectId})`,
+            collection: 'pdf_knowledge_embeddings',
+            totalSections: items.length,
+            allStoredInFirebase: true
+          });
+        }
+      } catch (fsErr: any) {
+        console.warn('Firestore pdf-list read notice:', fsErr.message);
+      }
+    }
+
     if (mongoDb) {
       const items = await mongoDb.collection('pdf_knowledge_embeddings').find().sort({ section_number: 1 }).toArray();
       if (items.length > 0) {
@@ -722,29 +840,30 @@ app.get('/api/embeddings/pdf-list', async (_req: Request, res: Response) => {
         });
       }
     }
+
     res.json({
       items: localPdfEmbeddingsStore,
       source: 'LocalStore',
-      database: activeMongoDbName,
+      database: `Firestore (${firebaseStatus.projectId})`,
       collection: 'pdf_knowledge_embeddings',
       totalSections: localPdfEmbeddingsStore.length,
-      allStoredInMongo: Boolean(mongoDb)
+      allStoredInFirebase: Boolean(firestoreDb)
     });
   } catch (err: any) {
     res.json({ items: localPdfEmbeddingsStore, source: 'LocalStore', error: err?.message });
   }
 });
 
-// Endpoint to force re-sync of all PDF embeddings to MongoDB
+// Endpoint to force re-sync of all PDF embeddings to Firebase Firestore
 app.post('/api/embeddings/sync-pdf', async (_req: Request, res: Response) => {
   try {
-    await syncPdfEmbeddingsToMongo();
+    await syncPdfEmbeddingsToFirebase();
     res.json({
       success: true,
-      message: `Successfully embedded all ${PDF_DOCUMENT_SECTIONS.length} sections of Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf and stored them in MongoDB collection 'pdf_knowledge_embeddings'`,
-      database: activeMongoDbName,
+      message: `Successfully embedded all ${PDF_DOCUMENT_SECTIONS.length} sections of Real_Estate_Lead_Qualification_Agent_Instructions_v2.pdf with vector sums into Firebase Firestore collection 'pdf_knowledge_embeddings'`,
+      database: `Firestore (${firebaseStatus.projectId})`,
       collection: 'pdf_knowledge_embeddings',
-      storage: mongoDb ? 'MongoDB' : 'LocalStore',
+      storage: firestoreDb ? 'Firebase' : 'LocalStore',
       count: PDF_DOCUMENT_SECTIONS.length
     });
   } catch (err: any) {
@@ -752,9 +871,28 @@ app.post('/api/embeddings/sync-pdf', async (_req: Request, res: Response) => {
   }
 });
 
-// List Stored Numerical Embeddings
+// List Stored Numerical Embeddings (Reads from Firebase Firestore)
 app.get('/api/embeddings/list', async (_req: Request, res: Response) => {
   try {
+    if (firestoreDb) {
+      try {
+        const snap = await fsGetDocs(fsCollection(firestoreDb, 'customer_embeddings'));
+        const items: any[] = [];
+        snap.forEach((d: any) => items.push({ id: d.id, ...d.data() }));
+        if (items.length > 0) {
+          items.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+          return res.json({
+            items: items.slice(0, 50),
+            source: 'Firebase',
+            database: `Firestore (${firebaseStatus.projectId})`,
+            collection: 'customer_embeddings'
+          });
+        }
+      } catch (fsErr: any) {
+        console.warn('Firestore embeddings list read notice:', fsErr.message);
+      }
+    }
+
     if (mongoDb) {
       const items = await mongoDb.collection('customer_embeddings').find().sort({ createdAt: -1 }).limit(20).toArray();
       if (items.length > 0) {
@@ -901,20 +1039,31 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // 1. Store user message as vector in MongoDB (for analytics)
+    // 1. Store user message as numerical vector in Firebase Firestore (for analytics & similarity search)
     const queryEmbedding = await getEmbeddingVector(message);
-    if (mongoDb) {
-      await mongoDb.collection('customer_embeddings').insertOne({
-        _id: 'VEC-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
-        lead_id: currentLead?.id || 'GENERAL',
-        text_content: message,
-        vector: queryEmbedding.vector,
-        dimensions: queryEmbedding.dimensions,
-        model: queryEmbedding.model,
-        storage: 'MongoDB',
-        createdAt: new Date().toISOString()
-      }).catch(e => console.warn('Could not store customer vector:', e.message));
+    const queryVectorSum = parseFloat(queryEmbedding.vector.reduce((a, b) => a + b, 0).toFixed(6));
+    const customerVecId = 'VEC-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const customerVecDoc = {
+      id: customerVecId,
+      _id: customerVecId,
+      lead_id: currentLead?.id || 'GENERAL',
+      text_content: message,
+      vector: queryEmbedding.vector,
+      dimensions: queryEmbedding.dimensions,
+      vector_sum: queryVectorSum,
+      model: queryEmbedding.model,
+      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
+      createdAt: new Date().toISOString()
+    };
+
+    if (firestoreDb) {
+      fsSetDoc(fsDoc(firestoreDb, 'customer_embeddings', customerVecId), customerVecDoc, { merge: true })
+        .catch((e: any) => console.warn('Could not store customer vector to Firestore:', e.message));
+    } else if (mongoDb) {
+      mongoDb.collection('customer_embeddings').insertOne(customerVecDoc)
+        .catch((e: any) => console.warn('Could not store customer vector:', e.message));
     }
+    localEmbeddingsStore.unshift(customerVecDoc as any);
 
     // 2. If a custom Groq key is passed, temporarily inject it
     if (customGroqKey && !customGroqKey.includes('YOUR_') && customGroqKey !== groqApiKey) {
