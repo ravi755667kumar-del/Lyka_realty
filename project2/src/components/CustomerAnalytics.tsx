@@ -385,23 +385,23 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-100 font-sans p-4 sm:p-6 space-y-6">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-300 font-sans p-4 sm:p-6 space-y-6">
       
       {/* ─── TOP HEADER ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/10">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-600 shadow-lg shadow-amber-500/10">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center space-x-2">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-300 flex items-center space-x-2">
                 <span>Customer Login & Activity Analytics</span>
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   Live
                 </span>
               </h1>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 Track registered customers and login statistics by Date, Day, Month, and Year
               </p>
             </div>
@@ -413,10 +413,10 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           {onNavigateToProfiles && (
             <button
               onClick={onNavigateToProfiles}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all shadow-sm"
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 border border-amber-500/30 transition-all shadow-sm"
               title="View individual customer directory & activity"
             >
-              <Users className="w-3.5 h-3.5 text-amber-400" />
+              <Users className="w-3.5 h-3.5 text-amber-600" />
               <span>Which Customer Logged In</span>
             </button>
           )}
@@ -427,7 +427,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all shadow-sm disabled:opacity-50"
             title="Refresh login data from database"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-600' : ''}`} />
             <span>{refreshing ? 'Refreshing...' : 'Refresh Data'}</span>
           </button>
         </div>
@@ -440,12 +440,12 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
         <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-amber-500/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Customers</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
               <UserCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-white">{kpis.totalCustomers}</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-300">{kpis.totalCustomers}</span>
             <span className="text-[11px] text-emerald-400 font-medium">Registered</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">Verified user profiles in database</p>
@@ -460,7 +460,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-white">{kpis.loginsToday}</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-300">{kpis.loginsToday}</span>
             <span className="text-[11px] text-emerald-400 font-medium">Today</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">Active customer sessions today</p>
@@ -475,7 +475,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-white">{kpis.loginsThisMonth}</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-slate-300">{kpis.loginsThisMonth}</span>
             <span className="text-[11px] text-violet-300 font-medium">Past 30 days</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">{kpis.loginsThisWeek} logins this week</p>
@@ -492,13 +492,13 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           <div className="mt-3 flex items-center space-x-3">
             <div className="flex items-center space-x-1">
               <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span className="text-sm font-bold text-white">{kpis.googleCount}</span>
+              <span className="text-sm font-bold text-slate-300">{kpis.googleCount}</span>
               <span className="text-[11px] text-slate-400">Google</span>
             </div>
-            <div className="text-slate-600">|</div>
+            <div className="text-slate-500">|</div>
             <div className="flex items-center space-x-1">
               <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-              <span className="text-sm font-bold text-white">{kpis.emailCount}</span>
+              <span className="text-sm font-bold text-slate-300">{kpis.emailCount}</span>
               <span className="text-[11px] text-slate-400">Email</span>
             </div>
           </div>
@@ -520,7 +520,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'date'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -532,7 +532,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'day'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               <CalendarDays className="w-3.5 h-3.5" />
@@ -544,7 +544,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'month'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -556,7 +556,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'year'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5" />
@@ -574,7 +574,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     onClick={() => setDateRange(r)}
                     className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
                       dateRange === r
-                        ? 'bg-slate-800 text-white font-semibold'
+                        ? 'bg-slate-800 text-slate-300 font-semibold'
                         : 'text-slate-500 hover:text-slate-300'
                     }`}
                   >
@@ -590,7 +590,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-slate-950 border border-slate-800 rounded-lg text-xs font-semibold px-2.5 py-1 text-slate-200 outline-none"
+                  className="bg-white border border-slate-700 rounded-lg text-xs font-semibold px-2.5 py-1 text-slate-300 outline-none"
                 >
                   {[2024, 2025, 2026, 2027].map(yr => (
                     <option key={yr} value={yr}>{yr}</option>
@@ -600,7 +600,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             )}
 
             <div className="text-xs font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
-              Total Logins: <span className="text-amber-400 font-bold">{totalViewLogins}</span>
+              Total Logins: <span className="text-amber-600 font-bold">{totalViewLogins}</span>
             </div>
           </div>
 
@@ -636,13 +636,13 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     {/* Tooltip on hover */}
                     <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 bg-slate-900 border border-amber-500/50 shadow-xl rounded-lg px-2.5 py-1 text-center whitespace-nowrap">
                       <p className="text-[10px] font-bold text-white">{item.subLabel}</p>
-                      <p className="text-[10px] text-amber-400 font-semibold">{item.count} logins ({item.uniqueUsers} users)</p>
+                      <p className="text-[10px] text-amber-600 font-semibold">{item.count} logins ({item.uniqueUsers} users)</p>
                     </div>
 
                     {/* Value label on top of bar */}
                     {item.count > 0 && (
                       <span className={`text-[10px] font-bold mb-1 transition-transform group-hover:scale-110 ${
-                        isPeak ? 'text-amber-400' : 'text-slate-400'
+                        isPeak ? 'text-amber-600' : 'text-slate-400'
                       }`}>
                         {item.count}
                       </span>
@@ -678,7 +678,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
                 <span>Authentication Method Breakdown</span>
               </span>
               <span className="text-[10px] text-slate-400">{users.length} total users</span>
@@ -691,7 +691,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                     <span>Google Sign In</span>
                   </span>
-                  <span className="font-bold text-amber-400">
+                  <span className="font-bold text-amber-600">
                     {users.length > 0 ? Math.round((kpis.googleCount / users.length) * 100) : 0}% ({kpis.googleCount})
                   </span>
                 </div>
@@ -776,7 +776,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search name, email, uid..."
-                className="bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-amber-500/50 w-44 sm:w-56"
+                className="bg-white border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500/50 w-44 sm:w-56"
               />
             </div>
 
@@ -845,8 +845,8 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                           </div>
                         )}
                         {u.talk_to_agent_requested && (
-                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 mt-1">
-                            <PhoneCall className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
+                          <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-700 border border-amber-500/40 mt-1">
+                            <PhoneCall className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
                             <span>Agent Call Requested</span>
                           </span>
                         )}
@@ -867,7 +867,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
                           isGoogle
-                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                            ? 'bg-amber-500/10 text-amber-700 border-amber-500/30'
                             : 'bg-violet-500/10 text-violet-300 border-violet-500/30'
                         }`}>
                           <span>{isGoogle ? 'Google' : 'Email/Password'}</span>
@@ -913,7 +913,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 font-bold">
                   {selectedUserDetail.Name ? selectedUserDetail.Name.substring(0, 2).toUpperCase() : 'U'}
                 </div>
                 <div>
@@ -941,11 +941,11 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               <div className="bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/30 text-amber-300 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/30 text-amber-700 flex items-center justify-center">
                       <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-amber-300">Talk to Human Agent Requested</h4>
+                      <h4 className="text-xs font-bold text-amber-700">Talk to Human Agent Requested</h4>
                       <p className="text-[10px] text-amber-200/70">Customer requested agent callback</p>
                     </div>
                   </div>
@@ -984,7 +984,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     )}
                   </div>
                   {selectedUserDetail.talk_to_agent_reason && (
-                    <p className="text-[10px] text-amber-300/80 italic border-t border-slate-800 pt-1.5">
+                    <p className="text-[10px] text-amber-700/80 italic border-t border-slate-800 pt-1.5">
                       "{selectedUserDetail.talk_to_agent_reason}"
                     </p>
                   )}

@@ -39,7 +39,7 @@ export const KnowledgeBaseView: React.FC = () => {
   const totalFees = dldFee + dldAdminFee + trusteeFee + agencyCommission;
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-100 flex flex-col h-full overflow-y-auto p-4 sm:p-6 space-y-6">
+    <div className="flex-1 bg-slate-950 text-slate-300 flex flex-col h-full overflow-y-auto p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -77,7 +77,7 @@ export const KnowledgeBaseView: React.FC = () => {
             Verified Specification (5 Pages)
           </span>
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           {LYKA_CRM_SPECIFICATION_DOCUMENT.summary}
         </p>
 
@@ -119,7 +119,7 @@ export const KnowledgeBaseView: React.FC = () => {
           </span>
         </div>
 
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-500">
           {NRI_MUMBAI_DUBAI_CORRIDOR.overview}
         </p>
 

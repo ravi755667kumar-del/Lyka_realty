@@ -948,7 +948,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           LEFT PANEL — User Auth + Chat History
       ═══════════════════════════════════════════════════ */}
       <div className={`flex flex-col border-r border-[#f3ede0] bg-[#ffffff] transition-all duration-300 ${
-        leftPanelCollapsed ? 'w-14' : 'w-72'
+        leftPanelCollapsed ? 'w-14' : 'w-80'
       } shrink-0 h-full overflow-hidden`}>
 
         {/* Panel Header */}
@@ -1043,7 +1043,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <p className="text-[11px] font-semibold truncate">Active Conversation</p>
                         <p className="text-[9px] text-slate-500 truncate">{messages[messages.length - 1]?.content?.slice(0, 35)}...</p>
                       </div>
-                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
+                      <span className="text-[9px] bg-amber-500/20 text-amber-950 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
                     </div>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-[9px] text-slate-600">{messages.length} msgs</span>
@@ -1073,9 +1073,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       >
                         <div className="flex items-center space-x-2 pr-6">
                           <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-500' : 'text-slate-600'}`} />
-                          <p className={`text-[11px] font-semibold truncate flex-1 ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>{session.title}</p>
+                          <p className={`text-[11px] font-semibold truncate flex-1 ${isActive ? 'text-amber-700' : 'text-slate-300'}`}>{session.title}</p>
                           {isActive && (
-                            <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
+                            <span className="text-[9px] bg-amber-500/20 text-amber-950 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
                           )}
                         </div>
                         <p className="text-[9px] text-slate-500 truncate mt-1 ml-5">{session.preview}</p>
@@ -1199,7 +1199,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       <Sparkles className="w-8 h-8 fill-slate-950" />
                     </div>
                   </div>
-                  <h1 className="text-2xl sm:text-3xl font-semibold bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-200 bg-clip-text text-transparent text-center">
+                  <h1 className="text-2xl sm:text-3xl font-semibold bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 bg-clip-text text-transparent text-center">
                     Hello{userLoggedIn ? `, ${userName}` : ''}! Welcome to Lyka Realty.
                   </h1>
                   <p className="text-sm text-[#6b5843] leading-relaxed text-center max-w-lg mx-auto">
@@ -1518,39 +1518,39 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div className="flex items-center space-x-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-200">
                       <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5 shrink-0" alt="Google" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-800">New User Registration</p>
-                        <p className="text-[11px] text-slate-600 truncate">{pendingGoogleUser.email}</p>
+                        <p className="text-xs font-extrabold text-black">New User Registration</p>
+                        <p className="text-[11px] text-neutral-700 font-semibold truncate">{pendingGoogleUser.email}</p>
                       </div>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Verified</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-900 font-bold px-1.5 py-0.5 rounded">Verified</span>
                     </div>
 
-                    <div className="text-xs bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-amber-900 space-y-0.5">
-                      <p className="font-bold text-[12px]">First-time User: Sign Up Required</p>
-                      <p className="text-[11px] text-amber-800">
+                    <div className="text-xs bg-amber-50/80 p-2.5 rounded-xl border border-amber-300 text-amber-950 space-y-0.5">
+                      <p className="font-extrabold text-[12px] text-black">First-time User: Sign Up Required</p>
+                      <p className="text-[11px] text-neutral-800 font-medium">
                         You do not have an account in Firebase yet. Please provide your Name and Age first to complete registration before continuing with Google.
                       </p>
                     </div>
 
                     <form onSubmit={handleCompleteGoogleSignUp} className="space-y-2.5">
                       <div>
-                        <label className="text-[11px] font-bold text-slate-700 block mb-1">Full Name</label>
+                        <label className="text-[11px] font-bold text-black block mb-1">Full Name</label>
                         <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="text"
                             value={userFullName}
                             onChange={e => { setUserFullName(e.target.value); setAuthError(''); }}
                             placeholder="Your full name"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition-colors"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-[11px] font-bold text-slate-700 block mb-1">Age (Required)</label>
+                        <label className="text-[11px] font-bold text-black block mb-1">Age (Required)</label>
                         <div className="relative">
-                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="number"
                             min={18}
@@ -1560,27 +1560,27 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
                             placeholder="Enter your age (e.g. 28)"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition-colors"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="text-[11px] font-bold text-slate-700 block mb-1">Email ID</label>
+                        <label className="text-[11px] font-bold text-black block mb-1">Email ID</label>
                         <div className="relative">
-                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="email"
                             value={pendingGoogleUser.email}
                             disabled
                             readOnly
-                            className="w-full bg-slate-100 border border-[#e2d9c6] rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-600 outline-none cursor-not-allowed"
+                            className="w-full bg-slate-100 border border-[#d6c7ab] rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black outline-none cursor-not-allowed"
                           />
                         </div>
                       </div>
 
                       {authError && (
-                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-medium">
+                        <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold">
                           {authError}
                         </p>
                       )}
@@ -1588,15 +1588,15 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       <button
                         type="submit"
                         disabled={authLoading}
-                        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
                       >
                         {authLoading ? (
-                          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                           </svg>
                         ) : (
-                          <CheckCircle2 className="w-4 h-4" />
+                          <CheckCircle2 className="w-4 h-4 text-black" />
                         )}
                         <span>{authLoading ? 'Completing Sign Up...' : 'Complete Sign Up'}</span>
                       </button>
@@ -1614,7 +1614,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                           setAuthMode('login');
                           setAuthError('');
                         }}
-                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-xl text-xs transition-colors"
+                        className="w-full bg-slate-100 hover:bg-slate-200 text-black font-bold py-2 rounded-xl text-xs transition-colors border border-slate-300"
                       >
                         Cancel / Switch Account
                       </button>
@@ -1623,12 +1623,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 ) : (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2.5 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center">
-                      <User className="w-4 h-4 text-amber-800" />
+                    <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center">
+                      <User className="w-4 h-4 text-black" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-300">Welcome</p>
-                      <p className="text-xs font-medium text-slate-600">Sign in to save and sync your chats</p>
+                      <p className="text-sm font-extrabold text-black">Welcome</p>
+                      <p className="text-xs font-semibold text-neutral-700">Sign in to save and sync your chats</p>
                     </div>
                   </div>
 
@@ -1640,8 +1640,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         onClick={() => { setAuthMode(mode); setAuthError(''); }}
                         className={`flex-1 text-xs font-bold py-1.5 rounded-lg transition-all capitalize ${
                           authMode === mode
-                            ? 'bg-amber-500 text-amber-950 shadow-xs'
-                            : 'text-slate-700 hover:text-slate-900'
+                            ? 'bg-amber-500 text-black font-extrabold shadow-xs'
+                            : 'text-black hover:text-neutral-800 font-bold'
                         }`}
                       >
                         {mode === 'login' ? 'Sign In' : 'Sign Up'}
@@ -1654,7 +1654,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     {authMode === 'signup' && (
                       <>
                         <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="text"
                             value={userFullName}
@@ -1662,11 +1662,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             placeholder="Full name"
                             autoComplete="name"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                           />
                         </div>
                         <div className="relative">
-                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="number"
                             min={18}
@@ -1676,43 +1676,43 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
                             placeholder="Age"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                           />
                         </div>
                       </>
                     )}
                     <div className="relative">
-                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                       <input
                         type="email"
                         value={userEmail}
                         onChange={e => { setUserEmail(e.target.value); setAuthError(''); }}
                         placeholder="Email address"
                         required
-                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
+                        className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                       />
                     </div>
                     <div className="relative">
-                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={userPassword}
                         onChange={e => { setUserPassword(e.target.value); setAuthError(''); }}
                         placeholder="Password"
                         required
-                        className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-9 py-2 text-xs font-medium text-slate-300 placeholder-slate-400 outline-none transition-colors"
+                        className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-9 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(p => !p)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-black hover:text-neutral-700"
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
 
                     {authError && (
-                      <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 font-medium">
+                      <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold">
                         {authError}
                       </p>
                     )}
@@ -1720,43 +1720,43 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <button
                       type="submit"
                       disabled={authLoading}
-                      className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                      className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
                     >
                       {authLoading ? (
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
                       ) : (
-                        <LogIn className="w-4 h-4" />
+                        <LogIn className="w-4 h-4 text-black" />
                       )}
                       <span>{authLoading ? 'Signing in...' : authMode === 'login' ? 'Sign In' : 'Create Account'}</span>
                     </button>
                   </form>
 
                   <div className="flex items-center my-3">
-                    <div className="flex-grow border-t border-slate-200"></div>
-                    <span className="mx-2 text-xs font-bold text-slate-500">OR</span>
-                    <div className="flex-grow border-t border-slate-200"></div>
+                    <div className="flex-grow border-t border-[#d6c7ab]"></div>
+                    <span className="mx-2 text-xs font-extrabold text-black">OR</span>
+                    <div className="flex-grow border-t border-[#d6c7ab]"></div>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleGoogleSignIn}
                     disabled={authLoading}
-                    className="w-full bg-espresso-900 hover:bg-espresso-800 text-espresso-300 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-espresso-700"
+                    className="w-full bg-[#1e1610] hover:bg-[#2e2019] text-white font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#3d2b21] shadow-xs"
                   >
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
                     <span>{authMode === 'signup' ? 'Sign Up with Google' : 'Continue with Google'}</span>
                   </button>
 
                   {authMode === 'signup' && (
-                    <p className="text-[11px] text-amber-850 bg-amber-50/90 border border-amber-200/80 rounded-lg p-2 text-center font-medium leading-tight text-amber-900">
+                    <p className="text-[11px] text-amber-950 bg-amber-50/90 border border-amber-300 rounded-lg p-2 text-center font-bold leading-tight">
                       * You must write your <strong>Name</strong> and <strong>Age</strong> above first before using Google Sign Up.
                     </p>
                   )}
 
-                  <p className="text-xs font-medium text-slate-600 text-center mt-3">
+                  <p className="text-xs font-semibold text-neutral-700 text-center mt-3">
                     Chat continues as guest without sign-in
                   </p>
                 </div>
@@ -1766,55 +1766,55 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 <div className="space-y-4">
                   {/* Profile Header */}
                   <div className="flex items-center space-x-3 p-3 bg-[#f7f2e6] rounded-xl border border-[#e2d9c6]">
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 font-black text-base shrink-0 shadow-sm">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-black font-black text-base shrink-0 shadow-sm">
                       {userName[0]?.toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-300 truncate">{userName || userFullName || 'Lyka Client'}</p>
-                      <p className="text-xs text-slate-500 truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
+                      <p className="text-sm font-extrabold text-black truncate">{userName || userFullName || 'Lyka Client'}</p>
+                      <p className="text-xs font-bold text-black truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
                       <div className="flex items-center space-x-1.5 mt-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                        <span className="text-[10px] font-medium text-emerald-700">Database Synced (User_login)</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block"></span>
+                        <span className="text-[11px] font-extrabold text-emerald-800">Database Synced (User_login)</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Account Details & Edit Profile Section */}
                   {isEditingProfile ? (
-                    <form onSubmit={handleSaveProfileChanges} className="p-3.5 bg-amber-50/80 rounded-xl border border-amber-200/90 space-y-3">
-                      <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
-                        <span className="text-xs font-bold text-amber-950 flex items-center space-x-1.5">
-                          <Pencil className="w-3.5 h-3.5 text-amber-700" />
+                    <form onSubmit={handleSaveProfileChanges} className="p-3.5 bg-[#fdfbf5] rounded-xl border border-[#d6c7ab] space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-[#e2d9c6] pb-2">
+                        <span className="text-xs font-extrabold text-black flex items-center space-x-1.5">
+                          <Pencil className="w-3.5 h-3.5 text-black" />
                           <span>Edit Name & Age</span>
                         </span>
                         <button
                           type="button"
                           onClick={() => { setIsEditingProfile(false); setEditProfileError(''); setEditProfileSuccess(''); }}
-                          className="text-[11px] text-slate-500 hover:text-slate-800 font-medium"
+                          className="text-[11px] text-black hover:text-neutral-700 font-bold"
                         >
                           Cancel
                         </button>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-700 block">Full Name</label>
+                        <label className="text-[11px] font-bold text-black block">Full Name</label>
                         <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="text"
                             value={editNameInput}
                             onChange={(e) => { setEditNameInput(e.target.value); setEditProfileError(''); }}
                             placeholder="Your full name"
                             required
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none transition-colors"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black outline-none transition-colors placeholder:text-neutral-400"
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-slate-700 block">Age (Years)</label>
+                        <label className="text-[11px] font-bold text-black block">Age (Years)</label>
                         <div className="relative">
-                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
                             type="number"
                             min={18}
@@ -1823,20 +1823,20 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             value={editAgeInput}
                             onChange={(e) => { setEditAgeInput(e.target.value); setEditProfileError(''); }}
                             placeholder="Enter age (18 - 120)"
-                            className="w-full bg-white border border-[#e2d9c6] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-slate-800 outline-none transition-colors"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black outline-none transition-colors placeholder:text-neutral-400"
                           />
                         </div>
                       </div>
 
                       {editProfileError && (
-                        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-2.5 py-1.5 font-medium">
+                        <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-2.5 py-1.5 font-bold">
                           {editProfileError}
                         </p>
                       )}
 
                       {editProfileSuccess && (
-                        <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 font-bold flex items-center space-x-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <p className="text-xs text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-xl px-2.5 py-1.5 font-bold flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                           <span>{editProfileSuccess}</span>
                         </p>
                       )}
@@ -1845,73 +1845,79 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <button
                           type="button"
                           onClick={() => { setIsEditingProfile(false); setEditProfileError(''); }}
-                          className="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-semibold py-2 rounded-xl text-xs transition-colors border border-slate-200"
+                          className="flex-1 bg-white hover:bg-neutral-100 text-black font-bold py-2 rounded-xl text-xs transition-colors border border-neutral-300 shadow-xs"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={editProfileLoading}
-                          className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-amber-950 font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
                         >
                           {editProfileLoading ? (
-                            <span className="text-[11px]">Saving...</span>
+                            <span className="text-[11px] text-black font-bold">Saving...</span>
                           ) : (
                             <>
-                              <Save className="w-3.5 h-3.5" />
-                              <span>Save</span>
+                              <Save className="w-3.5 h-3.5 text-black" />
+                              <span className="text-black font-bold">Save</span>
                             </>
                           )}
                         </button>
                       </div>
                     </form>
                   ) : (
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-2">
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span className="font-medium">Full Name:</span>
-                        <span className="font-bold text-slate-800">{userName || userFullName || 'Not set'}</span>
+                    <div className="bg-[#faf7f0] p-3.5 rounded-xl border border-[#d6c7ab] text-xs space-y-2.5 shadow-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-neutral-800">Full Name:</span>
+                        <span className="font-extrabold text-black text-xs">{userName || userFullName || 'Not set'}</span>
                       </div>
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span className="font-medium">Age:</span>
-                        <span className="font-semibold text-slate-800">{userAge ? `${userAge} years` : 'Not recorded'}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-neutral-800">Age:</span>
+                        <span className="font-extrabold text-black text-xs">{userAge ? `${userAge} years` : 'Not recorded'}</span>
                       </div>
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span className="font-medium">Sign-in Method:</span>
-                        <span className="font-semibold text-slate-800">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-neutral-800">Sign-in Method:</span>
+                        <span className="font-extrabold text-black text-xs">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
                       </div>
-                      <div className="flex justify-between items-center text-slate-600">
-                        <span className="font-medium">User ID:</span>
-                        <span className="font-mono text-[10px] text-slate-500 truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-neutral-800">User ID:</span>
+                        <span className="font-mono text-[11px] text-black font-bold truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
                       </div>
                       <button
                         type="button"
                         onClick={handleStartEditProfile}
-                        className="w-full mt-2 bg-white hover:bg-amber-50 text-amber-800 border border-[#e2d9c6] hover:border-amber-300 font-bold py-2 px-3 rounded-lg text-xs transition-all flex items-center justify-center space-x-1.5 shadow-2xs"
+                        className="w-full mt-2 bg-white hover:bg-amber-50 text-black border border-[#c4a468] hover:border-amber-600 font-extrabold py-2 px-3 rounded-lg text-xs transition-all flex items-center justify-center space-x-1.5 shadow-xs"
                       >
-                        <Pencil className="w-3 h-3 text-amber-700" />
-                        <span>Edit Name & Age</span>
+                        <Pencil className="w-3.5 h-3.5 text-black" />
+                        <span className="text-black font-extrabold">Edit Name & Age</span>
                       </button>
                     </div>
                   )}
 
                   {authError && (
-                    <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-start space-x-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-900 font-bold text-xs flex items-start space-x-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
                       <span>{authError}</span>
                     </div>
                   )}
 
                   {/* Actions: Update Email, Logout & Delete */}
-                  <div className="pt-2 border-t border-[#f3ede0] space-y-2">
+                  <div className="pt-2 border-t border-[#d6c7ab] space-y-2">
                     {/* Update Email Button */}
                     <button
                       type="button"
                       onClick={() => { setShowEmailUpdateModal(true); setEmailUpdateError(''); setNewEmailInput(''); setEmailUpdatePassword(''); }}
                       disabled={authLoading || authProviderName === 'Google'}
-                      className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-amber-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`w-full font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border shadow-xs ${
+                        authProviderName === 'Google'
+                          ? 'bg-[#f7f2e6] text-neutral-500 border-[#d6c7ab] cursor-not-allowed opacity-75'
+                          : 'bg-amber-50 hover:bg-amber-100 text-black border-[#c4a468]'
+                      }`}
                     >
-                      <Mail className="w-4 h-4" />
-                      <span>Update Email</span>
+                      <Mail className={`w-4 h-4 ${authProviderName === 'Google' ? 'text-neutral-500' : 'text-black'}`} />
+                      <span className={authProviderName === 'Google' ? 'text-neutral-600 font-bold' : 'text-black font-bold'}>
+                        {authProviderName === 'Google' ? 'Email Managed by Google' : 'Update Email'}
+                      </span>
                     </button>
 
                     {/* Log Out Button */}
@@ -1919,10 +1925,10 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       type="button"
                       onClick={handleSignOut}
                       disabled={authLoading}
-                      className="w-full bg-[#f3ede0] hover:bg-[#eee6d3] text-slate-300 font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#e2d9c6]"
+                      className="w-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-black font-extrabold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#d6c7ab] shadow-xs"
                     >
-                      <LogOut className="w-4 h-4 text-slate-600" />
-                      <span>Log Out</span>
+                      <LogOut className="w-4 h-4 text-black" />
+                      <span className="text-black font-extrabold">Log Out</span>
                     </button>
 
                     {/* Delete Account */}
@@ -1931,17 +1937,17 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         type="button"
                         onClick={() => setDeleteConfirm(true)}
                         disabled={authLoading}
-                        className="w-full bg-transparent hover:bg-red-50 text-red-600 font-medium py-2 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 border border-transparent hover:border-red-200"
+                        className="w-full bg-transparent hover:bg-red-50 text-red-700 font-bold py-2 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 border border-transparent hover:border-red-200"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete Account & Data</span>
+                        <Trash2 className="w-3.5 h-3.5 text-red-700" />
+                        <span className="text-red-700">Delete Account & Data</span>
                       </button>
                     ) : (
                       <div className="p-3 bg-red-50 rounded-xl border border-red-200 space-y-2.5">
                         <div className="flex items-start space-x-2">
                           <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                          <p className="text-[11px] text-red-800 leading-snug">
-                            Permanently delete your profile and remove your data from the <strong>user-login</strong> database?
+                          <p className="text-[11px] text-red-900 font-semibold leading-snug">
+                            Permanently delete your profile and remove your data from the <strong>User_login</strong> database?
                           </p>
                         </div>
                         <div className="flex space-x-2">
@@ -1949,7 +1955,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             type="button"
                             onClick={handleDeleteAccount}
                             disabled={authLoading}
-                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1"
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1 shadow-xs"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>{authLoading ? 'Deleting...' : 'Confirm Delete'}</span>
@@ -1958,7 +1964,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             type="button"
                             onClick={() => setDeleteConfirm(false)}
                             disabled={authLoading}
-                            className="flex-1 bg-white hover:bg-slate-100 text-slate-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-slate-300"
+                            className="flex-1 bg-white hover:bg-neutral-100 text-black font-bold py-1.5 rounded-lg text-xs transition-colors border border-neutral-300"
                           >
                             Cancel
                           </button>

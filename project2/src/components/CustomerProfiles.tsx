@@ -371,7 +371,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-100 font-sans p-4 sm:p-6 space-y-6">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-300 font-sans p-4 sm:p-6 space-y-6">
       
       {/* ─── TOP HEADER ─── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
@@ -382,15 +382,15 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             </div>
             <div>
               <div className="flex items-center space-x-2.5">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-300">
                   Customer Directory & Login Activity
                 </h1>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center space-x-1">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20 flex items-center space-x-1">
                   <Activity className="w-3 h-3 text-amber-400" />
                   <span>Individual Statistics</span>
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 Identify which customers logged in, their login frequencies, active dates, and complete statistical history
               </p>
             </div>
@@ -446,8 +446,8 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             </div>
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
-            <span className="text-2xl font-extrabold text-white">{summaryKpis.totalCustomers}</span>
-            <span className="text-[10px] text-amber-300 font-medium">Profiles</span>
+            <span className="text-2xl font-extrabold text-slate-300">{summaryKpis.totalCustomers}</span>
+            <span className="text-[10px] text-amber-700 font-medium">Profiles</span>
           </div>
           <p className="text-[10px] text-slate-500 mt-0.5">{summaryKpis.googleUsers} Google • {summaryKpis.emailUsers} Email</p>
         </div>
@@ -476,7 +476,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             </div>
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
-            <span className="text-2xl font-extrabold text-white">{summaryKpis.activeThisWeek}</span>
+            <span className="text-2xl font-extrabold text-slate-300">{summaryKpis.activeThisWeek}</span>
             <span className="text-[10px] text-blue-300 font-medium">Customers</span>
           </div>
           <p className="text-[10px] text-slate-500 mt-0.5">Last 7 days active rate</p>
@@ -487,14 +487,14 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
           summaryKpis.agentRequestsCount > 0 ? 'border-amber-500/60 bg-amber-500/10 shadow-lg shadow-amber-500/5' : 'border-slate-800'
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider">Agent Calls</span>
+            <span className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Agent Calls</span>
             <div className="w-7 h-7 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
               <PhoneCall className={`w-3.5 h-3.5 ${summaryKpis.agentRequestsCount > 0 ? 'animate-bounce' : ''}`} />
             </div>
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
-            <span className="text-2xl font-extrabold text-amber-400">{summaryKpis.agentRequestsCount}</span>
-            <span className="text-[10px] text-amber-300 font-medium">Requested</span>
+            <span className="text-2xl font-extrabold text-amber-600">{summaryKpis.agentRequestsCount}</span>
+            <span className="text-[10px] text-amber-700 font-medium">Requested</span>
           </div>
           <p className="text-[10px] text-slate-500 mt-0.5">Submitted mobile numbers</p>
         </div>
@@ -508,7 +508,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             </div>
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
-            <span className="text-2xl font-extrabold text-white">{summaryKpis.totalLoginsCount}</span>
+            <span className="text-2xl font-extrabold text-slate-300">{summaryKpis.totalLoginsCount}</span>
             <span className="text-[10px] text-violet-300 font-medium">Logins</span>
           </div>
           <p className="text-[10px] text-slate-500 mt-0.5">Avg {summaryKpis.avgLoginsPerCustomer} per customer</p>
@@ -523,10 +523,10 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             </div>
           </div>
           <div className="mt-2.5 flex items-baseline space-x-2">
-            <span className="text-base font-bold text-white truncate max-w-[120px]">
+            <span className="text-base font-bold text-slate-300 truncate max-w-[120px]">
               {summaryKpis.topCustomer?.user.Name || 'N/A'}
             </span>
-            <span className="text-[10px] font-bold text-amber-400">
+            <span className="text-[10px] font-bold text-amber-700">
               {summaryKpis.topCustomer ? `${summaryKpis.topCustomer.totalLogins} logins` : ''}
             </span>
           </div>
@@ -556,7 +556,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             ) : (
               leaderboard.map((c, idx) => {
                 const rankColors = [
-                  'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                  'bg-amber-500/20 text-amber-700 border-amber-500/40',
                   'bg-slate-400/20 text-slate-200 border-slate-400/40',
                   'bg-amber-800/20 text-amber-500 border-amber-800/40',
                   'bg-slate-800 text-slate-400 border-slate-700'
@@ -571,11 +571,11 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                       <span className={`w-6 h-6 rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 ${rankColors[idx] || rankColors[3]}`}>
                         #{idx + 1}
                       </span>
-                      <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-500/30">
+                      <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-700 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-500/30">
                         {c.user.Name ? c.user.Name.substring(0, 2).toUpperCase() : 'CU'}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white truncate group-hover:text-amber-300 transition-colors">
+                        <p className="text-xs font-semibold text-slate-300 truncate group-hover:text-amber-700 transition-colors">
                           {c.user.Name || 'Customer'}
                         </p>
                         <p className="text-[10px] text-slate-400 font-mono truncate">{c.user.Email_id}</p>
@@ -584,7 +584,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
 
                     <div className="flex items-center space-x-3 shrink-0">
                       <div className="text-right">
-                        <span className="text-xs font-bold text-amber-400 block">{c.totalLogins} logins</span>
+                        <span className="text-xs font-bold text-amber-700 block">{c.totalLogins} logins</span>
                         <span className="text-[10px] text-slate-500 block">{c.loginPercentage}% share</span>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 transition-colors" />
@@ -601,7 +601,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center space-x-2">
               <Clock className="w-4 h-4 text-emerald-400" />
-              <h3 className="text-xs sm:text-sm font-bold text-white">Recent Customer Login Activity</h3>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-300">Recent Customer Login Activity</h3>
             </div>
             <span className="text-[10px] text-emerald-400 font-medium">Live timestamp feed</span>
           </div>
@@ -622,11 +622,11 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                       <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
                       <div className="min-w-0">
                         <div className="flex items-center space-x-1.5">
-                          <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-300 transition-colors">
+                          <p className="text-xs font-semibold text-slate-300 truncate group-hover:text-emerald-300 transition-colors">
                             {item.customer.user.Name || 'Customer'}
                           </p>
                           <span className={`text-[9px] px-1.5 rounded-full font-semibold border ${
-                            isGoogle ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-violet-500/10 text-violet-300 border-violet-500/30'
+                            isGoogle ? 'bg-amber-500/10 text-amber-700 border-amber-500/30' : 'bg-violet-500/10 text-violet-300 border-violet-500/30'
                           }`}>
                             {isGoogle ? 'Google' : 'Email'}
                           </span>
@@ -658,7 +658,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setActivityFilter('all')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activityFilter === 'all' ? 'bg-amber-500 text-amber-950 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                activityFilter === 'all' ? 'bg-amber-500 text-amber-950 shadow-sm' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               All Customers ({customerStats.length})
@@ -666,7 +666,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setActivityFilter('today')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 ${
-                activityFilter === 'today' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                activityFilter === 'today' ? 'bg-emerald-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -675,7 +675,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setActivityFilter('week')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1 ${
-                activityFilter === 'week' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                activityFilter === 'week' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
@@ -684,7 +684,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setActivityFilter('month')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activityFilter === 'month' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                activityFilter === 'month' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               This Month ({summaryKpis.activeThisMonth})
@@ -694,7 +694,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
                 activityFilter === 'agent_requested'
                   ? 'bg-amber-500 text-amber-950 font-bold shadow-sm'
-                  : 'text-amber-400 hover:text-white hover:bg-slate-800'
+                  : 'text-amber-600 hover:text-white hover:bg-slate-800'
               }`}
             >
               <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
@@ -703,7 +703,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setActivityFilter('inactive')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activityFilter === 'inactive' ? 'bg-slate-700 text-slate-200 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                activityFilter === 'inactive' ? 'bg-slate-700 text-slate-300 shadow-sm' : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
               }`}
             >
               Inactive
@@ -715,7 +715,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setViewMode('cards')}
               className={`p-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'cards' ? 'bg-amber-500 text-amber-950 shadow-sm' : 'text-slate-400 hover:text-white'
+                viewMode === 'cards' ? 'bg-amber-500 text-amber-950 shadow-sm' : 'text-slate-400 hover:text-slate-300'
               }`}
               title="Cards Grid View"
             >
@@ -724,7 +724,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             <button
               onClick={() => setViewMode('table')}
               className={`p-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'table' ? 'bg-amber-500 text-amber-950 shadow-sm' : 'text-slate-400 hover:text-white'
+                viewMode === 'table' ? 'bg-amber-500 text-amber-950 shadow-sm' : 'text-slate-400 hover:text-slate-300'
               }`}
               title="Detailed Table View"
             >
@@ -801,7 +801,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
 
         {/* Filter Summary Banner (if active) */}
         {(specificDateFilter || searchTerm || activityFilter !== 'all' || providerFilter !== 'all') && (
-          <div className="flex items-center justify-between text-xs bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl text-amber-300">
+          <div className="flex items-center justify-between text-xs bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl text-amber-700">
             <div className="flex items-center space-x-2">
               <Filter className="w-3.5 h-3.5" />
               <span>
@@ -881,7 +881,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                           <PhoneCall className="w-3.5 h-3.5 animate-pulse" />
                         </div>
                         <div className="min-w-0">
-                          <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide block">Agent Call Requested</span>
+                          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wide block">Agent Call Requested</span>
                           <span className="text-xs font-mono font-semibold text-white truncate block">
                             {item.user.talk_to_agent_phone || item.user.phone || 'Phone pending'}
                           </span>
@@ -921,7 +921,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
 
                     <span className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg border font-semibold ${
                       isGoogle
-                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                        ? 'bg-amber-500/10 text-amber-700 border-amber-500/30'
                         : 'bg-violet-500/10 text-violet-300 border-violet-500/30'
                     }`}>
                       <span>{isGoogle ? 'Google OAuth' : 'Email/Password'}</span>
@@ -939,7 +939,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                 <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/70 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-400">Total Logins Recorded:</span>
-                    <span className="font-extrabold text-amber-400 text-sm">{item.totalLogins} logins</span>
+                    <span className="font-extrabold text-amber-600 text-sm">{item.totalLogins} logins</span>
                   </div>
 
                   {/* Visual Progress / Share of App Logins */}
@@ -1015,7 +1015,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                     <tr key={item.user.uid || item.user.Email_id} className="hover:bg-slate-800/40 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-300 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-500/30">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-500/30">
                             {item.user.Name ? item.user.Name.substring(0, 2).toUpperCase() : 'CU'}
                           </div>
                           <div className="min-w-0">
@@ -1041,7 +1041,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
 
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                          isGoogle ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-violet-500/10 text-violet-300 border-violet-500/30'
+                          isGoogle ? 'bg-amber-500/10 text-amber-700 border-amber-500/30' : 'bg-violet-500/10 text-violet-300 border-violet-500/30'
                         }`}>
                           {isGoogle ? 'Google' : 'Email'}
                         </span>
@@ -1050,14 +1050,14 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                       <td className="py-3 px-4">
                         {item.user.talk_to_agent_requested ? (
                           <div className="flex items-center space-x-1.5">
-                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 border border-amber-500/40">
                               <PhoneCall className="w-2.5 h-2.5 text-amber-400 animate-pulse" />
                               <span>Requested</span>
                             </span>
                             {(item.user.talk_to_agent_phone || item.user.phone) && (
                               <a
                                 href={`tel:${item.user.talk_to_agent_phone || item.user.phone}`}
-                                className="p-1 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 transition-colors"
+                                className="p-1 rounded-md bg-amber-500/20 hover:bg-amber-500 text-amber-700 hover:text-slate-950 transition-colors"
                                 title="Direct call"
                               >
                                 <Phone className="w-3 h-3" />
@@ -1070,7 +1070,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                       </td>
 
                       <td className="py-3 px-4">
-                        <span className="font-bold text-amber-400 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-xs">
+                        <span className="font-bold text-amber-600 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-xs">
                           {item.totalLogins}
                         </span>
                       </td>
@@ -1121,7 +1121,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center space-x-2">
                     <span>{selectedCustomer.user.Name || 'Anonymous Customer'}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/30">
                       {selectedCustomer.totalLogins} Logins
                     </span>
                   </h3>
@@ -1149,11 +1149,11 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
               <div className="bg-gradient-to-r from-amber-500/20 via-amber-600/15 to-slate-950 border border-amber-500/40 rounded-2xl p-4 space-y-3 shadow-lg">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/30 text-amber-300 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/30 text-amber-700 flex items-center justify-center">
                       <PhoneCall className="w-4 h-4 animate-pulse" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-amber-300">Talk to Human Agent Requested</h4>
+                      <h4 className="text-sm font-bold text-amber-700">Talk to Human Agent Requested</h4>
                       <p className="text-[11px] text-amber-200/70">Customer asked for direct agent phone callback</p>
                     </div>
                   </div>
@@ -1195,7 +1195,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                     <span className="text-xs font-semibold text-slate-200 block">
                       {selectedCustomer.user.talk_to_agent_time ? formatDateTime(selectedCustomer.user.talk_to_agent_time) : 'Recent activity'}
                     </span>
-                    <p className="text-xs text-amber-300/90 italic pt-1">
+                    <p className="text-xs text-amber-700/90 italic pt-1">
                       "{selectedCustomer.user.talk_to_agent_reason || 'Customer selected Talk to Agent from the assistant.'}"
                     </p>
                   </div>
@@ -1243,7 +1243,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                   const heightPct = Math.max((cnt / maxCnt) * 100, 8);
                   return (
                     <div key={day} className="flex flex-col items-center space-y-1">
-                      <span className="text-[10px] text-amber-400 font-bold">{cnt > 0 ? cnt : ''}</span>
+                      <span className="text-[10px] text-amber-700 font-bold">{cnt > 0 ? cnt : ''}</span>
                       <div className="w-full bg-slate-900 rounded-lg h-16 flex items-end p-0.5">
                         <div
                           className={`w-full rounded-md transition-all ${

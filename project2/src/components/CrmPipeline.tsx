@@ -125,7 +125,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-100 flex flex-col h-full overflow-hidden">
+    <div className="flex-1 bg-slate-950 text-slate-300 flex flex-col h-full overflow-hidden">
       {/* Top Filter Bar */}
       <div className="p-4 sm:p-6 bg-slate-900 border-b border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -142,7 +142,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
           <div className="flex items-center space-x-2 w-full sm:w-auto">
             <button
               onClick={handleExportCSV}
-              className="flex items-center space-x-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl transition-colors font-medium"
+              className="flex items-center space-x-1.5 text-xs bg-white hover:bg-slate-100 text-slate-300 border border-slate-700 px-3 py-2 rounded-xl transition-colors font-medium"
             >
               <Download className="w-4 h-4 text-amber-600" />
               <span>Export CSV</span>
@@ -159,7 +159,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by ID, name, community..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500"
             />
           </div>
 
@@ -167,7 +167,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             <select
               value={selectedIntent}
               onChange={(e) => setSelectedIntent(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Intents</option>
               <option value="Buy">Buy</option>
@@ -181,7 +181,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             <select
               value={selectedPriority}
               onChange={(e) => setSelectedPriority(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Priorities</option>
               <option value="Urgent">Urgent</option>
@@ -191,7 +191,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-400 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between text-xs text-slate-400 bg-white px-3 py-2 rounded-xl border border-slate-700">
             <span>Filtered Leads:</span>
             <span className="font-bold text-amber-600">
               {filteredLeads.length} of {leads.filter(l => l.lead_status !== 'New').length}
@@ -221,7 +221,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                 {/* Cards List */}
                 <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
                   {stageLeads.length === 0 ? (
-                    <div className="text-center py-8 text-slate-600 text-xs italic">
+                    <div className="text-center py-8 text-slate-500 text-xs italic">
                       No leads in this stage
                     </div>
                   ) : (
@@ -328,7 +328,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                   type="text"
                   value={taskReason}
                   onChange={(e) => setTaskReason(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   required
                 />
               </div>
@@ -338,7 +338,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                 <select
                   value={taskAction}
                   onChange={(e) => setTaskAction(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                 >
                   <option value="Contact customer via WhatsApp">Contact customer via WhatsApp</option>
                   <option value="Arrange in-person viewing">Arrange in-person viewing</option>
@@ -354,7 +354,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                   type="date"
                   value={taskDate}
                   onChange={(e) => setTaskDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
                   required
                 />
               </div>

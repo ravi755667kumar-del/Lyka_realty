@@ -19,6 +19,23 @@ export const mobilePhoneSchema = z
   });
 
 /**
+ * Zod schema for strictly validating a 6-digit OTP code.
+ * Enforces:
+ * - Strictly required (non-empty)
+ * - Exactly 6 numeric digits (0-9)
+ */
+export const otpSchema = z
+  .string({
+    required_error: 'OTP is required.',
+    invalid_type_error: 'OTP must be a valid string.'
+  })
+  .trim()
+  .min(1, { message: 'OTP is required.' })
+  .regex(/^[0-9]{6}$/, {
+    message: 'OTP must be exactly 6 digits (numbers only).'
+  });
+
+/**
  * Zod schema for Talk to Agent request submission.
  */
 export const talkToAgentSchema = z.object({
@@ -27,3 +44,4 @@ export const talkToAgentSchema = z.object({
 });
 
 export type TalkToAgentFormData = z.infer<typeof talkToAgentSchema>;
+

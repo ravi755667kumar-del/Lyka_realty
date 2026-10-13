@@ -5,7 +5,8 @@ import {
   PropertyListing, 
   FollowUpTask, 
   LeadStatus,
-  AgenticDecision 
+  AgenticDecision,
+  PortalCredential
 } from './types/crm';
 import { 
   createInitialLeadProfile, 
@@ -33,7 +34,11 @@ import {
   syncSessionToUserProfile,
   deleteSessionFromUserProfile,
   getAllUsersFromFirestore,
-  saveTalkToAgentRequest
+  saveTalkToAgentRequest,
+  ensurePortalCredentialsInFirestore,
+  verifyPortalLoginFromFirestore,
+  savePortalCredentialToFirestore,
+  savePortalEmailOtpToFirestore
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
 import { AgenticChat } from './components/AgenticChat';
@@ -45,7 +50,7 @@ import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
-import { talkToAgentSchema, mobilePhoneSchema } from './schemas/validation';
+import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
   CheckCircle2, 
@@ -57,7 +62,15 @@ import {
   Building2, 
   Send,
   ShieldCheck,
-  Lock
+  Lock,
+  Database,
+  Settings,
+  Save,
+  KeyRound,
+  Copy,
+  Check,
+  Mail,
+  Clock
 } from 'lucide-react';
 
 export default function App() {
@@ -100,11 +113,134 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
-  // Allowed admin credentials (configurable)
-  const ADMIN_EMAIL = 'admin@lykarealty.ae';
-  const ADMIN_PASSWORD = 'LykaAdmin2024';
-  const PM_EMAIL = 'manager@lykarealty.ae';
-  const PM_PASSWORD = 'LykaManager2024';
+  // Database-backed Admin & Property Manager credentials (from Firestore Admin_login & Property_login)
+  const [adminDbCredentials, setAdminDbCredentials] = useState<PortalCredential[]>([
+    { id: 'admin', email: 'admin@lykarealty.ae', password: 'LykaAdmin2024', role: 'admin', name: 'Lyka Super Admin' }
+  ]);
+  const [pmDbCredentials, setPmDbCredentials] = useState<PortalCredential[]>([
+    { id: 'property_manager', email: 'manager@lykarealty.ae', password: 'LykaManager2024', role: 'property_manager', name: 'Lyka Property Manager' }
+  ]);
+  const [showCredentialConfig, setShowCredentialConfig] = useState(false);
+  const [configEmailInput, setConfigEmailInput] = useState('');
+  const [configPasswordInput, setConfigPasswordInput] = useState('');
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configSuccessMsg, setConfigSuccessMsg] = useState('');
+  const [configErrorMsg, setConfigErrorMsg] = useState('');
+
+  const ADMIN_EMAIL = adminDbCredentials[0]?.email || 'admin@lykarealty.ae';
+  const PM_EMAIL = pmDbCredentials[0]?.email || 'manager@lykarealty.ae';
+
+  // Email 6-Digit OTP states for Admin / Property Manager Login (Valid for 3 Minutes)
+  const [adminOtpInput, setAdminOtpInput] = useState('');
+  const [adminOtpSent, setAdminOtpSent] = useState(false);
+  const [adminOtpLoading, setAdminOtpLoading] = useState(false);
+  const [adminOtpSuccessMsg, setAdminOtpSuccessMsg] = useState('');
+  const [adminOtpExpiresAt, setAdminOtpExpiresAt] = useState<number | null>(null);
+  const [otpTimeRemaining, setOtpTimeRemaining] = useState<number>(180); // 3 minutes = 180s
+  const [adminGeneratedOtpBackup, setAdminGeneratedOtpBackup] = useState<string | null>(null);
+
+  // 3-Minute countdown timer for OTP
+  useEffect(() => {
+    let timer: any = null;
+    if (adminOtpSent && adminOtpExpiresAt) {
+      timer = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((adminOtpExpiresAt - Date.now()) / 1000));
+        setOtpTimeRemaining(remaining);
+        if (remaining <= 0) {
+          if (timer) clearInterval(timer);
+        }
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [adminOtpSent, adminOtpExpiresAt]);
+
+  const resetAdminModalState = () => {
+    setAdminLoginError('');
+    setAdminOtpInput('');
+    setAdminOtpSent(false);
+    setAdminOtpLoading(false);
+    setAdminOtpSuccessMsg('');
+    setAdminOtpExpiresAt(null);
+    setOtpTimeRemaining(180);
+    setAdminGeneratedOtpBackup(null);
+    setConfigSuccessMsg('');
+    setConfigErrorMsg('');
+  };
+
+  const handleGetAdminOtp = async () => {
+    setAdminLoginError('');
+    setAdminOtpSuccessMsg('');
+    setAdminGeneratedOtpBackup(null);
+
+    const targetEmail = adminEmailInput.trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setAdminLoginError('Please enter your valid Admin/Manager email address to receive your 6-digit OTP.');
+      return;
+    }
+
+    setAdminOtpLoading(true);
+
+    try {
+      // Call server endpoint that delivers via Brevo API
+      const res = await fetch('/api/auth/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: targetEmail,
+          portal: adminTargetPortal
+        })
+      });
+
+      let data: any = {};
+      const responseText = await res.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = {};
+      }
+
+      if (!res.ok) {
+        if (data.otpBackup) {
+          const now = Date.now();
+          const expiresAt = now + 3 * 60 * 1000;
+          setAdminOtpExpiresAt(expiresAt);
+          setOtpTimeRemaining(180);
+          setAdminOtpSent(true);
+          setAdminGeneratedOtpBackup(data.otpBackup);
+          await savePortalEmailOtpToFirestore(adminTargetPortal, targetEmail, data.otpBackup);
+          setAdminLoginError(data.error || 'Brevo email delivery notice.');
+          return;
+        }
+        throw new Error(data.error || data.message || `Server returned ${res.status} (${res.statusText || 'Not Found'}). Please make sure the server has been restarted.`);
+      }
+
+      const now = Date.now();
+      const expiresAt = now + 3 * 60 * 1000; // strictly 3 minutes
+      setAdminOtpExpiresAt(expiresAt);
+      setOtpTimeRemaining(180);
+      setAdminOtpSent(true);
+      setAdminOtpSuccessMsg(`6-Digit OTP sent directly to ${targetEmail}! Valid for 3 minutes.`);
+
+      if (data.otpBackup) {
+        setAdminGeneratedOtpBackup(data.otpBackup);
+      }
+
+      // Sync into Firestore collection (Admin_login or Property_login)
+      if (data.otpBackup) {
+        await savePortalEmailOtpToFirestore(adminTargetPortal, targetEmail, data.otpBackup);
+      }
+
+    } catch (err: any) {
+      console.warn('Brevo Email send notice:', err.message);
+      setAdminLoginError(`Error sending OTP: ${err.message || 'Please check email address.'}`);
+    } finally {
+      setAdminOtpLoading(false);
+    }
+  };
+
+
 
 
   // Initial welcome message
@@ -227,6 +363,15 @@ export default function App() {
         setCustomerCount(users.length);
       } catch (err) {
         console.warn('Customer count fetch notice:', err);
+      }
+
+      // Ensure Admin & Property Manager credentials exist in Firestore (Admin_login & Property_login)
+      try {
+        const { adminCredentials, pmCredentials } = await ensurePortalCredentialsInFirestore();
+        if (adminCredentials.length > 0) setAdminDbCredentials(adminCredentials);
+        if (pmCredentials.length > 0) setPmDbCredentials(pmCredentials);
+      } catch (err) {
+        console.warn('Portal credentials init notice:', err);
       }
     }
 
@@ -779,7 +924,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 font-sans text-slate-100 overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-slate-950 font-sans text-slate-300 overflow-hidden">
       {/* Navigation Header */}
       <Navbar
         activeTab={activeTab}
@@ -801,7 +946,7 @@ export default function App() {
           setAdminTargetPortal(portal);
           const isAuthed = portal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
           if (!isAuthed) {
-            setAdminLoginError('');
+            resetAdminModalState();
             setAdminEmailInput('');
             setAdminPasswordInput('');
             setShowAdminLoginModal(true);
@@ -822,8 +967,8 @@ export default function App() {
           } else {
             const isAuthed = adminTargetPortal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
             if (!isAuthed) {
-              // Not logged in → show email gate
-              setAdminLoginError('');
+              // Not logged in → show login gate
+              resetAdminModalState();
               setAdminEmailInput('');
               setAdminPasswordInput('');
               setShowAdminLoginModal(true);
@@ -1119,7 +1264,7 @@ export default function App() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Communities:</span>
-                <span className="text-slate-200">{(currentLead.preferred_communities || []).join(', ') || 'Any prime community'}</span>
+                <span className="text-slate-300">{(currentLead.preferred_communities || []).join(', ') || 'Any prime community'}</span>
               </div>
             </div>
 
@@ -1128,7 +1273,7 @@ export default function App() {
               <label className="text-slate-300 font-semibold flex items-center justify-between">
                 <span className="flex items-center space-x-1.5">
                   <Phone className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Mobile Number (10 digits): <span className="text-amber-400">*</span></span>
+                  <span>Mobile Number (10 digits): <span className="text-amber-600">*</span></span>
                 </span>
                 {handoffPhone.length === 10 ? (
                   <span className="text-[10px] text-emerald-400 font-bold flex items-center space-x-1">
@@ -1136,7 +1281,7 @@ export default function App() {
                     <span>Valid 10 Digits</span>
                   </span>
                 ) : (
-                  <span className="text-[10px] text-amber-400 font-medium">10 digits required</span>
+                  <span className="text-[10px] text-amber-600 font-medium">10 digits required</span>
                 )}
               </label>
               <div className="relative">
@@ -1152,7 +1297,7 @@ export default function App() {
                     setHandoffError('');
                   }}
                   placeholder="e.g. 9876543210 (10 digits)"
-                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-slate-100 placeholder-slate-500 text-xs outline-none transition-colors font-mono tracking-wider ${
+                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-slate-300 placeholder-slate-500 text-xs outline-none transition-colors font-mono tracking-wider ${
                     handoffError ? 'border-rose-500/80 focus:border-rose-500' : 'border-slate-800 focus:border-amber-500'
                   }`}
                   required
@@ -1166,7 +1311,7 @@ export default function App() {
               )}
               <div className="text-[10px] text-slate-500 flex items-center justify-between">
                 <span>Must be exactly 10 digits (Numbers only). Verified by Zod.</span>
-                <span className={`font-mono font-bold ${handoffPhone.length === 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <span className={`font-mono font-bold ${handoffPhone.length === 10 ? 'text-emerald-400' : 'text-amber-600'}`}>
                   {handoffPhone.length}/10 digits
                 </span>
               </div>
@@ -1208,9 +1353,9 @@ export default function App() {
       ───────────────────────────────────────── */}
       {showAdminLoginModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
             {/* Header */}
-            <div className={`px-6 py-5 transition-colors ${
+            <div className={`px-6 py-5 shrink-0 transition-colors ${
               adminTargetPortal === 'property_manager'
                 ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-yellow-600'
                 : 'bg-gradient-to-r from-violet-700 via-violet-600 to-purple-700'
@@ -1220,14 +1365,14 @@ export default function App() {
                   {adminTargetPortal === 'property_manager' ? (
                     <Building2 className="w-5 h-5 text-amber-100" />
                   ) : (
-                    <ShieldCheck className="w-5 h-5 text-slate-100" />
+                    <ShieldCheck className="w-5 h-5 text-slate-300" />
                   )}
                 </div>
                 <div>
-                  <h2 className="text-slate-100 font-bold text-base">
+                  <h2 className="text-slate-300 font-bold text-base">
                     {adminTargetPortal === 'property_manager' ? 'Property Manager Portal' : 'Admin Portal Access'}
                   </h2>
-                  <p className="text-white/80 text-xs mt-0.5">
+                  <p className="text-slate-500 text-xs mt-0.5">
                     {adminTargetPortal === 'property_manager'
                       ? 'Lyka Realty Property Inventory & Statistics'
                       : 'Lyka Realty CRM & System Management'}
@@ -1237,11 +1382,14 @@ export default function App() {
             </div>
 
             {/* Portal Switcher Tabs */}
-            <div className="px-6 pt-4 pb-0">
+            <div className="px-6 pt-4 pb-0 space-y-2.5 shrink-0">
               <div className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
                 <button
                   type="button"
-                  onClick={() => { setAdminTargetPortal('admin'); setAdminLoginError(''); }}
+                  onClick={() => {
+                    setAdminTargetPortal('admin');
+                    resetAdminModalState();
+                  }}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'admin'
                       ? 'bg-violet-600 text-white shadow-sm'
@@ -1253,7 +1401,10 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setAdminTargetPortal('property_manager'); setAdminLoginError(''); }}
+                  onClick={() => {
+                    setAdminTargetPortal('property_manager');
+                    resetAdminModalState();
+                  }}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'property_manager'
                       ? 'bg-amber-500 text-amber-950 shadow-sm'
@@ -1264,150 +1415,478 @@ export default function App() {
                   <span>Property Manager</span>
                 </button>
               </div>
-            </div>
 
-            {/* Form */}
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setAdminLoginLoading(true);
-                setAdminLoginError('');
-                // Simulate short auth delay for UX
-                await new Promise(r => setTimeout(r, 600));
-
-                const inputEmail = adminEmailInput.trim().toLowerCase();
-                let isValid = false;
-
-                if (adminTargetPortal === 'admin') {
-                  // Admin portal: only accept admin credentials
-                  isValid = inputEmail === ADMIN_EMAIL.toLowerCase() && adminPasswordInput === ADMIN_PASSWORD;
-                } else {
-                  // Property Manager portal: only accept property manager credentials
-                  isValid = inputEmail === PM_EMAIL.toLowerCase() && adminPasswordInput === PM_PASSWORD;
-                }
-
-                if (isValid) {
-                  if (adminTargetPortal === 'admin') {
-                    setAdminAuthenticated(true);
-                  } else {
-                    setPropertyManagerAuthenticated(true);
-                  }
-                  setShowAdminLoginModal(false);
-                  setAdminPanelOpen(true);
-                  if (adminTargetPortal === 'property_manager') {
-                    setActiveTab('properties');
-                  } else {
-                    setActiveTab('crm');
-                  }
-                } else {
-                  setAdminLoginError(
-                    adminEmailInput.trim() === ''
-                      ? 'Please enter your email address.'
-                      : adminPasswordInput === ''
-                      ? 'Please enter your password.'
-                      : 'Invalid email or password for this portal. Please check your credentials.'
-                  );
-                }
-                setAdminLoginLoading(false);
-              }}
-              className="px-6 py-5 space-y-4"
-            >
-              {/* Email */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  {adminTargetPortal === 'property_manager' ? 'Manager Email' : 'Admin Email'}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2">
-                    <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                    </svg>
+              {/* Firestore DB Collection Indicator & Toggle to Configure Credentials */}
+              <div className="flex items-center justify-between text-[11px] bg-slate-800/50 border border-slate-700/50 rounded-xl px-3 py-1.5">
+                <div className="flex items-center space-x-1.5 text-emerald-400 font-medium">
+                  <Database className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    DB: <code className="font-mono text-[10px] text-slate-200">{adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'}</code>
                   </span>
-                  <input
-                    id="admin-email-input"
-                    type="email"
-                    value={adminEmailInput}
-                    onChange={(e) => { setAdminEmailInput(e.target.value); setAdminLoginError(''); }}
-                    placeholder={adminTargetPortal === 'property_manager' ? 'manager@lykarealty.ae' : 'admin@lykarealty.ae'}
-                    autoFocus
-                    required
-                    className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
-                  />
                 </div>
-              </div>
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2">
-                    <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </span>
-                  <input
-                    id="admin-password-input"
-                    type="password"
-                    value={adminPasswordInput}
-                    onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminLoginError(''); }}
-                    placeholder="Enter password"
-                    required
-                    className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Error */}
-              {adminLoginError && (
-                <div className="flex items-center space-x-2 bg-red-100/80 border border-red-300/60 rounded-xl px-3 py-2.5">
-                  <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="text-red-400 text-xs">{adminLoginError}</span>
-                </div>
-              )}
-
-              {/* Hint */}
-              <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-[11px] text-slate-500">
-                <span className="text-slate-400 font-medium">Hint:</span> Use{' '}
-                <span className={adminTargetPortal === 'property_manager' ? 'text-amber-400 font-mono' : 'text-violet-400 font-mono'}>
-                  {adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL}
-                </span>{' '}
-                or <span className="font-mono text-slate-400">{adminTargetPortal === 'property_manager' ? ADMIN_EMAIL : PM_EMAIL}</span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex space-x-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setShowAdminLoginModal(false); setAdminLoginError(''); }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition-colors"
+                  onClick={() => {
+                    const nextShow = !showCredentialConfig;
+                    setShowCredentialConfig(nextShow);
+                    setConfigErrorMsg('');
+                    setConfigSuccessMsg('');
+                    if (nextShow) {
+                      setConfigEmailInput(adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL);
+                      setConfigPasswordInput('');
+                    }
+                  }}
+                  className="text-[11px] font-semibold text-amber-600 hover:text-amber-700 flex items-center space-x-1 underline"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={adminLoginLoading}
-                  className={`flex-1 disabled:opacity-60 disabled:cursor-not-allowed py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-md ${
-                    adminTargetPortal === 'property_manager'
-                      ? 'bg-amber-500 hover:bg-amber-400 text-amber-950'
-                      : 'bg-violet-600 hover:bg-violet-500 text-white'
-                  }`}
-                >
-                  {adminLoginLoading ? (
-                    <>
-                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      <span>Verifying...</span>
-                    </>
-                  ) : (
-                    <span>Enter {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'}</span>
-                  )}
+                  <Settings className="w-3 h-3" />
+                  <span>{showCredentialConfig ? 'Back to Login' : 'Set DB Login'}</span>
                 </button>
               </div>
-            </form>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <div className="overflow-y-auto px-6 py-4 flex-1">
+              {showCredentialConfig ? (
+                /* ── Set / Update DB Credentials Form (Writes to Admin_login / Property_login) ── */
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!configEmailInput.trim() || !configPasswordInput.trim()) {
+                      setConfigErrorMsg('Please provide both login email/username and password.');
+                      return;
+                    }
+                    setConfigSaving(true);
+                    setConfigErrorMsg('');
+                    setConfigSuccessMsg('');
+                    try {
+                      const saved = await savePortalCredentialToFirestore(
+                        adminTargetPortal,
+                        configEmailInput.trim(),
+                        configPasswordInput
+                      );
+                      if (adminTargetPortal === 'admin') {
+                        setAdminDbCredentials([saved]);
+                      } else {
+                        setPmDbCredentials([saved]);
+                      }
+                      setAdminEmailInput(saved.email);
+                      setAdminPasswordInput('');
+                      setConfigSuccessMsg(
+                        `Saved to Firestore (${adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'})!`
+                      );
+                      setTimeout(() => {
+                        setShowCredentialConfig(false);
+                        setConfigSuccessMsg('');
+                      }, 1200);
+                    } catch (err: any) {
+                      setConfigErrorMsg(err.message || 'Failed to save credentials to database.');
+                    } finally {
+                      setConfigSaving(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="bg-slate-800/70 border border-slate-700/60 rounded-xl p-3 text-xs text-slate-300 space-y-1">
+                    <p className="font-bold text-white flex items-center space-x-1.5">
+                      <Database className="w-3.5 h-3.5 text-amber-600" />
+                      <span>
+                        Update {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'} DB Login
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Saves login & password directly to Firestore collection{' '}
+                      <code className="text-amber-700 font-mono">
+                        {adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'}
+                      </code>.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      New {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'} Login (Email / Username)
+                    </label>
+                    <input
+                      type="text"
+                      value={configEmailInput}
+                      onChange={(e) => { setConfigEmailInput(e.target.value); setConfigErrorMsg(''); }}
+                      placeholder={adminTargetPortal === 'property_manager' ? 'manager@lykarealty.ae' : 'admin@lykarealty.ae'}
+                      required
+                      className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      New Password
+                    </label>
+                    <input
+                      type="text"
+                      value={configPasswordInput}
+                      onChange={(e) => { setConfigPasswordInput(e.target.value); setConfigErrorMsg(''); }}
+                      placeholder="Enter new password for database"
+                      required
+                      className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors font-mono"
+                    />
+                  </div>
+
+                  {configErrorMsg && (
+                    <div className="text-xs text-red-400 bg-red-950/50 border border-red-500/40 rounded-xl px-3 py-2">
+                      {configErrorMsg}
+                    </div>
+                  )}
+
+                  {configSuccessMsg && (
+                    <div className="text-xs text-emerald-300 bg-emerald-950/50 border border-emerald-500/40 rounded-xl px-3 py-2 flex items-center space-x-1.5 font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{configSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="flex space-x-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowCredentialConfig(false)}
+                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={configSaving}
+                      className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-md"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{configSaving ? 'Saving...' : 'Save'}</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* ── Standard Portal Login Form (Verifies Email, Password & 6-Digit OTP against Firestore DB) ── */
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setAdminLoginLoading(true);
+                    setAdminLoginError('');
+
+                    // 1. Validate Email & Password inputs
+                    if (!adminEmailInput.trim()) {
+                      setAdminLoginError('Please enter your email or username.');
+                      setAdminLoginLoading(false);
+                      return;
+                    }
+                    if (!adminPasswordInput) {
+                      setAdminLoginError('Please enter your password.');
+                      setAdminLoginLoading(false);
+                      return;
+                    }
+
+                    // 2. Ensure OTP was requested
+                    if (!adminOtpSent) {
+                      setAdminLoginError('Please click "Get OTP" first to receive your 6-digit verification code.');
+                      setAdminLoginLoading(false);
+                      return;
+                    }
+
+                    // 3. Validate OTP format with Zod
+                    const otpValidation = otpSchema.safeParse(adminOtpInput);
+                    if (!otpValidation.success) {
+                      setAdminLoginError(otpValidation.error.errors[0]?.message || 'OTP must be exactly 6 digits.');
+                      setAdminLoginLoading(false);
+                      return;
+                    }
+
+                    // 4. Check 3-minute expiration
+                    if (adminOtpExpiresAt && Date.now() > adminOtpExpiresAt) {
+                      setAdminLoginError('This OTP has expired (valid for 3 minutes only). Please click "Resend OTP" for a new code.');
+                      setAdminLoginLoading(false);
+                      return;
+                    }
+
+                    // 5. Verify OTP via server endpoint or backup match
+                    let otpVerified = false;
+                    try {
+                      const verRes = await fetch('/api/auth/verify-email-otp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          email: adminEmailInput.trim(),
+                          portal: adminTargetPortal,
+                          otp: adminOtpInput.trim()
+                        })
+                      });
+                      let verData: any = {};
+                      const verText = await verRes.text();
+                      try {
+                        verData = JSON.parse(verText);
+                      } catch {
+                        verData = {};
+                      }
+                      if (verRes.ok && verData.valid) {
+                        otpVerified = true;
+                      } else {
+                        // Backup check if offline / fallback
+                        if (adminGeneratedOtpBackup && adminOtpInput.trim() === adminGeneratedOtpBackup.trim()) {
+                          otpVerified = true;
+                        } else {
+                          setAdminLoginError(verData.message || 'Invalid or expired OTP code. Please check your email.');
+                          setAdminLoginLoading(false);
+                          return;
+                        }
+                      }
+                    } catch (netErr) {
+                      if (adminGeneratedOtpBackup && adminOtpInput.trim() === adminGeneratedOtpBackup.trim()) {
+                        otpVerified = true;
+                      } else {
+                        setAdminLoginError('Invalid OTP code. Please check your email.');
+                        setAdminLoginLoading(false);
+                        return;
+                      }
+                    }
+
+                    if (!otpVerified) {
+                      setAdminLoginError('Invalid OTP code. Please enter the 6-digit code sent to your email.');
+                      setAdminLoginLoading(false);
+                      return;
+                    }
+
+                    // 6. Verify credentials against Firestore (Admin_login or Property_login)
+                    const { valid } = await verifyPortalLoginFromFirestore(
+                      adminTargetPortal,
+                      adminEmailInput,
+                      adminPasswordInput
+                    );
+
+                    // Refresh state from Firestore so hint stays current
+                    const { adminCredentials, pmCredentials } = await ensurePortalCredentialsInFirestore();
+                    if (adminCredentials.length > 0) setAdminDbCredentials(adminCredentials);
+                    if (pmCredentials.length > 0) setPmDbCredentials(pmCredentials);
+
+                    if (valid) {
+                      if (adminTargetPortal === 'admin') {
+                        setAdminAuthenticated(true);
+                      } else {
+                        setPropertyManagerAuthenticated(true);
+                      }
+                      setShowAdminLoginModal(false);
+                      setAdminPanelOpen(true);
+                      if (adminTargetPortal === 'property_manager') {
+                        setActiveTab('properties');
+                      } else {
+                        setActiveTab('crm');
+                      }
+                    } else {
+                      setAdminLoginError(
+                        `Invalid login or password in ${adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'} database.`
+                      );
+                    }
+                    setAdminLoginLoading(false);
+                  }}
+                  className="space-y-4"
+                >
+                  {/* Email / Login with Get OTP button */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                      <span>{adminTargetPortal === 'property_manager' ? 'Manager Email / Login' : 'Admin Email / Login'}</span>
+                      <span className="text-[10px] text-amber-600 font-medium">OTP sent to this email</span>
+                    </label>
+                    <div className="flex space-x-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2">
+                          <Mail className="w-4 h-4 text-slate-500" />
+                        </span>
+                        <input
+                          id="admin-email-input"
+                          type="email"
+                          value={adminEmailInput}
+                          onChange={(e) => { setAdminEmailInput(e.target.value); setAdminLoginError(''); }}
+                          placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL}
+                          autoFocus
+                          required
+                          className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
+                        />
+                      </div>
+                      <button
+                        id="admin-get-otp-btn"
+                        type="button"
+                        onClick={handleGetAdminOtp}
+                        disabled={!adminEmailInput.trim() || adminOtpLoading}
+                        className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 shadow-sm ${
+                          adminEmailInput.trim() && !adminOtpLoading
+                            ? 'bg-amber-500 hover:bg-amber-400 text-amber-950 cursor-pointer active:scale-95'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        {adminOtpLoading ? (
+                          <>
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            <span>Sending...</span>
+                          </>
+                        ) : adminOtpSent ? (
+                          <>
+                            <KeyRound className="w-3.5 h-3.5" />
+                            <span>Resend OTP</span>
+                          </>
+                        ) : (
+                          <>
+                            <KeyRound className="w-3.5 h-3.5" />
+                            <span>Get OTP</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2">
+                        <Lock className="w-4 h-4 text-slate-500" />
+                      </span>
+                      <input
+                        id="admin-password-input"
+                        type="password"
+                        value={adminPasswordInput}
+                        onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminLoginError(''); }}
+                        placeholder="Enter password"
+                        required
+                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email OTP Sent Notice Card with 3-Minute Live Timer */}
+                  {adminOtpSent && (
+                    <div className="bg-gradient-to-r from-emerald-950/70 via-slate-800/80 to-emerald-950/50 border border-emerald-500/40 rounded-xl p-3.5 space-y-2 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>OTP Dispatched via Brevo</span>
+                        </span>
+                        <span className={`text-[11px] font-mono font-bold flex items-center space-x-1 ${
+                          otpTimeRemaining > 30 ? 'text-emerald-400' : 'text-rose-400 animate-pulse'
+                        }`}>
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {Math.floor(otpTimeRemaining / 60)}:{(otpTimeRemaining % 60).toString().padStart(2, '0')}
+                          </span>
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-200">
+                        A 6-digit verification code was emailed to <strong className="text-amber-700">{adminEmailInput}</strong>. Check your inbox/spam folder.
+                      </p>
+                      <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-700/60">
+                        <span>Valid for exactly 3 minutes</span>
+                        {otpTimeRemaining === 0 && (
+                          <span className="text-rose-400 font-bold">Expired. Click 'Resend OTP'</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 6-Digit OTP Input Field */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <Lock className="w-3.5 h-3.5 text-violet-400" />
+                        <span>Enter 6-Digit Email OTP</span>
+                      </label>
+                      <span className={`text-[10px] font-mono font-bold ${
+                        adminOtpInput.length === 6 ? 'text-emerald-400' : 'text-slate-400'
+                      }`}>
+                        {adminOtpInput.length}/6 digits
+                      </span>
+                    </div>
+                    <input
+                      id="admin-otp-input"
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={adminOtpInput}
+                      disabled={!adminOtpSent}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setAdminOtpInput(digits);
+                        setAdminLoginError('');
+                      }}
+                      placeholder={adminOtpSent ? "Type 6-digit OTP from email" : "Click 'Get OTP' above first"}
+                      required
+                      className={`w-full bg-slate-800 border rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-colors font-mono tracking-widest ${
+                        !adminOtpSent
+                          ? 'opacity-50 cursor-not-allowed border-slate-700'
+                          : 'border-slate-700 focus:border-amber-500'
+                      }`}
+                    />
+                    {!adminOtpSent && (
+                      <p className="text-[11px] text-amber-600/90 flex items-center space-x-1">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>Enter email above and click "Get OTP" to receive your code.</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Login / Auth Error */}
+                  {adminLoginError && (
+                    <div className="flex items-center space-x-2 bg-red-950/60 border border-red-500/50 rounded-xl px-3 py-2.5 text-xs text-rose-300">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>{adminLoginError}</span>
+                    </div>
+                  )}
+
+                  {/* Hint */}
+                  <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-[11px] text-slate-500 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-400 font-medium">DB Login:</span>{' '}
+                      <span className={adminTargetPortal === 'property_manager' ? 'text-amber-600 font-mono' : 'text-violet-400 font-mono'}>
+                        {adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 font-medium flex items-center space-x-1">
+                      <Clock className="w-3 h-3" />
+                      <span>3-Min Security OTP</span>
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex space-x-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAdminLoginModal(false);
+                        resetAdminModalState();
+                      }}
+                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={adminLoginLoading || !adminOtpSent || adminOtpInput.length !== 6 || !adminEmailInput.trim()}
+                      className={`flex-1 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md ${
+                        adminTargetPortal === 'property_manager'
+                          ? 'bg-amber-500 hover:bg-amber-400 text-amber-950'
+                          : 'bg-violet-600 hover:bg-violet-500 text-white'
+                      }`}
+                    >
+                      {adminLoginLoading ? (
+                        <>
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          <span>Verifying OTP & Login...</span>
+                        </>
+                      ) : (
+                        <span>Verify & Enter {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'}</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

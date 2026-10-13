@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
@@ -17,7 +17,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
 export const db = (firebaseConfig as any).firestoreDatabaseId
@@ -719,3 +719,378 @@ export async function savePropertyToFirestore(property: PropertyListing): Promis
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin & Property Manager Database Credentials (Admin_login & Property_login)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEFAULT_ADMIN_CREDENTIAL: PortalCredential = {
+  id: 'admin',
+  email: 'admin@lykarealty.ae',
+  password: 'LykaAdmin2024',
+  role: 'admin',
+  name: 'Lyka Super Admin'
+};
+
+const DEFAULT_PM_CREDENTIAL: PortalCredential = {
+  id: 'property_manager',
+  email: 'manager@lykarealty.ae',
+  password: 'LykaManager2024',
+  role: 'property_manager',
+  name: 'Lyka Property Manager'
+};
+
+function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'property_manager'): PortalCredential | null {
+  if (!raw) return null;
+  const email = String(raw.email || raw.Email_id || raw.username || raw.user_login || raw.login || '').trim();
+  const password = String(raw.password || raw.Password || '').trim();
+  if (!email || !password) return null;
+
+  const rawRole = String(raw.role || '').toLowerCase();
+  const role: 'admin' | 'property_manager' =
+    rawRole.includes('property') || rawRole.includes('manager') || id.toLowerCase().includes('property') || id.toLowerCase().includes('manager')
+      ? 'property_manager'
+      : rawRole.includes('admin')
+      ? 'admin'
+      : fallbackRole;
+
+  return {
+    id,
+    email,
+    password,
+    role,
+    name: raw.name || raw.Name || (role === 'admin' ? 'Admin' : 'Property Manager'),
+    phone: raw.phone || raw.Phone_number || undefined,
+    otp_code: raw.otp_code || undefined,
+    otp_created_at: raw.otp_created_at || undefined,
+    updatedAt: raw.updatedAt || new Date().toISOString()
+  };
+}
+
+/**
+ * Ensures default Admin and Property Manager login credentials exist in Firestore
+ * under `Admin_login` and `Property_login` collections so they can be managed in DB.
+ */
+export async function ensurePortalCredentialsInFirestore(): Promise<{
+  adminCredentials: PortalCredential[];
+  pmCredentials: PortalCredential[];
+}> {
+  try {
+    const [adminSnap, propSnap] = await Promise.all([
+      getDocs(collection(db, 'Admin_login')),
+      getDocs(collection(db, 'Property_login'))
+    ]);
+
+    const adminList: PortalCredential[] = [];
+    const pmList: PortalCredential[] = [];
+
+    adminSnap.forEach((d) => {
+      const parsed = normalizeCredentialDoc(d.id, d.data(), 'admin');
+      if (parsed) {
+        if (parsed.role === 'property_manager') {
+          pmList.push(parsed);
+        } else {
+          adminList.push(parsed);
+        }
+      }
+    });
+
+    propSnap.forEach((d) => {
+      const parsed = normalizeCredentialDoc(d.id, d.data(), 'property_manager');
+      if (parsed) {
+        // Avoid duplicates by email
+        if (!pmList.some(existing => existing.email.toLowerCase() === parsed.email.toLowerCase())) {
+          pmList.push(parsed);
+        }
+      }
+    });
+
+    const now = new Date().toISOString();
+
+    // Seed default Admin in Admin_login if none exists
+    if (adminList.length === 0) {
+      const seedAdmin = {
+        ...DEFAULT_ADMIN_CREDENTIAL,
+        Email_id: DEFAULT_ADMIN_CREDENTIAL.email,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'Admin_login', 'admin'), seedAdmin, { merge: true });
+      } catch (e) {
+        console.warn('Could not seed Admin_login/admin in Firestore:', e);
+      }
+      adminList.push(DEFAULT_ADMIN_CREDENTIAL);
+    }
+
+    // Seed default Property Manager in Property_login (and Admin_login) if none exists
+    if (pmList.length === 0) {
+      const seedPm = {
+        ...DEFAULT_PM_CREDENTIAL,
+        Email_id: DEFAULT_PM_CREDENTIAL.email,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'Property_login', 'property_manager'), seedPm, { merge: true });
+        await setDoc(doc(db, 'Admin_login', 'property_manager'), seedPm, { merge: true });
+      } catch (e) {
+        console.warn('Could not seed Property_login/property_manager in Firestore:', e);
+      }
+      pmList.push(DEFAULT_PM_CREDENTIAL);
+    }
+
+    // Cache locally for fast fallback
+    try {
+      localStorage.setItem('portal_admin_credentials', JSON.stringify(adminList));
+      localStorage.setItem('portal_pm_credentials', JSON.stringify(pmList));
+    } catch (_) {}
+
+    return { adminCredentials: adminList, pmCredentials: pmList };
+  } catch (error) {
+    console.warn('Could not fetch portal credentials from Firestore, using cached/default:', error);
+    let cachedAdmin: PortalCredential[] = [DEFAULT_ADMIN_CREDENTIAL];
+    let cachedPm: PortalCredential[] = [DEFAULT_PM_CREDENTIAL];
+    try {
+      const aStr = localStorage.getItem('portal_admin_credentials');
+      const pStr = localStorage.getItem('portal_pm_credentials');
+      if (aStr) cachedAdmin = JSON.parse(aStr);
+      if (pStr) cachedPm = JSON.parse(pStr);
+    } catch (_) {}
+    return { adminCredentials: cachedAdmin, pmCredentials: cachedPm };
+  }
+}
+
+/**
+ * Verifies Admin or Property Manager login against Firestore (`Admin_login` and `Property_login`).
+ * Always reads directly from Firestore (bypasses localStorage cache) so credential changes
+ * made in the admin panel take effect on the very next login attempt.
+ */
+export async function verifyPortalLoginFromFirestore(
+  portal: 'admin' | 'property_manager',
+  inputEmailOrUser: string,
+  inputPassword: string
+): Promise<{ valid: boolean; matchedCredential?: PortalCredential }> {
+  const cleanLogin = inputEmailOrUser.trim().toLowerCase();
+  const cleanPassword = inputPassword;
+
+  if (!cleanLogin || !cleanPassword) {
+    return { valid: false };
+  }
+
+  try {
+    // Always read fresh from Firestore — never use the localStorage cache for login verification
+    const [adminSnap, propSnap] = await Promise.all([
+      getDocs(collection(db, 'Admin_login')),
+      getDocs(collection(db, 'Property_login'))
+    ]);
+
+    const adminList: PortalCredential[] = [];
+    const pmList: PortalCredential[] = [];
+
+    adminSnap.forEach((d) => {
+      const parsed = normalizeCredentialDoc(d.id, d.data(), 'admin');
+      if (parsed) {
+        if (parsed.role === 'property_manager') pmList.push(parsed);
+        else adminList.push(parsed);
+      }
+    });
+
+    propSnap.forEach((d) => {
+      const parsed = normalizeCredentialDoc(d.id, d.data(), 'property_manager');
+      if (parsed && !pmList.some(e => e.email.toLowerCase() === parsed.email.toLowerCase())) {
+        pmList.push(parsed);
+      }
+    });
+
+    const targetList = portal === 'admin' ? adminList : pmList;
+    const matched = targetList.find(
+      (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
+    );
+
+    if (matched) {
+      return { valid: true, matchedCredential: matched };
+    }
+
+    return { valid: false };
+  } catch (error) {
+    // Fallback to ensurePortalCredentials (uses cache) if Firestore read fails
+    console.warn('Direct Firestore login check failed, falling back to cached credentials:', error);
+    const { adminCredentials, pmCredentials } = await ensurePortalCredentialsInFirestore();
+    const targetList = portal === 'admin' ? adminCredentials : pmCredentials;
+    const matched = targetList.find(
+      (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
+    );
+    return matched ? { valid: true, matchedCredential: matched } : { valid: false };
+  }
+}
+
+/**
+ * Updates or creates Admin or Property Manager login credentials in Firestore.
+ * Stores Admin credentials in `Admin_login` and Property Manager credentials in `Property_login` (and `Admin_login`).
+ */
+export async function savePortalCredentialToFirestore(
+  portal: 'admin' | 'property_manager',
+  email: string,
+  password: string,
+  name?: string,
+  docId?: string
+): Promise<PortalCredential> {
+  const cleanEmail = email.trim();
+  const now = new Date().toISOString();
+  const targetDocId = docId || (portal === 'admin' ? 'admin' : 'property_manager');
+
+  const record: PortalCredential = {
+    id: targetDocId,
+    email: cleanEmail,
+    password,
+    role: portal,
+    name: name?.trim() || (portal === 'admin' ? 'Lyka Super Admin' : 'Lyka Property Manager'),
+    updatedAt: now
+  };
+
+  const firestorePayload = {
+    ...record,
+    Email_id: cleanEmail
+  };
+
+  // Update local storage cache immediately
+  try {
+    const storageKey = portal === 'admin' ? 'portal_admin_credentials' : 'portal_pm_credentials';
+    const existingStr = localStorage.getItem(storageKey);
+    let list: PortalCredential[] = existingStr ? JSON.parse(existingStr) : [];
+    const idx = list.findIndex(item => item.id === targetDocId || item.email.toLowerCase() === cleanEmail.toLowerCase());
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...record };
+    } else {
+      list.push(record);
+    }
+    localStorage.setItem(storageKey, JSON.stringify(list));
+    // Also wipe BOTH cache keys so verifyPortalLoginFromFirestore always reads fresh from Firestore
+    localStorage.removeItem('portal_admin_credentials');
+    localStorage.removeItem('portal_pm_credentials');
+  } catch (_) {}
+
+  // Save to Firestore collections
+  if (portal === 'admin') {
+    await setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true });
+  } else {
+    await Promise.all([
+      setDoc(doc(db, 'Property_login', targetDocId), firestorePayload, { merge: true }),
+      setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true })
+    ]);
+  }
+
+  return record;
+}
+
+/**
+ * Saves the generated 6-digit Email OTP code to Firestore
+ * (`Admin_login` or `Property_login`) — ONLY the OTP fields are written.
+ * The email and password fields in Firestore are NEVER modified by this function.
+ */
+export async function savePortalEmailOtpToFirestore(
+  portal: 'admin' | 'property_manager',
+  email: string,
+  otpCode: string
+): Promise<void> {
+  const targetDocId = portal === 'admin' ? 'admin' : 'property_manager';
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 3 * 60 * 1000).toISOString();
+
+  // Only OTP fields — never touch email / password
+  const otpFields = {
+    otp_code: otpCode,
+    otp_created_at: now.toISOString(),
+    otp_expires_at: expiresAt,
+    otp_requested_for: email.trim(),
+    updatedAt: now.toISOString()
+  };
+
+  try {
+    if (portal === 'admin') {
+      try {
+        await updateDoc(doc(db, 'Admin_login', targetDocId), otpFields);
+      } catch {
+        // Document may not exist yet — create with OTP fields only
+        await setDoc(doc(db, 'Admin_login', targetDocId), otpFields, { merge: true });
+      }
+    } else {
+      await Promise.all([
+        updateDoc(doc(db, 'Property_login', targetDocId), otpFields).catch(() =>
+          setDoc(doc(db, 'Property_login', targetDocId), otpFields, { merge: true })
+        ),
+        updateDoc(doc(db, 'Admin_login', targetDocId), otpFields).catch(() =>
+          setDoc(doc(db, 'Admin_login', targetDocId), otpFields, { merge: true })
+        )
+      ]);
+    }
+  } catch (error) {
+    console.warn(`Could not save Email OTP to Firestore:`, error);
+  }
+}
+
+
+/**
+ * Sends a real SMS OTP to the given phone number using Firebase Phone Authentication.
+ * Sets up an invisible RecaptchaVerifier if not already present.
+ */
+let portalRecaptchaVerifier: any = null;
+
+
+export async function sendFirebasePhoneOtp(
+  phoneNumberWithCountryCode: string,
+  containerButtonId = 'admin-get-otp-btn'
+): Promise<{ confirmationResult: any }> {
+  try {
+    if (portalRecaptchaVerifier) {
+      try {
+        portalRecaptchaVerifier.clear();
+      } catch (_) {}
+      portalRecaptchaVerifier = null;
+    }
+
+    const containerEl = document.getElementById(containerButtonId) || document.body;
+
+    portalRecaptchaVerifier = new RecaptchaVerifier(auth, containerEl, {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA solved
+      }
+    });
+
+    await portalRecaptchaVerifier.render();
+
+    const confirmationResult = await signInWithPhoneNumber(
+      auth,
+      phoneNumberWithCountryCode,
+      portalRecaptchaVerifier
+    );
+
+    return { confirmationResult };
+  } catch (error: any) {
+    console.error('sendFirebasePhoneOtp error:', error);
+    if (portalRecaptchaVerifier) {
+      try {
+        portalRecaptchaVerifier.clear();
+      } catch (_) {}
+      portalRecaptchaVerifier = null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Verifies the 6-digit OTP code against Firebase Phone Auth confirmation result.
+ */
+export async function verifyFirebasePhoneOtp(
+  confirmationResult: any,
+  otpCode: string
+): Promise<boolean> {
+  if (!confirmationResult || typeof confirmationResult.confirm !== 'function') {
+    throw new Error('No active Firebase phone verification session found.');
+  }
+  const userCredential = await confirmationResult.confirm(otpCode);
+  return !!userCredential?.user;
+}
+
+
+

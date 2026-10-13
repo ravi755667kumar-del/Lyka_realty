@@ -994,6 +994,178 @@ function mapStageFromAction(nextAction: string, intent: string): string {
 
 
 
+// In-memory store for OTPs (with 3-minute expiration)
+interface OtpRecord {
+  code: string;
+  email: string;
+  portal: 'admin' | 'property_manager';
+  expiresAt: number; // timestamp in ms (3 minutes)
+  createdAt: number;
+}
+const activeEmailOtps: Record<string, OtpRecord> = {};
+
+// Send 6-Digit Email OTP via Brevo API
+app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, portal } = req.body;
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'Valid email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const portalName = portal === 'property_manager' ? 'Property Manager' : 'Admin';
+
+    // 1. Generate secure 6-digit OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const now = Date.now();
+    const expiresAt = now + 3 * 60 * 1000; // Strictly 3 minutes valid
+
+    // Save in memory record
+    const otpKey = `${portal || 'admin'}_${cleanEmail}`;
+    activeEmailOtps[otpKey] = {
+      code: otpCode,
+      email: cleanEmail,
+      portal: portal || 'admin',
+      expiresAt,
+      createdAt: now
+    };
+
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL || 'admin@lykarealty.ae';
+
+    if (!brevoApiKey) {
+      console.warn('BREVO_API_KEY not configured in .env. Falling back to local verification.');
+      return res.json({
+        success: true,
+        expiresInSeconds: 180,
+        message: 'OTP generated (local mode). Check terminal or backup code.',
+        otpBackup: otpCode
+      });
+    }
+
+    // 2. Call Brevo Transactional Email API (https://api.brevo.com/v3/smtp/email)
+    const emailPayload = {
+      sender: {
+        name: 'Lyka Realty Portal',
+        email: brevoSenderEmail
+      },
+      to: [
+        {
+          email: cleanEmail,
+          name: portalName
+        }
+      ],
+      subject: `Lyka Realty - Your ${portalName} Login Verification Code`,
+      htmlContent: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; margin: 0; padding: 24px; color: #f1f5f9; }
+            .card { max-width: 520px; margin: 0 auto; background: #131b2e; border: 1px solid #1e293b; border-radius: 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+            .brand { color: #f59e0b; font-size: 20px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+            .title { color: #ffffff; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 12px; }
+            .text { color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+            .otp-box { background: #0f172a; border: 2px dashed #f59e0b; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
+            .otp-code { font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #fbbf24; margin: 0; }
+            .badge { display: inline-block; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; margin-top: 12px; }
+            .footer { color: #64748b; font-size: 12px; text-align: center; margin-top: 32px; border-top: 1px solid #1e293b; pt: 16px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="brand">🏰 LYKA REALTY DUBAI</div>
+            <h1 class="title">${portalName} Security Verification</h1>
+            <p class="text">
+              We received a login request for your <strong>${portalName} Portal</strong>. Please use the verification code below to complete your login.
+            </p>
+            <div class="otp-box">
+              <div class="otp-code">${otpCode}</div>
+              <div class="badge">⏱️ Valid for 3 Minutes Only</div>
+            </div>
+            <p class="text" style="font-size: 13px; color: #64748b;">
+              This code will expire in exactly 3 minutes. If you did not attempt to sign in to Lyka Realty, please ignore this email or change your account password.
+            </p>
+            <div class="footer">
+              © ${new Date().getFullYear()} Lyka Realty LLC, Dubai, UAE. Confidential Security Notification.
+            </div>
+          </div>
+        </body>
+        </html>
+      `
+    };
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': brevoApiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(emailPayload)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.warn('Brevo API response error:', data);
+      return res.status(response.status).json({
+        error: data.message || 'Failed to send OTP email via Brevo.',
+        otpBackup: otpCode
+      });
+    }
+
+    console.log(`[Brevo] OTP sent successfully to ${cleanEmail}. MessageId:`, data.messageId);
+    return res.json({
+      success: true,
+      messageId: data.messageId,
+      expiresInSeconds: 180,
+      message: `Verification code sent to ${cleanEmail}. Valid for 3 minutes.`
+    });
+
+  } catch (error: any) {
+    console.error('[Brevo Error]:', error);
+    res.status(500).json({ error: error?.message || 'Server error sending email OTP.' });
+  }
+});
+
+// Verify 6-Digit Email OTP
+app.post('/api/auth/verify-email-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, portal, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ valid: false, message: 'Email and OTP are required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+    const otpKey = `${portal || 'admin'}_${cleanEmail}`;
+    const record = activeEmailOtps[otpKey];
+
+    if (!record) {
+      return res.status(400).json({ valid: false, message: 'No OTP requested for this email. Please click "Get OTP" first.' });
+    }
+
+    const now = Date.now();
+    if (now > record.expiresAt) {
+      delete activeEmailOtps[otpKey];
+      return res.status(400).json({ valid: false, expired: true, message: 'OTP has expired (valid for 3 minutes only). Please request a new OTP.' });
+    }
+
+    if (record.code !== cleanOtp) {
+      return res.status(400).json({ valid: false, message: 'Invalid OTP code. Please enter the 6-digit code sent to your email.' });
+    }
+
+    // OTP is valid! Delete once consumed
+    delete activeEmailOtps[otpKey];
+    return res.json({ valid: true, message: 'OTP verified successfully.' });
+
+  } catch (error: any) {
+    res.status(500).json({ valid: false, message: error?.message });
+  }
+});
+
 // Mount Vite or static build
 async function startServer() {
   if (process.env.NODE_ENV === 'production') {

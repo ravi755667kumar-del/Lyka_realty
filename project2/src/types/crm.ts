@@ -275,3 +275,17 @@ export interface LoginEvent {
   timestamp: string;
   age?: number | null;
 }
+
+export interface PortalCredential {
+  id: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'property_manager';
+  name?: string;
+  phone?: string;
+  otp_code?: string;
+  otp_created_at?: string;
+  updatedAt?: string;
+}
+
+

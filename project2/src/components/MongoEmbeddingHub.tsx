@@ -218,7 +218,7 @@ APP_URL="MY_APP_URL"`;
   };
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-100 flex flex-col h-full overflow-y-auto p-4 sm:p-6 space-y-6">
+    <div className="flex-1 bg-slate-950 text-slate-300 flex flex-col h-full overflow-y-auto p-4 sm:p-6 space-y-6">
       {/* Header Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-lg">
         <div className="space-y-1">
@@ -233,7 +233,7 @@ APP_URL="MY_APP_URL"`;
                   {mongoStatus.configuredModel}
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 All sections of <strong className="text-amber-700">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</strong> and customer requirements converted into numerical float vectors and stored in MongoDB.
               </p>
             </div>
@@ -587,7 +587,7 @@ APP_URL="MY_APP_URL"`;
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
+                <thead className="bg-slate-950 text-slate-500 border-b border-slate-800">
                   <tr>
                     <th className="p-2.5">MongoDB Doc ID</th>
                     <th className="p-2.5">PDF Section Title</th>
@@ -603,7 +603,7 @@ APP_URL="MY_APP_URL"`;
                       <td className="p-2.5 font-mono text-amber-600 font-bold">
                         {sec._id}
                       </td>
-                      <td className="p-2.5 text-slate-200 font-medium">
+                      <td className="p-2.5 text-slate-300 font-medium">
                         {sec.title}
                       </td>
                       <td className="p-2.5">
@@ -776,7 +776,7 @@ APP_URL="MY_APP_URL"`;
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
+                  <thead className="bg-slate-950 text-slate-500 border-b border-slate-800">
                     <tr>
                       <th className="p-2.5">MongoDB Document ID</th>
                       <th className="p-2.5">Storage Destination</th>
