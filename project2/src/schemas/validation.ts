@@ -8,10 +8,7 @@ import { z } from 'zod';
  * - Completely rejects any letters, words, spaces, or non-numeric symbols
  */
 export const mobilePhoneSchema = z
-  .string({
-    required_error: 'Mobile number is required.',
-    invalid_type_error: 'Mobile number must be a valid string.'
-  })
+  .string()
   .trim()
   .min(1, { message: 'Mobile number is required.' })
   .regex(/^[0-9]{10}$/, {
@@ -25,10 +22,7 @@ export const mobilePhoneSchema = z
  * - Exactly 6 numeric digits (0-9)
  */
 export const otpSchema = z
-  .string({
-    required_error: 'OTP is required.',
-    invalid_type_error: 'OTP must be a valid string.'
-  })
+  .string()
   .trim()
   .min(1, { message: 'OTP is required.' })
   .regex(/^[0-9]{6}$/, {

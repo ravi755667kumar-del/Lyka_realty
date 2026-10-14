@@ -50,19 +50,13 @@ export const MongoEmbeddingHub: React.FC<MongoEmbeddingHubProps> = ({ currentLea
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [viewingDocModal, setViewingDocModal] = useState<any | null>(null);
 
-  // MongoDB URI live connect state
-  const [customUri, setCustomUri] = useState('');
-  const [customDbName, setCustomDbName] = useState('');
-  const [isConnectingMongo, setIsConnectingMongo] = useState(false);
-  const [mongoConnectMessage, setMongoConnectMessage] = useState<{ text: string; success: boolean } | null>(null);
-
   const fetchStatus = async () => {
     try {
-      const res = await fetch('/api/mongodb/status');
+      const res = await fetch('/api/embeddings/status');
       const data = await res.json();
       setMongoStatus(data);
     } catch (e) {
-      console.warn('Failed to fetch mongodb status:', e);
+      console.warn('Failed to fetch vector status:', e);
     }
   };
 
@@ -102,14 +96,14 @@ export const MongoEmbeddingHub: React.FC<MongoEmbeddingHubProps> = ({ currentLea
     }
   }, [currentLead]);
 
-  const handleSyncPdfToMongo = async () => {
+  const handleSyncPdfToFirebase = async () => {
     setIsSyncingPdf(true);
     setPdfSyncMessage(null);
     try {
       const res = await fetch('/api/embeddings/sync-pdf', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        setPdfSyncMessage(`Successfully embedded and saved all ${data.count} sections of the PDF into MongoDB collection 'pdf_knowledge_embeddings'!`);
+        setPdfSyncMessage(`Successfully embedded and saved all ${data.count} sections of the PDF into Firebase Firestore collection 'pdf_knowledge_embeddings'!`);
         fetchPdfEmbeddings();
         fetchStatus();
       } else {
@@ -119,37 +113,6 @@ export const MongoEmbeddingHub: React.FC<MongoEmbeddingHubProps> = ({ currentLea
       setPdfSyncMessage(err.message || 'Error syncing PDF embeddings');
     } finally {
       setIsSyncingPdf(false);
-    }
-  };
-
-  const handleConnectMongo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customUri.trim() || isConnectingMongo) return;
-
-    setIsConnectingMongo(true);
-    setMongoConnectMessage(null);
-    try {
-      const res = await fetch('/api/mongodb/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          uri: customUri.trim(),
-          databaseName: customDbName.trim() || undefined
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMongoConnectMessage({ text: data.message || 'Connected successfully to MongoDB Database!', success: true });
-        fetchStatus();
-        fetchStoredList();
-        fetchPdfEmbeddings();
-      } else {
-        setMongoConnectMessage({ text: data.error || 'Connection failed', success: false });
-      }
-    } catch (err: any) {
-      setMongoConnectMessage({ text: err.message || 'Network error connecting to MongoDB', success: false });
-    } finally {
-      setIsConnectingMongo(false);
     }
   };
 
@@ -189,17 +152,14 @@ export const MongoEmbeddingHub: React.FC<MongoEmbeddingHubProps> = ({ currentLea
   };
 
   const envSnippet = `# Lyka Realty Vector & AI Model Configuration
-# 1. MongoDB Database URI (Stores Numerical Vectors Directly into MongoDB)
-MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/lyka_realty?retryWrites=true&w=majority"
-
-# 2. Text-to-Number Embedding Model (Configures numerical vector dimensions)
+# 1. Text-to-Number Embedding Model (Configures numerical vector dimensions)
 TEXT_TO_NUMERICAL_MODEL="text-embedding-004"
 
-# 3. Groq Fast AI Inference Model & API Key
+# 2. Groq Fast AI Inference Model & API Key
 GROQ_API_KEY="gsk_YOUR_GROQ_API_KEY"
 GROQ_MODEL="llama-3.3-70b-versatile"
 
-# 4. Gemini AI Key & Applet Hosting URL
+# 3. Gemini AI Key & Applet Hosting URL
 GEMINI_API_KEY="YOUR_GEMINI_KEY"
 APP_URL="MY_APP_URL"`;
 
@@ -209,9 +169,9 @@ APP_URL="MY_APP_URL"`;
     setTimeout(() => setCopiedEnv(false), 2000);
   };
 
-  const copyMongoQuery = (rec: any) => {
+  const copyDocId = (rec: any) => {
     const col = rec.section_number ? 'pdf_knowledge_embeddings' : 'customer_embeddings';
-    const query = `db.${col}.find({ _id: "${rec._id}" })`;
+    const query = `Firestore: collection('${col}').doc('${rec.id || rec._id}')`;
     navigator.clipboard.writeText(query);
     setCopiedQuery(true);
     setTimeout(() => setCopiedQuery(false), 2000);
@@ -271,7 +231,7 @@ APP_URL="MY_APP_URL"`;
             </h3>
           </div>
           <button
-            onClick={handleSyncPdfToMongo}
+            onClick={handleSyncPdfToFirebase}
             disabled={isSyncingPdf}
             className="flex items-center space-x-1.5 text-xs bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-amber-950 font-bold px-3 py-1.5 rounded-xl transition-colors shadow cursor-pointer"
           >
@@ -311,51 +271,14 @@ APP_URL="MY_APP_URL"`;
         </div>
       </div>
 
-      {/* Dual Database Architecture Card: MongoDB + Firebase */}
+      {/* Firebase Firestore Architecture & Vector Engine Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* MongoDB Card */}
-        <div className={`p-4 rounded-2xl border transition-all ${
-          mongoStatus.connected 
-            ? 'bg-emerald-950/20 border-emerald-500/30' 
-            : 'bg-slate-900 border-slate-800'
-        }`}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-            <div className="flex items-center space-x-2">
-              <span className="text-lg">🍃</span>
-              <h3 className="text-sm font-bold text-slate-300">MongoDB Database</h3>
-            </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-              mongoStatus.connected ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-700'
-            }`}>
-              {mongoStatus.connected ? 'DIRECT CLUSTER STORAGE ACTIVE' : 'AWAITING CLUSTER URI'}
-            </span>
-          </div>
-          <div className="pt-2.5 text-xs text-slate-300 space-y-1.5">
-            <div className="flex justify-between">
-              <span className="text-slate-400">Target Database:</span>
-              <strong className="text-emerald-400 font-mono">{mongoStatus.databaseName || 'lyka_realty'}</strong>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Collections in DB:</span>
-              <strong className="text-slate-300 font-mono">pdf_knowledge_embeddings, customer_embeddings</strong>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Data Stored:</span>
-              <span className="text-slate-300">Text-to-number float vector arrays for cosine search</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Total PDF & Customer Vectors:</span>
-              <strong className="text-amber-600 font-mono">{pdfEmbeddings.length + storedRecords.length} records</strong>
-            </div>
-          </div>
-        </div>
-
         {/* Firebase Firestore Card */}
         <div className="p-4 rounded-2xl border bg-amber-950/20 border-amber-500/30">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <div className="flex items-center space-x-2">
               <span className="text-lg">🔥</span>
-              <h3 className="text-sm font-bold text-slate-300">Firebase Firestore</h3>
+              <h3 className="text-sm font-bold text-slate-300">Firebase Firestore (Primary Database)</h3>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
               PROVISIONED & ACTIVE
@@ -363,81 +286,54 @@ APP_URL="MY_APP_URL"`;
           </div>
           <div className="pt-2.5 text-xs text-slate-300 space-y-1.5">
             <div className="flex justify-between">
+              <span className="text-slate-400">Project ID:</span>
+              <strong className="text-amber-500 font-mono">angent-chatbot</strong>
+            </div>
+            <div className="flex justify-between">
               <span className="text-slate-400">Collections:</span>
-              <strong className="text-amber-700 font-mono">leads, interactions, followups</strong>
+              <strong className="text-slate-300 font-mono">pdf_knowledge_embeddings, customer_embeddings, leads, interactions</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Data Stored:</span>
-              <span className="text-slate-300">Customer CRM profiles, chat transcripts, viewing tasks</span>
+              <span className="text-slate-300">Vector embeddings, CRM lead profiles, chat history, user auth</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Security Rules:</span>
-              <span className="text-emerald-400 font-mono">firestore.rules (Deployed)</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-400">Sync Mode:</span>
-              <span className="text-slate-300">Real-time reactive listener</span>
+              <span className="text-slate-400">Total Vectors Stored:</span>
+              <strong className="text-emerald-400 font-mono">{pdfEmbeddings.length + storedRecords.length} records</strong>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* MongoDB Live Connection Form */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
-            <Server className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-slate-300">Connect Remote MongoDB Database (Atlas / VPS)</h3>
+        {/* Vector Embeddings & RAG Engine Card */}
+        <div className="p-4 rounded-2xl border bg-slate-900 border-slate-800">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center space-x-2">
+              <Cpu className="w-4 h-4 text-amber-500" />
+              <h3 className="text-sm font-bold text-slate-300">AI Vector & Semantic Search Engine</h3>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              128 DIMENSIONS + Σ
+            </span>
           </div>
-          <div className="text-[11px] text-slate-400">
-            Enter your MongoDB URI below or set <code className="text-amber-600 font-mono">MONGODB_URI</code> in <code className="text-amber-600 font-mono">.env</code>
+          <div className="pt-2.5 text-xs text-slate-300 space-y-1.5">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Embedding Model:</span>
+              <strong className="text-amber-400 font-mono">{mongoStatus.configuredModel || 'text-embedding-004'}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Geometry:</span>
+              <span className="text-slate-300">128 Normalized Float Arrays with Scalar Vector Sum (Σ)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Similarity Metric:</span>
+              <span className="text-emerald-400 font-semibold">Cosine Similarity for RAG context match</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Knowledge Base Source:</span>
+              <span className="text-slate-300 truncate">Real Estate Lead Qualification Specs</span>
+            </div>
           </div>
         </div>
-
-        <form onSubmit={handleConnectMongo} className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            value={customUri}
-            onChange={(e) => setCustomUri(e.target.value)}
-            placeholder="mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority"
-            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-300 placeholder-slate-600 outline-none focus:border-emerald-500"
-          />
-          <input
-            type="text"
-            value={customDbName}
-            onChange={(e) => setCustomDbName(e.target.value)}
-            placeholder={`Database Name (current: ${mongoStatus.databaseName || 'lyka_realty'})`}
-            className="w-full sm:w-64 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-300 placeholder-slate-600 outline-none focus:border-emerald-500"
-          />
-          <button
-            type="submit"
-            disabled={isConnectingMongo || !customUri.trim()}
-            className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs transition-colors shrink-0 flex items-center justify-center space-x-1.5 shadow-md cursor-pointer"
-          >
-            {isConnectingMongo ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Connecting...</span>
-              </>
-            ) : (
-              <>
-                <Database className="w-3.5 h-3.5" />
-                <span>Connect & Verify</span>
-              </>
-            )}
-          </button>
-        </form>
-
-        {mongoConnectMessage && (
-          <div className={`p-3 rounded-xl border text-xs flex items-center space-x-2 ${
-            mongoConnectMessage.success 
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-          }`}>
-            {mongoConnectMessage.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
-            <span>{mongoConnectMessage.text}</span>
-          </div>
-        )}
       </div>
 
       {/* Tabs Switcher for Vector Collections */}
@@ -499,12 +395,12 @@ APP_URL="MY_APP_URL"`;
                   <span className="font-semibold text-slate-300">Lyka_Realty_Agentic_AI_CRM_Information_Requirements.pdf</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">MongoDB Database:</span>
-                  <span className="font-mono text-emerald-400 font-bold">{mongoStatus.databaseName || 'lyka_realty'}</span>
+                  <span className="text-slate-400">Database:</span>
+                  <span className="font-mono text-emerald-400 font-bold">Firebase Firestore (angent-chatbot)</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">MongoDB Collection:</span>
-                  <span className="font-mono text-amber-700 font-bold">pdf_knowledge_embeddings</span>
+                  <span className="text-slate-400">Firestore Collection:</span>
+                  <span className="font-mono text-amber-500 font-bold">pdf_knowledge_embeddings</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Ingestion Method:</span>

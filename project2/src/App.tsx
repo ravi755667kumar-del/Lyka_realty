@@ -345,17 +345,17 @@ export default function App() {
         setFollowUpsList(existingFollowups);
       }
 
-      // Check MongoDB status
+      // Check Vector Embedding status
       try {
-        const res = await fetch('/api/mongodb/status');
+        const res = await fetch('/api/embeddings/status');
         const data = await res.json();
         setMongoStatus({
           connected: data.connected,
-          uriConfigured: data.uriConfigured,
+          uriConfigured: data.connected,
           count: data.embeddingsCount || 0
         });
       } catch (err) {
-        console.warn('MongoDB status check:', err);
+        console.warn('Vector status check:', err);
       }
 
       // Load user count for customer analytics
@@ -493,12 +493,12 @@ export default function App() {
       });
       // Sync to firestore or local
       saveLeadData(merged);
-      // Sync to MongoDB database
+      // Sync to local store backup
       fetch('/api/leads/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(merged)
-      }).catch(err => console.warn('MongoDB lead sync notice:', err));
+      }).catch(() => {});
       return merged;
     });
   };
@@ -512,7 +512,7 @@ export default function App() {
       syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
     }
 
-    const newLead = { ...createInitialLeadProfile(), user_id: currentUserId || undefined, email: currentUserEmail || undefined };
+    const newLead = { ...createInitialLeadProfile(), user_id: currentUserId || undefined, email: currentUserEmail || '' };
     setCurrentLead(newLead);
     setLeadsList(prev => [newLead, ...prev]);
     saveLeadData(newLead);
@@ -775,7 +775,7 @@ export default function App() {
 
       const finalProperties = serverMatchedProperties.length > 0
         ? serverMatchedProperties.slice(0, 3)
-        : matchingProps.length > 0 ? matchingProps.slice(0, 3) : null;
+        : matchingProps.length > 0 ? matchingProps.slice(0, 3) : undefined;
 
       const assistantMsg: ChatMessage = {
         id: 'MSG-A-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -804,7 +804,7 @@ export default function App() {
         syncSessionToUserProfile(currentUserEmail || mergedLead.email || null, currentUserId, mergedLead, updatedMessages).catch(() => {});
       }
 
-      // Asynchronously generate numerical vector embedding and store into MongoDB
+      // Asynchronously generate numerical vector embedding and store into Firebase Firestore
       fetch('/api/embeddings/store', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -851,7 +851,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newTask)
-    }).catch(err => console.warn('MongoDB followup sync notice:', err));
+    }).catch(() => {});
 
     // Update lead status to Viewing
     updateActiveLead({
@@ -948,7 +948,7 @@ export default function App() {
         propertyCount={propertiesList.length}
         customerCount={customerCount}
         firestoreActive={firestoreActive}
-        mongoStatus={mongoStatus}
+        vectorStatus={mongoStatus}
         onStartNewChat={handleStartNewChat}
         adminPanelOpen={adminPanelOpen}
         adminAuthenticated={adminAuthenticated}
@@ -1080,7 +1080,7 @@ export default function App() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(task)
-                  }).catch(err => console.warn('MongoDB followup sync notice:', err));
+                  }).catch(() => {});
                 }}
               />
             )}
@@ -1602,7 +1602,7 @@ export default function App() {
                     // 3. Validate OTP format with Zod
                     const otpValidation = otpSchema.safeParse(adminOtpInput);
                     if (!otpValidation.success) {
-                      setAdminLoginError(otpValidation.error.errors[0]?.message || 'OTP must be exactly 6 digits.');
+                      setAdminLoginError(otpValidation.error.issues[0]?.message || 'OTP must be exactly 6 digits.');
                       setAdminLoginLoading(false);
                       return;
                     }

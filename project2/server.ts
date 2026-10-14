@@ -2,7 +2,6 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { MongoClient, Db } from 'mongodb';
 import { GoogleGenAI } from '@google/genai';
 import Groq from 'groq-sdk';
 import fs from 'fs';
@@ -50,7 +49,7 @@ interface StoredVector {
   model: string;
   metadata?: Record<string, any>;
   createdAt: string;
-  storage: 'Firebase' | 'MongoDB' | 'LocalStore';
+  storage: 'Firebase' | 'LocalStore';
 }
 
 const localEmbeddingsStore: StoredVector[] = [];
@@ -69,10 +68,14 @@ let firebaseStatus = {
 
 async function initFirebase(): Promise<boolean> {
   try {
-    const configPath = path.join(__dirname, 'firebase-applet-config.json');
-    if (!fs.existsSync(configPath)) {
+    const configCandidates = [
+      path.join(__dirname, 'firebase-applet-config.json'),
+      path.join(process.cwd(), 'firebase-applet-config.json')
+    ];
+    const configPath = configCandidates.find(p => fs.existsSync(p));
+    if (!configPath) {
       firebaseStatus.error = 'firebase-applet-config.json not found';
-      console.warn('[Firebase] Config file missing:', configPath);
+      console.warn('[Firebase] Config file missing:', configCandidates[0]);
       return false;
     }
     const cfgRaw = fs.readFileSync(configPath, 'utf-8');
@@ -108,147 +111,12 @@ async function initFirebase(): Promise<boolean> {
   }
 }
 
-let mongoClient: MongoClient | null = null;
-let mongoDb: Db | null = null;
-let mongoStatus = {
-  connected: false,
-  uriConfigured: validateMongoUri(process.env.MONGODB_URI) === null,
-  error: null as string | null,
-  collectionCount: 0,
+// Vector status state for Firebase Firestore (Primary Vector Database)
+let vectorStoreStatus = {
+  storageMode: 'Firebase Firestore',
+  projectId: 'angent-chatbot',
+  collections: ['pdf_knowledge_embeddings', 'customer_embeddings', 'property_embeddings'],
 };
-
-// Validate MONGODB_URI shape before attempting a connection.
-//
-// Without this, a malformed host, a typo and a genuine outage all surface as the
-// same "querySrv ENOTFOUND" message, which blames DNS and hides the real cause.
-// Returns null when the URI looks usable, otherwise a specific, actionable reason.
-function validateMongoUri(uri: string | undefined): string | null {
-  if (!uri || !uri.trim()) {
-    return 'MONGODB_URI is not set in .env. Falling back to the in-memory vector store.';
-  }
-  if (uri.includes('<username>') || uri.includes('<password>') || uri.includes('MY_MONGODB')) {
-    return 'MONGODB_URI still contains placeholder credentials (<username>/<password>). Replace it with the real connection string from Atlas → Connect → Drivers.';
-  }
-
-  const isSrv = uri.startsWith('mongodb+srv://');
-  if (!isSrv && !uri.startsWith('mongodb://')) {
-    return 'MONGODB_URI must start with mongodb+srv:// (Atlas) or mongodb://.';
-  }
-  if (!isSrv) {
-    return null; // direct connection strings do not use SRV hostnames
-  }
-
-  let host = '';
-  try {
-    host = new URL(uri.replace('mongodb+srv://', 'https://')).hostname;
-  } catch {
-    return 'MONGODB_URI could not be parsed. Copy the full connection string from Atlas → Connect → Drivers.';
-  }
-
-  if (!host) {
-    return 'MONGODB_URI has no hostname.';
-  }
-  if (!host.endsWith('.mongodb.net')) {
-    return `MONGODB_URI host "${host}" is not a MongoDB Atlas hostname (expected something ending in .mongodb.net).`;
-  }
-  // Atlas SRV hosts always carry a shard id: cluster0.<id>.mongodb.net (4+ labels).
-  const labels = host.split('.');
-  if (labels.length < 4) {
-    return `MONGODB_URI host "${host}" is missing the Atlas shard subdomain — that hostname does not exist. A real Atlas SRV host looks like cluster0.<shard-id>.mongodb.net. Copy the full string from Atlas → Connect → Drivers.`;
-  }
-
-  const at = uri.indexOf('@');
-  const creds = at > 0 ? uri.slice(uri.indexOf('://') + 3, at) : '';
-  if (!creds.includes(':')) {
-    return 'MONGODB_URI is missing a username or password (expected mongodb+srv://user:password@host/db).';
-  }
-  if (!creds.split(':')[0]) {
-    return 'MONGODB_URI is missing a username (expected mongodb+srv://user:password@host/db).';
-  }
-  if (!creds.split(':')[1]) {
-    return 'MONGODB_URI is missing a password (expected mongodb+srv://user:password@host/db).';
-  }
-
-  return null;
-}
-
-// Initialize MongoDB if URI is configured.
-// Dynamic MongoDB Database Name Resolver
-function getMongoDatabaseName(uri?: string, explicitDbName?: string): string {
-  if (explicitDbName && explicitDbName.trim()) {
-    return explicitDbName.trim();
-  }
-  if (process.env.MONGODB_DB_NAME && process.env.MONGODB_DB_NAME.trim()) {
-    return process.env.MONGODB_DB_NAME.trim();
-  }
-  const targetUri = uri || process.env.MONGODB_URI;
-  if (targetUri) {
-    try {
-      const match = targetUri.match(/mongodb(?:\+srv)?:\/\/[^/]+\/([^?]+)/);
-      if (match && match[1] && match[1].trim()) {
-        return match[1].trim();
-      }
-    } catch {}
-  }
-  return 'lyka_realty';
-}
-
-let activeMongoDbName = getMongoDatabaseName();
-
-// Safe to call repeatedly: concurrent callers share one in-flight attempt, and a
-// failure is retryable (the bootstrap loop depends on that).
-let mongoConnectAttempt: Promise<boolean> | null = null;
-
-async function initMongo(): Promise<boolean> {
-  if (mongoDb) return true;
-  if (mongoConnectAttempt) return mongoConnectAttempt;
-
-  mongoConnectAttempt = (async () => {
-    const uri = process.env.MONGODB_URI;
-
-    const invalid = validateMongoUri(uri);
-    if (!uri || invalid) {
-      mongoStatus.uriConfigured = false;
-      mongoStatus.error = invalid ?? 'MONGODB_URI is not set in .env.';
-      console.warn('MongoDB not attempted —', mongoStatus.error);
-      return false;
-    }
-
-    let candidate: MongoClient | null = null;
-    try {
-      candidate = new MongoClient(uri, { 
-        serverSelectionTimeoutMS: 6000,
-        tlsAllowInvalidCertificates: true,
-      });
-      await candidate.connect();
-      const dbName = getMongoDatabaseName(uri);
-      activeMongoDbName = dbName;
-      const db = candidate.db(dbName);
-      await db.command({ ping: 1 }); // confirm the handle is actually usable
-      mongoClient = candidate;
-      mongoDb = db;
-      mongoStatus.connected = true;
-      mongoStatus.uriConfigured = true;
-      mongoStatus.error = null;
-      console.log(`Successfully connected to MongoDB cluster (Database: ${dbName}) for vector embedding persistence.`);
-      return true;
-    } catch (err: any) {
-      if (candidate) await candidate.close().catch(() => {});
-      mongoStatus.connected = false;
-      let errMsg = err?.message || 'Failed to connect to MongoDB cluster';
-      if (errMsg.includes('SSL alert number 80') || errMsg.includes('tlsv1 alert internal error')) {
-        errMsg = 'MongoDB Atlas rejected TLS connection (SSL Alert 80). Please ensure your current IP address (or 0.0.0.0/0 for access from anywhere) is whitelisted in MongoDB Atlas Security -> Network Access.';
-      }
-      mongoStatus.error = errMsg;
-      console.warn('MongoDB connection notice:', mongoStatus.error);
-      return false;
-    } finally {
-      mongoConnectAttempt = null;
-    }
-  })();
-
-  return mongoConnectAttempt;
-}
 
 // Gemini AI Client
 const apiKey = process.env.GEMINI_API_KEY || '';
@@ -317,119 +185,34 @@ app.get('/api/health', (_req: Request, res: Response) => {
     app: 'Lyka Realty Agentic AI',
     time: new Date().toISOString(),
     firebase: firebaseStatus,
-    mongo: mongoStatus,
   });
 });
 
-app.get('/api/mongodb/status', async (_req: Request, res: Response) => {
+app.get(['/api/embeddings/status', '/api/mongodb/status'], async (_req: Request, res: Response) => {
   let count = localEmbeddingsStore.length;
   let leadsCount = Object.keys(localLeadsStore).length;
   let followupsCount = Object.keys(localFollowupsStore).length;
-  let collectionsList: string[] = ['pdf_knowledge_embeddings', 'customer_embeddings', 'property_embeddings', 'leads', 'followups'];
-  let pingMs: number | null = null;
+  let collectionsList: string[] = ['pdf_knowledge_embeddings', 'customer_embeddings', 'property_embeddings'];
 
-  if (mongoDb) {
+  if (firestoreDb) {
     try {
-      const start = Date.now();
-      await mongoDb.command({ ping: 1 });
-      pingMs = Date.now() - start;
-
-      count = await mongoDb.collection('customer_embeddings').countDocuments();
-      leadsCount = await mongoDb.collection('leads').countDocuments();
-      followupsCount = await mongoDb.collection('followups').countDocuments();
-      mongoStatus.connected = true;
-    } catch (err: any) {
-      mongoStatus.connected = false;
-      mongoStatus.error = err.message;
-    }
+      const customerSnap = await fsGetDocs(fsCollection(firestoreDb, 'customer_embeddings'));
+      count = customerSnap.size;
+    } catch (_) {}
   }
 
   res.json({
-    ...mongoStatus,
+    connected: Boolean(firestoreDb),
     firebase: firebaseStatus,
-    databaseName: firestoreDb ? `Firebase Firestore (${firebaseStatus.projectId})` : activeMongoDbName,
+    databaseName: `Firebase Firestore (${firebaseStatus.projectId})`,
     embeddingsCount: count,
     pdfEmbeddingsCount: localPdfEmbeddingsStore.length,
     leadsCount,
     followupsCount,
     collections: collectionsList,
-    pingMs,
     configuredModel: process.env.TEXT_TO_NUMERICAL_MODEL || 'text-embedding-004',
-    storageMode: firestoreDb ? 'Firebase Firestore (Live Connected)' : (mongoStatus.connected ? 'MongoDB Atlas' : 'Local Store')
+    storageMode: firestoreDb ? 'Firebase Firestore (Live Connected)' : 'Local Store'
   });
-});
-
-// Dynamic MongoDB connection endpoint
-app.post('/api/mongodb/connect', async (req: Request, res: Response) => {
-  try {
-    const { uri, databaseName: requestedDbName } = req.body;
-    if (!uri || typeof uri !== 'string') {
-      return res.status(400).json({ error: 'Valid MongoDB connection URI is required' });
-    }
-
-    const dbName = getMongoDatabaseName(uri, requestedDbName);
-    const testClient = new MongoClient(uri, { 
-      serverSelectionTimeoutMS: 6000,
-      tlsAllowInvalidCertificates: true,
-    });
-    const start = Date.now();
-    await testClient.connect();
-    const testDb = testClient.db(dbName);
-    await testDb.command({ ping: 1 });
-    const pingMs = Date.now() - start;
-
-    // Migrate any buffered local embeddings to MongoDB
-    if (localEmbeddingsStore.length > 0) {
-      try {
-        const docs = localEmbeddingsStore.map(e => ({
-          lead_id: e.lead_id,
-          text_content: e.text_content,
-          vector: e.vector,
-          dimensions: e.dimensions,
-          model: e.model,
-          metadata: e.metadata,
-          createdAt: e.createdAt,
-          storage: 'MongoDB'
-        }));
-        await testDb.collection('customer_embeddings').insertMany(docs);
-      } catch (migrateErr) {
-        console.warn('Buffered embeddings migration notice:', migrateErr);
-      }
-    }
-
-    // Set as active client
-    mongoClient = testClient;
-    mongoDb = testDb;
-    activeMongoDbName = dbName;
-    mongoStatus.connected = true;
-    mongoStatus.uriConfigured = true;
-    mongoStatus.error = null;
-
-    // PDF/property embeddings were held in memory only while MongoDB was
-    // unreachable. Persist them now that we have a working handle.
-    syncPdfEmbeddingsToMongo()
-      .then(() => syncPropertyEmbeddingsToMongo())
-      .then(() => injectAgentDependencies())
-      .catch(e => console.warn('Post-connect embedding sync notice:', e?.message));
-
-    const count = await testDb.collection('customer_embeddings').countDocuments();
-
-    res.json({
-      success: true,
-      message: `Connected successfully to MongoDB! Database: ${dbName}`,
-      databaseName: dbName,
-      collection: 'customer_embeddings',
-      count,
-      pingMs
-    });
-  } catch (err: any) {
-    mongoStatus.connected = false;
-    mongoStatus.error = err.message;
-    res.status(500).json({
-      success: false,
-      error: `MongoDB connection error: ${err.message}`
-    });
-  }
 });
 
 // Store Text-to-Numerical Vector Embedding into Firebase Firestore (and local buffer)
@@ -455,7 +238,7 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
       model,
       metadata: metadata || {},
       createdAt: new Date().toISOString(),
-      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
+      storage: firestoreDb ? 'Firebase' : 'LocalStore',
     };
 
     if (firestoreDb) {
@@ -464,14 +247,6 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
         record.storage = 'Firebase';
       } catch (fsErr: any) {
         console.warn('Firestore customer embedding insert notice:', fsErr.message);
-        localEmbeddingsStore.unshift(record);
-        record.storage = 'LocalStore';
-      }
-    } else if (mongoDb) {
-      try {
-        await mongoDb.collection('customer_embeddings').insertOne(record);
-        record.storage = 'MongoDB';
-      } catch (mErr: any) {
         localEmbeddingsStore.unshift(record);
         record.storage = 'LocalStore';
       }
@@ -484,11 +259,9 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
       storage: record.storage,
       message: record.storage === 'Firebase'
         ? `Successfully saved directly in Firebase Firestore Database '${firebaseStatus.projectId}', collection 'customer_embeddings' with id: ${record.id}`
-        : (record.storage === 'MongoDB'
-          ? `Saved in MongoDB collection 'customer_embeddings'`
-          : `Saved to local vector store.`),
+        : `Saved to local vector store.`,
       record,
-      database: record.storage === 'Firebase' ? `Firestore (${firebaseStatus.projectId})` : activeMongoDbName,
+      database: `Firestore (${firebaseStatus.projectId})`,
       collection: 'customer_embeddings',
       documentId: record.id,
       vector_sum,
@@ -514,8 +287,12 @@ const PDF_CANONICAL_FILENAME = 'Real_Estate_Lead_Qualification_Agent_Instruction
 
 // Resolve the instructions PDF from src/data
 function resolvePdfPath(): string | null {
-  const dataDir = path.join(__dirname, 'src', 'data');
-  if (!fs.existsSync(dataDir)) return null;
+  const candidates = [
+    path.join(__dirname, 'src', 'data'),
+    path.join(process.cwd(), 'src', 'data')
+  ];
+  const dataDir = candidates.find(d => fs.existsSync(d));
+  if (!dataDir) return null;
 
   let files: string[] = [];
   try {
@@ -537,7 +314,7 @@ async function loadPdfSections() {
   try {
     const pdfPath = resolvePdfPath();
     if (!pdfPath) {
-      console.warn(`[PDF] No instructions PDF found in ${path.join(__dirname, 'src', 'data')} — RAG knowledge base will be empty.`);
+      console.warn(`[PDF] No instructions PDF found in src/data — RAG knowledge base will be empty.`);
       return;
     }
     const dataBuffer = fs.readFileSync(pdfPath);
@@ -635,7 +412,7 @@ async function syncPdfEmbeddingsToFirebase() {
       dimensions,
       vector_sum,
       model,
-      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
+      storage: firestoreDb ? 'Firebase' : 'LocalStore',
       createdAt: new Date().toISOString()
     };
 
@@ -651,18 +428,6 @@ async function syncPdfEmbeddingsToFirebase() {
       } catch (err: any) {
         console.warn('[PDF] Firestore pdf embedding sync notice:', err.message);
       }
-    }
-
-    // Optional mirror to MongoDB if connected
-    if (mongoDb) {
-      try {
-        const { _id: _ignoredId, ...updatable } = doc;
-        await mongoDb.collection('pdf_knowledge_embeddings').updateOne(
-          { section_number: sec.section_number },
-          { $set: updatable },
-          { upsert: true }
-        );
-      } catch (_) {}
     }
   }
 
@@ -709,7 +474,7 @@ async function syncPropertyEmbeddingsToFirebase() {
       dimensions,
       vector_sum,
       model,
-      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
+      storage: firestoreDb ? 'Firebase' : 'LocalStore',
       createdAt: new Date().toISOString()
     };
 
@@ -722,39 +487,10 @@ async function syncPropertyEmbeddingsToFirebase() {
         console.warn('[Properties] Firestore property embedding sync notice:', err.message);
       }
     }
-
-    if (mongoDb) {
-      try {
-        const { _id: _ignoredId, ...updatable } = doc;
-        await mongoDb.collection('property_embeddings').updateOne(
-          { property_id: prop.id },
-          { $set: updatable },
-          { upsert: true }
-        );
-      } catch (_) {}
-    }
   }
   if (firestoreDb) {
     console.log(`[Properties] Embedded ${ALL_VERIFIED_PROPERTIES.length} properties and persisted them to Firebase Firestore collection 'property_embeddings'.`);
   }
-}
-
-// Boot sequence: Prioritizes Firebase Firestore for all vector & knowledge storage
-async function waitForMongo(maxAttempts = 3): Promise<boolean> {
-  const invalid = validateMongoUri(process.env.MONGODB_URI);
-  if (invalid) {
-    mongoStatus.uriConfigured = false;
-    mongoStatus.error = invalid;
-    return false;
-  }
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (await initMongo()) return true;
-    if (attempt < maxAttempts) {
-      const backoffMs = attempt * 2000;
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
-    }
-  }
-  return false;
 }
 
 async function injectAgentDependencies() {
@@ -786,11 +522,8 @@ async function bootstrapAgent() {
     console.log('[Boot] Firebase Firestore initialized as primary vector database.');
   }
 
-  // 2. Background check for MongoDB (optional secondary fallback)
-  waitForMongo().catch(() => {});
-
   try {
-    // 3. Ingest and persist PDF & Property embeddings to Firebase Firestore
+    // 2. Ingest and persist PDF & Property embeddings to Firebase Firestore
     await syncPdfEmbeddingsToFirebase();
     await syncPropertyEmbeddingsToFirebase();
   } catch (err: any) {
@@ -824,20 +557,6 @@ app.get('/api/embeddings/pdf-list', async (_req: Request, res: Response) => {
         }
       } catch (fsErr: any) {
         console.warn('Firestore pdf-list read notice:', fsErr.message);
-      }
-    }
-
-    if (mongoDb) {
-      const items = await mongoDb.collection('pdf_knowledge_embeddings').find().sort({ section_number: 1 }).toArray();
-      if (items.length > 0) {
-        return res.json({
-          items,
-          source: 'MongoDB',
-          database: activeMongoDbName,
-          collection: 'pdf_knowledge_embeddings',
-          totalSections: items.length,
-          allStoredInMongo: true
-        });
       }
     }
 
@@ -893,23 +612,17 @@ app.get('/api/embeddings/list', async (_req: Request, res: Response) => {
       }
     }
 
-    if (mongoDb) {
-      const items = await mongoDb.collection('customer_embeddings').find().sort({ createdAt: -1 }).limit(20).toArray();
-      if (items.length > 0) {
-        return res.json({ items, source: 'MongoDB' });
-      }
-    }
     res.json({ items: localEmbeddingsStore.slice(0, 20), source: 'LocalStore' });
   } catch (err: any) {
     res.json({ items: localEmbeddingsStore.slice(0, 20), source: 'LocalStore', error: err?.message });
   }
 });
 
-// In-memory fallback for MongoDB leads and follow-ups
+// In-memory fallback for leads and follow-ups
 const localLeadsStore: Record<string, any> = {};
 const localFollowupsStore: Record<string, any> = {};
 
-// Save / Update Lead in MongoDB collection 'leads'
+// Save / Update Lead in local store (Firebase client handles primary CRM)
 app.post('/api/leads/sync', async (req: Request, res: Response) => {
   try {
     const lead = req.body;
@@ -922,45 +635,22 @@ app.post('/api/leads/sync', async (req: Request, res: Response) => {
       updatedAt: new Date().toISOString(),
     };
 
-    if (mongoDb) {
-      try {
-        await mongoDb.collection('leads').updateOne(
-          { id: lead.id },
-          { $set: { ...lead, updatedAt: new Date().toISOString() } },
-          { upsert: true }
-        );
-        return res.json({ success: true, storage: 'MongoDB', leadId: lead.id });
-      } catch (err: any) {
-        console.warn('MongoDB lead sync notice, saved to local store:', err.message);
-      }
-    }
-
     res.json({ success: true, storage: 'LocalStore', leadId: lead.id });
   } catch (err: any) {
-    res.status(500).json({ error: err?.message || 'Failed to sync lead to MongoDB' });
+    res.status(500).json({ error: err?.message || 'Failed to sync lead' });
   }
 });
 
-// Retrieve Leads from MongoDB
+// Retrieve Leads
 app.get('/api/leads', async (_req: Request, res: Response) => {
   try {
-    if (mongoDb) {
-      try {
-        const mongoLeads = await mongoDb.collection('leads').find().sort({ updatedAt: -1 }).toArray();
-        if (mongoLeads.length > 0) {
-          return res.json({ leads: mongoLeads, storage: 'MongoDB' });
-        }
-      } catch (err: any) {
-        console.warn('MongoDB query notice:', err.message);
-      }
-    }
     res.json({ leads: Object.values(localLeadsStore), storage: 'LocalStore' });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
 });
 
-// Save / Update Follow-Up in MongoDB collection 'followups'
+// Save / Update Follow-Up in local store
 app.post('/api/followups/sync', async (req: Request, res: Response) => {
   try {
     const task = req.body;
@@ -970,38 +660,15 @@ app.post('/api/followups/sync', async (req: Request, res: Response) => {
 
     localFollowupsStore[task.id] = task;
 
-    if (mongoDb) {
-      try {
-        await mongoDb.collection('followups').updateOne(
-          { id: task.id },
-          { $set: task },
-          { upsert: true }
-        );
-        return res.json({ success: true, storage: 'MongoDB', taskId: task.id });
-      } catch (err: any) {
-        console.warn('MongoDB followup sync notice:', err.message);
-      }
-    }
-
     res.json({ success: true, storage: 'LocalStore', taskId: task.id });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
   }
 });
 
-// Retrieve Follow-Ups from MongoDB
+// Retrieve Follow-Ups
 app.get('/api/followups', async (_req: Request, res: Response) => {
   try {
-    if (mongoDb) {
-      try {
-        const tasks = await mongoDb.collection('followups').find().sort({ createdAt: -1 }).toArray();
-        if (tasks.length > 0) {
-          return res.json({ tasks, storage: 'MongoDB' });
-        }
-      } catch (err: any) {
-        console.warn('MongoDB followups query notice:', err.message);
-      }
-    }
     res.json({ tasks: Object.values(localFollowupsStore), storage: 'LocalStore' });
   } catch (err: any) {
     res.status(500).json({ error: err?.message });
@@ -1052,16 +719,13 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       dimensions: queryEmbedding.dimensions,
       vector_sum: queryVectorSum,
       model: queryEmbedding.model,
-      storage: firestoreDb ? 'Firebase' : (mongoDb ? 'MongoDB' : 'LocalStore'),
+      storage: firestoreDb ? 'Firebase' : 'LocalStore',
       createdAt: new Date().toISOString()
     };
 
     if (firestoreDb) {
       fsSetDoc(fsDoc(firestoreDb, 'customer_embeddings', customerVecId), customerVecDoc, { merge: true })
         .catch((e: any) => console.warn('Could not store customer vector to Firestore:', e.message));
-    } else if (mongoDb) {
-      mongoDb.collection('customer_embeddings').insertOne(customerVecDoc)
-        .catch((e: any) => console.warn('Could not store customer vector:', e.message));
     }
     localEmbeddingsStore.unshift(customerVecDoc as any);
 

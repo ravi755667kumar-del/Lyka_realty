@@ -1443,9 +1443,9 @@ function routeAfterQualify(state: AgentState): string {
 // ─── Build the Graph ─────────────────────────────────────────────────────────
 
 function buildLykaGraph() {
-  const workflow = new StateGraph(AgentStateAnnotation);
+  const workflow: any = new StateGraph(AgentStateAnnotation);
 
-  workflow.addNode('router', (state) => state);
+  workflow.addNode('router', (state: AgentState) => state);
   workflow.addNode('greet', nodeGreet);
   workflow.addNode('classify_intent', nodeClassifyIntent);
   workflow.addNode('qualify_buy', nodeQualifyBuy);

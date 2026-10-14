@@ -22,7 +22,7 @@ interface NavbarProps {
   customerCount?: number;
   propertyCount?: number;
   firestoreActive: boolean;
-  mongoStatus: { connected: boolean; uriConfigured: boolean; count: number };
+  vectorStatus?: { connected: boolean; count: number };
   onStartNewChat: () => void;
   adminPanelOpen: boolean;
   onToggleAdminPanel: () => void;
@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   customerCount,
   propertyCount,
   firestoreActive,
-  mongoStatus,
+  vectorStatus,
   onStartNewChat,
   adminPanelOpen,
   onToggleAdminPanel,
