@@ -176,8 +176,33 @@ export interface PropertyListing {
   contact_mobile?: string;
   bathrooms?: string;
   furnished?: string;
+  is_booked?: boolean;
+  assigned_to?: string;
+  assigned_phone?: string;
+  assigned_email?: string;
+  booked_at?: string;
+  booking_amount_aed?: number;
+  booking_notes?: string;
+  booking_id?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface BookedPropertyRecord {
+  id: string; // Booking Reference BK-xxxxxx
+  property_id: string;
+  property_title: string;
+  community: string;
+  city?: string;
+  bedrooms: string;
+  price_aed: number;
+  customer_name: string;
+  customer_phone: string;
+  customer_email?: string;
+  booking_amount_aed?: number;
+  booked_at: string;
+  notes?: string;
+  status: 'Booked' | 'Cancelled' | 'Completed';
 }
 
 export interface FollowUpTask {

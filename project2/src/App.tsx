@@ -48,6 +48,7 @@ import { AgenticChat } from './components/AgenticChat';
 import { LeadProfileSidebar } from './components/LeadProfileSidebar';
 import { CrmPipeline } from './components/CrmPipeline';
 import { PropertyInventory } from './components/PropertyInventory';
+import { AssignedPropertiesView } from './components/AssignedPropertiesView';
 import { MongoEmbeddingHub } from './components/MongoEmbeddingHub';
 import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
@@ -77,7 +78,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties'>('chat');
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
@@ -367,19 +368,42 @@ export default function App() {
         setFollowUpsList(existingFollowups);
       }
 
-      // Load custom properties from Firestore
+      // Load custom properties from backend & Firestore
       try {
+        // 1. Try backend server API first
+        try {
+          const apiRes = await fetch('/api/properties');
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            if (apiData.properties && Array.isArray(apiData.properties) && apiData.properties.length > 0) {
+              setPropertiesList(prev => {
+                const apiMap = new Map(apiData.properties.map((p: any) => [p.id, p]));
+                const merged = prev.map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
+                const existingIds = new Set(prev.map(p => p.id));
+                const newFromApi = apiData.properties.filter((p: any) => !existingIds.has(p.id));
+                const combined = [...newFromApi, ...merged];
+                try { localStorage.setItem('localProperties', JSON.stringify(combined)); } catch (_) {}
+                return combined;
+              });
+            }
+          }
+        } catch (apiErr) {
+          console.warn('Backend /api/properties fetch notice:', apiErr);
+        }
+
+        // 2. Also check Firestore properties
         const firestoreProps = await getPropertiesFromFirestore();
         if (firestoreProps.length > 0) {
           setPropertiesList(prev => {
+            const fsMap = new Map(firestoreProps.map(p => [p.id, p]));
+            const merged = prev.map(p => fsMap.has(p.id) ? { ...p, ...fsMap.get(p.id) } : p);
             const existingIds = new Set(prev.map(p => p.id));
             const newFromFirestore = firestoreProps.filter(p => !existingIds.has(p.id));
-            if (newFromFirestore.length === 0) return prev;
-            const updated = [...newFromFirestore, ...prev];
+            const combined = [...newFromFirestore, ...merged];
             try {
-              localStorage.setItem('localProperties', JSON.stringify(updated));
+              localStorage.setItem('localProperties', JSON.stringify(combined));
             } catch (_) {}
-            return updated;
+            return combined;
           });
         }
       } catch (err) {
@@ -781,7 +805,9 @@ export default function App() {
 
       // 5. Match properties whenever user asks about properties or expresses real estate interest
       let matchingProps: PropertyListing[] = [];
-      const pool = propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES;
+      const pool = (propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES).filter(
+        p => !p.is_booked && (p.status || '').toLowerCase() !== 'booked'
+      );
       const lowerText = userText.toLowerCase();
 
       const mentionsProperty = 
@@ -952,9 +978,15 @@ export default function App() {
         suggested_action: intentCategory
       };
 
-      const finalProperties = serverMatchedProperties.length > 0
-        ? serverMatchedProperties.slice(0, 3)
-        : matchingProps.length > 0 ? matchingProps.slice(0, 3) : undefined;
+      const unbookedServerProps = (serverMatchedProperties || []).filter(
+        p => !p.is_booked && (p.status || '').toLowerCase() !== 'booked'
+      );
+      const unbookedMatchingProps = (matchingProps || []).filter(
+        p => !p.is_booked && (p.status || '').toLowerCase() !== 'booked'
+      );
+      const finalProperties = unbookedServerProps.length > 0
+        ? unbookedServerProps.slice(0, 3)
+        : unbookedMatchingProps.length > 0 ? unbookedMatchingProps.slice(0, 3) : undefined;
 
       const assistantMsg: ChatMessage = {
         id: 'MSG-A-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -1114,6 +1146,139 @@ export default function App() {
     setHandoffError('');
   };
 
+  // Assign / Book a property
+  const handleBookProperty = async (
+    propertyId: string,
+    bookingDetails: {
+      customerName?: string;
+      customerPhone?: string;
+      customerEmail?: string;
+      bookingAmount?: number;
+      notes?: string;
+      assigned_to?: string;
+      assigned_phone?: string;
+      assigned_email?: string;
+      booking_amount_aed?: number;
+      booking_notes?: string;
+    }
+  ) => {
+    const finalCustomerName = (bookingDetails.customerName || bookingDetails.assigned_to || '').trim();
+    const finalCustomerPhone = (bookingDetails.customerPhone || bookingDetails.assigned_phone || '').trim();
+    const finalCustomerEmail = (bookingDetails.customerEmail || bookingDetails.assigned_email || '').trim();
+    const finalBookingAmount = Number(bookingDetails.bookingAmount ?? bookingDetails.booking_amount_aed) || 0;
+    const finalNotes = (bookingDetails.notes || bookingDetails.booking_notes || '').trim();
+    const booked_at = new Date().toISOString();
+    const booking_id = 'BK-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    // 1. Update local properties state & localStorage
+    let updatedPropertyObj: PropertyListing | null = null;
+    setPropertiesList(prev => {
+      const updated = prev.map(p => {
+        if (p.id === propertyId) {
+          const item: PropertyListing = {
+            ...p,
+            is_booked: true,
+            status: 'Booked' as const,
+            booking_id,
+            assigned_to: finalCustomerName,
+            assigned_phone: finalCustomerPhone,
+            assigned_email: finalCustomerEmail,
+            booking_amount_aed: finalBookingAmount,
+            booking_notes: finalNotes,
+            booked_at
+          };
+          updatedPropertyObj = item;
+          return item;
+        }
+        return p;
+      });
+      try {
+        localStorage.setItem('localProperties', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save localProperties to localStorage:', e);
+      }
+      return updated;
+    });
+
+    // 2. Persist to Firestore
+    if (updatedPropertyObj) {
+      savePropertyToFirestore(updatedPropertyObj).catch(err => {
+        console.warn('savePropertyToFirestore booking error:', err);
+      });
+    }
+
+    // 3. Sync to backend server endpoint /api/properties/book
+    try {
+      await fetch('/api/properties/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId,
+          customerName: finalCustomerName,
+          customerPhone: finalCustomerPhone,
+          customerEmail: finalCustomerEmail,
+          bookingAmount: finalBookingAmount,
+          notes: finalNotes,
+          assigned_to: finalCustomerName,
+          assigned_phone: finalCustomerPhone,
+          assigned_email: finalCustomerEmail,
+          booking_amount_aed: finalBookingAmount,
+          booking_notes: finalNotes
+        })
+      });
+    } catch (err) {
+      console.warn('Backend /api/properties/book notice:', err);
+    }
+  };
+
+  // Unbook / Reopen an assigned property
+  const handleUnbookProperty = async (propertyId: string) => {
+    let updatedPropertyObj: PropertyListing | null = null;
+    setPropertiesList(prev => {
+      const updated = prev.map(p => {
+        if (p.id === propertyId) {
+          const item: PropertyListing = {
+            ...p,
+            is_booked: false,
+            status: 'Available' as const,
+            assigned_to: undefined,
+            assigned_phone: undefined,
+            assigned_email: undefined,
+            booking_amount_aed: undefined,
+            booking_notes: undefined,
+            booked_at: undefined,
+            booking_id: undefined
+          };
+          updatedPropertyObj = item;
+          return item;
+        }
+        return p;
+      });
+      try {
+        localStorage.setItem('localProperties', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (updatedPropertyObj) {
+      savePropertyToFirestore(updatedPropertyObj).catch(err => {
+        console.warn('savePropertyToFirestore unbook error:', err);
+      });
+    }
+
+    try {
+      await fetch('/api/properties/unbook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId })
+      });
+    } catch (err) {
+      console.warn('Backend /api/properties/unbook notice:', err);
+    }
+  };
+
+  const bookedPropertyCount = propertiesList.filter(p => p.is_booked || (p.status || '').toLowerCase() === 'booked').length;
+
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 font-sans text-slate-300 overflow-hidden">
       {/* Navigation Header */}
@@ -1125,6 +1290,7 @@ export default function App() {
         }}
         leadCount={leadsList.filter(l => l.lead_status !== 'New').length}
         propertyCount={propertiesList.length}
+        bookedPropertyCount={bookedPropertyCount}
         customerCount={customerCount}
         firestoreActive={firestoreActive}
         vectorStatus={mongoStatus}
@@ -1281,9 +1447,18 @@ export default function App() {
               <KnowledgeBaseView />
             )}
 
-            {/* Stats — Admin only */}
-            {adminAuthenticated && activeTab === 'stats' && (
-              <AdminStats properties={propertiesList} />
+            {/* Stats — accessible to both Admin and Property Manager */}
+            {(adminAuthenticated || propertyManagerAuthenticated) && activeTab === 'stats' && (
+              <AdminStats properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES} />
+            )}
+
+            {/* Assign / Bookings Section — accessible to both Property Manager and Admin */}
+            {(adminAuthenticated || propertyManagerAuthenticated) && activeTab === 'assigned_properties' && (
+              <AssignedPropertiesView
+                properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
+                onBookProperty={handleBookProperty}
+                onUnbookProperty={handleUnbookProperty}
+              />
             )}
 
             {/* Customer Profiles & Activity (Which Customer Logged In) — Admin only */}
@@ -1319,6 +1494,17 @@ export default function App() {
                     await savePropertyToFirestore(newProp);
                   } catch (err) {
                     console.warn('Could not save property to Firestore:', err);
+                  }
+
+                  // 3. Persist to backend server (/api/properties)
+                  try {
+                    await fetch('/api/properties', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(newProp)
+                    });
+                  } catch (err) {
+                    console.warn('Could not save property to backend server:', err);
                   }
                 }}
               />

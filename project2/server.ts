@@ -503,7 +503,7 @@ async function injectAgentDependencies() {
       text_content: s.text_content,
       vector: s.vector,
     })),
-    properties: (ALL_VERIFIED_PROPERTIES || []) as any[],
+    properties: ((ALL_VERIFIED_PROPERTIES || []) as any[]).filter(p => !p.is_booked && (p.status || '').toLowerCase() !== 'booked'),
   });
 }
 
@@ -739,7 +739,7 @@ app.post('/api/chat', async (req: Request, res: Response) => {
           text_content: s.text_content,
           vector: s.vector,
         })),
-        properties: (ALL_VERIFIED_PROPERTIES || []) as any[],
+        properties: ((ALL_VERIFIED_PROPERTIES || []) as any[]).filter(p => !p.is_booked && (p.status || '').toLowerCase() !== 'booked'),
       });
     }
 
@@ -776,10 +776,15 @@ app.post('/api/chat', async (req: Request, res: Response) => {
 
     console.log(`[LangGraph] Node: ${agentResult.nextStage} | Provider: ${agentResult.provider} | Properties Found: ${agentResult.matchedProperties.length}`);
 
+    // Exclude any booked/assigned properties so chatbot NEVER recommends booked properties
+    const activeMatchedProperties = (agentResult.matchedProperties || []).filter(
+      (p: any) => !p.is_booked && (p.status || '').toLowerCase() !== 'booked'
+    );
+
     return res.json({
       reply: agentResult.reply,
       provider: agentResult.provider,
-      matchedProperties: agentResult.matchedProperties,
+      matchedProperties: activeMatchedProperties,
       updatedProfile: agentResult.updatedProfile,
       nextStage: agentResult.nextStage,
       ragContext: agentResult.ragContext,
@@ -976,6 +981,192 @@ app.post('/api/auth/verify-email-otp', async (req: Request, res: Response) => {
 
   } catch (error: any) {
     res.status(500).json({ valid: false, message: error?.message });
+  }
+});
+
+// ── Property Management & Booking Endpoints ─────────────────────────────────
+
+// GET /api/properties — fetch all properties (merging Firestore & in-memory)
+app.get('/api/properties', async (_req: Request, res: Response) => {
+  try {
+    let list: any[] = [];
+    if (firestoreDb) {
+      try {
+        const snap = await fsGetDocs(fsCollection(firestoreDb, 'properties'));
+        snap.forEach(d => {
+          list.push({ ...d.data(), id: d.id });
+        });
+      } catch (err: any) {
+        console.warn('[Properties API] Firestore fetch warning:', err.message);
+      }
+    }
+    if (list.length === 0) {
+      list = [...(ALL_VERIFIED_PROPERTIES as any[])];
+    }
+    return res.json({ success: true, properties: list });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/properties — create or update a property in Firestore and memory
+app.post('/api/properties', async (req: Request, res: Response) => {
+  try {
+    const prop = req.body;
+    if (!prop || !prop.id) {
+      return res.status(400).json({ success: false, error: 'Property data and ID required' });
+    }
+
+    const cleanProp = {
+      ...prop,
+      price_aed: Number(prop.price_aed) || 0,
+      price_inr: Number(prop.price_inr) || Math.round((Number(prop.price_aed) || 0) * 22.8),
+      size_sqft: Number(prop.size_sqft) || 0,
+      status: prop.status || 'Available',
+      is_booked: Boolean(prop.is_booked),
+      updatedAt: new Date().toISOString(),
+      createdAt: prop.createdAt || new Date().toISOString()
+    };
+
+    // 1. Persist to Firestore
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'properties', cleanProp.id), cleanProp, { merge: true });
+        console.log(`[Properties API] Saved property ${cleanProp.id} to Firestore collection 'properties'`);
+      } catch (fsErr: any) {
+        console.warn(`[Properties API] Firestore write warning:`, fsErr.message);
+      }
+    }
+
+    // 2. Update server in-memory list
+    const existingIdx = (ALL_VERIFIED_PROPERTIES as any[]).findIndex(p => p.id === cleanProp.id);
+    if (existingIdx >= 0) {
+      (ALL_VERIFIED_PROPERTIES as any[])[existingIdx] = cleanProp;
+    } else {
+      (ALL_VERIFIED_PROPERTIES as any[]).unshift(cleanProp);
+    }
+
+    // 3. Re-inject agent dependencies
+    await injectAgentDependencies();
+
+    return res.json({ success: true, property: cleanProp });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/properties/book — assign / book a property
+app.post('/api/properties/book', async (req: Request, res: Response) => {
+  try {
+    const propertyId = req.body.propertyId;
+    const customerName = (req.body.customerName || req.body.assigned_to || '').trim();
+    const customerPhone = (req.body.customerPhone || req.body.assigned_phone || '').trim();
+    const customerEmail = (req.body.customerEmail || req.body.assigned_email || '').trim();
+    const bookingAmount = Number(req.body.bookingAmount ?? req.body.booking_amount_aed) || 0;
+    const notes = (req.body.notes || req.body.booking_notes || '').trim();
+
+    if (!propertyId || !customerName) {
+      return res.status(400).json({ success: false, error: 'propertyId and customerName (or assigned_to) are required' });
+    }
+
+    const bookingId = 'BK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const bookedAt = new Date().toISOString();
+
+    const bookingUpdate = {
+      status: 'Booked',
+      is_booked: true,
+      assigned_to: customerName.trim(),
+      assigned_phone: (customerPhone || '').trim(),
+      assigned_email: (customerEmail || '').trim(),
+      booking_id: bookingId,
+      booking_amount_aed: Number(bookingAmount) || 0,
+      booking_notes: notes || '',
+      booked_at: bookedAt,
+      updatedAt: bookedAt
+    };
+
+    const bookingRecord = {
+      id: bookingId,
+      property_id: propertyId,
+      customer_name: customerName.trim(),
+      customer_phone: (customerPhone || '').trim(),
+      customer_email: (customerEmail || '').trim(),
+      booking_amount_aed: Number(bookingAmount) || 0,
+      notes: notes || '',
+      booked_at: bookedAt,
+      status: 'Booked'
+    };
+
+    // 1. Update in Firestore
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'properties', propertyId), bookingUpdate, { merge: true });
+        await fsSetDoc(fsDoc(firestoreDb, 'booked_properties', bookingId), bookingRecord, { merge: true });
+        console.log(`[Properties API] Property ${propertyId} booked for ${customerName} in Firestore`);
+      } catch (fsErr: any) {
+        console.warn(`[Properties API] Firestore booking error:`, fsErr.message);
+      }
+    }
+
+    // 2. Update in-memory
+    const target = (ALL_VERIFIED_PROPERTIES as any[]).find(p => p.id === propertyId);
+    if (target) {
+      Object.assign(target, bookingUpdate);
+    }
+
+    // 3. Re-inject dependencies so chatbot immediately excludes this booked property
+    await injectAgentDependencies();
+
+    return res.json({ success: true, booking: bookingRecord, propertyId });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/properties/unbook — cancel booking / release property
+app.post('/api/properties/unbook', async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.body;
+    if (!propertyId) {
+      return res.status(400).json({ success: false, error: 'propertyId required' });
+    }
+
+    const releaseUpdate = {
+      status: 'Available',
+      is_booked: false,
+      assigned_to: null,
+      assigned_phone: null,
+      assigned_email: null,
+      booking_id: null,
+      booked_at: null,
+      booking_amount_aed: null,
+      booking_notes: null,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'properties', propertyId), releaseUpdate, { merge: true });
+        console.log(`[Properties API] Property ${propertyId} unbooked in Firestore`);
+      } catch (fsErr: any) {
+        console.warn(`[Properties API] Firestore unbook error:`, fsErr.message);
+      }
+    }
+
+    const target = (ALL_VERIFIED_PROPERTIES as any[]).find(p => p.id === propertyId);
+    if (target) {
+      target.status = 'Available';
+      target.is_booked = false;
+      delete target.assigned_to;
+      delete target.assigned_phone;
+      delete target.booking_id;
+    }
+
+    await injectAgentDependencies();
+
+    return res.json({ success: true, propertyId });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

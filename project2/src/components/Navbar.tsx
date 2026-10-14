@@ -13,15 +13,17 @@ import {
   BarChart3,
   Users,
   TrendingUp,
-  LogOut
+  LogOut,
+  BookmarkCheck
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats';
-  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats') => void;
+  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties';
+  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties') => void;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
+  bookedPropertyCount?: number;
   firestoreActive: boolean;
   vectorStatus?: { connected: boolean; count: number };
   onStartNewChat: () => void;
@@ -40,6 +42,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   leadCount,
   customerCount,
   propertyCount,
+  bookedPropertyCount,
   firestoreActive,
   vectorStatus,
   onStartNewChat,
@@ -52,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAdminLogout,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
-  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats', 'customers', 'login_stats'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties'].includes(activeTab);
 
   // Determine which portal is currently authenticated (Super Admin has access to both)
   const currentPortal = adminTargetPortal;
@@ -351,6 +354,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span>Property Stats</span>
                 </button>
+
+                <button
+                  onClick={() => setActiveTab('assigned_properties')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'assigned_properties'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <BookmarkCheck className="w-3.5 h-3.5" />
+                  <span>Assign / Bookings</span>
+                  {bookedPropertyCount !== undefined && bookedPropertyCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'assigned_properties' ? 'bg-amber-900/30 text-amber-950' : 'bg-emerald-500/20 text-emerald-300'
+                    }`}>
+                      {bookedPropertyCount}
+                    </span>
+                  )}
+                </button>
               </div>
             )}
 
@@ -372,6 +394,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                       activeTab === 'properties' ? 'bg-amber-900/30 text-amber-950' : 'bg-amber-500/20 text-amber-700'
                     }`}>
                       {propertyCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('assigned_properties')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'assigned_properties'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <BookmarkCheck className="w-3.5 h-3.5" />
+                  <span>Assign / Bookings</span>
+                  {bookedPropertyCount !== undefined && bookedPropertyCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'assigned_properties' ? 'bg-amber-900/30 text-amber-950' : 'bg-emerald-500/20 text-emerald-300'
+                    }`}>
+                      {bookedPropertyCount}
                     </span>
                   )}
                 </button>
@@ -446,12 +487,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setActiveTab('properties');
               }}
               className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-                (adminPanelOpen || isAdminTab) && adminTargetPortal === 'property_manager'
+                (adminPanelOpen || isAdminTab) && activeTab === 'properties'
                   ? 'bg-amber-500 text-amber-950 border-amber-400'
                   : 'text-espresso-400 border-espresso-700'
               }`}
             >
               Property Admin
+            </button>
+            <button
+              onClick={() => setActiveTab('assigned_properties')}
+              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
+                activeTab === 'assigned_properties'
+                  ? 'bg-amber-500 text-amber-950 border-amber-400'
+                  : 'text-espresso-400 border-espresso-700'
+              }`}
+            >
+              Assign
             </button>
             <button
               onClick={onAdminLogout}

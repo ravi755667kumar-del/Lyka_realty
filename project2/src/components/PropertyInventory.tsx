@@ -15,7 +15,8 @@ import {
   X,
   Upload,
   ImagePlus,
-  Trash2
+  Trash2,
+  Lock
 } from 'lucide-react';
 
 interface PropertyInventoryProps {
@@ -91,10 +92,41 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     if (!file) return;
     setNewImageName(file.name);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      setNewImage(base64);
-      setNewImagePreview(base64);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          setNewImage(compressed);
+          setNewImagePreview(compressed);
+        } else {
+          const raw = (event.target?.result as string) || '';
+          setNewImage(raw);
+          setNewImagePreview(raw);
+        }
+      };
+      img.src = (event.target?.result as string) || '';
     };
     reader.readAsDataURL(file);
   };
@@ -108,6 +140,16 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     if (newHasBalcony) amenities.push('Balcony');
     amenities.push('Concierge 24/7');
 
+    const defaultImages = [
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'
+    ];
+    const chosenImage = newImage && newImage.trim().length > 0 
+      ? newImage 
+      : defaultImages[Math.floor(Math.random() * defaultImages.length)];
+
     const prop: PropertyListing = {
       id: 'LYKA-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       title: newTitle,
@@ -115,14 +157,14 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       community: newCommunity,
       property_type: newType,
       bedrooms: newBeds,
-      price_aed: Number(newPrice),
-      price_inr: Math.round(Number(newPrice) * 22.8),
+      price_aed: Number(newPrice) || 0,
+      price_inr: Math.round((Number(newPrice) || 0) * 22.8),
       status: newStatus,
       developer: newDeveloper,
-      size_sqft: Number(newSize),
+      size_sqft: Number(newSize) || 0,
       expected_roi: newRoi,
       amenities,
-      image_url: newImage,
+      image_url: chosenImage,
       description: newDescription || `Premium ${newBeds}-bedroom listing in ${newCommunity} developed by ${newDeveloper}.`,
       features: [newFurnished, `${newBathrooms} Bathrooms`, 'High Rental Demand'],
       contact_name: newContactName,
@@ -314,9 +356,16 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       <span className="bg-slate-900/90 backdrop-blur-md text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-700">
                         {prop.community}
                       </span>
-                      <span className="bg-slate-900/90 backdrop-blur-md text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-700">
-                        {prop.status}
-                      </span>
+                      {prop.is_booked || (prop.status || '').toLowerCase() === 'booked' ? (
+                        <span className="bg-rose-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded shadow flex items-center space-x-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>BOOKED</span>
+                        </span>
+                      ) : (
+                        <span className="bg-slate-900/90 backdrop-blur-md text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-700">
+                          {prop.status}
+                        </span>
+                      )}
                       {prop.rera_id && (
                         <span className="bg-slate-900/90 backdrop-blur-md text-emerald-400 text-[9px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/30">
                           {prop.rera_id}
