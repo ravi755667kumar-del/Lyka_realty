@@ -103,11 +103,31 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager'>('admin');
-  // Admin authentication gate — SEPARATE states for each portal
-  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
-  const [propertyManagerAuthenticated, setPropertyManagerAuthenticated] = useState(false);
-  const isPortalAuthed = adminTargetPortal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
+  const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager'>(() => {
+    try {
+      const saved = localStorage.getItem('lyka_admin_target_portal');
+      if (saved === 'property_manager' || saved === 'admin') return saved;
+    } catch (e) {}
+    return 'admin';
+  });
+  // Admin authentication gate — PERSISTED in localStorage until explicit logout
+  const [adminAuthenticated, setAdminAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lyka_admin_authenticated') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+  const [propertyManagerAuthenticated, setPropertyManagerAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lyka_pm_authenticated') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+  const isPortalAuthed = adminTargetPortal === 'admin' 
+    ? adminAuthenticated 
+    : (propertyManagerAuthenticated || adminAuthenticated);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
@@ -1115,7 +1135,12 @@ export default function App() {
         adminTargetPortal={adminTargetPortal}
         onSelectPortal={(portal) => {
           setAdminTargetPortal(portal);
-          const isAuthed = portal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
+          try {
+            localStorage.setItem('lyka_admin_target_portal', portal);
+          } catch (e) {}
+          const isAuthed = portal === 'admin' 
+            ? adminAuthenticated 
+            : (propertyManagerAuthenticated || adminAuthenticated);
           if (!isAuthed) {
             resetAdminModalState();
             setAdminEmailInput('');
@@ -1131,12 +1156,14 @@ export default function App() {
           }
         }}
         onToggleAdminPanel={() => {
-          if (adminPanelOpen) {
+          if (adminPanelOpen || activeTab !== 'chat') {
             // Close admin → go back to chat
             setAdminPanelOpen(false);
             setActiveTab('chat');
           } else {
-            const isAuthed = adminTargetPortal === 'admin' ? adminAuthenticated : propertyManagerAuthenticated;
+            const isAuthed = adminTargetPortal === 'admin' 
+              ? adminAuthenticated 
+              : (propertyManagerAuthenticated || adminAuthenticated);
             if (!isAuthed) {
               // Not logged in → show login gate
               resetAdminModalState();
@@ -1155,11 +1182,13 @@ export default function App() {
           }
         }}
         onAdminLogout={() => {
-          if (adminTargetPortal === 'admin') {
-            setAdminAuthenticated(false);
-          } else {
-            setPropertyManagerAuthenticated(false);
-          }
+          setAdminAuthenticated(false);
+          setPropertyManagerAuthenticated(false);
+          try {
+            localStorage.removeItem('lyka_admin_authenticated');
+            localStorage.removeItem('lyka_pm_authenticated');
+            localStorage.removeItem('lyka_admin_target_portal');
+          } catch (e) {}
           setAdminPanelOpen(false);
           setActiveTab('chat');
         }}
@@ -1549,7 +1578,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-slate-800 font-bold text-base">
-                    {adminTargetPortal === 'property_manager' ? 'Property Manager Portal' : 'Admin Portal Access'}
+                    {adminTargetPortal === 'property_manager' ? 'Property Admin Portal' : 'Admin Portal Access'}
                   </h2>
                   <p className="text-slate-700 text-xs mt-0.5">
                     {adminTargetPortal === 'property_manager'
@@ -1591,7 +1620,7 @@ export default function App() {
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>Property Manager</span>
+                  <span>Property Admin</span>
                 </button>
               </div>
 
@@ -1843,8 +1872,18 @@ export default function App() {
                     if (valid) {
                       if (adminTargetPortal === 'admin') {
                         setAdminAuthenticated(true);
+                        setPropertyManagerAuthenticated(true);
+                        try {
+                          localStorage.setItem('lyka_admin_authenticated', 'true');
+                          localStorage.setItem('lyka_pm_authenticated', 'true');
+                          localStorage.setItem('lyka_admin_target_portal', 'admin');
+                        } catch (e) {}
                       } else {
                         setPropertyManagerAuthenticated(true);
+                        try {
+                          localStorage.setItem('lyka_pm_authenticated', 'true');
+                          localStorage.setItem('lyka_admin_target_portal', 'property_manager');
+                        } catch (e) {}
                       }
                       setShowAdminLoginModal(false);
                       setAdminPanelOpen(true);
