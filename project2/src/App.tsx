@@ -39,6 +39,8 @@ import {
   verifyPortalLoginFromFirestore,
   savePortalCredentialToFirestore,
   savePortalEmailOtpToFirestore,
+  savePropertyToFirestore,
+  getPropertiesFromFirestore,
   auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
@@ -343,6 +345,25 @@ export default function App() {
       const existingFollowups = await getFollowUpsFromFirestore();
       if (existingFollowups.length > 0) {
         setFollowUpsList(existingFollowups);
+      }
+
+      // Load custom properties from Firestore
+      try {
+        const firestoreProps = await getPropertiesFromFirestore();
+        if (firestoreProps.length > 0) {
+          setPropertiesList(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newFromFirestore = firestoreProps.filter(p => !existingIds.has(p.id));
+            if (newFromFirestore.length === 0) return prev;
+            const updated = [...newFromFirestore, ...prev];
+            try {
+              localStorage.setItem('localProperties', JSON.stringify(updated));
+            } catch (_) {}
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.warn('Could not fetch custom properties from Firestore:', err);
       }
 
       // Check Vector Embedding status
@@ -1108,13 +1129,14 @@ export default function App() {
               <CustomerAnalytics onNavigateToProfiles={() => setActiveTab('customers')} />
             )}
 
-            {/* Property Manager Portal Pages — require propertyManagerAuthenticated */}
-            {propertyManagerAuthenticated && activeTab === 'properties' && (
+            {/* Property Manager & Admin Portal Pages — require propertyManagerAuthenticated or adminAuthenticated */}
+            {(propertyManagerAuthenticated || adminAuthenticated) && activeTab === 'properties' && (
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
                 onBookViewing={(prop) => setViewingModalProperty(prop)}
-                onAddProperty={(newProp) => {
+                onAddProperty={async (newProp) => {
+                  // 1. Immediately update UI state & local cache
                   setPropertiesList(prev => {
                     const updated = [newProp, ...prev];
                     try {
@@ -1124,6 +1146,13 @@ export default function App() {
                     }
                     return updated;
                   });
+
+                  // 2. Persist to Firestore database ('properties' collection)
+                  try {
+                    await savePropertyToFirestore(newProp);
+                  } catch (err) {
+                    console.warn('Could not save property to Firestore:', err);
+                  }
                 }}
               />
             )}

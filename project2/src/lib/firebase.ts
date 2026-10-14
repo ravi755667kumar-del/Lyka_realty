@@ -751,9 +751,35 @@ export async function getFollowUpsFromFirestore(): Promise<FollowUpTask[]> {
 export async function savePropertyToFirestore(property: PropertyListing): Promise<void> {
   const path = `properties/${property.id}`;
   try {
-    await setDoc(doc(db, 'properties', property.id), property, { merge: true });
+    await setDoc(doc(db, 'properties', property.id), {
+      ...property,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getPropertiesFromFirestore(): Promise<PropertyListing[]> {
+  try {
+    const snap = await getDocs(collection(db, 'properties'));
+    const list: PropertyListing[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as PropertyListing;
+      list.push({ ...data, id: data.id || d.id });
+    });
+    return list;
+  } catch (error) {
+    console.warn('Could not fetch properties from Firestore:', error);
+    return [];
+  }
+}
+
+export async function deletePropertyFromFirestore(propertyId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'properties', propertyId));
+  } catch (error) {
+    console.warn(`Could not delete property ${propertyId} from Firestore:`, error);
   }
 }
 

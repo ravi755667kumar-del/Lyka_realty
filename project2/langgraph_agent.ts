@@ -13,7 +13,7 @@
  */
 
 import Groq from 'groq-sdk';
-import { StateGraph, Annotation, END } from '@langchain/langgraph';
+import { StateGraph, Annotation, START, END } from '@langchain/langgraph';
 // Reuse the browser's regex extractor as the fast path for answer extraction.
 import { extractEntitiesFromText, isPropertyQuery, queryGeneralKnowledge } from './src/lib/agentic_engine.js';
 import { ALL_VERIFIED_PROPERTIES } from './src/data/all_properties.js';
@@ -1458,7 +1458,7 @@ function buildLykaGraph() {
   workflow.addNode('present_results', nodePresentResults);
   workflow.addNode('no_match', nodeNoMatch);
 
-  workflow.setEntryPoint('router');
+  workflow.addEdge(START, 'router');
 
   workflow.addConditionalEdges('router', (state: AgentState) => state.currentNode || 'greet', {
     greet: 'greet',
