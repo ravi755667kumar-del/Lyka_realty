@@ -75,6 +75,8 @@ export interface CustomerProfile {
   is_nri?: boolean;
   target_city?: string;
   requirement_completeness?: number;
+  human_handoff_required?: boolean;
+  handoff_reason?: string;
 }
 
 // ─── LangGraph State Schema ──────────────────────────────────────────────────
@@ -1385,10 +1387,35 @@ ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
   };
 }
 
+async function nodeAgentHandoff(state: AgentState): Promise<Partial<AgentState>> {
+  const p = state.profile;
+  const reply = `Wonderful! I will be delighted to connect you directly with our Lyka Realty senior property advisor. 📞\n\nPlease click on the **'Talk to Agent'** button in the upper box (at the top of the chat). In the box that opens, write your query or preferred viewing time, verify your phone number, and click **Confirm** to send it directly!`;
+
+  return {
+    reply,
+    provider: 'LangGraph → Agent Advisor Handoff',
+    currentNode: 'agent_handoff',
+    isComplete: true,
+    ragContext: getRagContext(state.userMessage),
+    profile: {
+      ...p,
+      human_handoff_required: true,
+      handoff_reason: p.handoff_reason || 'Client confirmed to speak directly with Lyka Realty advisor'
+    }
+  };
+}
+
 async function nodePresentResults(state: AgentState): Promise<Partial<AgentState>> {
   const props = state.matchedProperties;
   const ragCtx = getRagContext(state.userMessage);
   const p = state.profile;
+  const userText = (state.userMessage || '').trim().toLowerCase();
+
+  // If user says "yes", "yeah", "sure", "talk to agent", etc. to speaking with an advisor / booking viewing:
+  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay|yup|definitely|absolutely|please|connect|talk to agent|call me|book viewing)\b/i.test(userText);
+  if (isAffirmative || /\b(talk to agent|connect with advisor|speak with agent|call me)\b/i.test(userText)) {
+    return nodeAgentHandoff(state);
+  }
 
   let propContext = '';
   if (props.length > 0) {
@@ -1456,6 +1483,7 @@ function buildLykaGraph() {
   workflow.addNode('sell_handoff', nodeSellHandoff);
   workflow.addNode('search_properties', nodeSearchProperties);
   workflow.addNode('present_results', nodePresentResults);
+  workflow.addNode('agent_handoff', nodeAgentHandoff);
   workflow.addNode('no_match', nodeNoMatch);
 
   workflow.addEdge(START, 'router');
@@ -1471,11 +1499,13 @@ function buildLykaGraph() {
     sell_handoff: 'sell_handoff',
     search_properties: 'search_properties',
     present_results: 'present_results',
+    agent_handoff: 'agent_handoff',
     no_match: 'no_match',
     [END]: END,
   });
 
   workflow.addEdge('greet', END);
+  workflow.addEdge('agent_handoff', END);
 
   workflow.addConditionalEdges('classify_intent', routeAfterClassify, {
     qualify_buy: 'qualify_buy',
@@ -1596,8 +1626,18 @@ async function runQualifyNode(node: string, state: AgentState): Promise<Partial<
 }
 
 function determineStartNode(stage: string, userMessage: string, profile: CustomerProfile): string {
+  const msg = (userMessage || '').trim().toLowerCase();
+  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay|yup|definitely|absolutely|please|connect|talk to agent|call me|book viewing)\b/i.test(msg);
+
+  // If stage is already presenting results or in agent handoff, and user says yes / confirms:
+  if (stage === 'present_results' || stage === 'agent_handoff') {
+    if (isAffirmative || /\b(talk to agent|speak to agent|advisor|call me)\b/i.test(msg)) {
+      return 'agent_handoff';
+    }
+    if (isPropertyQuery(userMessage)) return 'search_properties';
+  }
+
   if (!stage || stage === 'greet' || stage === 'new') {
-    const msg = userMessage.toLowerCase();
     // If they immediately mention intent, skip greeting
     if (/\b(buy|purchase|rent|invest|sell)\b/.test(msg)) return 'classify_intent';
     return 'greet';

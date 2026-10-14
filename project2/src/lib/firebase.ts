@@ -513,13 +513,17 @@ export async function getUserChatSessionsFromFirestore(
         const data = snap.data();
         if (data.User_chat && typeof data.User_chat === 'object') {
           for (const [leadId, session] of Object.entries<any>(data.User_chat)) {
-            if (session && Array.isArray(session.messages) && session.messages.length > 0) {
+            if (session && Array.isArray(session.messages) && session.messages.some((m: any) => m.role === 'user')) {
               const msgs = session.messages as ChatMessage[];
               const lead = session.leadProfile || { id: leadId, user_id: userId };
+              const firstUserMsg = msgs.find(m => m.role === 'user');
+              const title = firstUserMsg
+                ? (firstUserMsg.content.length > 42 ? firstUserMsg.content.slice(0, 42) + '...' : firstUserMsg.content)
+                : (lead.summary || `${lead.intent || 'General'} Inquiry`);
               const lastMsg = msgs[msgs.length - 1];
               sessionMap.set(leadId, {
                 id: leadId,
-                title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+                title,
                 preview: (lastMsg?.content || '').substring(0, 60) + '...',
                 timestamp: lead.updatedAt || session.updatedAt || lastMsg?.timestamp || new Date().toISOString(),
                 messageCount: msgs.length,
@@ -540,17 +544,22 @@ export async function getUserChatSessionsFromFirestore(
     const snap = await getDocs(collection(db, 'user_chat'));
     snap.forEach((d) => {
       const data = d.data();
-      if (data.userId === userId && data.leadId && Array.isArray(data.messages) && data.messages.length > 0) {
-        if (!sessionMap.has(data.leadId)) {
-          const msgs = data.messages as ChatMessage[];
-          const lastMsg = msgs[msgs.length - 1];
+      if ((data.userId === userId || !data.userId) && data.leadId && Array.isArray(data.messages) && data.messages.some((m: any) => m.role === 'user')) {
+        const msgs = data.messages as ChatMessage[];
+        const firstUserMsg = msgs.find(m => m.role === 'user');
+        const title = firstUserMsg
+          ? (firstUserMsg.content.length > 42 ? firstUserMsg.content.slice(0, 42) + '...' : firstUserMsg.content)
+          : `Inquiry (${data.leadId})`;
+        const lastMsg = msgs[msgs.length - 1];
+        const existing = sessionMap.get(data.leadId);
+        if (!existing || existing.messages.length < msgs.length) {
           sessionMap.set(data.leadId, {
             id: data.leadId,
-            title: `Inquiry (${data.leadId})`,
+            title,
             preview: (lastMsg?.content || '').substring(0, 60) + '...',
             timestamp: data.updatedAt || lastMsg?.timestamp || new Date().toISOString(),
             messageCount: msgs.length,
-            leadProfile: { id: data.leadId, user_id: userId } as any,
+            leadProfile: existing?.leadProfile || ({ id: data.leadId, user_id: userId } as any),
             messages: msgs
           });
         }
@@ -564,25 +573,24 @@ export async function getUserChatSessionsFromFirestore(
   try {
     const leads = await getUserLeadsFromFirestore(userId);
     for (const lead of leads) {
-      if (!sessionMap.has(lead.id)) {
-        const msgs = await getMessagesForLead(lead.id);
-        if (msgs.length > 0) {
-          const lastMsg = msgs[msgs.length - 1];
+      const msgs = await getMessagesForLead(lead.id);
+      if (msgs.length > 0 && msgs.some(m => m.role === 'user')) {
+        const firstUserMsg = msgs.find(m => m.role === 'user');
+        const title = firstUserMsg
+          ? (firstUserMsg.content.length > 42 ? firstUserMsg.content.slice(0, 42) + '...' : firstUserMsg.content)
+          : (lead.summary || `${lead.intent || 'General'} Inquiry`);
+        const lastMsg = msgs[msgs.length - 1];
+        const existing = sessionMap.get(lead.id);
+        if (!existing || existing.messages.length < msgs.length) {
           sessionMap.set(lead.id, {
             id: lead.id,
-            title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+            title,
             preview: (lastMsg?.content || '').substring(0, 60) + '...',
             timestamp: lead.updatedAt || lastMsg?.timestamp || new Date().toISOString(),
             messageCount: msgs.length,
             leadProfile: lead,
             messages: msgs
           });
-        }
-      } else {
-        const existing = sessionMap.get(lead.id)!;
-        if (!existing.leadProfile.intent && lead.intent) {
-          existing.leadProfile = { ...existing.leadProfile, ...lead };
-          existing.title = lead.summary || `${lead.intent || 'General'} Inquiry`;
         }
       }
     }

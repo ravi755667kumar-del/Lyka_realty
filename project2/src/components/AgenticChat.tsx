@@ -45,7 +45,11 @@ import {
   Trash2,
   AlertTriangle,
   Pencil,
-  Save
+  Save,
+  MapPin,
+  Bed,
+  Bath,
+  Maximize2
 } from 'lucide-react';
 import { 
   auth, 
@@ -122,6 +126,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
+
+  // Property details square modal state (left-side view)
+  const [selectedDetailProperty, setSelectedDetailProperty] = useState<PropertyListing | null>(null);
 
   // Model & AI Engine configuration state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -241,12 +248,16 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom('smooth');
+    const timer = setTimeout(() => {
+      scrollToBottom('auto');
+    }, 120);
+    return () => clearTimeout(timer);
   }, [messages, isLoading]);
 
   useEffect(() => {
@@ -258,28 +269,45 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
   useEffect(() => {
     async function loadSessions() {
+      let sessions: SavedSession[] = [];
       if (userLoggedIn && userId) {
         try {
-          const sessions = await getUserChatSessionsFromFirestore(userId, userEmail);
-          setSavedSessions(sessions);
+          sessions = await getUserChatSessionsFromFirestore(userId, userEmail);
         } catch (error) {
-          console.warn('Failed to load chat sessions', error);
+          console.warn('Failed to load chat sessions from Firestore', error);
         }
-      } else {
-        try {
-          const localLeadsStr = localStorage.getItem('localLeads');
-          const localMsgsStr = localStorage.getItem('localInteractions');
-          if (localLeadsStr && localMsgsStr) {
-            const leads: LeadProfile[] = JSON.parse(localLeadsStr);
-            const allMsgs: ChatMessage[] = JSON.parse(localMsgsStr);
-            const sessions: SavedSession[] = [];
-            
-            for (const lead of leads) {
-              const msgs = allMsgs.filter(m => m.lead_id === lead.id).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-              if (msgs.length > 0) {
+      }
+
+      // Check local storage and merge (gives offline resilience, guest chats, and most recent turns)
+      try {
+        const localLeadsStr = localStorage.getItem('localLeads');
+        const localMsgsStr = localStorage.getItem('localInteractions');
+        if (localLeadsStr && localMsgsStr) {
+          const leads: LeadProfile[] = JSON.parse(localLeadsStr);
+          const allMsgs: ChatMessage[] = JSON.parse(localMsgsStr);
+
+          for (const lead of leads) {
+            const msgs = allMsgs.filter(m => m.lead_id === lead.id).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            // ONLY store and display if user has actually queried the chatbot
+            if (msgs.length > 0 && msgs.some(m => m.role === 'user')) {
+              const firstUserMsg = msgs.find(m => m.role === 'user');
+              const sessionTitle = firstUserMsg
+                ? (firstUserMsg.content.length > 42 ? firstUserMsg.content.slice(0, 42) + '...' : firstUserMsg.content)
+                : (lead.summary || `${lead.intent || 'General'} Inquiry`);
+
+              const existingIdx = sessions.findIndex(s => s.id === lead.id);
+              if (existingIdx >= 0) {
+                // If local interaction log has more or equal messages, prefer local msgs
+                if (msgs.length >= sessions[existingIdx].messages.length) {
+                  sessions[existingIdx].messages = msgs;
+                  sessions[existingIdx].messageCount = msgs.length;
+                  sessions[existingIdx].preview = msgs[msgs.length - 1].content.substring(0, 60) + '...';
+                  sessions[existingIdx].title = sessionTitle;
+                }
+              } else {
                 sessions.push({
                   id: lead.id,
-                  title: lead.summary || `${lead.intent || 'General'} Inquiry`,
+                  title: sessionTitle,
                   preview: msgs[msgs.length - 1].content.substring(0, 60) + '...',
                   timestamp: lead.updatedAt || msgs[msgs.length - 1].timestamp,
                   messageCount: msgs.length,
@@ -288,17 +316,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 });
               }
             }
-            // Sort sessions by timestamp descending
-            sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            setSavedSessions(sessions);
-          } else {
-            setSavedSessions([]);
           }
-        } catch (e) {
-          console.warn('Failed to parse local sessions', e);
-          setSavedSessions([]);
         }
+      } catch (e) {
+        console.warn('Failed to parse local sessions', e);
       }
+
+      sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setSavedSessions(sessions);
     }
     loadSessions();
   }, [userLoggedIn, userId, userEmail, messages.length]);
@@ -938,8 +963,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   ];
 
   const filteredSessions = savedSessions.filter(s =>
-    s.title.toLowerCase().includes(sessionSearch.toLowerCase()) ||
-    s.preview.toLowerCase().includes(sessionSearch.toLowerCase())
+    (s.title.toLowerCase().includes(sessionSearch.toLowerCase()) ||
+    s.preview.toLowerCase().includes(sessionSearch.toLowerCase())) &&
+    s.messages.some(m => m.role === 'user')
   );
 
   return (
@@ -1028,8 +1054,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               </div>
 
               <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
-                {/* Current active chat if not yet in saved sessions list */}
-                {messages.length > 1 && !savedSessions.some(s => s.id === currentLead.id) && (
+                {/* Current active chat if user has queried and not yet in saved sessions list */}
+                {messages.some(m => m.role === 'user') && !savedSessions.some(s => s.id === currentLead.id) && (
                   <button
                     onClick={() => setActiveSessionId(currentLead.id)}
                     className={`w-full text-left p-2.5 rounded-xl border transition-all group ${
@@ -1041,10 +1067,15 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div className="flex items-center space-x-2">
                       <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${activeSessionId === currentLead.id ? 'text-amber-600' : 'text-slate-600'}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold truncate">Active Conversation</p>
+                        <p className="text-[11px] font-semibold truncate text-[#2d2216]">
+                          {(() => {
+                            const firstUserQuery = messages.find(m => m.role === 'user')?.content;
+                            return firstUserQuery ? (firstUserQuery.length > 40 ? firstUserQuery.slice(0, 40) + '...' : firstUserQuery) : 'Active Conversation';
+                          })()}
+                        </p>
                         <p className="text-[9px] text-slate-500 truncate">{messages[messages.length - 1]?.content?.slice(0, 35)}...</p>
                       </div>
-                      <span className="text-[9px] bg-amber-500/20 text-amber-950 px-1.5 py-0.5 rounded-full font-medium shrink-0">Open</span>
+                      <span className="text-[9px] bg-amber-500/20 text-amber-950 px-1.5 py-0.5 rounded-full font-medium shrink-0">Active</span>
                     </div>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-[9px] text-slate-600">{messages.length} msgs</span>
@@ -1063,6 +1094,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div key={session.id} className="relative group">
                       <button
                         onClick={() => {
+                          if (currentLead.id === session.id) return;
                           setActiveSessionId(session.id);
                           if (onLoadChat) onLoadChat(session.leadProfile, session.messages);
                         }}
@@ -1184,11 +1216,15 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             </button>
             <button
               onClick={onOpenAgentHandoff}
-              className="flex items-center space-x-1.5 text-xs bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#3a2e20] border border-[#d6cbb4] px-2.5 sm:px-3 py-1.5 rounded-full transition-colors font-medium shadow-xs"
+              className={`flex items-center space-x-1.5 text-xs px-2.5 sm:px-3 py-1.5 rounded-full transition-all font-medium shadow-xs ${
+                currentLead.human_handoff_required
+                  ? 'bg-amber-500 text-amber-950 font-bold border border-amber-400 ring-2 ring-amber-400/50 animate-pulse'
+                  : 'bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#3a2e20] border border-[#d6cbb4]'
+              }`}
               title="Talk to Human Agent"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span className="hidden xs:inline sm:inline">Talk to Agent</span>
+              <PhoneCall className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span className="inline">Talk to Agent</span>
             </button>
             <button
               onClick={onToggleSidebar}
@@ -1324,19 +1360,45 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                                   <p className="text-xs sm:text-sm text-[#6b5843] line-clamp-2 leading-relaxed">{prop.description}</p>
                                   <div className="text-xs sm:text-sm text-emerald-400 font-semibold">{prop.expected_roi || 'High Capital Upside'}</div>
                                 </div>
-                                <div className="p-4 pt-0 border-t border-[#eee6d3] flex items-center justify-between">
-                                  <span className="text-xs sm:text-sm text-[#6b5843]">{prop.developer}</span>
-                                  <button
-                                    onClick={() => onBookViewing(prop)}
-                                    className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-1.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center space-x-1.5"
-                                  >
-                                    <Calendar className="w-3.5 h-3.5" />
-                                    <span>Book Viewing</span>
-                                  </button>
+                                <div className="p-4 pt-0 border-t border-[#eee6d3] flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-xs sm:text-sm text-[#6b5843] truncate max-w-[110px]">{prop.developer}</span>
+                                  <div className="flex items-center space-x-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedDetailProperty(prop)}
+                                      className="bg-[#ffffff] hover:bg-[#f3ede0] text-[#4a3b2c] border border-[#d6cbb4] hover:border-amber-500 font-bold px-3 py-1.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center space-x-1.5 shadow-2xs"
+                                      title="View full property specifications"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 text-amber-700" />
+                                      <span>View Details</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onBookViewing(prop)}
+                                      className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-3.5 py-1.5 rounded-xl text-xs sm:text-sm transition-colors flex items-center space-x-1.5 shadow-2xs"
+                                    >
+                                      <Calendar className="w-3.5 h-3.5" />
+                                      <span>Book Viewing</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Interactive Button to Open Talk to Agent Modal */}
+                      {(msg.content.includes("Talk to Agent") || msg.agentic_decision?.handoff_suggested) && (
+                        <div className="pt-2 pb-1">
+                          <button
+                            type="button"
+                            onClick={onOpenAgentHandoff}
+                            className="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+                          >
+                            <PhoneCall className="w-4 h-4 text-amber-950 shrink-0" />
+                            <span>Click here to Talk to Agent (Write Query & Send)</span>
+                          </button>
                         </div>
                       )}
 
@@ -1999,6 +2061,199 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           </div>
         </div>
       )}
-</div>
+
+      {/* ═══════════════════════════════════════════════════
+          LEFT-SIDE SQUARE PROPERTY DETAILS MODAL
+      ═══════════════════════════════════════════════════ */}
+      {selectedDetailProperty && (
+        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-start p-3 sm:p-5 md:p-8">
+          {/* Subtle click-away backdrop */}
+          <div 
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto transition-opacity cursor-pointer"
+            onClick={() => setSelectedDetailProperty(null)}
+            title="Click outside to close"
+          />
+
+          {/* Square Container on the Left Side */}
+          <div className="relative pointer-events-auto w-[490px] max-w-[calc(100vw-2rem)] h-[490px] max-h-[calc(100vh-3rem)] aspect-square bg-[#ffffff] border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10 animate-in fade-in slide-in-from-left-6 duration-200">
+            {/* 1. Header */}
+            <div className="px-4 py-3 border-b border-[#f3ede0] bg-[#faf7f0] flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                  <Building2 className="w-4 h-4 text-amber-700" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs sm:text-sm font-bold text-[#2d2216] truncate">
+                    {selectedDetailProperty.title}
+                  </h3>
+                  <div className="flex items-center space-x-1.5 text-[10px] text-[#6b5843]">
+                    <span className="font-semibold text-amber-700">{selectedDetailProperty.city || 'Dubai'}</span>
+                    <span>•</span>
+                    <span className="truncate">{selectedDetailProperty.community}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDetailProperty(null)}
+                className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-[#eee6d3] flex items-center justify-center transition-colors shrink-0"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 2. Scrollable Body */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-xs text-[#4a3b2c]">
+              {/* Image banner */}
+              <div className="relative h-44 rounded-2xl overflow-hidden border border-[#e2d9c6] shrink-0">
+                <img
+                  src={selectedDetailProperty.image_url}
+                  alt={selectedDetailProperty.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-2 left-2 flex items-center space-x-1.5">
+                  <span className="bg-amber-500 text-amber-950 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm">
+                    {selectedDetailProperty.status || 'Verified'}
+                  </span>
+                  <span className="bg-slate-900/80 backdrop-blur-sm text-white px-2 py-0.5 rounded-md text-[10px] font-semibold">
+                    {selectedDetailProperty.property_type}
+                  </span>
+                </div>
+                {selectedDetailProperty.expected_roi && (
+                  <div className="absolute bottom-2 right-2 bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs shadow-sm">
+                    {selectedDetailProperty.expected_roi}
+                  </div>
+                )}
+              </div>
+
+              {/* Price & Currency */}
+              <div className="bg-[#faf7f0] border border-[#e8dec8] rounded-xl p-2.5 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-[#7d6952] uppercase tracking-wider font-semibold block">Asking Price</span>
+                  <div className="text-base sm:text-lg font-black text-amber-700">
+                    AED {selectedDetailProperty.price_aed?.toLocaleString()}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-[#7d6952] uppercase tracking-wider font-semibold block">Approx INR</span>
+                  <div className="text-xs sm:text-sm font-bold text-slate-700">
+                    ₹ {(selectedDetailProperty.price_inr || Math.round(selectedDetailProperty.price_aed * 22.8)).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Specs Grid */}
+              <div className="grid grid-cols-4 gap-1.5 text-center">
+                <div className="bg-[#f7f3ea] border border-[#e8dec8] rounded-xl p-2">
+                  <Bed className="w-3.5 h-3.5 text-amber-700 mx-auto mb-1" />
+                  <span className="text-[10px] text-[#7d6952] block">Bedrooms</span>
+                  <span className="font-bold text-[#2d2216] text-xs">{selectedDetailProperty.bedrooms} BR</span>
+                </div>
+                <div className="bg-[#f7f3ea] border border-[#e8dec8] rounded-xl p-2">
+                  <Bath className="w-3.5 h-3.5 text-amber-700 mx-auto mb-1" />
+                  <span className="text-[10px] text-[#7d6952] block">Bathrooms</span>
+                  <span className="font-bold text-[#2d2216] text-xs">{selectedDetailProperty.bathrooms || '2'}</span>
+                </div>
+                <div className="bg-[#f7f3ea] border border-[#e8dec8] rounded-xl p-2">
+                  <Maximize2 className="w-3.5 h-3.5 text-amber-700 mx-auto mb-1" />
+                  <span className="text-[10px] text-[#7d6952] block">Built-up</span>
+                  <span className="font-bold text-[#2d2216] text-xs">{selectedDetailProperty.size_sqft} sqft</span>
+                </div>
+                <div className="bg-[#f7f3ea] border border-[#e8dec8] rounded-xl p-2">
+                  <Building2 className="w-3.5 h-3.5 text-amber-700 mx-auto mb-1" />
+                  <span className="text-[10px] text-[#7d6952] block">Furnished</span>
+                  <span className="font-bold text-[#2d2216] text-xs truncate block">{selectedDetailProperty.furnished || 'Ready'}</span>
+                </div>
+              </div>
+
+              {/* Extra details (Developer, Payment plan, Handover) */}
+              <div className="bg-[#ffffff] border border-[#e8dec8] rounded-xl p-2.5 space-y-1.5 text-[11px]">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#7d6952]">Developer</span>
+                  <span className="font-bold text-[#2d2216]">{selectedDetailProperty.developer}</span>
+                </div>
+                {selectedDetailProperty.handover_date && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#7d6952]">Handover Date</span>
+                    <span className="font-bold text-[#2d2216]">{selectedDetailProperty.handover_date}</span>
+                  </div>
+                )}
+                {selectedDetailProperty.payment_plan && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#7d6952]">Payment Plan</span>
+                    <span className="font-bold text-amber-700">{selectedDetailProperty.payment_plan}</span>
+                  </div>
+                )}
+                {selectedDetailProperty.rera_id && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#7d6952]">RERA Permit ID</span>
+                    <span className="font-mono text-[10px] text-slate-600">{selectedDetailProperty.rera_id}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <h4 className="text-[11px] font-bold text-[#2d2216] uppercase tracking-wider mb-1">Description</h4>
+                <p className="text-[11px] text-[#5c4936] leading-relaxed bg-[#faf7f0] p-2.5 rounded-xl border border-[#e8dec8]">
+                  {selectedDetailProperty.description}
+                </p>
+              </div>
+
+              {/* Amenities */}
+              {selectedDetailProperty.amenities && selectedDetailProperty.amenities.length > 0 && (
+                <div>
+                  <h4 className="text-[11px] font-bold text-[#2d2216] uppercase tracking-wider mb-1">Amenities</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedDetailProperty.amenities.map((amenity, i) => (
+                      <span key={i} className="text-[10px] bg-[#faf7f0] text-[#5c4936] border border-[#e8dec8] px-2 py-0.5 rounded-lg font-medium">
+                        ✓ {amenity}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Footer Actions */}
+            <div className="px-4 py-2.5 border-t border-[#f3ede0] bg-[#faf7f0] flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setInputText(`Tell me more about ${selectedDetailProperty.title} in ${selectedDetailProperty.community}`);
+                  setSelectedDetailProperty(null);
+                }}
+                className="bg-[#ffffff] hover:bg-[#eee6d3] text-[#4a3b2c] border border-[#d6cbb4] text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>Ask AI</span>
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailProperty(null)}
+                  className="text-xs text-[#6b5843] hover:text-[#2d2216] font-medium px-2 py-1.5 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = selectedDetailProperty;
+                    setSelectedDetailProperty(null);
+                    onBookViewing(p);
+                  }}
+                  className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-3.5 py-1.5 rounded-xl text-xs transition-colors flex items-center space-x-1.5 shadow-sm"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Book Viewing</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };

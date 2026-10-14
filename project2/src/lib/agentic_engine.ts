@@ -940,10 +940,21 @@ export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[
     };
   }
 
-  // 2. If human handoff triggered
+  // 2. If user affirms or requests to speak to an agent / advisor
+  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay|yup|definitely|absolutely|please)\b/i.test((lastUserText || '').trim());
+  const wantsAgent = isAffirmative || /\b(talk to agent|speak with agent|speak to advisor|connect with agent|advisor|call me)\b/i.test(lastUserText || '');
+  if (wantsAgent && (lead.human_handoff_required || missing.length <= 1 || lead.requirement_completeness >= 60 || lead.next_action === 'present_results' || lead.next_action === 'Viewing & Shortlist' || lead.next_action === 'Human Handoff')) {
+    return {
+      nextQuestion: `Wonderful! I will be delighted to connect you directly with our Lyka Realty senior property advisor. 📞\n\nPlease click on the **'Talk to Agent'** button in the upper box (at the top of the chat). In the box that opens, write your query or preferred viewing time, verify your phone number, and click **Confirm** to send it directly!`,
+      rationale: 'Customer confirmed request to speak with advisor. Directed to upper box Talk to Agent.',
+      intentCategory: 'Human Handoff'
+    };
+  }
+
+  // 3. If human handoff triggered
   if (lead.human_handoff_required) {
     return {
-      nextQuestion: `I'll be delighted to connect you directly with our Lyka Realty senior property advisor, ${lead.assigned_agent}. Would you prefer a quick phone call or WhatsApp message, and what time works best for you?`,
+      nextQuestion: `Wonderful! Please click on the **'Talk to Agent'** button in the upper box at the top of the chat. In the box, write your query and click Confirm to send it directly to ${lead.assigned_agent || 'our senior advisor'}!`,
       rationale: 'Customer requested human agent / viewing / negotiation; immediate CRM handoff initiated.',
       intentCategory: 'Human Handoff'
     };

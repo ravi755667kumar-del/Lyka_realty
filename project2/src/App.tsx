@@ -483,19 +483,20 @@ export default function App() {
   };
 
   const saveLeadData = (lead: LeadProfile) => {
+    // Always mirror to localStorage for instantaneous offline resilience and fast loads
+    try {
+      const localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
+      const existingIndex = localLeads.findIndex((l: LeadProfile) => l.id === lead.id);
+      if (existingIndex >= 0) {
+        localLeads[existingIndex] = lead;
+      } else {
+        localLeads.push(lead);
+      }
+      localStorage.setItem('localLeads', JSON.stringify(localLeads));
+    } catch (e) { console.warn(e); }
+
     if (currentUserId) {
       saveLeadToFirestore(lead);
-    } else {
-      try {
-        const localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
-        const existingIndex = localLeads.findIndex((l: LeadProfile) => l.id === lead.id);
-        if (existingIndex >= 0) {
-          localLeads[existingIndex] = lead;
-        } else {
-          localLeads.push(lead);
-        }
-        localStorage.setItem('localLeads', JSON.stringify(localLeads));
-      } catch (e) { console.warn(e); }
     }
   };
 
@@ -526,17 +527,27 @@ export default function App() {
 
   // Start new customer chat
   const handleStartNewChat = () => {
-    // Save active chat before switching to a new one
-    if (currentUserId && currentLead.id && messages.length > 1) {
-      saveLeadToFirestore(currentLead).catch(() => {});
-      saveUserChatToFirestore(currentUserId, currentLead.id, messages).catch(() => {});
-      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
+    // Save active chat before switching to a new one ONLY if user actually queried
+    const hasUserMsg = messages.some(m => m.role === 'user');
+    if (currentLead.id && hasUserMsg) {
+      // Unconditionally save to localStorage
+      try {
+        const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+        const filtered = localMsgs.filter((m: ChatMessage) => m.lead_id !== currentLead.id);
+        localStorage.setItem('localInteractions', JSON.stringify([...filtered, ...messages]));
+      } catch (_) {}
+
+      if (currentUserId) {
+        saveLeadToFirestore(currentLead).catch(() => {});
+        saveUserChatToFirestore(currentUserId, currentLead.id, messages).catch(() => {});
+        syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
+      } else {
+        saveLeadData(currentLead);
+      }
     }
 
     const newLead = { ...createInitialLeadProfile(), user_id: currentUserId || undefined, email: currentUserEmail || '' };
     setCurrentLead(newLead);
-    setLeadsList(prev => [newLead, ...prev]);
-    saveLeadData(newLead);
 
     const initMsg: ChatMessage = {
       id: 'MSG-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -547,21 +558,54 @@ export default function App() {
     };
 
     setMessages([initMsg]);
-    saveInteractionData(initMsg);
 
     setActiveTab('chat');
     setAdminPanelOpen(false);
   };
 
-  const handleLoadChat = (lead: LeadProfile, msgs: ChatMessage[]) => {
-    // 1. If currently in another chat with messages, save it first before switching
-    if (currentUserId && currentLead.id && messages.length > 1 && currentLead.id !== lead.id) {
-      saveLeadToFirestore(currentLead).catch(() => {});
-      saveUserChatToFirestore(currentUserId, currentLead.id, messages).catch(() => {});
-      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
+  const handleLoadChat = async (lead: LeadProfile, msgs: ChatMessage[]) => {
+    // If clicking the current open conversation, no reload needed
+    if (currentLead.id === lead.id && messages.length > 1) return;
+
+    // 1. Save currently active chat before switching so nothing is ever lost
+    if (currentLead.id && messages.length > 1 && currentLead.id !== lead.id) {
+      // Unconditionally persist active chat to localStorage
+      try {
+        const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+        const filtered = localMsgs.filter((m: ChatMessage) => m.lead_id !== currentLead.id);
+        localStorage.setItem('localInteractions', JSON.stringify([...filtered, ...messages]));
+      } catch (_) {}
+
+      if (currentUserId) {
+        saveLeadToFirestore(currentLead).catch(() => {});
+        saveUserChatToFirestore(currentUserId, currentLead.id, messages).catch(() => {});
+        syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
+      } else {
+        saveLeadData(currentLead);
+      }
     }
 
-    // 2. Reconstruct full lead profile with safe defaults
+    // 2. Fetch the most complete message history for this lead
+    let resolvedMsgs = msgs && msgs.length > 0 ? [...msgs] : [];
+    if (lead.id) {
+      if (currentUserId) {
+        try {
+          const firestoreMsgs = await getMessagesForLead(lead.id);
+          if (firestoreMsgs && firestoreMsgs.length >= resolvedMsgs.length) {
+            resolvedMsgs = firestoreMsgs;
+          }
+        } catch (_) {}
+      }
+      try {
+        const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+        const forThisLead = localMsgs.filter((m: ChatMessage) => m.lead_id === lead.id);
+        if (forThisLead.length > resolvedMsgs.length) {
+          resolvedMsgs = forThisLead;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Reconstruct full lead profile with safe defaults
     const fullLead: LeadProfile = {
       ...createInitialLeadProfile(),
       ...(lead || {}),
@@ -569,7 +613,7 @@ export default function App() {
     };
 
     setCurrentLead(fullLead);
-    setMessages(msgs && msgs.length > 0 ? msgs : [
+    setMessages(resolvedMsgs.length > 0 ? resolvedMsgs : [
       {
         id: 'MSG-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
         lead_id: fullLead.id,
@@ -617,29 +661,37 @@ export default function App() {
   };
 
   const saveInteractionData = (msg: ChatMessage) => {
+    // Always mirror to localStorage for instantaneous offline resilience and fast loads
+    try {
+      const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
+      const existingIndex = localMsgs.findIndex((m: ChatMessage) => m.id === msg.id);
+      if (existingIndex >= 0) {
+        localMsgs[existingIndex] = msg;
+      } else {
+        localMsgs.push(msg);
+      }
+      localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
+    } catch (e) { console.warn(e); }
+
     if (currentUserId) {
       saveInteractionToFirestore(msg);
-      // Also save to user_chat collection for chat history per user
-      // Fetch all messages for this lead and save as a session
       getMessagesForLead(msg.lead_id).then(messages => {
         saveUserChatToFirestore(currentUserId, msg.lead_id, messages);
-      }).catch(() => {}); // fire-and-forget, don't block UI
-    } else {
-      try {
-        const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
-        const existingIndex = localMsgs.findIndex((m: ChatMessage) => m.id === msg.id);
-        if (existingIndex >= 0) {
-          localMsgs[existingIndex] = msg;
-        } else {
-          localMsgs.push(msg);
-        }
-        localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
-      } catch (e) { console.warn(e); }
+      }).catch(() => {});
     }
   };
 
   // Maps current lead state to the correct LangGraph conversation stage
-  const mapLeadToStage = (lead: typeof currentLead): string => {
+  const mapLeadToStage = (lead: typeof currentLead, lastAssistantText?: string, userText?: string): string => {
+    const isAffirmative = /^(yes|yeah|yep|sure|ok|okay|yup|definitely|absolutely|please)\b/i.test((userText || '').trim());
+    const askedAboutAdvisor = lastAssistantText && /\b(speak with them directly|speak with a Lyka Realty advisor|connect you with|arrange viewings|advisor will reach out)\b/i.test(lastAssistantText);
+    if ((isAffirmative && askedAboutAdvisor) || lead.human_handoff_required) {
+      return 'agent_handoff';
+    }
+    if (lead.next_action === 'present_results' || (lastAssistantText && lastAssistantText.includes('matches for you'))) {
+      if (isAffirmative) return 'agent_handoff';
+      return 'present_results';
+    }
     if (!lead.intent) return 'classify_intent';
     const i = lead.intent.toLowerCase();
     if (i === 'buy') return 'qualify_buy';
@@ -663,13 +715,30 @@ export default function App() {
     setIsLoading(true);
 
     try {
+      // When the user sends their first query in this chat, register and persist the session
+      const isFirstUserQuery = !messages.some(m => m.role === 'user');
+      if (isFirstUserQuery) {
+        const initGreeting = messages.find(m => m.role === 'assistant');
+        if (initGreeting) {
+          saveInteractionData(initGreeting);
+        }
+      }
+
       // 1. Agentic Extraction
       const extracted = extractEntitiesFromText(userText, currentLead);
       const mergedLead: LeadProfile = {
         ...currentLead,
         ...extracted,
+        summary: currentLead.summary && !currentLead.summary.includes('Customer LEAD-') 
+          ? currentLead.summary 
+          : (userText.length > 40 ? userText.slice(0, 40) + '...' : userText),
         updatedAt: new Date().toISOString(),
       };
+
+      if (isFirstUserQuery) {
+        setLeadsList(prev => [mergedLead, ...prev.filter(l => l.id !== mergedLead.id)]);
+        saveLeadData(mergedLead);
+      }
 
       // 2. Compute Completeness & Missing Fields
       const { completeness, missing } = computeCompletenessAndMissing(mergedLead);
@@ -690,28 +759,93 @@ export default function App() {
         }
       }
 
-      // 5. Match properties if user asked a property query OR if enough criteria collected
+      // 5. Match properties whenever user asks about properties or expresses real estate interest
       let matchingProps: PropertyListing[] = [];
-      const isPropInquiry = isPropertyQuery(userText);
-      if (isPropInquiry) {
-        const pool = propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES;
-        const isLowest = /\b(lowest|cheapest|min|minimum|least|affordable|budget)\b/i.test(userText) || /\blow\s*(perperty|property|price)?\b/i.test(userText);
-        const isHighest = /\b(highest|most expensive|maximum|max price|luxury|costliest)\b/i.test(userText);
-        if (isLowest) {
-          const sorted = [...pool].sort((a, b) => a.price_aed - b.price_aed);
-          matchingProps = sorted.slice(0, 2);
-        } else if (isHighest) {
-          const sorted = [...pool].sort((a, b) => b.price_aed - a.price_aed);
-          matchingProps = sorted.slice(0, 2);
-        } else {
-          const commMatch = pool.filter(p => userText.toLowerCase().includes(p.community.toLowerCase()));
-          matchingProps = commMatch.length > 0 ? commMatch.slice(0, 2) : pool.slice(0, 2);
+      const pool = propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES;
+      const lowerText = userText.toLowerCase();
+
+      const mentionsProperty = 
+        isPropertyQuery(userText) ||
+        /\b(propert|flat|apartment|villa|penthouse|studio|townhouse|home|house|listing|unit|bhk|bedroom|bed|buy|rent|invest|purchase|budget|price|option|available|recommend|suggest|show|give|find|look|downtown|marina|palm|jvc|jlt|business bay|creek|hills|ranches|worli|bandra|juhu|bkc|powai|mumbai|dubai)\b/i.test(lowerText) ||
+        Boolean(mergedLead.intent) ||
+        Boolean(mergedLead.preferred_communities && mergedLead.preferred_communities.length > 0) ||
+        Boolean(mergedLead.budget_max) ||
+        Boolean(mergedLead.bedrooms);
+
+      if (mentionsProperty) {
+        let candidates = [...pool];
+
+        // A. City Filter (Dubai vs Mumbai)
+        const asksMumbai = /\b(mumbai|worli|bandra|juhu|bkc|powai|andheri|mahalaxmi|lower parel|malabar hill)\b/i.test(lowerText) || mergedLead.target_city === 'Mumbai';
+        const asksDubai = /\b(dubai|marina|downtown|palm|jvc|jlt|business bay|hills|ranches|creek|islands)\b/i.test(lowerText) || mergedLead.target_city === 'Dubai';
+        if (asksMumbai && !asksDubai) {
+          candidates = candidates.filter(p => (p.city || '').toLowerCase() === 'mumbai');
+        } else if (asksDubai && !asksMumbai) {
+          candidates = candidates.filter(p => (p.city || 'dubai').toLowerCase() === 'dubai');
         }
-      } else if (completeness >= 40 || mergedLead.preferred_communities.length > 0 || mergedLead.budget_max) {
-        matchingProps = findMatchingProperties(mergedLead);
+
+        // B. Community Filter
+        const communityMatches = candidates.filter(p => 
+          lowerText.includes(p.community.toLowerCase()) || 
+          p.community.toLowerCase().includes(lowerText) ||
+          (mergedLead.preferred_communities && mergedLead.preferred_communities.some(c => p.community.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(p.community.toLowerCase())))
+        );
+        if (communityMatches.length > 0) {
+          candidates = communityMatches;
+        }
+
+        // C. Property Type Filter
+        if (/\b(villa|villas)\b/i.test(lowerText) || (mergedLead.property_type && /villa/i.test(mergedLead.property_type))) {
+          const matchedTypes = candidates.filter(p => /villa/i.test(p.property_type));
+          if (matchedTypes.length > 0) candidates = matchedTypes;
+        } else if (/\b(apartment|apartments|flat|flats)\b/i.test(lowerText) || (mergedLead.property_type && /apartment/i.test(mergedLead.property_type))) {
+          const matchedTypes = candidates.filter(p => /apartment/i.test(p.property_type));
+          if (matchedTypes.length > 0) candidates = matchedTypes;
+        } else if (/\b(penthouse|penthouses)\b/i.test(lowerText) || (mergedLead.property_type && /penthouse/i.test(mergedLead.property_type))) {
+          const matchedTypes = candidates.filter(p => /penthouse/i.test(p.property_type));
+          if (matchedTypes.length > 0) candidates = matchedTypes;
+        }
+
+        // D. Bedroom Count Filter
+        const bedMatch = lowerText.match(/\b([1-5])\s*(?:br|bhk|bedroom|bed)\b/i) || (mergedLead.bedrooms ? [null, String(mergedLead.bedrooms)] : null);
+        if (bedMatch && bedMatch[1]) {
+          const targetBed = String(parseInt(bedMatch[1], 10));
+          const matchedBeds = candidates.filter(p => p.bedrooms === targetBed || Math.abs(parseInt(p.bedrooms, 10) - parseInt(targetBed, 10)) <= 1);
+          if (matchedBeds.length > 0) candidates = matchedBeds;
+        }
+
+        // E. Price & Sorting Filter
+        const isLowest = /\b(lowest|cheapest|min|minimum|least|affordable|budget|cheap)\b/i.test(lowerText);
+        const isHighest = /\b(highest|most expensive|maximum|max price|luxury|costliest)\b/i.test(lowerText);
+        if (isLowest) {
+          candidates.sort((a, b) => a.price_aed - b.price_aed);
+        } else if (isHighest) {
+          candidates.sort((a, b) => b.price_aed - a.price_aed);
+        } else if (mergedLead.budget_max) {
+          candidates.sort((a, b) => Math.abs(a.price_aed - mergedLead.budget_max!) - Math.abs(b.price_aed - mergedLead.budget_max!));
+        }
+
+        matchingProps = candidates.slice(0, 3);
+        if (matchingProps.length === 0) {
+          matchingProps = pool.slice(0, 3);
+        }
       }
 
       // 6. Next Question logic
+      const lastAssistantMsg = messages.slice().reverse().find(m => m.role === 'assistant');
+      const isAffirmative = /^(yes|yeah|yep|sure|ok|okay|yup|definitely|absolutely|please)\b/i.test(userText.trim());
+      const askedAboutAdvisor = lastAssistantMsg && /\b(speak with them directly|speak with a Lyka Realty advisor|connect you with|arrange viewings|advisor will reach out)\b/i.test(lastAssistantMsg.content);
+
+      if ((isAffirmative && askedAboutAdvisor) || /\b(talk to agent|speak with agent|speak to advisor|call me|connect with advisor)\b/i.test(userText)) {
+        mergedLead.human_handoff_required = true;
+        mergedLead.handoff_reason = 'Customer confirmed to speak directly with Lyka Realty advisor';
+        const initialDigits = (mergedLead.phone || '').replace(/\D/g, '').slice(0, 10);
+        setHandoffPhone(initialDigits);
+        setHandoffNotes(prev => prev || 'Customer requested direct advisor consultation & viewing setup.');
+        setHandoffError('');
+        setShowHandoffModal(true);
+      }
+
       const { nextQuestion, rationale, intentCategory } = generateNextAdaptiveQuestion(mergedLead, missing, userText);
       mergedLead.next_action = intentCategory;
       mergedLead.summary = `Customer ${mergedLead.full_name || mergedLead.id} seeking ${mergedLead.property_type || 'property'} (${mergedLead.bedrooms || ''}BR) in ${(mergedLead.preferred_communities || []).join(', ') || 'Dubai'}. Budget: AED ${mergedLead.budget_max || 'TBD'}. Intent: ${mergedLead.intent}.`;
@@ -731,7 +865,7 @@ export default function App() {
             message: userText,
             history: [...messages, userMsg].slice(-10).map(m => ({ role: m.role, content: m.content })),
             currentLead: mergedLead,
-            conversationStage: mapLeadToStage(mergedLead),
+            conversationStage: mapLeadToStage(mergedLead, lastAssistantMsg?.content, userText),
             groqApiKey: options?.groqApiKey,
             groqModel: options?.groqModel
           })
@@ -743,6 +877,10 @@ export default function App() {
           }
           if (chatData.provider) {
             assistantProvider = chatData.provider;
+          }
+          if (chatData.nextStage === 'agent_handoff' || (chatData.reply && chatData.reply.includes('Talk to Agent'))) {
+            mergedLead.human_handoff_required = true;
+            setShowHandoffModal(true);
           }
           if (chatData.matchedProperties && chatData.matchedProperties.length > 0) {
             serverMatchedProperties = chatData.matchedProperties;
