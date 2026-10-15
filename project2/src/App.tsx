@@ -1641,6 +1641,36 @@ export default function App() {
                     console.warn('Could not save property to backend server:', err);
                   }
                 }}
+                onUpdateProperty={async (updatedProp) => {
+                  // 1. Immediately update UI state & local cache
+                  setPropertiesList(prev => {
+                    const updated = prev.map(p => p.id === updatedProp.id ? updatedProp : p);
+                    try {
+                      localStorage.setItem('localProperties', JSON.stringify(updated));
+                    } catch (e) {
+                      console.warn('Could not save localProperties to localStorage:', e);
+                    }
+                    return updated;
+                  });
+
+                  // 2. Persist to Firestore database ('properties' collection)
+                  try {
+                    await savePropertyToFirestore(updatedProp);
+                  } catch (err) {
+                    console.warn('Could not save updated property to Firestore:', err);
+                  }
+
+                  // 3. Persist to backend server (/api/properties)
+                  try {
+                    await fetch('/api/properties', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updatedProp)
+                    });
+                  } catch (err) {
+                    console.warn('Could not save updated property to backend server:', err);
+                  }
+                }}
               />
             )}
 

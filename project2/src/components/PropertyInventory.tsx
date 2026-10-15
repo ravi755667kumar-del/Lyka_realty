@@ -16,7 +16,9 @@ import {
   Upload,
   ImagePlus,
   Trash2,
-  Lock
+  Lock,
+  Edit3,
+  Save
 } from 'lucide-react';
 
 interface PropertyInventoryProps {
@@ -24,6 +26,7 @@ interface PropertyInventoryProps {
   currentLead: LeadProfile;
   onBookViewing: (property: PropertyListing) => void;
   onAddProperty: (property: PropertyListing) => void;
+  onUpdateProperty?: (property: PropertyListing) => void;
 }
 
 export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
@@ -31,6 +34,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   currentLead,
   onBookViewing,
   onAddProperty,
+  onUpdateProperty,
 }) => {
   const [selectedCity, setSelectedCity] = useState<string>('ALL');
   const [selectedCommunity, setSelectedCommunity] = useState<string>('ALL');
@@ -38,6 +42,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [selectedBeds, setSelectedBeds] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingProperty, setEditingProperty] = useState<PropertyListing | null>(null);
 
   // New property form state
   const [newTitle, setNewTitle] = useState('');
@@ -71,6 +77,169 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [newListingDate, setNewListingDate] = useState('');
   const [newAvailableDate, setNewAvailableDate] = useState('');
   const [newExpiryDate, setNewExpiryDate] = useState('');
+
+  // Edit property form state
+  const [editTitle, setEditTitle] = useState('');
+  const [editCity, setEditCity] = useState<'Dubai' | 'Mumbai'>('Dubai');
+  const [editCommunity, setEditCommunity] = useState('Dubai Marina');
+  const [editType, setEditType] = useState('Apartment');
+  const [editBeds, setEditBeds] = useState('2');
+  const [editPrice, setEditPrice] = useState(1800000);
+  const [editStatus, setEditStatus] = useState<string>('Ready');
+  const [editDeveloper, setEditDeveloper] = useState('');
+  const [editSize, setEditSize] = useState(1200);
+  const [editRoi, setEditRoi] = useState('7.8% net ROI');
+  const [editImage, setEditImage] = useState('');
+  const [editImagePreview, setEditImagePreview] = useState('');
+  const [editImageName, setEditImageName] = useState('');
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const [editContactName, setEditContactName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editBathrooms, setEditBathrooms] = useState('2');
+  const [editHasPool, setEditHasPool] = useState(false);
+  const [editHasGym, setEditHasGym] = useState(false);
+  const [editHasParking, setEditHasParking] = useState(false);
+  const [editHasBalcony, setEditHasBalcony] = useState(false);
+  const [editFurnished, setEditFurnished] = useState<'Furnished' | 'Unfurnished' | 'Semi-Furnished'>('Unfurnished');
+  const [editHandoverDate, setEditHandoverDate] = useState('');
+  const [editPaymentPlan, setEditPaymentPlan] = useState('');
+  const [editReraId, setEditReraId] = useState('');
+  const [editListingDate, setEditListingDate] = useState('');
+  const [editAvailableDate, setEditAvailableDate] = useState('');
+  const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editSuccessMsg, setEditSuccessMsg] = useState('');
+
+  const handleOpenEditModal = (prop: PropertyListing) => {
+    setEditingProperty(prop);
+    setEditTitle(prop.title || '');
+    setEditCity(((prop.city as any) || (prop.id.startsWith('MUM') ? 'Mumbai' : 'Dubai')));
+    setEditCommunity(prop.community || 'Dubai Marina');
+    setEditType(prop.property_type || 'Apartment');
+    setEditBeds(prop.bedrooms || '2');
+    setEditPrice(prop.price_aed || 0);
+    setEditStatus(prop.status || 'Ready');
+    setEditDeveloper(prop.developer || '');
+    setEditSize(prop.size_sqft || 0);
+    setEditRoi(prop.expected_roi || '7.5% net ROI');
+    setEditImage(prop.image_url || '');
+    setEditImagePreview(prop.image_url || '');
+    setEditImageName('');
+    setEditContactName(prop.contact_name || '');
+    setEditMobile(prop.contact_mobile || '');
+    setEditDescription(prop.description || '');
+    setEditBathrooms(prop.bathrooms || '2');
+    setEditFurnished((prop.furnished as any) || 'Unfurnished');
+    setEditHandoverDate(prop.handover_date || '');
+    setEditPaymentPlan(prop.payment_plan || '');
+    setEditReraId(prop.rera_id || '');
+    setEditListingDate(prop.listing_date || '');
+    setEditAvailableDate(prop.available_date || '');
+    setEditExpiryDate(prop.expiry_date || '');
+
+    const ams = prop.amenities || [];
+    setEditHasPool(ams.some(a => /pool/i.test(a)));
+    setEditHasGym(ams.some(a => /gym/i.test(a)));
+    setEditHasParking(ams.some(a => /parking/i.test(a)));
+    setEditHasBalcony(ams.some(a => /balcony/i.test(a)));
+    setEditSuccessMsg('');
+    setShowEditModal(true);
+  };
+
+  const handleEditImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditImageName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 600;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          setEditImage(compressed);
+          setEditImagePreview(compressed);
+        } else {
+          const raw = (event.target?.result as string) || '';
+          setEditImage(raw);
+          setEditImagePreview(raw);
+        }
+      };
+      img.src = (event.target?.result as string) || '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveEditedProperty = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProperty) return;
+
+    const amenities: string[] = [];
+    if (editHasPool) amenities.push('Swimming Pool');
+    if (editHasGym) amenities.push('Gym');
+    if (editHasParking) amenities.push('Covered Parking');
+    if (editHasBalcony) amenities.push('Balcony');
+    amenities.push('Concierge 24/7');
+
+    const updatedProp: PropertyListing = {
+      ...editingProperty,
+      title: editTitle,
+      city: editCity,
+      community: editCommunity,
+      property_type: editType,
+      bedrooms: editBeds,
+      price_aed: Number(editPrice) || 0,
+      price_inr: Math.round((Number(editPrice) || 0) * 22.8),
+      status: editStatus as any,
+      developer: editDeveloper,
+      size_sqft: Number(editSize) || 0,
+      expected_roi: editRoi,
+      amenities,
+      image_url: editImage || editingProperty.image_url,
+      description: editDescription || editingProperty.description,
+      features: [editFurnished, `${editBathrooms} Bathrooms`, 'High Rental Demand'],
+      contact_name: editContactName,
+      contact_mobile: editMobile,
+      bathrooms: editBathrooms,
+      furnished: editFurnished,
+      handover_date: editHandoverDate || undefined,
+      payment_plan: editPaymentPlan || undefined,
+      rera_id: editReraId || undefined,
+      listing_date: editListingDate || undefined,
+      available_date: editAvailableDate || undefined,
+      expiry_date: editExpiryDate || undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (onUpdateProperty) {
+      onUpdateProperty(updatedProp);
+    }
+    setEditSuccessMsg(`Property "${editTitle}" updated successfully!`);
+    setTimeout(() => {
+      setShowEditModal(false);
+      setEditingProperty(null);
+      setEditSuccessMsg('');
+    }, 900);
+  };
 
   const filteredProperties = properties.filter(p => {
     const matchesSearch = 
@@ -419,13 +588,26 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       <span className="text-xs font-bold text-emerald-400">{prop.expected_roi || '7.5% net ROI'}</span>
                     </div>
 
-                    <button
-                      onClick={() => onBookViewing(prop)}
-                      className="bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1.5 shadow-sm"
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                      <span>Book Viewing</span>
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(prop)}
+                        className="bg-slate-800 hover:bg-slate-700 text-amber-500 hover:text-amber-400 text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 border border-slate-700 shadow-sm"
+                        title="Edit property details"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onBookViewing(prop)}
+                        className="bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1.5 shadow-sm"
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Book Viewing</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -814,6 +996,461 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl font-bold shadow-md"
                 >
                   Publish Property
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Property Modal */}
+      {showEditModal && editingProperty && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-200 flex items-center space-x-2">
+                    <span>Edit Property Listing</span>
+                    <span className="font-mono text-[10px] text-amber-400 bg-amber-950/70 border border-amber-600/40 px-2 py-0.5 rounded">
+                      {editingProperty.id}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Update property details, pricing, media, and availability status</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => { setShowEditModal(false); setEditingProperty(null); }} 
+                className="text-slate-400 hover:text-slate-200 transition-colors p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Success message */}
+            {editSuccessMsg && (
+              <div className="bg-emerald-950/70 border border-emerald-500/50 rounded-xl p-3 text-xs text-emerald-300 flex items-center space-x-2 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{editSuccessMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditedProperty} className="space-y-4 text-xs">
+              {/* Section: Contact Info */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📞 Contact Information</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Contact Person Name</label>
+                    <input
+                      type="text"
+                      value={editContactName}
+                      onChange={(e) => setEditContactName(e.target.value)}
+                      placeholder="E.g., Ahmed Al Mansouri"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Mobile Number</label>
+                    <input
+                      type="tel"
+                      value={editMobile}
+                      onChange={(e) => setEditMobile(e.target.value)}
+                      placeholder="E.g., +971 50 123 4567"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Property Details */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">🏠 Property Details</p>
+
+                <div>
+                  <label className="text-slate-400 block mb-1">Listing Title <span className="text-rose-400">*</span></label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="E.g., Marina Gate Luxury 2BR with Yacht Views"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Region / City</label>
+                    <select
+                      value={editCity}
+                      onChange={(e) => {
+                        const cityVal = e.target.value as 'Dubai' | 'Mumbai';
+                        setEditCity(cityVal);
+                        setEditCommunity(cityVal === 'Mumbai' ? 'Worli' : 'Dubai Marina');
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      <option value="Dubai">Dubai, UAE</option>
+                      <option value="Mumbai">Mumbai, India</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Community</label>
+                    <select
+                      value={editCommunity}
+                      onChange={(e) => setEditCommunity(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      {editCity === 'Mumbai' ? (
+                        <>
+                          <option value="Worli">Worli</option>
+                          <option value="Bandra West">Bandra West</option>
+                          <option value="Juhu">Juhu</option>
+                          <option value="BKC">BKC</option>
+                          <option value="Powai">Powai</option>
+                          <option value="Lower Parel">Lower Parel</option>
+                          <option value="Malabar Hill">Malabar Hill</option>
+                          <option value="Andheri West">Andheri West</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Dubai Marina">Dubai Marina</option>
+                          <option value="Downtown Dubai">Downtown Dubai</option>
+                          <option value="Palm Jumeirah">Palm Jumeirah</option>
+                          <option value="Business Bay">Business Bay</option>
+                          <option value="Dubai Hills Estate">Dubai Hills Estate</option>
+                          <option value="JVC">JVC</option>
+                          <option value="Dubai Creek Harbour">Dubai Creek Harbour</option>
+                          <option value="Arabian Ranches">Arabian Ranches</option>
+                          <option value="Bluewaters Island">Bluewaters Island</option>
+                          <option value="JBR">JBR</option>
+                        </>
+                      )}
+                      {editCommunity && ![
+                        'Dubai Marina', 'Downtown Dubai', 'Palm Jumeirah', 'Business Bay',
+                        'Dubai Hills Estate', 'JVC', 'Dubai Creek Harbour', 'Arabian Ranches',
+                        'Bluewaters Island', 'JBR', 'Worli', 'Bandra West', 'Juhu', 'BKC',
+                        'Powai', 'Lower Parel', 'Malabar Hill', 'Andheri West'
+                      ].includes(editCommunity) && (
+                        <option value={editCommunity}>{editCommunity}</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Developer</label>
+                    <input
+                      type="text"
+                      value={editDeveloper}
+                      onChange={(e) => setEditDeveloper(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Property Type</label>
+                    <select
+                      value={editType}
+                      onChange={(e) => setEditType(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      <option>Apartment</option>
+                      <option>Villa</option>
+                      <option>Townhouse</option>
+                      <option>Penthouse</option>
+                      <option>Duplex</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Furnished Status</label>
+                    <select
+                      value={editFurnished}
+                      onChange={(e) => setEditFurnished(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      <option value="Furnished">Furnished</option>
+                      <option value="Unfurnished">Unfurnished</option>
+                      <option value="Semi-Furnished">Semi-Furnished</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Rooms, Size & Status */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">🛏 Rooms, Size & Status</p>
+                <div className="grid grid-cols-4 gap-3">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Bedrooms</label>
+                    <select
+                      value={editBeds}
+                      onChange={(e) => setEditBeds(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      <option value="Studio">Studio</option>
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4+</option>
+                      <option value="5">5+</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Bathrooms</label>
+                    <select
+                      value={editBathrooms}
+                      onChange={(e) => setEditBathrooms(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      <option value="1">1</option>
+                      <option value="2">2</option>
+                      <option value="3">3</option>
+                      <option value="4">4+</option>
+                      <option value="5">5+</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Size (sqft)</label>
+                    <input
+                      type="number"
+                      value={editSize}
+                      onChange={(e) => setEditSize(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Status</label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    >
+                      <option value="Ready">Ready</option>
+                      <option value="Off-plan">Off-plan</option>
+                      <option value="Available">Available</option>
+                      <option value="Booked">Booked</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Date Information */}
+                <div className="grid grid-cols-3 gap-3 pt-2">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Listing Date</label>
+                    <input
+                      type="date"
+                      value={editListingDate}
+                      onChange={(e) => setEditListingDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Available From</label>
+                    <input
+                      type="date"
+                      value={editAvailableDate}
+                      onChange={(e) => setEditAvailableDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Expiry Date</label>
+                    <input
+                      type="date"
+                      value={editExpiryDate}
+                      onChange={(e) => setEditExpiryDate(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Handover Date & Payment Plan for Off-Plan */}
+                {editStatus === 'Off-plan' && (
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="text-slate-400 block mb-1">Handover Date</label>
+                      <input
+                        type="date"
+                        value={editHandoverDate}
+                        onChange={(e) => setEditHandoverDate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 block mb-1">Payment Plan</label>
+                      <input
+                        type="text"
+                        value={editPaymentPlan}
+                        onChange={(e) => setEditPaymentPlan(e.target.value)}
+                        placeholder="E.g., 60/40 on handover"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* RERA ID */}
+                <div>
+                  <label className="text-slate-400 block mb-1">RERA ID</label>
+                  <input
+                    type="text"
+                    value={editReraId}
+                    onChange={(e) => setEditReraId(e.target.value)}
+                    placeholder="E.g., RERA-12345"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Section: Amenities */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">✨ Amenities & Features</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: '🏊 Swimming Pool', value: editHasPool, setter: setEditHasPool },
+                    { label: '🏋️ Gym', value: editHasGym, setter: setEditHasGym },
+                    { label: '🚗 Parking', value: editHasParking, setter: setEditHasParking },
+                    { label: '🌇 Balcony', value: editHasBalcony, setter: setEditHasBalcony },
+                  ].map(({ label, value, setter }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setter(!value)}
+                      className={`flex items-center justify-center space-x-1.5 px-2 py-2 rounded-xl border text-[11px] font-semibold transition-all ${
+                        value
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-500'
+                          : 'bg-slate-950 border-slate-700 text-slate-400 hover:border-slate-500'
+                      }`}
+                    >
+                      {value && <Check className="w-3 h-3" />}
+                      <span>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section: Pricing */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">💰 Pricing</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-400 block mb-1">Price (AED) <span className="text-rose-400">*</span></label>
+                    <input
+                      type="number"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400 block mb-1">Expected ROI</label>
+                    <input
+                      type="text"
+                      value={editRoi}
+                      onChange={(e) => setEditRoi(e.target.value)}
+                      placeholder="E.g., 7.8% net ROI"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section: Description */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📝 Description</p>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  placeholder="Describe the property — layout, views, finishing quality, nearby landmarks, payment plan, etc."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+
+              {/* Section: Photo Upload */}
+              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📷 Property Photo</p>
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditImageUpload}
+                  className="hidden"
+                />
+
+                {editImagePreview ? (
+                  <div className="relative rounded-xl overflow-hidden border border-slate-700">
+                    <img
+                      src={editImagePreview}
+                      alt="Property preview"
+                      className="w-full h-44 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40 flex items-end">
+                      <div className="w-full px-3 py-2 flex items-center justify-between bg-slate-950/70 backdrop-blur-sm">
+                        <span className="text-[10px] text-slate-300 truncate max-w-[200px]">
+                          {editImageName || 'Current Property Image'}
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => editFileInputRef.current?.click()}
+                            className="text-[10px] bg-slate-800 border border-slate-600 text-slate-300 px-2.5 py-1 rounded-lg hover:bg-slate-700 transition-colors"
+                          >
+                            Replace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditImage(''); setEditImagePreview(''); setEditImageName(''); if (editFileInputRef.current) editFileInputRef.current.value = ''; }}
+                            className="flex items-center space-x-1 text-[10px] bg-red-500/20 border border-red-500/40 text-red-400 px-2 py-1 rounded-lg hover:bg-red-500/30 transition-colors"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl p-6 flex flex-col items-center justify-center space-y-2 transition-colors group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-800 group-hover:bg-amber-500/10 flex items-center justify-center transition-colors">
+                      <ImagePlus className="w-5 h-5 text-slate-400 group-hover:text-amber-500" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-slate-300 text-xs font-semibold group-hover:text-amber-500">Click to upload new photo</p>
+                      <p className="text-slate-500 text-[10px] mt-0.5">JPG, PNG, WEBP supported</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+
+              {/* Form Action Buttons */}
+              <div className="pt-2 flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditingProperty(null); }}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl font-bold shadow-md transition-all flex items-center justify-center space-x-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>
