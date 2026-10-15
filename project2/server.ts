@@ -870,6 +870,24 @@ app.get('/api/auth/otp-status', (req: Request, res: Response) => {
   }
 });
 
+// Reset OTP Rate Limit (For testing/recovery)
+app.post('/api/auth/reset-otp-rate-limit', (req: Request, res: Response) => {
+  try {
+    const { email } = req.body || {};
+    if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      delete otpRateLimits[cleanEmail];
+    } else {
+      for (const k of Object.keys(otpRateLimits)) {
+        delete otpRateLimits[k];
+      }
+    }
+    return res.json({ success: true, message: 'OTP rate limit reset successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message });
+  }
+});
+
 // Send 6-Digit Email OTP via Brevo API
 app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
   try {
@@ -962,8 +980,7 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
         maxAttempts: MAX_OTP_ATTEMPTS,
         remainingAttempts,
         lockedUntil: rateRecord.lockedUntil,
-        message: `OTP generated (local mode). Check terminal or backup code. (Attempt ${attemptsUsed} of ${MAX_OTP_ATTEMPTS})`,
-        otpBackup: otpCode
+        message: `OTP generated. Please check your email. (Attempt ${attemptsUsed} of ${MAX_OTP_ATTEMPTS})`
       });
     }
 
@@ -973,13 +990,25 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
         name: 'Lyka Realty Portal',
         email: brevoSenderEmail
       },
+      replyTo: {
+        name: 'Lyka Realty Support',
+        email: brevoSenderEmail
+      },
       to: [
         {
           email: cleanEmail,
           name: portalName
         }
       ],
-      subject: `Lyka Realty - Your ${portalName} Login Verification Code`,
+      subject: `Your Lyka Realty OTP is: ${otpCode} (Valid for 3 Minutes)`,
+      textContent: `Lyka Realty Security Verification
+
+Your verification code is: ${otpCode}
+
+This code is valid for 3 minutes. Enter this code on the ${portalName} login screen to access your portal.
+If you did not request this login code, please ignore this email.
+
+Lyka Realty LLC, Dubai, UAE.`,
       htmlContent: `
         <!DOCTYPE html>
         <html>
@@ -1039,8 +1068,7 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
         attemptsUsed,
         maxAttempts: MAX_OTP_ATTEMPTS,
         remainingAttempts,
-        lockedUntil: rateRecord.lockedUntil,
-        otpBackup: otpCode
+        lockedUntil: rateRecord.lockedUntil
       });
     }
 

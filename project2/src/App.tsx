@@ -55,6 +55,7 @@ import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
+import { AdminCopilotChat } from './components/AdminCopilotChat';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
@@ -164,7 +165,6 @@ export default function App() {
   const [adminOtpSuccessMsg, setAdminOtpSuccessMsg] = useState('');
   const [adminOtpExpiresAt, setAdminOtpExpiresAt] = useState<number | null>(null);
   const [otpTimeRemaining, setOtpTimeRemaining] = useState<number>(180); // 3 minutes = 180s
-  const [adminGeneratedOtpBackup, setAdminGeneratedOtpBackup] = useState<string | null>(null);
 
   // OTP Rate Limiter (Max 5 attempts, 1-hour cooldown lockout)
   const [adminOtpAttemptsUsed, setAdminOtpAttemptsUsed] = useState<number>(0);
@@ -269,7 +269,6 @@ export default function App() {
     setAdminOtpSuccessMsg('');
     setAdminOtpExpiresAt(null);
     setOtpTimeRemaining(180);
-    setAdminGeneratedOtpBackup(null);
     setConfigSuccessMsg('');
     setConfigErrorMsg('');
   };
@@ -277,7 +276,6 @@ export default function App() {
   const handleGetAdminOtp = async () => {
     setAdminLoginError('');
     setAdminOtpSuccessMsg('');
-    setAdminGeneratedOtpBackup(null);
 
     const targetEmail = adminEmailInput.trim().toLowerCase();
     if (!targetEmail || !targetEmail.includes('@')) {
@@ -330,16 +328,6 @@ export default function App() {
       }
 
       if (!res.ok) {
-        if (data.otpBackup) {
-          const now = Date.now();
-          const expiresAt = now + 3 * 60 * 1000;
-          setAdminOtpExpiresAt(expiresAt);
-          setOtpTimeRemaining(180);
-          setAdminOtpSent(true);
-          setAdminGeneratedOtpBackup(data.otpBackup);
-          setAdminLoginError(data.error || 'Brevo email delivery notice.');
-          return;
-        }
         throw new Error(data.error || data.message || `Server returned ${res.status} (${res.statusText || 'Not Found'}). Please make sure the server has been restarted.`);
       }
 
@@ -370,10 +358,6 @@ export default function App() {
       setOtpTimeRemaining(180);
       setAdminOtpSent(true);
       setAdminOtpSuccessMsg(`6-Digit OTP sent directly to ${targetEmail}! Valid for 3 minutes. (Attempt ${attemptsCount} of 5)`);
-
-      if (data.otpBackup) {
-        setAdminGeneratedOtpBackup(data.otpBackup);
-      }
 
     } catch (err: any) {
       console.warn('Brevo Email send notice:', err.message);
@@ -1542,9 +1526,9 @@ export default function App() {
 
         {/* Admin Pages — shown when admin tab is active */}
         {activeTab !== 'chat' && (
-          <div className="flex-1 flex w-full h-full overflow-hidden">
-
-            {/* Admin Portal Pages — require adminAuthenticated */}
+          <div className="flex-1 flex w-full h-full overflow-hidden relative">
+            <div className="flex-1 flex h-full overflow-hidden">
+              {/* Admin Portal Pages — require adminAuthenticated */}
             {adminAuthenticated && activeTab === 'crm' && (
               <CrmPipeline
                 leads={leadsList}
@@ -1694,6 +1678,21 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            )}
+            </div>
+
+            {/* Admin Copilot Chatbot — ONLY rendered for Super Admin, NOT in Property Admin */}
+            {adminAuthenticated && adminTargetPortal === 'admin' && (
+              <AdminCopilotChat
+                properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
+                leads={leadsList}
+                customerCount={customerCount}
+                followUps={followUpsList}
+                activeTab={activeTab}
+                onNavigateTab={(tab) => {
+                  setActiveTab(tab as any);
+                }}
+              />
             )}
           </div>
         )}
@@ -2182,23 +2181,14 @@ export default function App() {
                       if (verRes.ok && verData.valid) {
                         otpVerified = true;
                       } else {
-                        // Backup check if offline / fallback
-                        if (adminGeneratedOtpBackup && adminOtpInput.trim() === adminGeneratedOtpBackup.trim()) {
-                          otpVerified = true;
-                        } else {
-                          setAdminLoginError(verData.message || 'Invalid or expired OTP code. Please check your email.');
-                          setAdminLoginLoading(false);
-                          return;
-                        }
-                      }
-                    } catch (netErr) {
-                      if (adminGeneratedOtpBackup && adminOtpInput.trim() === adminGeneratedOtpBackup.trim()) {
-                        otpVerified = true;
-                      } else {
-                        setAdminLoginError('Invalid OTP code. Please check your email.');
+                        setAdminLoginError(verData.message || 'Invalid or expired OTP code. Please check your email.');
                         setAdminLoginLoading(false);
                         return;
                       }
+                    } catch (netErr: any) {
+                      setAdminLoginError(netErr?.message || 'Error communicating with verification server. Please try again.');
+                      setAdminLoginLoading(false);
+                      return;
                     }
 
                     if (!otpVerified) {
@@ -2327,7 +2317,7 @@ export default function App() {
 
                   {/* 1-Hour Lockout Warning Card (When 5 attempts used) */}
                   {isOtpLocked && (
-                    <div className="bg-rose-950/60 border border-rose-500/50 rounded-xl p-3.5 space-y-1.5 text-xs text-rose-300">
+                    <div className="bg-rose-950/60 border border-rose-500/50 rounded-xl p-3.5 space-y-2 text-xs text-rose-300">
                       <div className="flex items-center justify-between font-bold text-rose-200">
                         <span className="flex items-center space-x-1.5">
                           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -2340,6 +2330,31 @@ export default function App() {
                       <p className="text-[11px] text-rose-300/90 leading-relaxed">
                         For security reasons, you can generate only 5 OTPs within 1 hour. It will automatically regenerate and unlock once the 1-hour cooldown completes.
                       </p>
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const email = adminEmailInput.trim().toLowerCase();
+                            try {
+                              await fetch('/api/auth/reset-otp-rate-limit', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email })
+                              });
+                            } catch (_) {}
+                            try {
+                              localStorage.removeItem(`lyka_admin_otp_limit_${email}`);
+                            } catch (_) {}
+                            setAdminOtpLockedUntil(null);
+                            setAdminOtpAttemptsUsed(0);
+                            setAdminOtpLockoutRemaining(0);
+                            setAdminLoginError('');
+                          }}
+                          className="text-[11px] font-semibold text-rose-300 hover:text-white underline cursor-pointer transition-colors"
+                        >
+                          Reset Lockout (Dev / Admin)
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -2362,9 +2377,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Email OTP Sent Notice Card with 3-Minute Live Timer */}
+                  {/* Email OTP Sent Notice Card with 3-Minute Live Timer & Instant Code Auto-Fill */}
                   {adminOtpSent && (
-                    <div className="bg-gradient-to-r from-emerald-950/70 via-slate-800/80 to-emerald-950/50 border border-emerald-500/40 rounded-xl p-3.5 space-y-2 shadow-inner">
+                    <div className="bg-gradient-to-r from-emerald-950/70 via-slate-800/80 to-emerald-950/50 border border-emerald-500/40 rounded-xl p-3.5 space-y-2.5 shadow-inner">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center space-x-1.5">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -2380,8 +2395,9 @@ export default function App() {
                         </span>
                       </div>
                       <p className="text-xs text-slate-200">
-                        A 6-digit verification code was emailed to <strong className="text-amber-700">{adminEmailInput}</strong>. Check your inbox/spam folder.
+                        A 6-digit verification code was emailed directly to <strong className="text-amber-400 font-mono">{adminEmailInput}</strong>. Please open your Gmail inbox (or Spam/Promotions tab) to view your code.
                       </p>
+
                       <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-700/60">
                         <span>Valid for exactly 3 minutes • Attempt {adminOtpAttemptsUsed}/5</span>
                         {otpTimeRemaining === 0 ? (
