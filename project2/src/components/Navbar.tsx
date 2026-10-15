@@ -14,7 +14,8 @@ import {
   Users,
   TrendingUp,
   LogOut,
-  BookmarkCheck
+  BookmarkCheck,
+  Info
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -34,6 +35,7 @@ interface NavbarProps {
   propertyManagerAuthenticated: boolean;
   adminTargetPortal: 'admin' | 'property_manager';
   onAdminLogout: () => void;
+  onOpenAbout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   propertyManagerAuthenticated,
   adminTargetPortal,
   onAdminLogout,
+  onOpenAbout,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties'].includes(activeTab);
@@ -76,11 +79,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg" />
           </div>
 
-          {/* Center: AI Chat tab (frontend) — ABSOLUTELY CENTERED */}
+          {/* Center: AI Chat tab & About Project — ABSOLUTELY CENTERED */}
           <nav className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 z-10">
             <button
               onClick={() => { setActiveTab('chat'); }}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
                 activeTab === 'chat'
                   ? 'bg-amber-500 text-amber-950 shadow-md font-bold border-amber-400'
                   : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800 border-espresso-700/60'
@@ -94,19 +97,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               )}
             </button>
+
+            <button
+              onClick={onOpenAbout}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-medium text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
+              title="Learn about Lyka Realty Platform & Architecture"
+            >
+              <Info className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">About Project</span>
+              <span className="sm:hidden">About</span>
+            </button>
           </nav>
 
-          {/* Right: Status badges + Admin & Property Manager Dropdown + New Customer */}
+          {/* Right: Admin & Property Manager Dropdown + New Customer */}
           <div className="flex items-center space-x-2 ml-auto">
-            {/* Firebase badge */}
-            <div
-              className="hidden lg:flex items-center space-x-1.5 text-[11px] bg-espresso-800/80 px-2.5 py-1 rounded-md border border-espresso-700 text-espresso-300"
-              title="Firebase Firestore Active"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="font-medium text-emerald-200">Firebase Live</span>
-            </div>
-
             {/* Admin Portal Button */}
             <button
               onClick={() => onToggleAdminPanel()}
@@ -465,6 +469,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           }`}
         >
           AI Chat
+        </button>
+        <button
+          onClick={onOpenAbout}
+          className="flex items-center space-x-1 px-3 py-1.5 rounded-md whitespace-nowrap font-medium text-amber-400 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20"
+        >
+          <Info className="w-3.5 h-3.5" />
+          <span>About</span>
         </button>
         {isAnyAuthed ? (
           <>

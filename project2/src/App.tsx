@@ -44,6 +44,7 @@ import {
   auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
+import { AboutProjectModal } from './components/AboutProjectModal';
 import { AgenticChat } from './components/AgenticChat';
 import { LeadProfileSidebar } from './components/LeadProfileSidebar';
 import { CrmPipeline } from './components/CrmPipeline';
@@ -104,6 +105,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager'>(() => {
     try {
       const saved = localStorage.getItem('lyka_admin_target_portal');
@@ -1358,6 +1360,7 @@ export default function App() {
           setAdminPanelOpen(false);
           setActiveTab('chat');
         }}
+        onOpenAbout={() => setAboutOpen(true)}
       />
 
       {/* Main Body */}
@@ -2294,6 +2297,12 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* About Project Modal */}
+      <AboutProjectModal
+        isOpen={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+      />
     </div>
   );
 }

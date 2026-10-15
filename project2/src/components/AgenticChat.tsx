@@ -689,7 +689,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         // We can check if they are in 'login' mode, maybe they don't have an account
         if (authMode === 'login') {
           setAuthMode('signup');
-          setAuthError('User not found in Firebase. You cannot sign in — please sign up first!');
+          setAuthError('Account not found. You cannot sign in — please sign up first!');
         } else {
           setAuthError('Invalid email or password.');
         }
@@ -1482,9 +1482,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 <Send className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </form>
-            <p className="text-xs sm:text-sm text-[#6b5843] text-center mt-2.5">
-              Lyka Realty AI · <span className="text-amber-600/80 font-mono">{engineProvider === 'groq' ? `Groq (${activeModel})` : 'Gemini 2.5 Flash'}</span> · Verified Dubai & Mumbai Inventory
-            </p>
           </div>
         </div>
       </div>
@@ -1531,32 +1528,19 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               </div>
 
               {engineProvider === 'groq' && (
-                <>
-                  <div>
-                    <label className="text-[#6b5843] block mb-1 font-semibold">Model:</label>
-                    <select
-                      value={activeModel}
-                      onChange={(e) => setActiveModel(e.target.value)}
-                      className="w-full bg-[#ffffff] border border-[#d6cbb4] rounded-xl p-2.5 text-slate-300 outline-none focus:border-amber-400"
-                    >
-                      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended)</option>
-                      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Fastest)</option>
-                      <option value="mixtral-8x7b-32768">mixtral-8x7b-32768 (High context)</option>
-                      <option value="gemma2-9b-it">gemma2-9b-it</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[#6b5843] block mb-1 font-semibold">Custom Groq API Key (Optional):</label>
-                    <input
-                      type="password"
-                      value={groqKeyInput}
-                      onChange={(e) => setGroqKeyInput(e.target.value)}
-                      placeholder="gsk_..."
-                      className="w-full bg-[#ffffff] border border-[#d6cbb4] rounded-xl p-2.5 text-slate-300 font-mono placeholder-[#7a6650] outline-none focus:border-amber-400"
-                    />
-                    <p className="text-[10px] text-[#6b5843] mt-1">Leave blank to use server <code className="text-amber-600">GROQ_API_KEY</code>.</p>
-                  </div>
-                </>
+                <div>
+                  <label className="text-[#6b5843] block mb-1 font-semibold">Model:</label>
+                  <select
+                    value={activeModel}
+                    onChange={(e) => setActiveModel(e.target.value)}
+                    className="w-full bg-[#ffffff] border border-[#d6cbb4] rounded-xl p-2.5 text-slate-300 outline-none focus:border-amber-400"
+                  >
+                    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended)</option>
+                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Fastest)</option>
+                    <option value="mixtral-8x7b-32768">mixtral-8x7b-32768 (High context)</option>
+                    <option value="gemma2-9b-it">gemma2-9b-it</option>
+                  </select>
+                </div>
               )}
 
               <div className="bg-[#ffffff] p-3 rounded-xl border border-[#d6cbb4] space-y-1 text-[11px] text-[#6b5843]">
@@ -1608,7 +1592,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div className="text-xs bg-amber-50/80 p-2.5 rounded-xl border border-amber-300 text-amber-950 space-y-0.5">
                       <p className="font-extrabold text-[12px] text-black">First-time User: Sign Up Required</p>
                       <p className="text-[11px] text-neutral-800 font-medium">
-                        You do not have an account in Firebase yet. Please provide your Name and Age first to complete registration before continuing with Google.
+                        You do not have an account yet. Please provide your Name and Age first to complete registration before continuing with Google.
                       </p>
                     </div>
 
