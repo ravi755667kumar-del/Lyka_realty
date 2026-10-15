@@ -75,7 +75,8 @@ import {
   Copy,
   Check,
   Mail,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -165,6 +166,11 @@ export default function App() {
   const [otpTimeRemaining, setOtpTimeRemaining] = useState<number>(180); // 3 minutes = 180s
   const [adminGeneratedOtpBackup, setAdminGeneratedOtpBackup] = useState<string | null>(null);
 
+  // OTP Rate Limiter (Max 5 attempts, 1-hour cooldown lockout)
+  const [adminOtpAttemptsUsed, setAdminOtpAttemptsUsed] = useState<number>(0);
+  const [adminOtpLockedUntil, setAdminOtpLockedUntil] = useState<number | null>(null);
+  const [adminOtpLockoutRemaining, setAdminOtpLockoutRemaining] = useState<number>(0);
+
   // 3-Minute countdown timer for OTP
   useEffect(() => {
     let timer: any = null;
@@ -181,6 +187,79 @@ export default function App() {
       if (timer) clearInterval(timer);
     };
   }, [adminOtpSent, adminOtpExpiresAt]);
+
+  // 1-Hour Lockout Countdown Timer
+  useEffect(() => {
+    let timer: any = null;
+    if (adminOtpLockedUntil) {
+      const updateLockout = () => {
+        const diff = Math.max(0, Math.floor((adminOtpLockedUntil - Date.now()) / 1000));
+        setAdminOtpLockoutRemaining(diff);
+        if (diff <= 0) {
+          setAdminOtpLockedUntil(null);
+          setAdminOtpAttemptsUsed(0);
+          if (adminEmailInput) {
+            try {
+              localStorage.removeItem(`lyka_admin_otp_limit_${adminEmailInput.trim().toLowerCase()}`);
+            } catch (e) {}
+          }
+          if (timer) clearInterval(timer);
+        }
+      };
+      updateLockout();
+      timer = setInterval(updateLockout, 1000);
+    } else {
+      setAdminOtpLockoutRemaining(0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [adminOtpLockedUntil, adminEmailInput]);
+
+  // Synchronize rate limit status when email or portal modal changes
+  useEffect(() => {
+    const email = adminEmailInput.trim().toLowerCase();
+    if (!email) {
+      setAdminOtpAttemptsUsed(0);
+      setAdminOtpLockedUntil(null);
+      setAdminOtpLockoutRemaining(0);
+      return;
+    }
+
+    try {
+      const cached = localStorage.getItem(`lyka_admin_otp_limit_${email}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.lockedUntil && parsed.lockedUntil > Date.now()) {
+          setAdminOtpLockedUntil(parsed.lockedUntil);
+          setAdminOtpAttemptsUsed(5);
+        } else if (typeof parsed.attemptsUsed === 'number') {
+          setAdminOtpAttemptsUsed(parsed.attemptsUsed);
+        }
+      }
+    } catch (e) {}
+
+    fetch(`/api/auth/otp-status?email=${encodeURIComponent(email)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.locked && data.lockedUntil && data.lockedUntil > Date.now()) {
+          setAdminOtpLockedUntil(data.lockedUntil);
+          setAdminOtpAttemptsUsed(5);
+          try {
+            localStorage.setItem(`lyka_admin_otp_limit_${email}`, JSON.stringify({
+              lockedUntil: data.lockedUntil,
+              attemptsUsed: 5
+            }));
+          } catch (e) {}
+        } else if (typeof data.attemptsUsed === 'number') {
+          setAdminOtpAttemptsUsed(data.attemptsUsed);
+          if (!data.locked) {
+            setAdminOtpLockedUntil(null);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [adminEmailInput, showAdminLoginModal]);
 
   const resetAdminModalState = () => {
     setAdminLoginError('');
@@ -200,16 +279,23 @@ export default function App() {
     setAdminOtpSuccessMsg('');
     setAdminGeneratedOtpBackup(null);
 
-    const targetEmail = adminEmailInput.trim();
+    const targetEmail = adminEmailInput.trim().toLowerCase();
     if (!targetEmail || !targetEmail.includes('@')) {
       setAdminLoginError('Please enter your valid Admin/Manager email address to receive your 6-digit OTP.');
+      return;
+    }
+
+    // Check if account is in 1-hour lockout
+    if (adminOtpLockedUntil && adminOtpLockedUntil > Date.now()) {
+      const mins = Math.max(1, Math.ceil((adminOtpLockedUntil - Date.now()) / 60000));
+      setAdminLoginError(`OTP generation limit reached (5 attempts). For security, please wait ${mins} minute(s) before requesting a new OTP.`);
       return;
     }
 
     setAdminOtpLoading(true);
 
     try {
-      // Call server endpoint that delivers via Brevo API
+      // Call server endpoint that delivers via Brevo API with rate-limiting
       const res = await fetch('/api/auth/send-email-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -227,6 +313,22 @@ export default function App() {
         data = {};
       }
 
+      // Handle 429 Too Many Requests (Rate limit reached)
+      if (res.status === 429 || data.locked) {
+        const lockoutTime = data.lockedUntil || (Date.now() + 60 * 60 * 1000);
+        setAdminOtpLockedUntil(lockoutTime);
+        setAdminOtpAttemptsUsed(5);
+        try {
+          localStorage.setItem(`lyka_admin_otp_limit_${targetEmail}`, JSON.stringify({
+            lockedUntil: lockoutTime,
+            attemptsUsed: 5
+          }));
+        } catch (e) {}
+        const mins = data.retryAfterMinutes || Math.max(1, Math.ceil((lockoutTime - Date.now()) / 60000));
+        setAdminLoginError(data.error || `OTP generation limit reached (5 attempts). Please wait ${mins} minute(s) before requesting again.`);
+        return;
+      }
+
       if (!res.ok) {
         if (data.otpBackup) {
           const now = Date.now();
@@ -241,12 +343,33 @@ export default function App() {
         throw new Error(data.error || data.message || `Server returned ${res.status} (${res.statusText || 'Not Found'}). Please make sure the server has been restarted.`);
       }
 
+      // Successful OTP generation
+      const attemptsCount = typeof data.attemptsUsed === 'number' ? data.attemptsUsed : (adminOtpAttemptsUsed + 1);
+      setAdminOtpAttemptsUsed(attemptsCount);
+
+      if (data.lockedUntil || attemptsCount >= 5) {
+        const lockoutTime = data.lockedUntil || (Date.now() + 60 * 60 * 1000);
+        setAdminOtpLockedUntil(lockoutTime);
+        try {
+          localStorage.setItem(`lyka_admin_otp_limit_${targetEmail}`, JSON.stringify({
+            lockedUntil: lockoutTime,
+            attemptsUsed: 5
+          }));
+        } catch (e) {}
+      } else {
+        try {
+          localStorage.setItem(`lyka_admin_otp_limit_${targetEmail}`, JSON.stringify({
+            attemptsUsed: attemptsCount
+          }));
+        } catch (e) {}
+      }
+
       const now = Date.now();
       const expiresAt = now + 3 * 60 * 1000; // strictly 3 minutes
       setAdminOtpExpiresAt(expiresAt);
       setOtpTimeRemaining(180);
       setAdminOtpSent(true);
-      setAdminOtpSuccessMsg(`6-Digit OTP sent directly to ${targetEmail}! Valid for 3 minutes.`);
+      setAdminOtpSuccessMsg(`6-Digit OTP sent directly to ${targetEmail}! Valid for 3 minutes. (Attempt ${attemptsCount} of 5)`);
 
       if (data.otpBackup) {
         setAdminGeneratedOtpBackup(data.otpBackup);
@@ -1275,6 +1398,9 @@ export default function App() {
 
   const bookedPropertyCount = propertiesList.filter(p => p.is_booked || (p.status || '').toLowerCase() === 'booked').length;
 
+  const isOtpLocked = Boolean(adminOtpLockedUntil && adminOtpLockedUntil > Date.now());
+  const lockoutMinutesRemaining = Math.max(1, Math.ceil(adminOtpLockoutRemaining / 60));
+
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 font-sans text-slate-300 overflow-hidden">
       {/* Navigation Header */}
@@ -2099,7 +2225,18 @@ export default function App() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                       <span>{adminTargetPortal === 'property_manager' ? 'Manager Email / Login' : 'Admin Email / Login'}</span>
-                      <span className="text-[10px] text-amber-600 font-medium">OTP sent to this email</span>
+                      {isOtpLocked ? (
+                        <span className="text-[10px] text-rose-400 font-semibold flex items-center space-x-1">
+                          <Lock className="w-3 h-3 text-rose-400" />
+                          <span>Locked (5/5 Used)</span>
+                        </span>
+                      ) : adminOtpAttemptsUsed > 0 ? (
+                        <span className="text-[10px] text-amber-500 font-medium">
+                          Attempt {adminOtpAttemptsUsed}/5 (1-hr limit)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-amber-600 font-medium">OTP sent to this email (Max 5/hr)</span>
+                      )}
                     </label>
                     <div className="flex space-x-2">
                       <div className="relative flex-1">
@@ -2121,11 +2258,13 @@ export default function App() {
                         id="admin-get-otp-btn"
                         type="button"
                         onClick={handleGetAdminOtp}
-                        disabled={!adminEmailInput.trim() || adminOtpLoading}
+                        disabled={!adminEmailInput.trim() || adminOtpLoading || isOtpLocked}
                         className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 shadow-sm ${
-                          adminEmailInput.trim() && !adminOtpLoading
-                            ? 'bg-amber-500 hover:bg-amber-400 text-amber-950 cursor-pointer active:scale-95'
-                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                          isOtpLocked
+                            ? 'bg-rose-950/60 text-rose-400 border border-rose-800/60 cursor-not-allowed opacity-80'
+                            : adminEmailInput.trim() && !adminOtpLoading
+                              ? 'bg-amber-500 hover:bg-amber-400 text-amber-950 cursor-pointer active:scale-95'
+                              : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
                         }`}
                       >
                         {adminOtpLoading ? (
@@ -2136,10 +2275,15 @@ export default function App() {
                             </svg>
                             <span>Sending...</span>
                           </>
+                        ) : isOtpLocked ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Wait {lockoutMinutesRemaining}m</span>
+                          </>
                         ) : adminOtpSent ? (
                           <>
                             <KeyRound className="w-3.5 h-3.5" />
-                            <span>Resend OTP</span>
+                            <span>Resend OTP ({adminOtpAttemptsUsed}/5)</span>
                           </>
                         ) : (
                           <>
@@ -2150,6 +2294,24 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+
+                  {/* 1-Hour Lockout Warning Card (When 5 attempts used) */}
+                  {isOtpLocked && (
+                    <div className="bg-rose-950/60 border border-rose-500/50 rounded-xl p-3.5 space-y-1.5 text-xs text-rose-300">
+                      <div className="flex items-center justify-between font-bold text-rose-200">
+                        <span className="flex items-center space-x-1.5">
+                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <span>OTP Limit Reached (5/5 Attempts)</span>
+                        </span>
+                        <span className="font-mono text-xs bg-rose-900/80 border border-rose-700/60 px-2 py-0.5 rounded text-rose-200">
+                          {Math.floor(adminOtpLockoutRemaining / 60)}:{(adminOtpLockoutRemaining % 60).toString().padStart(2, '0')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-rose-300/90 leading-relaxed">
+                        For security reasons, you can generate only 5 OTPs within 1 hour. It will automatically regenerate and unlock once the 1-hour cooldown completes.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Password */}
                   <div className="space-y-1.5">
@@ -2191,10 +2353,12 @@ export default function App() {
                         A 6-digit verification code was emailed to <strong className="text-amber-700">{adminEmailInput}</strong>. Check your inbox/spam folder.
                       </p>
                       <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-700/60">
-                        <span>Valid for exactly 3 minutes</span>
-                        {otpTimeRemaining === 0 && (
+                        <span>Valid for exactly 3 minutes • Attempt {adminOtpAttemptsUsed}/5</span>
+                        {otpTimeRemaining === 0 ? (
                           <span className="text-rose-400 font-bold">Expired. Click 'Resend OTP'</span>
-                        )}
+                        ) : adminOtpAttemptsUsed >= 5 ? (
+                          <span className="text-amber-400 font-semibold">5 of 5 attempts used</span>
+                        ) : null}
                       </div>
                     </div>
                   )}

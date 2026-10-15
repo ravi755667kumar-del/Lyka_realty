@@ -822,6 +822,54 @@ interface OtpRecord {
 }
 const activeEmailOtps: Record<string, OtpRecord> = {};
 
+// Rate limiter store for OTP requests (Max 5 attempts per 1-hour rolling window)
+const ONE_HOUR_MS = 60 * 60 * 1000; // 3,600,000 ms = 1 hour
+const MAX_OTP_ATTEMPTS = 5;
+
+interface OtpRateLimitRecord {
+  attempts: number[]; // Timestamps of generated OTPs within the 1-hour window
+  lockedUntil?: number; // Lockout timestamp if limit reached
+}
+const otpRateLimits: Record<string, OtpRateLimitRecord> = {};
+
+// Check OTP Rate Limit Status for an Email
+app.get('/api/auth/otp-status', (req: Request, res: Response) => {
+  try {
+    const email = req.query.email;
+    if (!email || typeof email !== 'string') {
+      return res.json({ locked: false, attemptsUsed: 0, maxAttempts: MAX_OTP_ATTEMPTS, remainingAttempts: MAX_OTP_ATTEMPTS });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const rateRecord = otpRateLimits[cleanEmail];
+    if (!rateRecord) {
+      return res.json({ locked: false, attemptsUsed: 0, maxAttempts: MAX_OTP_ATTEMPTS, remainingAttempts: MAX_OTP_ATTEMPTS });
+    }
+    const now = Date.now();
+    if (rateRecord.lockedUntil && now < rateRecord.lockedUntil) {
+      const remainingSeconds = Math.max(1, Math.ceil((rateRecord.lockedUntil - now) / 1000));
+      const remainingMinutes = Math.max(1, Math.ceil(remainingSeconds / 60));
+      return res.json({
+        locked: true,
+        attemptsUsed: MAX_OTP_ATTEMPTS,
+        maxAttempts: MAX_OTP_ATTEMPTS,
+        remainingAttempts: 0,
+        retryAfterMinutes: remainingMinutes,
+        retryAfterSeconds: remainingSeconds,
+        lockedUntil: rateRecord.lockedUntil
+      });
+    }
+    const validAttempts = (rateRecord.attempts || []).filter(ts => (now - ts) < ONE_HOUR_MS);
+    return res.json({
+      locked: false,
+      attemptsUsed: validAttempts.length,
+      maxAttempts: MAX_OTP_ATTEMPTS,
+      remainingAttempts: Math.max(0, MAX_OTP_ATTEMPTS - validAttempts.length)
+    });
+  } catch (err: any) {
+    return res.json({ locked: false, attemptsUsed: 0, maxAttempts: 5, remainingAttempts: 5 });
+  }
+});
+
 // Send 6-Digit Email OTP via Brevo API
 app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
   try {
@@ -832,10 +880,64 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
 
     const cleanEmail = email.trim().toLowerCase();
     const portalName = portal === 'property_manager' ? 'Property Manager' : 'Admin';
+    const now = Date.now();
+
+    // ── OTP Rate Limiter (Max 5 attempts per 1-hour window) ───────────────
+    let rateRecord = otpRateLimits[cleanEmail];
+    if (!rateRecord) {
+      rateRecord = { attempts: [] };
+      otpRateLimits[cleanEmail] = rateRecord;
+    }
+
+    // Check if account is in active lockout
+    if (rateRecord.lockedUntil && now < rateRecord.lockedUntil) {
+      const remainingSeconds = Math.max(1, Math.ceil((rateRecord.lockedUntil - now) / 1000));
+      const remainingMinutes = Math.max(1, Math.ceil(remainingSeconds / 60));
+      return res.status(429).json({
+        error: `OTP generation limit reached (5 attempts). For security reasons, please wait ${remainingMinutes} minute(s) before requesting a new OTP.`,
+        locked: true,
+        retryAfterMinutes: remainingMinutes,
+        retryAfterSeconds: remainingSeconds,
+        lockedUntil: rateRecord.lockedUntil,
+        attemptsUsed: MAX_OTP_ATTEMPTS,
+        maxAttempts: MAX_OTP_ATTEMPTS,
+        remainingAttempts: 0
+      });
+    }
+
+    // Filter out attempts older than 1 hour (rolling window)
+    rateRecord.attempts = rateRecord.attempts.filter(ts => (now - ts) < ONE_HOUR_MS);
+    if (rateRecord.lockedUntil && now >= rateRecord.lockedUntil) {
+      delete rateRecord.lockedUntil;
+    }
+
+    // If already 5 or more attempts in this 1-hour window, trigger 1-hour lockout
+    if (rateRecord.attempts.length >= MAX_OTP_ATTEMPTS) {
+      rateRecord.lockedUntil = now + ONE_HOUR_MS;
+      return res.status(429).json({
+        error: 'OTP generation limit reached (5 attempts). For security reasons, please wait 60 minutes before requesting a new OTP.',
+        locked: true,
+        retryAfterMinutes: 60,
+        retryAfterSeconds: 3600,
+        lockedUntil: rateRecord.lockedUntil,
+        attemptsUsed: MAX_OTP_ATTEMPTS,
+        maxAttempts: MAX_OTP_ATTEMPTS,
+        remainingAttempts: 0
+      });
+    }
+
+    // Record this OTP generation attempt
+    rateRecord.attempts.push(now);
+    const attemptsUsed = rateRecord.attempts.length;
+    const remainingAttempts = Math.max(0, MAX_OTP_ATTEMPTS - attemptsUsed);
+
+    // If this was the 5th attempt, lock out further requests for the next 1 hour
+    if (attemptsUsed >= MAX_OTP_ATTEMPTS) {
+      rateRecord.lockedUntil = now + ONE_HOUR_MS;
+    }
 
     // 1. Generate secure 6-digit OTP code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const now = Date.now();
     const expiresAt = now + 3 * 60 * 1000; // Strictly 3 minutes valid
 
     // Save in memory record
@@ -856,7 +958,11 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
       return res.json({
         success: true,
         expiresInSeconds: 180,
-        message: 'OTP generated (local mode). Check terminal or backup code.',
+        attemptsUsed,
+        maxAttempts: MAX_OTP_ATTEMPTS,
+        remainingAttempts,
+        lockedUntil: rateRecord.lockedUntil,
+        message: `OTP generated (local mode). Check terminal or backup code. (Attempt ${attemptsUsed} of ${MAX_OTP_ATTEMPTS})`,
         otpBackup: otpCode
       });
     }
@@ -930,6 +1036,10 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
       console.warn('Brevo API response error:', data);
       return res.status(response.status).json({
         error: data.message || 'Failed to send OTP email via Brevo.',
+        attemptsUsed,
+        maxAttempts: MAX_OTP_ATTEMPTS,
+        remainingAttempts,
+        lockedUntil: rateRecord.lockedUntil,
         otpBackup: otpCode
       });
     }
@@ -939,7 +1049,11 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
       success: true,
       messageId: data.messageId,
       expiresInSeconds: 180,
-      message: `Verification code sent to ${cleanEmail}. Valid for 3 minutes.`
+      attemptsUsed,
+      maxAttempts: MAX_OTP_ATTEMPTS,
+      remainingAttempts,
+      lockedUntil: rateRecord.lockedUntil,
+      message: `Verification code sent to ${cleanEmail}. Valid for 3 minutes. (Attempt ${attemptsUsed} of ${MAX_OTP_ATTEMPTS})`
     });
 
   } catch (error: any) {
