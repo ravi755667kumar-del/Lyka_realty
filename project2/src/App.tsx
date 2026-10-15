@@ -1389,6 +1389,37 @@ export default function App() {
             onAuthChange={handleAuthChange}
             onLoadChat={handleLoadChat}
             onDeleteChat={handleDeleteChat}
+            onOpenAdmin={() => {
+              const isAuthed = adminTargetPortal === 'admin' 
+                ? adminAuthenticated 
+                : (propertyManagerAuthenticated || adminAuthenticated);
+              if (!isAuthed) {
+                resetAdminModalState();
+                setAdminEmailInput('');
+                setAdminPasswordInput('');
+                setShowAdminLoginModal(true);
+              } else {
+                setAdminPanelOpen(true);
+                if (adminTargetPortal === 'property_manager') {
+                  setActiveTab('properties');
+                } else {
+                  setActiveTab('crm');
+                }
+              }
+            }}
+            adminAuthenticated={adminAuthenticated}
+            propertyManagerAuthenticated={propertyManagerAuthenticated}
+            onAdminLogout={() => {
+              setAdminAuthenticated(false);
+              setPropertyManagerAuthenticated(false);
+              try {
+                localStorage.removeItem('lyka_admin_authenticated');
+                localStorage.removeItem('lyka_pm_authenticated');
+                localStorage.removeItem('lyka_admin_target_portal');
+              } catch (e) {}
+              setAdminPanelOpen(false);
+              setActiveTab('chat');
+            }}
           />
           {sidebarOpen && (
             <LeadProfileSidebar

@@ -78,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg" />
           </div>
 
-          {/* Center: AI Chat tab & About Project — ABSOLUTELY CENTERED */}
+          {/* Center: AI Chat tab — ABSOLUTELY CENTERED */}
           <nav className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 z-10">
             <button
               onClick={() => { setActiveTab('chat'); }}
@@ -96,56 +96,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               )}
             </button>
-
-            <button
-              onClick={onOpenAbout}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-medium text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
-              title="Learn about Lyka Realty Platform & Architecture"
-            >
-              <Info className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">About Project</span>
-              <span className="sm:hidden">About</span>
-            </button>
           </nav>
 
-          {/* Right: Admin Portal Button */}
-          <div className="flex items-center space-x-2 ml-auto">
-            {/* Admin Portal Button */}
+          {/* Right: About in right corner */}
+          <div className="flex items-center space-x-2 ml-auto z-10">
             <button
-              onClick={() => onToggleAdminPanel()}
-              className={`flex items-center space-x-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
-                adminPanelOpen || isAdminTab
-                  ? 'bg-violet-600 hover:bg-violet-500 text-white border-violet-500 shadow-md shadow-violet-500/20'
-                  : isAnyAuthed
-                  ? 'bg-espresso-800 hover:bg-espresso-700 text-violet-300 border-violet-500/50'
-                  : 'bg-espresso-800 hover:bg-espresso-700 text-espresso-300 border-espresso-700 hover:border-amber-500/60'
-              }`}
-              title={isAnyAuthed ? "Open Admin Panel" : "Sign in to Admin"}
+              onClick={onOpenAbout}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
+              title="Learn about Lyka Realty"
             >
-              {isAnyAuthed ? (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              ) : (
-                <ShieldCheck className="w-3.5 h-3.5" />
-              )}
-              <span>Admin</span>
-              {leadCount > 0 && adminAuthenticated && (
-                <span className="text-[10px] px-1.5 rounded-full font-bold bg-amber-500/25 text-amber-950">
-                  {leadCount}
-                </span>
-              )}
+              <Info className="w-4 h-4 text-amber-400" />
+              <span>About</span>
             </button>
-
-            {/* Logout button — only when authenticated */}
-            {isAnyAuthed && (
-              <button
-                onClick={onAdminLogout}
-                title="Logout from Admin (Stays logged in until clicked)"
-                className="flex items-center space-x-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg border border-red-500/30 bg-red-950/20 hover:bg-red-900/40 hover:border-red-500/60 text-red-300 transition-all"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Logout</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -513,18 +475,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               Logout
             </button>
           </>
-        ) : (
-          <button
-            onClick={() => onToggleAdminPanel()}
-            className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-              adminPanelOpen || isAdminTab
-                ? 'bg-violet-600 text-white border-violet-500'
-                : 'text-espresso-400 border-espresso-700'
-            }`}
-          >
-            Admin Sign In
-          </button>
-        )}
+        ) : null}
       </div>
     </header>
   );
