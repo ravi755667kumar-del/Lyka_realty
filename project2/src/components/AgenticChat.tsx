@@ -49,8 +49,7 @@ import {
   MapPin,
   Bed,
   Bath,
-  Maximize2,
-  ShieldCheck
+  Maximize2
 } from 'lucide-react';
 import { 
   auth, 
@@ -104,10 +103,6 @@ interface AgenticChatProps {
   onAuthChange?: (userId: string | null, email?: string) => void;
   onLoadChat?: (lead: LeadProfile, msgs: ChatMessage[]) => void;
   onDeleteChat?: (leadId: string) => void;
-  onOpenAdmin?: () => void;
-  adminAuthenticated?: boolean;
-  propertyManagerAuthenticated?: boolean;
-  onAdminLogout?: () => void;
 }
 
 export const AgenticChat: React.FC<AgenticChatProps> = ({
@@ -123,13 +118,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   onStartNewChat,
   onAuthChange,
   onLoadChat,
-  onDeleteChat,
-  onOpenAdmin,
-  adminAuthenticated,
-  propertyManagerAuthenticated,
-  onAdminLogout
+  onDeleteChat
 }) => {
-  const isAnyAuthed = Boolean(adminAuthenticated || propertyManagerAuthenticated);
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [expandedThoughtId, setExpandedThoughtId] = useState<string | null>(null);
@@ -1911,53 +1901,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   <span>Agentic Greeting Behavior:</span>
                 </div>
                 <p>When a customer says "hi", the assistant greets warmly on behalf of Lyka Realty and asks about buy/rent/invest intent.</p>
-              </div>
-
-              {/* ─── Admin Portal Access inside Settings ─── */}
-              <div className="pt-3.5 border-t border-[#d6cbb4] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <ShieldCheck className="w-4 h-4 text-amber-700" />
-                    <span className="font-bold text-[#2d2216] text-xs">Admin & Property Manager Portal</span>
-                  </div>
-                  {isAnyAuthed && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold px-2 py-0.5 rounded-full flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      <span>Authenticated</span>
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-[#6b5843] leading-relaxed">
-                  Management controls for CRM pipeline, lead engagement, vector embeddings, and verified properties inventory.
-                </p>
-                <div className="flex items-center space-x-2 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSettingsModal(false);
-                      if (onOpenAdmin) onOpenAdmin();
-                    }}
-                    className="flex-1 bg-[#1e1610] hover:bg-[#2e2019] text-white font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#3d2b21] shadow-xs"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{isAnyAuthed ? 'Open Admin Portal' : 'Admin Sign In'}</span>
-                  </button>
-
-                  {isAnyAuthed && onAdminLogout && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSettingsModal(false);
-                        onAdminLogout();
-                      }}
-                      className="bg-white hover:bg-red-50 text-red-700 border border-red-200 font-bold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1"
-                      title="Logout from Admin"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Logout</span>
-                    </button>
-                  )}
-                </div>
               </div>
             </div>
 

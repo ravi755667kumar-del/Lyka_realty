@@ -1054,48 +1054,44 @@ export async function savePortalCredentialToFirestore(
 }
 
 /**
- * Saves the generated 6-digit Email OTP code to Firestore
- * (`Admin_login` or `Property_login`) — ONLY the OTP fields are written.
- * The email and password fields in Firestore are NEVER modified by this function.
+ * Deliberately does NOT store OTP in Firestore (ensures OTP is never persisted in database).
  */
 export async function savePortalEmailOtpToFirestore(
-  portal: 'admin' | 'property_manager',
-  email: string,
-  otpCode: string
+  _portal: 'admin' | 'property_manager',
+  _email: string,
+  _otpCode: string
 ): Promise<void> {
-  const targetDocId = portal === 'admin' ? 'admin' : 'property_manager';
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 3 * 60 * 1000).toISOString();
+  // Deliberately no-op: OTPs are never stored in the database
+  return;
+}
 
-  // Only OTP fields — never touch email / password
-  const otpFields = {
-    otp_code: otpCode,
-    otp_created_at: now.toISOString(),
-    otp_expires_at: expiresAt,
-    otp_requested_for: email.trim(),
-    updatedAt: now.toISOString()
-  };
-
+/**
+ * Deletes/cleans any OTP fields from Firestore collections (`Admin_login` and `Property_login`)
+ * when admin or property manager logs out, ensuring no leftover OTP remains in the database.
+ */
+export async function deletePortalOtpFromFirestore(): Promise<void> {
   try {
-    if (portal === 'admin') {
+    const collections = ['Admin_login', 'Property_login'];
+    for (const colName of collections) {
       try {
-        await updateDoc(doc(db, 'Admin_login', targetDocId), otpFields);
-      } catch {
-        // Document may not exist yet — create with OTP fields only
-        await setDoc(doc(db, 'Admin_login', targetDocId), otpFields, { merge: true });
+        const snap = await getDocs(collection(db, colName));
+        for (const docSnap of snap.docs) {
+          const data = docSnap.data();
+          if (data.otp_code || data.otp_created_at || data.otp_expires_at || data.otp_requested_for) {
+            await updateDoc(doc(db, colName, docSnap.id), {
+              otp_code: deleteField(),
+              otp_created_at: deleteField(),
+              otp_expires_at: deleteField(),
+              otp_requested_for: deleteField()
+            });
+          }
+        }
+      } catch (colErr) {
+        console.warn(`Clean OTP notice for ${colName}:`, colErr);
       }
-    } else {
-      await Promise.all([
-        updateDoc(doc(db, 'Property_login', targetDocId), otpFields).catch(() =>
-          setDoc(doc(db, 'Property_login', targetDocId), otpFields, { merge: true })
-        ),
-        updateDoc(doc(db, 'Admin_login', targetDocId), otpFields).catch(() =>
-          setDoc(doc(db, 'Admin_login', targetDocId), otpFields, { merge: true })
-        )
-      ]);
     }
   } catch (error) {
-    console.warn(`Could not save Email OTP to Firestore:`, error);
+    console.warn(`Could not delete portal OTP fields from Firestore:`, error);
   }
 }
 

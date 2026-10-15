@@ -38,7 +38,7 @@ import {
   ensurePortalCredentialsInFirestore,
   verifyPortalLoginFromFirestore,
   savePortalCredentialToFirestore,
-  savePortalEmailOtpToFirestore,
+  deletePortalOtpFromFirestore,
   savePropertyToFirestore,
   getPropertiesFromFirestore,
   auth
@@ -235,7 +235,6 @@ export default function App() {
           setOtpTimeRemaining(180);
           setAdminOtpSent(true);
           setAdminGeneratedOtpBackup(data.otpBackup);
-          await savePortalEmailOtpToFirestore(adminTargetPortal, targetEmail, data.otpBackup);
           setAdminLoginError(data.error || 'Brevo email delivery notice.');
           return;
         }
@@ -251,11 +250,6 @@ export default function App() {
 
       if (data.otpBackup) {
         setAdminGeneratedOtpBackup(data.otpBackup);
-      }
-
-      // Sync into Firestore collection (Admin_login or Property_login)
-      if (data.otpBackup) {
-        await savePortalEmailOtpToFirestore(adminTargetPortal, targetEmail, data.otpBackup);
       }
 
     } catch (err: any) {
@@ -1349,7 +1343,7 @@ export default function App() {
             }
           }
         }}
-        onAdminLogout={() => {
+        onAdminLogout={async () => {
           setAdminAuthenticated(false);
           setPropertyManagerAuthenticated(false);
           try {
@@ -1359,6 +1353,17 @@ export default function App() {
           } catch (e) {}
           setAdminPanelOpen(false);
           setActiveTab('chat');
+          // Delete any OTP from database upon logout
+          try {
+            await deletePortalOtpFromFirestore();
+            fetch('/api/auth/clear-email-otp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: adminEmailInput || '' })
+            }).catch(() => {});
+          } catch (cleanErr) {
+            console.warn('Notice cleaning OTP on logout:', cleanErr);
+          }
         }}
         onOpenAbout={() => setAboutOpen(true)}
       />
@@ -1389,37 +1394,6 @@ export default function App() {
             onAuthChange={handleAuthChange}
             onLoadChat={handleLoadChat}
             onDeleteChat={handleDeleteChat}
-            onOpenAdmin={() => {
-              const isAuthed = adminTargetPortal === 'admin' 
-                ? adminAuthenticated 
-                : (propertyManagerAuthenticated || adminAuthenticated);
-              if (!isAuthed) {
-                resetAdminModalState();
-                setAdminEmailInput('');
-                setAdminPasswordInput('');
-                setShowAdminLoginModal(true);
-              } else {
-                setAdminPanelOpen(true);
-                if (adminTargetPortal === 'property_manager') {
-                  setActiveTab('properties');
-                } else {
-                  setActiveTab('crm');
-                }
-              }
-            }}
-            adminAuthenticated={adminAuthenticated}
-            propertyManagerAuthenticated={propertyManagerAuthenticated}
-            onAdminLogout={() => {
-              setAdminAuthenticated(false);
-              setPropertyManagerAuthenticated(false);
-              try {
-                localStorage.removeItem('lyka_admin_authenticated');
-                localStorage.removeItem('lyka_pm_authenticated');
-                localStorage.removeItem('lyka_admin_target_portal');
-              } catch (e) {}
-              setAdminPanelOpen(false);
-              setActiveTab('chat');
-            }}
           />
           {sidebarOpen && (
             <LeadProfileSidebar

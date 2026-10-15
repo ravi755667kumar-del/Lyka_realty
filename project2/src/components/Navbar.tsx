@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Building2, 
   MessageSquare, 
@@ -14,7 +14,8 @@ import {
   TrendingUp,
   LogOut,
   BookmarkCheck,
-  Info
+  Info,
+  MoreVertical
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -59,6 +60,25 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties'].includes(activeTab);
 
+  // Triple-tap / triple-click counter to open Admin Panel
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<any>(null);
+
+  const handleTripleTap = () => {
+    tapCountRef.current += 1;
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+    }
+    if (tapCountRef.current >= 3) {
+      tapCountRef.current = 0;
+      onToggleAdminPanel();
+    } else {
+      tapTimerRef.current = setTimeout(() => {
+        tapCountRef.current = 0;
+      }, 700);
+    }
+  };
+
   // Determine which portal is currently authenticated (Super Admin has access to both)
   const currentPortal = adminTargetPortal;
   const isPortalAuthed = currentPortal === 'admin' 
@@ -67,13 +87,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAnyAuthed = adminAuthenticated || propertyManagerAuthenticated;
 
   return (
-    <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50">
+    <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50 select-none">
       <div className="px-4 sm:px-6">
         <div className="relative flex items-center h-16">
-          {/* Logo & Brand — Left */}
+          {/* Logo & Brand — Left (Supports triple-tap to open Admin) */}
           <div
             className="flex items-center cursor-pointer flex-shrink-0 absolute left-0"
-            onClick={() => { setActiveTab('chat'); }}
+            onClick={() => {
+              handleTripleTap();
+              setActiveTab('chat');
+            }}
+            title="Lyka Realty"
           >
             <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg" />
           </div>
@@ -98,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Right: About in right corner */}
+          {/* Right: About + Triple Tab / Dot (Admin) in right corner */}
           <div className="flex items-center space-x-2 ml-auto z-10">
             <button
               onClick={onOpenAbout}
@@ -107,6 +131,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Info className="w-4 h-4 text-amber-400" />
               <span>About</span>
+            </button>
+
+            {/* Triple Tab / Dot Button — Click to open Admin Panel */}
+            <button
+              onClick={() => onToggleAdminPanel()}
+              className={`p-2 rounded-xl text-xs transition-all border shadow-sm ${
+                adminPanelOpen || isAdminTab
+                  ? 'bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-500/20'
+                  : isAnyAuthed
+                  ? 'text-violet-300 hover:text-violet-100 hover:bg-espresso-800 border-violet-500/40 bg-espresso-800/60'
+                  : 'text-espresso-400 hover:text-espresso-200 hover:bg-espresso-800 border-espresso-700/60'
+              }`}
+              title="Admin Panel"
+              aria-label="Admin Panel"
+            >
+              <MoreVertical className="w-4 h-4" />
             </button>
           </div>
         </div>

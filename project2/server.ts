@@ -984,6 +984,26 @@ app.post('/api/auth/verify-email-otp', async (req: Request, res: Response) => {
   }
 });
 
+// Clear / Delete OTP upon logout
+app.post('/api/auth/clear-email-otp', async (req: Request, res: Response) => {
+  try {
+    const { email, portal } = req.body || {};
+    if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      delete activeEmailOtps[`${portal || 'admin'}_${cleanEmail}`];
+      delete activeEmailOtps[`admin_${cleanEmail}`];
+      delete activeEmailOtps[`property_manager_${cleanEmail}`];
+    } else {
+      for (const k of Object.keys(activeEmailOtps)) {
+        delete activeEmailOtps[k];
+      }
+    }
+    return res.json({ success: true, message: 'Active OTP deleted from memory.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message });
+  }
+});
+
 // ── Property Management & Booking Endpoints ─────────────────────────────────
 
 // GET /api/properties — fetch all properties (merging Firestore & in-memory)
