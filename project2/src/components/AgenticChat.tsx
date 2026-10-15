@@ -139,6 +139,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   // Left sidebar: user login & chat history
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileTooltip, setShowProfileTooltip] = useState(false);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userPassword, setUserPassword] = useState('');
@@ -241,6 +242,20 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     return () => unsubscribe(); // unsubscribe on unmount
   }, []); // run once on mount
   // ─────────────────────────────────────────────────────────────────────────
+
+  // Close profile tooltip on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showProfileTooltip) {
+        setShowProfileTooltip(false);
+        setIsEditingProfile(false);
+        setDeleteConfirm(false);
+        setShowEmailUpdateModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showProfileTooltip]);
 
   const [savedSessions, setSavedSessions] = useState<SavedSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string>('current');
@@ -719,6 +734,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setAuthProviderName('');
     setDeleteConfirm(false);
     setShowAuthModal(false);
+    setShowProfileTooltip(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -766,6 +782,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       setAuthProviderName('');
       setDeleteConfirm(false);
       setShowAuthModal(false);
+      setShowProfileTooltip(false);
 
       if (onAuthChange) onAuthChange(null, undefined);
       if (onStartNewChat) onStartNewChat();
@@ -998,7 +1015,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           /* Collapsed icon rail */
           <div className="flex flex-col items-center py-4 space-y-3">
             <button
-              onClick={() => { setLeftPanelCollapsed(false); setShowAuthModal(true); }}
+              onClick={() => {
+                setLeftPanelCollapsed(false);
+                if (userLoggedIn) {
+                  setShowProfileTooltip(true);
+                } else {
+                  setShowAuthModal(true);
+                }
+              }}
               className="p-2 rounded-lg text-amber-850 hover:text-amber-950 hover:bg-[#f3ede0] transition-colors"
               title="User Account"
             >
@@ -1020,7 +1044,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             </button>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col relative">
 
             {/* ─── NEW CHAT BUTTON ─── */}
             <div className="p-3 shrink-0">
@@ -1157,11 +1181,339 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               </div>
             </div>
 
-            {/* ─── BOTTOM MENU / PROFILE BUTTON ─── */}
-            <div className="p-3 border-t border-[#f3ede0] shrink-0 bg-[#f7f2e6]">
+            {/* ─── BOTTOM MENU / PROFILE BUTTON WITH TOOLTIP DESIGN ─── */}
+            <div className="p-3 border-t border-[#f3ede0] shrink-0 bg-[#f7f2e6] relative">
+              {/* Profile Tooltip Popover for Logged-In User */}
+              {showProfileTooltip && userLoggedIn && (
+                <>
+                  {/* Invisible backdrop to dismiss tooltip on outside click */}
+                  <div
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => {
+                      setShowProfileTooltip(false);
+                      setIsEditingProfile(false);
+                      setDeleteConfirm(false);
+                      setShowEmailUpdateModal(false);
+                    }}
+                  />
+
+                  {/* Floating Tooltip Card */}
+                  <div
+                    role="dialog"
+                    aria-label="Profile Details"
+                    className="absolute bottom-full left-3 right-3 mb-2.5 z-50 bg-[#ffffff] border border-[#d6c7ab] rounded-2xl shadow-2xl shadow-stone-900/15 p-3.5 flex flex-col space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-150 max-h-[calc(100vh-160px)] overflow-y-auto"
+                  >
+                    {/* Downward pointing tooltip caret arrow */}
+                    <div className="absolute -bottom-1.5 left-7 w-3 h-3 bg-[#ffffff] border-b border-r border-[#d6c7ab] rotate-45 z-10" />
+
+                    {/* Tooltip Header */}
+                    <div className="flex items-center justify-between pb-2.5 border-b border-[#f0e8d9] shrink-0">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-neutral-900 font-extrabold text-xs shrink-0 shadow-xs border border-amber-200">
+                          {userName[0]?.toUpperCase() || 'U'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-neutral-900 truncate">
+                            {userName || userFullName || 'Lyka Client'}
+                          </p>
+                          <p className="text-[10px] font-medium text-neutral-500 truncate">
+                            {userEmail || auth.currentUser?.email || 'Signed In'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileTooltip(false);
+                          setIsEditingProfile(false);
+                          setDeleteConfirm(false);
+                          setShowEmailUpdateModal(false);
+                        }}
+                        className="p-1 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors shrink-0"
+                        title="Close"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Tooltip Body: Profile details / Edit Profile / Update Email */}
+                    {showEmailUpdateModal ? (
+                      /* Sub-view: Update Email Form */
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-neutral-800 flex items-center space-x-1.5">
+                            <Mail className="w-3.5 h-3.5 text-neutral-600" />
+                            <span>Update Email</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowEmailUpdateModal(false);
+                              setEmailUpdateError('');
+                            }}
+                            className="text-[10px] text-neutral-500 hover:text-neutral-800 font-medium"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-medium text-neutral-600 block">New Email</label>
+                          <input
+                            type="email"
+                            value={newEmailInput}
+                            onChange={(e) => { setNewEmailInput(e.target.value); setEmailUpdateError(''); }}
+                            placeholder="new.email@example.com"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-medium text-neutral-600 block">Current Password</label>
+                          <input
+                            type="password"
+                            value={emailUpdatePassword}
+                            onChange={(e) => { setEmailUpdatePassword(e.target.value); setEmailUpdateError(''); }}
+                            placeholder="Enter password to confirm"
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
+                          />
+                        </div>
+
+                        {emailUpdateError && (
+                          <p className="text-[11px] text-red-900 bg-red-50 border border-red-300 rounded-lg p-2 font-bold leading-tight">
+                            {emailUpdateError}
+                          </p>
+                        )}
+
+                        <div className="flex space-x-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setShowEmailUpdateModal(false); setEmailUpdateError(''); }}
+                            className="flex-1 bg-white hover:bg-neutral-100 text-neutral-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-neutral-300"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleUpdateEmail}
+                            disabled={emailUpdateLoading}
+                            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-neutral-900 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1 shadow-xs"
+                          >
+                            {emailUpdateLoading ? 'Updating...' : 'Save Email'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : isEditingProfile ? (
+                      /* Sub-view: Edit Profile (Name & Age) */
+                      <form onSubmit={handleSaveProfileChanges} className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-neutral-800 flex items-center space-x-1.5">
+                            <Pencil className="w-3.5 h-3.5 text-neutral-600" />
+                            <span>Edit Name & Age</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => { setIsEditingProfile(false); setEditProfileError(''); setEditProfileSuccess(''); }}
+                            className="text-[10px] text-neutral-500 hover:text-neutral-800 font-medium"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-medium text-neutral-600 block">Full Name</label>
+                          <div className="relative">
+                            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+                            <input
+                              type="text"
+                              value={editNameInput}
+                              onChange={(e) => { setEditNameInput(e.target.value); setEditProfileError(''); }}
+                              placeholder="Your full name"
+                              required
+                              className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-8 pr-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-medium text-neutral-600 block">Age (Years)</label>
+                          <div className="relative">
+                            <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500" />
+                            <input
+                              type="number"
+                              min={18}
+                              max={120}
+                              inputMode="numeric"
+                              value={editAgeInput}
+                              onChange={(e) => { setEditAgeInput(e.target.value); setEditProfileError(''); }}
+                              placeholder="Age (18 - 120)"
+                              className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-8 pr-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
+                            />
+                          </div>
+                        </div>
+
+                        {editProfileError && (
+                          <p className="text-[11px] text-red-900 bg-red-50 border border-red-300 rounded-lg p-2 font-bold leading-tight">
+                            {editProfileError}
+                          </p>
+                        )}
+
+                        {editProfileSuccess && (
+                          <p className="text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-lg p-2 font-bold flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                            <span>{editProfileSuccess}</span>
+                          </p>
+                        )}
+
+                        <div className="flex space-x-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setIsEditingProfile(false); setEditProfileError(''); }}
+                            className="flex-1 bg-white hover:bg-neutral-100 text-neutral-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-neutral-300"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={editProfileLoading}
+                            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-neutral-900 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1 shadow-xs"
+                          >
+                            {editProfileLoading ? (
+                              <span className="text-[11px]">Saving...</span>
+                            ) : (
+                              <>
+                                <Save className="w-3 h-3 text-neutral-900" />
+                                <span>Save</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      /* Main View: Profile Info & Quick Action Buttons */
+                      <div className="space-y-2.5">
+                        <div className="bg-[#faf7f0] p-2.5 rounded-xl border border-[#e2d9c6] text-[11px] space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-neutral-500">Full Name</span>
+                            <span className="font-semibold text-neutral-800">{userName || userFullName || 'Not set'}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-neutral-500">Age</span>
+                            <span className="font-semibold text-neutral-800">{userAge ? `${userAge} yrs` : 'Not set'}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-neutral-500">Sign-in</span>
+                            <span className="font-semibold text-neutral-800">
+                              {authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}
+                            </span>
+                          </div>
+                        </div>
+
+                        {authError && (
+                          <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-900 font-bold text-[11px] flex items-start space-x-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-red-600" />
+                            <span>{authError}</span>
+                          </div>
+                        )}
+
+                        {/* Action buttons inside Tooltip */}
+                        <div className="space-y-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleStartEditProfile}
+                            className="w-full bg-[#faf7f0] hover:bg-amber-50 text-neutral-700 hover:text-neutral-900 border border-[#d6c7ab] font-medium py-1.5 px-2.5 rounded-lg text-xs transition-all flex items-center justify-center space-x-1.5 shadow-xs"
+                          >
+                            <Pencil className="w-3 h-3 text-neutral-600" />
+                            <span>Edit Name & Age</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowEmailUpdateModal(true);
+                              setEmailUpdateError('');
+                              setNewEmailInput('');
+                              setEmailUpdatePassword('');
+                            }}
+                            disabled={authLoading || authProviderName === 'Google'}
+                            className={`w-full font-medium py-1.5 px-2.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1.5 border shadow-xs ${
+                              authProviderName === 'Google'
+                                ? 'bg-[#f7f2e6] text-neutral-400 border-[#e2d9c6] cursor-not-allowed opacity-75'
+                                : 'bg-white hover:bg-[#faf6ee] text-neutral-700 border-[#d6c7ab]'
+                            }`}
+                          >
+                            <Mail className={`w-3 h-3 ${authProviderName === 'Google' ? 'text-neutral-400' : 'text-neutral-600'}`} />
+                            <span>
+                              {authProviderName === 'Google' ? 'Email Managed by Google' : 'Update Email'}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleSignOut}
+                            disabled={authLoading}
+                            className="w-full bg-white hover:bg-[#faf6ee] text-neutral-700 hover:text-neutral-900 font-medium py-1.5 px-2.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1.5 border border-[#d6c7ab] shadow-xs"
+                          >
+                            <LogOut className="w-3 h-3 text-neutral-600" />
+                            <span>Log Out</span>
+                          </button>
+
+                          {!deleteConfirm ? (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirm(true)}
+                              disabled={authLoading}
+                              className="w-full text-red-700 hover:text-red-800 hover:bg-red-50/60 font-semibold py-1 px-2 rounded-lg text-[11px] transition-colors flex items-center justify-center space-x-1"
+                            >
+                              <Trash2 className="w-3 h-3 text-red-600" />
+                              <span>Delete Account & Data</span>
+                            </button>
+                          ) : (
+                            <div className="p-2 bg-red-50 rounded-lg border border-red-200 space-y-1.5">
+                              <p className="text-[10px] text-red-900 font-semibold leading-tight">
+                                Permanently delete profile and data?
+                              </p>
+                              <div className="flex space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={handleDeleteAccount}
+                                  disabled={authLoading}
+                                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1 rounded text-[10px] transition-colors"
+                                >
+                                  {authLoading ? 'Deleting...' : 'Confirm'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirm(false)}
+                                  disabled={authLoading}
+                                  className="flex-1 bg-white hover:bg-neutral-100 text-black font-semibold py-1 rounded text-[10px] border border-neutral-300"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Bottom Profile Button */}
               <button
-                onClick={() => setShowAuthModal(true)}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white hover:bg-[#faf6ee] transition-all border border-[#e2d9c6] shadow-xs"
+                onClick={() => {
+                  if (userLoggedIn) {
+                    setShowProfileTooltip(prev => !prev);
+                  } else {
+                    setShowAuthModal(true);
+                  }
+                }}
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all border shadow-xs ${
+                  showProfileTooltip && userLoggedIn
+                    ? 'bg-[#faf6ee] border-amber-400 ring-2 ring-amber-400/20'
+                    : 'bg-white hover:bg-[#faf6ee] border-[#e2d9c6]'
+                }`}
               >
                 <div className="flex items-center space-x-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-900 shrink-0 font-bold text-xs border border-amber-200">
@@ -1172,7 +1524,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <p className="text-[11px] font-bold text-amber-700">{userLoggedIn ? 'Manage Profile' : 'Sign In / Sign Up'}</p>
                   </div>
                 </div>
-                <ChevronUp className="w-4 h-4 text-slate-600 shrink-0" />
+                <ChevronUp className={`w-4 h-4 text-slate-600 shrink-0 transition-transform duration-200 ${showProfileTooltip && userLoggedIn ? 'rotate-180 text-amber-700' : ''}`} />
               </button>
             </div>
           </div>
@@ -1837,10 +2189,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-neutral-800 truncate">{userName || userFullName || 'Lyka Client'}</p>
                       <p className="text-xs font-medium text-neutral-600 truncate">{userEmail || auth.currentUser?.email || 'Signed In'}</p>
-                      <div className="flex items-center space-x-1.5 mt-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block"></span>
-                        <span className="text-[11px] font-semibold text-emerald-800">Database Synced (User_login)</span>
-                      </div>
                     </div>
                   </div>
 
@@ -1944,10 +2292,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <span className="font-medium text-neutral-600">Sign-in Method:</span>
                         <span className="font-semibold text-neutral-800 text-xs">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-neutral-600">User ID:</span>
-                        <span className="font-mono text-[11px] text-neutral-700 font-medium truncate max-w-[150px]">{userId || auth.currentUser?.uid || 'USR-LOCAL'}</span>
-                      </div>
                       <button
                         type="button"
                         onClick={handleStartEditProfile}
@@ -2012,7 +2356,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <div className="flex items-start space-x-2">
                           <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                           <p className="text-[11px] text-red-900 font-semibold leading-snug">
-                            Permanently delete your profile and remove your data from the <strong>User_login</strong> database?
+                            Permanently delete your profile and remove all associated account data?
                           </p>
                         </div>
                         <div className="flex space-x-2">

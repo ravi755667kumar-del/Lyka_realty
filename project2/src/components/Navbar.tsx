@@ -5,7 +5,6 @@ import {
   Kanban, 
   Database, 
   BookOpen, 
-  Sparkles,
   Layers,
   ShieldCheck,
   ChevronDown,
@@ -27,7 +26,7 @@ interface NavbarProps {
   bookedPropertyCount?: number;
   firestoreActive: boolean;
   vectorStatus?: { connected: boolean; count: number };
-  onStartNewChat: () => void;
+  onStartNewChat?: () => void;
   adminPanelOpen: boolean;
   onToggleAdminPanel: () => void;
   onSelectPortal?: (portal: 'admin' | 'property_manager') => void;
@@ -109,7 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Right: Admin & Property Manager Dropdown + New Customer */}
+          {/* Right: Admin Portal Button */}
           <div className="flex items-center space-x-2 ml-auto">
             {/* Admin Portal Button */}
             <button
@@ -147,14 +146,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden lg:inline">Logout</span>
               </button>
             )}
-
-            <button
-              onClick={onStartNewChat}
-              className="flex items-center space-x-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-amber-950 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">New Customer</span>
-            </button>
           </div>
         </div>
       </div>
