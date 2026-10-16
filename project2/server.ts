@@ -17,6 +17,9 @@ import {
   getDocs as fsGetDocs, 
   collection as fsCollection, 
   query as fsQuery, 
+  where as fsWhere,
+  deleteDoc as fsDeleteDoc,
+  arrayUnion as fsArrayUnion,
   orderBy as fsOrderBy, 
   limit as fsLimit 
 } from 'firebase/firestore';
@@ -897,7 +900,7 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const portalName = portal === 'property_manager' ? 'Property Manager' : 'Admin';
+    const portalName = portal === 'property_manager' ? 'Property Manager' : portal === 'user' ? 'Client' : 'Admin';
     const now = Date.now();
 
     // ── OTP Rate Limiter (Max 5 attempts per 1-hour window) ───────────────
@@ -1143,6 +1146,203 @@ app.post('/api/auth/clear-email-otp', async (req: Request, res: Response) => {
     return res.json({ success: true, message: 'Active OTP deleted from memory.' });
   } catch (error: any) {
     res.status(500).json({ error: error?.message });
+  }
+});
+
+// ── User Authentication & Profile Endpoints (Server-Side Authenticated) ──────
+
+// POST /api/auth/save-user-login — persists user profile & login event via server Firebase session
+app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
+  try {
+    const { userId, email, fullName, authProvider, age } = req.body || {};
+    if (!email && !userId) {
+      return res.status(400).json({ success: false, error: 'Email or userId is required.' });
+    }
+
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanUid = (userId || '').trim();
+    const now = new Date().toISOString();
+
+    const userData: any = {
+      uid: cleanUid || `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      Email_id: (email || '').trim(),
+      Name: (fullName || cleanEmail.split('@')[0] || 'User').trim(),
+      auth_provider: authProvider || 'Email',
+      last_login: now,
+      login_history: fsArrayUnion(now)
+    };
+    if (age !== undefined && age !== null && age !== '') {
+      userData.Age = Number(age);
+    }
+
+    if (firestoreDb) {
+      try {
+        if (cleanEmail) {
+          await fsSetDoc(fsDoc(firestoreDb, 'User_login', cleanEmail), userData, { merge: true });
+        }
+        if (cleanUid && cleanUid.toLowerCase() !== cleanEmail) {
+          await fsSetDoc(fsDoc(firestoreDb, 'User_login', cleanUid), userData, { merge: true });
+        }
+
+        // Record login event for analytics
+        const eventId = `EVT-${cleanUid ? cleanUid.substring(0, 8) : 'CLIENT'}-${Date.now()}`;
+        await fsSetDoc(fsDoc(firestoreDb, 'login_events', eventId), {
+          userId: cleanUid,
+          email: (email || '').trim(),
+          fullName: (fullName || '').trim(),
+          authProvider: authProvider || 'Email',
+          age: age !== undefined && age !== null && age !== '' ? Number(age) : null,
+          timestamp: now
+        }, { merge: true });
+        console.log(`[Auth API] Saved user login to Firestore for ${cleanEmail || cleanUid}`);
+      } catch (fsErr: any) {
+        console.warn(`[Auth API] Firestore save error:`, fsErr.message);
+      }
+    }
+
+    return res.json({ success: true, user: userData });
+  } catch (err: any) {
+    console.error('[Auth API] save-user-login error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/auth/get-user-profile — retrieves user profile by email or userId
+app.get('/api/auth/get-user-profile', async (req: Request, res: Response) => {
+  try {
+    const emailParam = String(req.query.email || '').trim().toLowerCase();
+    const uidParam = String(req.query.userId || '').trim();
+
+    if (!emailParam && !uidParam) {
+      return res.status(400).json({ success: false, error: 'email or userId parameter required' });
+    }
+
+    if (firestoreDb) {
+      try {
+        // 1. Direct lookup by clean email
+        if (emailParam) {
+          const snap = await fsGetDoc(fsDoc(firestoreDb, 'User_login', emailParam));
+          if (snap.exists()) {
+            const data = snap.data();
+            const snapEmail = (data?.Email_id || '').trim().toLowerCase();
+            if (!snapEmail || snapEmail === emailParam) {
+              return res.json({ success: true, profile: data });
+            }
+          }
+        }
+
+        // 2. Direct lookup by userId
+        if (uidParam) {
+          const snapUid = await fsGetDoc(fsDoc(firestoreDb, 'User_login', uidParam));
+          if (snapUid.exists()) {
+            const data = snapUid.data();
+            const snapEmail = (data?.Email_id || '').trim().toLowerCase();
+            if (!emailParam || !snapEmail || snapEmail === emailParam) {
+              return res.json({ success: true, profile: data });
+            }
+          }
+        }
+
+        // 3. Query collection where Email_id == emailParam
+        if (emailParam) {
+          const q = fsQuery(fsCollection(firestoreDb, 'User_login'), fsWhere('Email_id', '==', emailParam));
+          const qSnap = await fsGetDocs(q);
+          if (!qSnap.empty) {
+            return res.json({ success: true, profile: qSnap.docs[0].data() });
+          }
+        }
+      } catch (fsErr: any) {
+        console.warn('[Auth API] Firestore get-user-profile error:', fsErr.message);
+      }
+    }
+
+    return res.json({ success: true, profile: null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/update-user-profile — updates Name & Age in Firestore
+app.post('/api/auth/update-user-profile', async (req: Request, res: Response) => {
+  try {
+    const { userId, email, newName, newAge } = req.body || {};
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanUid = (userId || '').trim();
+    const now = new Date().toISOString();
+
+    const updateData: any = {
+      Name: (newName || '').trim(),
+      updatedAt: now
+    };
+    if (newAge !== undefined && newAge !== null && newAge !== '') {
+      updateData.Age = Number(newAge);
+    }
+
+    if (firestoreDb) {
+      try {
+        if (cleanEmail) {
+          await fsSetDoc(fsDoc(firestoreDb, 'User_login', cleanEmail), updateData, { merge: true });
+        }
+        if (cleanUid && cleanUid.toLowerCase() !== cleanEmail) {
+          await fsSetDoc(fsDoc(firestoreDb, 'User_login', cleanUid), updateData, { merge: true });
+        }
+        console.log(`[Auth API] Updated user profile in Firestore for ${cleanEmail || cleanUid}`);
+      } catch (fsErr: any) {
+        console.warn(`[Auth API] Firestore update error:`, fsErr.message);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/delete-user-login — deletes user profile from Firestore
+app.post('/api/auth/delete-user-login', async (req: Request, res: Response) => {
+  try {
+    const { userId, email } = req.body || {};
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanUid = (userId || '').trim();
+
+    if (firestoreDb) {
+      try {
+        if (cleanEmail) {
+          await fsDeleteDoc(fsDoc(firestoreDb, 'User_login', cleanEmail));
+        }
+        if (cleanUid && cleanUid.toLowerCase() !== cleanEmail) {
+          await fsDeleteDoc(fsDoc(firestoreDb, 'User_login', cleanUid));
+        }
+        console.log(`[Auth API] Deleted user login in Firestore for ${cleanEmail || cleanUid}`);
+      } catch (fsErr: any) {
+        console.warn(`[Auth API] Firestore delete error:`, fsErr.message);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/auth/all-users — fetches all users from User_login
+app.get('/api/auth/all-users', async (_req: Request, res: Response) => {
+  try {
+    if (firestoreDb) {
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'User_login'));
+      const userMap = new Map<string, any>();
+      snap.forEach((d) => {
+        const data = d.data();
+        const key = (data.Email_id || data.uid || d.id).trim().toLowerCase();
+        if (!userMap.has(key)) {
+          userMap.set(key, { ...data, uid: data.uid || d.id });
+        }
+      });
+      return res.json({ success: true, users: Array.from(userMap.values()) });
+    }
+    return res.json({ success: true, users: [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

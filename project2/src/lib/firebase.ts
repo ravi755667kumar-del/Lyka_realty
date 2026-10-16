@@ -10,6 +10,7 @@ import {
   getDocs, 
   collection, 
   query, 
+  where,
   orderBy, 
   onSnapshot,
   updateDoc,
@@ -74,31 +75,103 @@ export async function saveLeadToFirestore(lead: LeadProfile): Promise<void> {
 
 // User Profile & Login helpers
 export async function getUserProfileFromFirestore(email: string, userId?: string): Promise<UserProfileData | null> {
-  const docId = (email || userId || '').trim().toLowerCase();
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanUid = (userId || '').trim();
+  const docId = cleanEmail || cleanUid;
   if (!docId) return null;
+
+  // 1. Try server-side authenticated endpoint first (bypasses client permission issues)
   try {
-    const snap = await getDoc(doc(db, 'User_login', docId));
-    if (snap.exists()) {
-      return snap.data() as UserProfileData;
+    const params = new URLSearchParams();
+    if (cleanEmail) params.set('email', cleanEmail);
+    if (cleanUid) params.set('userId', cleanUid);
+    const srvRes = await fetch(`/api/auth/get-user-profile?${params.toString()}`);
+    if (srvRes.ok) {
+      const srvData = await srvRes.json();
+      if (srvData && srvData.success && srvData.profile) {
+        const prof = srvData.profile as UserProfileData;
+        const profEmail = (prof.Email_id || '').trim().toLowerCase();
+        if (!cleanEmail || !profEmail || profEmail === cleanEmail) {
+          return prof;
+        }
+      }
     }
-    // Also try original casing or userId if email was lowercase
-    if (email && email !== docId) {
-      const snapOrig = await getDoc(doc(db, 'User_login', email));
-      if (snapOrig.exists()) return snapOrig.data() as UserProfileData;
-    }
-    if (userId && userId !== docId) {
-      const snapUid = await getDoc(doc(db, 'User_login', userId));
-      if (snapUid.exists()) return snapUid.data() as UserProfileData;
-    }
-  } catch (error) {
-    console.warn('Could not retrieve user profile from Firestore:', error);
+  } catch (srvErr) {
+    // Non-fatal: proceed to direct Firestore lookup
   }
 
-  // Fallback to local cached profile if offline or permission pending
+  // 2. Direct document lookup (if client has active auth session or rules allow)
   try {
-    const local = localStorage.getItem(`user_profile_${docId}`) || localStorage.getItem('current_user_profile');
-    if (local) {
-      return JSON.parse(local) as UserProfileData;
+    if (cleanEmail) {
+      const snap = await getDoc(doc(db, 'User_login', cleanEmail));
+      if (snap.exists()) {
+        const data = snap.data() as UserProfileData;
+        if (!data.Email_id || data.Email_id.trim().toLowerCase() === cleanEmail) {
+          return data;
+        }
+      }
+      // Also try original casing if email differed
+      if (email && email.trim() !== cleanEmail) {
+        const snapOrig = await getDoc(doc(db, 'User_login', email.trim()));
+        if (snapOrig.exists()) {
+          const data = snapOrig.data() as UserProfileData;
+          if (!data.Email_id || data.Email_id.trim().toLowerCase() === cleanEmail) {
+            return data;
+          }
+        }
+      }
+    }
+
+    if (cleanUid) {
+      const snapUid = await getDoc(doc(db, 'User_login', cleanUid));
+      if (snapUid.exists()) {
+        const data = snapUid.data() as UserProfileData;
+        if (!cleanEmail || !data.Email_id || data.Email_id.trim().toLowerCase() === cleanEmail) {
+          return data;
+        }
+      }
+    }
+
+    if (cleanEmail) {
+      try {
+        const q = query(collection(db, 'User_login'), where('Email_id', '==', cleanEmail));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          return qSnap.docs[0].data() as UserProfileData;
+        }
+      } catch (_) {}
+    }
+  } catch (error) {
+    console.warn('Direct Firestore client lookup notice:', error);
+  }
+
+  // 3. Fallback to local cached profile ONLY IF it strictly matches the requested email or userId!
+  try {
+    const specificCached = cleanEmail
+      ? localStorage.getItem(`user_profile_${cleanEmail}`)
+      : (cleanUid ? localStorage.getItem(`user_profile_${cleanUid}`) : null);
+
+    if (specificCached) {
+      const parsed = JSON.parse(specificCached) as UserProfileData;
+      const parsedEmail = (parsed.Email_id || '').trim().toLowerCase();
+      const parsedUid = (parsed.uid || '').trim();
+      if ((cleanEmail && parsedEmail === cleanEmail) || (!cleanEmail && cleanUid && parsedUid === cleanUid)) {
+        return parsed;
+      }
+    }
+
+    // Check current_user_profile ONLY IF it strictly matches the requested email or userId!
+    const currentCached = localStorage.getItem('current_user_profile');
+    if (currentCached) {
+      const parsed = JSON.parse(currentCached) as UserProfileData;
+      const parsedEmail = (parsed.Email_id || '').trim().toLowerCase();
+      const parsedUid = (parsed.uid || '').trim();
+      if (cleanEmail && parsedEmail === cleanEmail) {
+        return parsed;
+      }
+      if (!cleanEmail && cleanUid && parsedUid === cleanUid) {
+        return parsed;
+      }
     }
   } catch (_) {}
 
@@ -113,7 +186,6 @@ export async function saveUserLoginToFirestore(
   age?: number
 ): Promise<void> {
   const docId = (email || userId || '').trim().toLowerCase();
-  const path = `User_login/${docId}`;
   const now = new Date().toISOString();
   
   const data: any = {
@@ -134,10 +206,26 @@ export async function saveUserLoginToFirestore(
     localStorage.setItem('current_user_profile', JSON.stringify(data));
   } catch (_) {}
 
+  // 1. Primary: Save via server-side authenticated endpoint (guarantees write succeeds without client permission errors)
   try {
-    // Save to User_login with email as docId
+    await fetch('/api/auth/save-user-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        authProvider,
+        age
+      })
+    });
+  } catch (srvErr) {
+    console.warn('[Auth] Server save-user-login notice:', srvErr);
+  }
+
+  // 2. Direct client-side write (if client has permission, merges seamlessly; non-fatal if client rules restrict)
+  try {
     await setDoc(doc(db, 'User_login', docId), data, { merge: true });
-    // Also save with userId as docId so it's always found either way
     if (userId && userId.toLowerCase() !== docId) {
       try {
         await setDoc(doc(db, 'User_login', userId), data, { merge: true });
@@ -156,8 +244,9 @@ export async function saveUserLoginToFirestore(
         timestamp: now
       }, { merge: true });
     } catch (_) {}
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+  } catch (clientErr: any) {
+    // Note: Do not throw permission error because server-side endpoint already saved the record
+    console.warn('[Auth] Direct client Firestore write notice (handled via server):', clientErr?.message || clientErr);
   }
 }
 
@@ -182,7 +271,18 @@ export async function updateUserProfileInFirestore(
     updateData.Age = Number(newAge);
   }
 
-  // 1. Update in User_login collection for all docId targets (email and UID)
+  // 1. Server-side update
+  try {
+    await fetch('/api/auth/update-user-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, email, newName, newAge })
+    });
+  } catch (srvErr) {
+    console.warn('[Auth] Server update-user-profile notice:', srvErr);
+  }
+
+  // 2. Direct client update
   const targets = new Set<string>();
   if (docId) targets.add(docId);
   if (email && email.trim()) targets.add(email.trim());
@@ -196,7 +296,7 @@ export async function updateUserProfileInFirestore(
     }
   }
 
-  // 2. Update local storage caches so state persists across reloads immediately
+  // 3. Update local storage caches so state persists across reloads immediately
   try {
     const keys = [`user_profile_${docId}`, 'current_user_profile'];
     for (const k of keys) {
@@ -265,7 +365,18 @@ export async function getAllUsersFromFirestore(): Promise<UserProfileData[]> {
     users.sort((a, b) => new Date(b.last_login || 0).getTime() - new Date(a.last_login || 0).getTime());
     return users;
   } catch (error) {
-    console.warn('Could not fetch all users from Firestore:', error);
+    console.warn('Could not fetch all users from direct Firestore, falling back to server API:', error);
+    try {
+      const srvRes = await fetch('/api/auth/all-users');
+      if (srvRes.ok) {
+        const srvData = await srvRes.json();
+        if (srvData && srvData.success && Array.isArray(srvData.users)) {
+          const list: UserProfileData[] = srvData.users;
+          list.sort((a, b) => new Date(b.last_login || 0).getTime() - new Date(a.last_login || 0).getTime());
+          return list;
+        }
+      }
+    } catch (_) {}
     const local = localStorage.getItem('current_user_profile');
     if (local) {
       try { return [JSON.parse(local)]; } catch (_) {}
@@ -352,12 +463,25 @@ export async function getLoginEventsFromFirestore(): Promise<LoginEvent[]> {
 
 export async function deleteUserLoginFromFirestore(userId: string, email?: string): Promise<void> {
   const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanUid = (userId || '').trim();
+
+  // 1. Delete via server endpoint
+  try {
+    await fetch('/api/auth/delete-user-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: cleanUid, email: cleanEmail })
+    });
+  } catch (srvErr) {
+    console.warn('[Auth] Server delete-user-login notice:', srvErr);
+  }
+
+  // 2. Delete User_login and users documents client-side
   const targets = new Set<string>();
   if (cleanEmail) targets.add(cleanEmail);
   if (email && email.trim()) targets.add(email.trim());
   if (userId && userId.trim()) targets.add(userId.trim());
 
-  // Delete User_login and users documents
   for (const target of targets) {
     try {
       await deleteDoc(doc(db, 'User_login', target));

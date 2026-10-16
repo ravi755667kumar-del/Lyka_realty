@@ -49,7 +49,9 @@ import {
   MapPin,
   Bed,
   Bath,
-  Maximize2
+  Maximize2,
+  ShieldCheck,
+  KeyRound
 } from 'lucide-react';
 import { 
   auth, 
@@ -69,14 +71,10 @@ import {
 import { 
   GoogleAuthProvider, 
   signInWithPopup, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
   updateEmail,
-  updateProfile,
-  reauthenticateWithCredential,
-  EmailAuthProvider
+  updateProfile
 } from 'firebase/auth';
 
 interface SavedSession {
@@ -142,7 +140,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [showProfileTooltip, setShowProfileTooltip] = useState(false);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState('');
-  const [userPassword, setUserPassword] = useState('');
   const [userName, setUserName] = useState('');
   const [userFullName, setUserFullName] = useState('');
   const [userAge, setUserAge] = useState('');
@@ -151,10 +148,22 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [showEmailUpdateModal, setShowEmailUpdateModal] = useState(false);
   const [newEmailInput, setNewEmailInput] = useState('');
-  const [emailUpdatePassword, setEmailUpdatePassword] = useState('');
   const [emailUpdateError, setEmailUpdateError] = useState('');
   const [emailUpdateLoading, setEmailUpdateLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  
+  // Sign up OTP verification states (Passwordless)
+  const [signupOtpSent, setSignupOtpSent] = useState(false);
+  const [signupOtpInput, setSignupOtpInput] = useState('');
+  const [signupOtpLoading, setSignupOtpLoading] = useState(false);
+  const [signupOtpTimeRemaining, setSignupOtpTimeRemaining] = useState(180);
+  const [signupOtpSuccessMsg, setSignupOtpSuccessMsg] = useState('');
+
+  // Update Email OTP verification states in Manage Profile
+  const [emailUpdateOtpSent, setEmailUpdateOtpSent] = useState(false);
+  const [emailUpdateOtpInput, setEmailUpdateOtpInput] = useState('');
+  const [emailUpdateOtpLoading, setEmailUpdateOtpLoading] = useState(false);
+  const [emailUpdateOtpTimeRemaining, setEmailUpdateOtpTimeRemaining] = useState(180);
+
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'google_signup'>('login');
   const [pendingGoogleUser, setPendingGoogleUser] = useState<{
     uid: string;
@@ -173,8 +182,75 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [editProfileError, setEditProfileError] = useState('');
   const [editProfileSuccess, setEditProfileSuccess] = useState('');
 
+  // ── OTP Countdown Timers ───────────────────────────────────────────────
+  // Countdown timer for Sign Up OTP (3 minutes / 180 seconds)
+  useEffect(() => {
+    if (!signupOtpSent || signupOtpTimeRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setSignupOtpTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [signupOtpSent, signupOtpTimeRemaining]);
+
+  // Countdown timer for Manage Profile Update Email OTP (3 minutes / 180 seconds)
+  useEffect(() => {
+    if (!emailUpdateOtpSent || emailUpdateOtpTimeRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setEmailUpdateOtpTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [emailUpdateOtpSent, emailUpdateOtpTimeRemaining]);
+
+  // ── Local Storage Session Restoration on Mount ──────────────────────────
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('lyka_client_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u && u.email) {
+          setUserLoggedIn(true);
+          setUserEmail(u.email);
+          const initialName = u.name || u.email.split('@')[0] || 'User';
+          setUserName(initialName);
+          setUserFullName(initialName);
+          setUserAge(u.age ? String(u.age) : '');
+          const uid = u.uid || `user_${u.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          setUserId(uid);
+          setAuthProviderName(u.authProvider || 'Email');
+          if (onAuthChange) onAuthChange(uid, u.email);
+          if (onUpdateLead) onUpdateLead({ user_id: uid, full_name: initialName, email: u.email });
+
+          // Background sync from Firestore User_login
+          getUserProfileFromFirestore(u.email, uid).then((profile) => {
+            if (profile) {
+              if (profile.Name) {
+                setUserName(profile.Name);
+                setUserFullName(profile.Name);
+              }
+              if (profile.Age !== undefined && profile.Age !== null) {
+                setUserAge(String(profile.Age));
+              }
+            }
+          }).catch(() => {});
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   // ── Auth state persistence ──────────────────────────────────────────────
-  // onAuthStateChanged restores user session from Firebase Auth on mount or page reload.
+  // onAuthStateChanged handles Google Sign In or Firebase Auth sessions
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -183,9 +259,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         setUserId(user.uid);
         // Determine provider from the first available providerData entry
         const provider = user.providerData?.[0]?.providerId;
-        setAuthProviderName(
-          provider === 'google.com' ? 'Google' : 'Email'
-        );
+        const finalProvider = provider === 'google.com' ? 'Google' : 'Email';
+        setAuthProviderName(finalProvider);
         let restoredName = '';
         // Restore user name and age from Firestore User_login
         try {
@@ -212,6 +287,17 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           setUserName(restoredName);
         }
 
+        // Cache in localStorage
+        try {
+          localStorage.setItem('lyka_client_user', JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+            name: restoredName,
+            age: userAge || '',
+            authProvider: finalProvider
+          }));
+        } catch (_) {}
+
         // Notify parent App component of auth state so chat history syncs immediately
         if (onAuthChange) {
           onAuthChange(user.uid, user.email || '');
@@ -224,13 +310,23 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           });
         }
       } else {
+        // If not in Firebase Auth, check if passwordless Email session exists in localStorage
+        const saved = localStorage.getItem('lyka_client_user');
+        if (saved) {
+          try {
+            const u = JSON.parse(saved);
+            if (u && u.email && u.authProvider === 'Email') {
+              // Maintain active email session
+              return;
+            }
+          } catch (_) {}
+        }
         // No user — reset state (guest mode)
         setUserLoggedIn(false);
         setUserName('');
         setUserFullName('');
         setUserAge('');
         setUserEmail('');
-        setUserPassword('');
         setUserId('');
         setAuthProviderName('Email');
         setPendingGoogleUser(null);
@@ -611,108 +707,217 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     }
   };
 
-  const handleAuth = async (e: React.FormEvent) => {
+  // ── Passwordless Sign In (Email Only) ──────────────────────────────────
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthError('');
-    
-    if (!userEmail.includes('@')) {
+
+    const cleanEmail = userEmail.trim().toLowerCase();
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
       setAuthError('Please enter a valid email address.');
-      setAuthLoading(false);
-      return;
-    }
-    if (userPassword.length < 6) {
-      setAuthError('Password must be at least 6 characters.');
       setAuthLoading(false);
       return;
     }
 
     try {
-      let finalUserName = '';
-      let userId = '';
-      let finalAge: number | undefined = undefined;
-
-      if (authMode === 'signup') {
-        if (userFullName.trim().length < 2) {
-          setAuthError('Please enter your full name.');
-          setAuthLoading(false);
-          return;
-        }
-        const age = Number(userAge);
-        if (!userAge.trim() || !Number.isInteger(age) || age < 18 || age > 120) {
-          setAuthError('Please enter a valid age between 18 and 120.');
-          setAuthLoading(false);
-          return;
-        }
-        finalAge = age;
-
-        // Real Firebase Sign Up (Encrypted Password)
-        const userCredential = await createUserWithEmailAndPassword(auth, userEmail, userPassword);
-        userId = userCredential.user.uid;
-        finalUserName = userFullName.trim();
-        
-      } else {
-        // Real Firebase Sign In
-        const userCredential = await signInWithEmailAndPassword(auth, userEmail, userPassword);
-        userId = userCredential.user.uid;
-        // Fetch profile to populate Age and Name
-        const profile = await getUserProfileFromFirestore(userEmail, userId);
-        if (profile) {
-          finalUserName = profile.Name || userCredential.user.displayName || userEmail.split('@')[0];
-          if (profile.Age) {
-            finalAge = profile.Age;
-            setUserAge(String(profile.Age));
-          }
-        } else {
-          finalUserName = userCredential.user.displayName || userEmail.split('@')[0];
-        }
+      // Check if user exists in Firestore User_login
+      const profile = await getUserProfileFromFirestore(cleanEmail);
+      const profileEmail = (profile?.Email_id || '').trim().toLowerCase();
+      if (!profile || !profileEmail || profileEmail !== cleanEmail) {
+        setAuthError('No account found for this email. Please switch to Sign Up to create your account.');
+        setAuthLoading(false);
+        return;
       }
-      
-      setUserLoggedIn(true);
-      setUserName(finalUserName);
-      setUserId(userId);
-      setAuthProviderName('Email');
-      setShowAuthModal(false);
-      
-      // Save to user-login collection (Password is NEVER stored here!)
+
+      const finalName = profile.Name || cleanEmail.split('@')[0] || 'User';
+      const finalAge = profile.Age !== undefined && profile.Age !== null ? String(profile.Age) : '';
+      const finalUid = profile.uid || `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const provider = (profile.auth_provider as 'Google' | 'Email') || 'Email';
+
+      // Record login and update last_login in Firestore
       await saveUserLoginToFirestore(
-        userId,
-        userEmail,
-        finalUserName,
-        'Email/Password',
-        finalAge
+        finalUid,
+        cleanEmail,
+        finalName,
+        provider,
+        profile.Age
       );
-      
+
+      // Save persistent session in localStorage
+      localStorage.setItem('lyka_client_user', JSON.stringify({
+        uid: finalUid,
+        email: cleanEmail,
+        name: finalName,
+        age: finalAge,
+        authProvider: provider
+      }));
+
+      setUserLoggedIn(true);
+      setUserEmail(cleanEmail);
+      setUserName(finalName);
+      setUserFullName(finalName);
+      setUserAge(finalAge);
+      setUserId(finalUid);
+      setAuthProviderName(provider);
+      setShowAuthModal(false);
+      setAuthError('');
+
       if (onUpdateLead) {
         onUpdateLead({
-          user_id: userId,
-          full_name: finalUserName,
-          email: userEmail
+          user_id: finalUid,
+          full_name: finalName,
+          email: cleanEmail
         });
       }
-      if (onAuthChange) onAuthChange(userId, userEmail);
+      if (onAuthChange) onAuthChange(finalUid, cleanEmail);
       if (messages.length > 0) {
-        syncSessionToUserProfile(userEmail, userId, { ...currentLead, user_id: userId, email: userEmail }, messages).catch(() => {});
+        syncSessionToUserProfile(cleanEmail, finalUid, { ...currentLead, user_id: finalUid, email: cleanEmail }, messages).catch(() => {});
       }
-    } catch (error: any) {
-      // Handle standard Firebase errors gracefully
-      if (error.code === 'auth/email-already-in-use') {
-        setAuthMode('login');
-        setAuthError('This email is already registered. We have switched to Sign In for you. Please enter your password.');
-      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        // 'invalid-credential' is the modern Firebase error for both wrong password and missing user
-        // We can check if they are in 'login' mode, maybe they don't have an account
-        if (authMode === 'login') {
-          setAuthMode('signup');
-          setAuthError('Account not found. You cannot sign in — please sign up first!');
-        } else {
-          setAuthError('Invalid email or password.');
-        }
-      } else if (error.code === 'auth/wrong-password') {
-        setAuthError('Invalid password. Please try again.');
+    } catch (err: any) {
+      setAuthError('Failed to sign in: ' + (err.message || 'Please check your internet connection.'));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // ── Passwordless Sign Up: Step 1 (Send Email OTP) ──────────────────────
+  const handleRequestSignupOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSignupOtpLoading(true);
+    setAuthError('');
+    setSignupOtpSuccessMsg('');
+
+    const cleanName = userFullName.trim();
+    if (cleanName.length < 2) {
+      setAuthError('Please enter your full name (at least 2 characters).');
+      setSignupOtpLoading(false);
+      return;
+    }
+
+    const ageNum = Number(userAge);
+    if (!userAge.trim() || !Number.isInteger(ageNum) || ageNum < 18 || ageNum > 120) {
+      setAuthError('Please enter a valid age between 18 and 120.');
+      setSignupOtpLoading(false);
+      return;
+    }
+
+    const cleanEmail = userEmail.trim().toLowerCase();
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setAuthError('Please enter a valid email address.');
+      setSignupOtpLoading(false);
+      return;
+    }
+
+    try {
+      // Check if user is already registered in Firestore User_login
+      const existingProfile = await getUserProfileFromFirestore(cleanEmail);
+      const existingEmail = (existingProfile?.Email_id || '').trim().toLowerCase();
+      if (existingProfile && existingEmail && existingEmail === cleanEmail) {
+        setAuthError('An account with this email already exists. Please switch to Sign In.');
+        setSignupOtpLoading(false);
+        return;
+      }
+
+      // Request 6-digit OTP code via Brevo API
+      const res = await fetch('/api/auth/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, portal: 'user' })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthError(data.error || data.message || 'Failed to send verification code.');
       } else {
-        setAuthError(error.message);
+        setSignupOtpSent(true);
+        setSignupOtpTimeRemaining(180);
+        setSignupOtpSuccessMsg(`Verification code sent to ${cleanEmail}. Please check your inbox or spam folder.`);
       }
+    } catch (err: any) {
+      setAuthError('Network error sending verification code: ' + (err.message || 'Server unreachable.'));
+    } finally {
+      setSignupOtpLoading(false);
+    }
+  };
+
+  // ── Passwordless Sign Up: Step 2 (Verify OTP & Create Account) ─────────
+  const handleVerifySignupOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+
+    const cleanEmail = userEmail.trim().toLowerCase();
+    const cleanOtp = signupOtpInput.trim();
+
+    if (cleanOtp.length !== 6) {
+      setAuthError('Please enter the 6-digit verification code sent to your email.');
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/verify-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, portal: 'user', otp: cleanOtp })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.valid) {
+        setAuthError(data.message || 'Invalid or expired verification code. Please check your email or resend code.');
+        setAuthLoading(false);
+        return;
+      }
+
+      // OTP Verified successfully! Create user profile in Firestore
+      const cleanName = userFullName.trim();
+      const ageNum = Number(userAge);
+      const newUid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+      await saveUserLoginToFirestore(
+        newUid,
+        cleanEmail,
+        cleanName,
+        'Email',
+        ageNum
+      );
+
+      // Save persistent session in localStorage
+      localStorage.setItem('lyka_client_user', JSON.stringify({
+        uid: newUid,
+        email: cleanEmail,
+        name: cleanName,
+        age: String(ageNum),
+        authProvider: 'Email'
+      }));
+
+      setUserLoggedIn(true);
+      setUserEmail(cleanEmail);
+      setUserName(cleanName);
+      setUserFullName(cleanName);
+      setUserAge(String(ageNum));
+      setUserId(newUid);
+      setAuthProviderName('Email');
+      setShowAuthModal(false);
+      setSignupOtpSent(false);
+      setSignupOtpInput('');
+      setSignupOtpSuccessMsg('');
+      setAuthError('');
+
+      if (onUpdateLead) {
+        onUpdateLead({
+          user_id: newUid,
+          full_name: cleanName,
+          email: cleanEmail
+        });
+      }
+      if (onAuthChange) onAuthChange(newUid, cleanEmail);
+      if (messages.length > 0) {
+        syncSessionToUserProfile(cleanEmail, newUid, { ...currentLead, user_id: newUid, email: cleanEmail }, messages).catch(() => {});
+      }
+    } catch (err: any) {
+      setAuthError('Failed to complete sign up: ' + (err.message || 'Please try again.'));
     } finally {
       setAuthLoading(false);
     }
@@ -724,9 +929,17 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     } catch (e) {
       console.warn('Sign out notice:', e);
     }
+    // Clear localStorage session
+    try {
+      localStorage.removeItem('lyka_client_user');
+      localStorage.removeItem('current_user_profile');
+      if (userEmail) {
+        localStorage.removeItem(`user_profile_${userEmail.trim().toLowerCase()}`);
+      }
+    } catch (_) {}
+
     setUserLoggedIn(false);
     setUserEmail('');
-    setUserPassword('');
     setUserName('');
     setUserFullName('');
     setUserAge('');
@@ -735,6 +948,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setDeleteConfirm(false);
     setShowAuthModal(false);
     setShowProfileTooltip(false);
+    setShowEmailUpdateModal(false);
+    setSignupOtpSent(false);
+    setSignupOtpInput('');
+    setSignupOtpSuccessMsg('');
+    setEmailUpdateOtpSent(false);
+    setEmailUpdateOtpInput('');
+
+    if (onAuthChange) onAuthChange(null, '');
   };
 
   const handleDeleteAccount = async () => {
@@ -769,12 +990,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       try {
         localStorage.removeItem('localInteractions');
         localStorage.removeItem('localLeads');
+        localStorage.removeItem('lyka_client_user');
       } catch (_) {}
 
       // 4. Clear all active session state
       setUserLoggedIn(false);
       setUserEmail('');
-      setUserPassword('');
       setUserName('');
       setUserFullName('');
       setUserAge('');
@@ -793,75 +1014,123 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     }
   };
 
-  const handleUpdateEmail = async () => {
-    if (!newEmailInput.trim() || !emailUpdatePassword.trim()) {
-      setEmailUpdateError('Please enter both new email and current password.');
-      return;
-    }
-    if (!newEmailInput.includes('@')) {
-      setEmailUpdateError('Please enter a valid email address.');
-      return;
-    }
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      setEmailUpdateError('No user logged in.');
-      return;
-    }
-
+  // ── Manage Profile: Update Email with Brevo OTP (Passwordless) ─────────
+  const handleRequestEmailUpdateOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setEmailUpdateLoading(true);
     setEmailUpdateError('');
 
+    const cleanNewEmail = newEmailInput.trim().toLowerCase();
+    if (!cleanNewEmail.includes('@') || !cleanNewEmail.includes('.')) {
+      setEmailUpdateError('Please enter a valid email address.');
+      setEmailUpdateLoading(false);
+      return;
+    }
+
+    if (cleanNewEmail === userEmail.trim().toLowerCase()) {
+      setEmailUpdateError('New email must be different from your current email.');
+      setEmailUpdateLoading(false);
+      return;
+    }
+
     try {
-      // Re-authenticate user with current password
-      const credential = EmailAuthProvider.credential(currentUser.email!, emailUpdatePassword);
-      await reauthenticateWithCredential(currentUser, credential);
-
-      // Update email in Firebase Auth
-      await updateEmail(currentUser, newEmailInput.trim().toLowerCase());
-
-      // Update display name if needed
-      await updateProfile(currentUser, {
-        displayName: userName || currentUser.displayName || undefined
-      });
-
-      // Update user_login document in Firestore with new email
-      const oldEmail = currentUser.email;
-      const userId = currentUser.uid;
-      const newEmail = newEmailInput.trim().toLowerCase();
-
-      // Update user_login document (delete old, create new with new email)
-      if (oldEmail) {
-        await deleteUserLoginFromFirestore(userId, oldEmail);
+      // Check if new email is already in use by another user
+      const existing = await getUserProfileFromFirestore(cleanNewEmail);
+      const existingEmail = (existing?.Email_id || '').trim().toLowerCase();
+      if (existing && existingEmail && existingEmail === cleanNewEmail) {
+        setEmailUpdateError('This email is already in use by another account.');
+        setEmailUpdateLoading(false);
+        return;
       }
+
+      // Send OTP to new email address via Brevo
+      const res = await fetch('/api/auth/send-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanNewEmail, portal: 'user' })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setEmailUpdateError(data.error || data.message || 'Failed to send OTP.');
+      } else {
+        setEmailUpdateOtpSent(true);
+        setEmailUpdateOtpTimeRemaining(180);
+      }
+    } catch (err: any) {
+      setEmailUpdateError('Network error: ' + (err.message || 'Server unreachable.'));
+    } finally {
+      setEmailUpdateLoading(false);
+    }
+  };
+
+  const handleVerifyEmailUpdateOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailUpdateLoading(true);
+    setEmailUpdateError('');
+
+    const cleanNewEmail = newEmailInput.trim().toLowerCase();
+    const cleanOtp = emailUpdateOtpInput.trim();
+
+    if (cleanOtp.length !== 6) {
+      setEmailUpdateError('Please enter the 6-digit verification code sent to your new email.');
+      setEmailUpdateLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/auth/verify-email-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanNewEmail, portal: 'user', otp: cleanOtp })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.valid) {
+        setEmailUpdateError(data.message || 'Invalid or expired OTP. Please check your email or resend code.');
+        setEmailUpdateLoading(false);
+        return;
+      }
+
+      // Valid OTP! Update user_login document in Firestore
+      const oldEmail = userEmail.trim().toLowerCase();
+      const currentUid = userId || `user_${cleanNewEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+      // Delete old document from User_login
+      if (oldEmail) {
+        await deleteUserLoginFromFirestore(currentUid, oldEmail);
+      }
+      // Save new document with new email
       await saveUserLoginToFirestore(
-        userId,
-        newEmail,
-        userName || currentUser.displayName || 'User',
-        authProviderName || (currentUser.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email')
+        currentUid,
+        cleanNewEmail,
+        userName || 'User',
+        authProviderName || 'Email',
+        userAge ? Number(userAge) : undefined
       );
 
+      // Update localStorage session
+      try {
+        const stored = localStorage.getItem('lyka_client_user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          u.email = cleanNewEmail;
+          localStorage.setItem('lyka_client_user', JSON.stringify(u));
+        }
+      } catch (_) {}
+
       // Update local state
-      setUserEmail(newEmail);
+      setUserEmail(cleanNewEmail);
+      setEmailUpdateOtpSent(false);
+      setEmailUpdateOtpInput('');
+      setNewEmailInput('');
       setEmailUpdateError('');
       setShowEmailUpdateModal(false);
-      setNewEmailInput('');
-      setEmailUpdatePassword('');
 
-      // Notify parent component of auth change
-      if (onAuthChange) onAuthChange(userId, newEmail);
-
+      if (onAuthChange) onAuthChange(currentUid, cleanNewEmail);
+      if (onUpdateLead) onUpdateLead({ user_id: currentUid, email: cleanNewEmail });
     } catch (err: any) {
-      if (err.code === 'auth/requires-recent-login') {
-        setEmailUpdateError('Please log in again to update your email.');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setEmailUpdateError('This email is already in use by another account.');
-      } else if (err.code === 'auth/invalid-email') {
-        setEmailUpdateError('Invalid email format.');
-      } else if (err.code === 'auth/wrong-password') {
-        setEmailUpdateError('Incorrect password. Please try again.');
-      } else {
-        setEmailUpdateError(err.message || 'Failed to update email. Please try again.');
-      }
+      setEmailUpdateError('Failed to update email: ' + (err.message || 'Please try again.'));
     } finally {
       setEmailUpdateLoading(false);
     }
@@ -1189,11 +1458,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   {/* Invisible backdrop to dismiss tooltip on outside click */}
                   <div
                     className="fixed inset-0 z-40 cursor-default"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setShowProfileTooltip(false);
                       setIsEditingProfile(false);
                       setDeleteConfirm(false);
                       setShowEmailUpdateModal(false);
+                      setEmailUpdateOtpSent(false);
+                      setEmailUpdateOtpInput('');
                     }}
                   />
 
@@ -1201,6 +1473,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   <div
                     role="dialog"
                     aria-label="Profile Details"
+                    onClick={(e) => e.stopPropagation()}
                     className="absolute bottom-full left-3 right-3 mb-2.5 z-50 bg-[#ffffff] border border-[#d6c7ab] rounded-2xl shadow-2xl shadow-stone-900/15 p-3.5 flex flex-col space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-150 max-h-[calc(100vh-160px)] overflow-y-auto"
                   >
                     {/* Downward pointing tooltip caret arrow */}
@@ -1228,6 +1501,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                           setIsEditingProfile(false);
                           setDeleteConfirm(false);
                           setShowEmailUpdateModal(false);
+                          setEmailUpdateOtpSent(false);
+                          setEmailUpdateOtpInput('');
                         }}
                         className="p-1 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors shrink-0"
                         title="Close"
@@ -1238,71 +1513,155 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
                     {/* Tooltip Body: Profile details / Edit Profile / Update Email */}
                     {showEmailUpdateModal ? (
-                      /* Sub-view: Update Email Form */
-                      <div className="space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-neutral-800 flex items-center space-x-1.5">
-                            <Mail className="w-3.5 h-3.5 text-neutral-600" />
-                            <span>Update Email</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowEmailUpdateModal(false);
-                              setEmailUpdateError('');
-                            }}
-                            className="text-[10px] text-neutral-500 hover:text-neutral-800 font-medium"
-                          >
-                            Cancel
-                          </button>
-                        </div>
+                      /* Sub-view: Update Email Form (Passwordless with OTP) */
+                      !emailUpdateOtpSent ? (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-neutral-800 flex items-center space-x-1.5">
+                              <Mail className="w-3.5 h-3.5 text-neutral-600" />
+                              <span>Update Email</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowEmailUpdateModal(false);
+                                setEmailUpdateError('');
+                                setEmailUpdateOtpSent(false);
+                                setEmailUpdateOtpInput('');
+                              }}
+                              className="text-[10px] text-neutral-500 hover:text-neutral-800 font-medium"
+                            >
+                              Cancel
+                            </button>
+                          </div>
 
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-medium text-neutral-600 block">New Email</label>
-                          <input
-                            type="email"
-                            value={newEmailInput}
-                            onChange={(e) => { setNewEmailInput(e.target.value); setEmailUpdateError(''); }}
-                            placeholder="new.email@example.com"
-                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-medium text-neutral-600 block">Current Password</label>
-                          <input
-                            type="password"
-                            value={emailUpdatePassword}
-                            onChange={(e) => { setEmailUpdatePassword(e.target.value); setEmailUpdateError(''); }}
-                            placeholder="Enter password to confirm"
-                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
-                          />
-                        </div>
-
-                        {emailUpdateError && (
-                          <p className="text-[11px] text-red-900 bg-red-50 border border-red-300 rounded-lg p-2 font-bold leading-tight">
-                            {emailUpdateError}
+                          <p className="text-[10px] text-neutral-600">
+                            Enter your new email address. A 6-digit verification code will be sent to verify it.
                           </p>
-                        )}
 
-                        <div className="flex space-x-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => { setShowEmailUpdateModal(false); setEmailUpdateError(''); }}
-                            className="flex-1 bg-white hover:bg-neutral-100 text-neutral-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-neutral-300"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleUpdateEmail}
-                            disabled={emailUpdateLoading}
-                            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-neutral-900 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1 shadow-xs"
-                          >
-                            {emailUpdateLoading ? 'Updating...' : 'Save Email'}
-                          </button>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-neutral-600 block">New Email Address</label>
+                            <input
+                              type="email"
+                              value={newEmailInput}
+                              onChange={(e) => { setNewEmailInput(e.target.value); setEmailUpdateError(''); }}
+                              placeholder="new.email@example.com"
+                              className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-neutral-800 outline-none transition-colors"
+                            />
+                          </div>
+
+                          {emailUpdateError && (
+                            <p className="text-[11px] text-red-900 bg-red-50 border border-red-300 rounded-lg p-2 font-bold leading-tight">
+                              {emailUpdateError}
+                            </p>
+                          )}
+
+                          <div className="flex space-x-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowEmailUpdateModal(false);
+                                setEmailUpdateError('');
+                                setEmailUpdateOtpSent(false);
+                                setEmailUpdateOtpInput('');
+                              }}
+                              className="flex-1 bg-white hover:bg-neutral-100 text-neutral-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-neutral-300"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRequestEmailUpdateOtp}
+                              disabled={emailUpdateLoading || !newEmailInput.trim()}
+                              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-neutral-900 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1 shadow-xs"
+                            >
+                              {emailUpdateLoading ? 'Sending Code...' : 'Send Verification Code'}
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-neutral-800 flex items-center space-x-1.5">
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Verify New Email</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEmailUpdateOtpSent(false);
+                                setEmailUpdateOtpInput('');
+                                setEmailUpdateError('');
+                              }}
+                              className="text-[10px] text-amber-700 hover:underline font-semibold"
+                            >
+                              Change Email
+                            </button>
+                          </div>
+
+                          <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-[10px] text-neutral-700">
+                            Verification code sent to: <strong className="text-neutral-900">{newEmailInput}</strong>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-medium text-neutral-600 block">6-Digit Code</label>
+                            <input
+                              type="text"
+                              maxLength={6}
+                              value={emailUpdateOtpInput}
+                              onChange={(e) => { setEmailUpdateOtpInput(e.target.value.replace(/\D/g, '')); setEmailUpdateError(''); }}
+                              placeholder="123456"
+                              className="w-full text-center tracking-widest font-mono text-base bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl px-2.5 py-1.5 font-bold text-neutral-900 outline-none transition-colors"
+                            />
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px]">
+                            {emailUpdateOtpTimeRemaining > 0 ? (
+                              <span className="text-neutral-500 font-medium">
+                                Resend code in <strong className="text-amber-800">{emailUpdateOtpTimeRemaining}s</strong>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={handleRequestEmailUpdateOtp}
+                                disabled={emailUpdateLoading}
+                                className="text-amber-700 font-bold hover:underline"
+                              >
+                                Resend Code
+                              </button>
+                            )}
+                          </div>
+
+                          {emailUpdateError && (
+                            <p className="text-[11px] text-red-900 bg-red-50 border border-red-300 rounded-lg p-2 font-bold leading-tight">
+                              {emailUpdateError}
+                            </p>
+                          )}
+
+                          <div className="flex space-x-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowEmailUpdateModal(false);
+                                setEmailUpdateOtpSent(false);
+                                setEmailUpdateOtpInput('');
+                                setEmailUpdateError('');
+                              }}
+                              className="flex-1 bg-white hover:bg-neutral-100 text-neutral-700 font-medium py-1.5 rounded-lg text-xs transition-colors border border-neutral-300"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleVerifyEmailUpdateOtp}
+                              disabled={emailUpdateLoading || emailUpdateOtpInput.length !== 6}
+                              className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-neutral-900 font-bold py-1.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1 shadow-xs"
+                            >
+                              {emailUpdateLoading ? 'Verifying...' : 'Verify & Save'}
+                            </button>
+                          </div>
+                        </div>
+                      )
                     ) : isEditingProfile ? (
                       /* Sub-view: Edit Profile (Name & Age) */
                       <form onSubmit={handleSaveProfileChanges} className="space-y-2.5">
@@ -1404,7 +1763,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                           <div className="flex justify-between items-center">
                             <span className="font-medium text-neutral-500">Sign-in</span>
                             <span className="font-semibold text-neutral-800">
-                              {authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}
+                              {authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email')}
                             </span>
                           </div>
                         </div>
@@ -1433,7 +1792,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                               setShowEmailUpdateModal(true);
                               setEmailUpdateError('');
                               setNewEmailInput('');
-                              setEmailUpdatePassword('');
+                              setEmailUpdateOtpSent(false);
+                              setEmailUpdateOtpInput('');
                             }}
                             disabled={authLoading || authProviderName === 'Google'}
                             className={`w-full font-medium py-1.5 px-2.5 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1.5 border shadow-xs ${
@@ -1502,14 +1862,16 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
               {/* Bottom Profile Button */}
               <button
-                onClick={() => {
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (userLoggedIn) {
                     setShowProfileTooltip(prev => !prev);
                   } else {
                     setShowAuthModal(true);
                   }
                 }}
-                className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all border shadow-xs ${
+                className={`relative z-50 w-full flex items-center justify-between p-2.5 rounded-xl transition-all border shadow-xs ${
                   showProfileTooltip && userLoggedIn
                     ? 'bg-[#faf6ee] border-amber-400 ring-2 ring-amber-400/20'
                     : 'bg-white hover:bg-[#faf6ee] border-[#e2d9c6]'
@@ -2054,7 +2416,13 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     {(['login', 'signup'] as const).map(mode => (
                       <button
                         key={mode}
-                        onClick={() => { setAuthMode(mode); setAuthError(''); }}
+                        onClick={() => {
+                          setAuthMode(mode);
+                          setAuthError('');
+                          setSignupOtpSent(false);
+                          setSignupOtpInput('');
+                          setSignupOtpSuccessMsg('');
+                        }}
                         className={`flex-1 text-xs font-bold py-1.5 rounded-lg transition-all capitalize ${
                           authMode === mode
                             ? 'bg-amber-500 text-black font-extrabold shadow-xs'
@@ -2067,9 +2435,46 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   </div>
 
                   {/* Auth Form */}
-                  <form onSubmit={handleAuth} className="space-y-2.5">
-                    {authMode === 'signup' && (
-                      <>
+                  {authMode === 'login' ? (
+                    <form onSubmit={handleLogin} className="space-y-2.5">
+                      <div className="relative">
+                        <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
+                        <input
+                          type="email"
+                          value={userEmail}
+                          onChange={e => { setUserEmail(e.target.value); setAuthError(''); }}
+                          placeholder="Enter your registered email address"
+                          required
+                          className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
+                        />
+                      </div>
+
+                      {authError && (
+                        <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold leading-relaxed">
+                          {authError}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={authLoading || !userEmail.trim()}
+                        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                      >
+                        {authLoading ? (
+                          <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        ) : (
+                          <LogIn className="w-4 h-4 text-black" />
+                        )}
+                        <span>{authLoading ? 'Signing in...' : 'Sign In'}</span>
+                      </button>
+                    </form>
+                  ) : (
+                    /* Sign Up Mode (OTP Based) */
+                    !signupOtpSent ? (
+                      <form onSubmit={handleRequestSignupOtp} className="space-y-2.5">
                         <div className="relative">
                           <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                           <input
@@ -2091,65 +2496,130 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             inputMode="numeric"
                             value={userAge}
                             onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
-                            placeholder="Age"
+                            placeholder="Age (18 - 120)"
                             required
                             className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
                           />
                         </div>
-                      </>
-                    )}
-                    <div className="relative">
-                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
-                      <input
-                        type="email"
-                        value={userEmail}
-                        onChange={e => { setUserEmail(e.target.value); setAuthError(''); }}
-                        placeholder="Email address"
-                        required
-                        className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
-                      />
-                    </div>
-                    <div className="relative">
-                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={userPassword}
-                        onChange={e => { setUserPassword(e.target.value); setAuthError(''); }}
-                        placeholder="Password"
-                        required
-                        className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-9 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(p => !p)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-black hover:text-neutral-700"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
+                        <div className="relative">
+                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
+                          <input
+                            type="email"
+                            value={userEmail}
+                            onChange={e => { setUserEmail(e.target.value); setAuthError(''); }}
+                            placeholder="Email address"
+                            required
+                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
+                          />
+                        </div>
 
-                    {authError && (
-                      <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold">
-                        {authError}
-                      </p>
-                    )}
+                        {authError && (
+                          <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold leading-relaxed">
+                            {authError}
+                          </p>
+                        )}
 
-                    <button
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
-                    >
-                      {authLoading ? (
-                        <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                      ) : (
-                        <LogIn className="w-4 h-4 text-black" />
-                      )}
-                      <span>{authLoading ? 'Signing in...' : authMode === 'login' ? 'Sign In' : 'Create Account'}</span>
-                    </button>
-                  </form>
+                        <button
+                          type="submit"
+                          disabled={signupOtpLoading}
+                          className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                        >
+                          {signupOtpLoading ? (
+                            <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <Mail className="w-4 h-4 text-black" />
+                          )}
+                          <span>{signupOtpLoading ? 'Sending Verification Code...' : 'Send Verification Code'}</span>
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleVerifySignupOtp} className="space-y-2.5">
+                        <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-neutral-800 space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold text-neutral-600">Name:</span>
+                            <span className="font-bold text-neutral-900">{userFullName}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold text-neutral-600">Age:</span>
+                            <span className="font-bold text-neutral-900">{userAge} yrs</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold text-neutral-600">Email:</span>
+                            <span className="font-bold text-neutral-900 truncate max-w-[170px]">{userEmail}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setSignupOtpSent(false); setSignupOtpInput(''); setAuthError(''); }}
+                            className="text-[11px] text-amber-700 hover:underline font-bold mt-1 block"
+                          >
+                            Edit Information
+                          </button>
+                        </div>
+
+                        {signupOtpSuccessMsg && (
+                          <div className="p-2 bg-emerald-50 border border-emerald-300 rounded-xl text-[11px] text-emerald-900 font-bold flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                            <span>{signupOtpSuccessMsg}</span>
+                          </div>
+                        )}
+
+                        <div className="relative">
+                          <ShieldCheck className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
+                          <input
+                            type="text"
+                            maxLength={6}
+                            value={signupOtpInput}
+                            onChange={e => { setSignupOtpInput(e.target.value.replace(/\D/g, '')); setAuthError(''); }}
+                            placeholder="Enter 6-digit OTP"
+                            required
+                            className="w-full text-center tracking-widest font-mono text-base bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 font-bold text-black outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px] px-1">
+                          {signupOtpTimeRemaining > 0 ? (
+                            <span className="text-neutral-600 font-medium">
+                              Resend code in <strong className="text-amber-800">{signupOtpTimeRemaining}s</strong>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleRequestSignupOtp}
+                              disabled={signupOtpLoading}
+                              className="text-amber-800 font-bold hover:underline"
+                            >
+                              Resend Code
+                            </button>
+                          )}
+                        </div>
+
+                        {authError && (
+                          <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold leading-relaxed">
+                            {authError}
+                          </p>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={authLoading || signupOtpInput.length !== 6}
+                          className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
+                        >
+                          {authLoading ? (
+                            <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <CheckCircle2 className="w-4 h-4 text-black" />
+                          )}
+                          <span>{authLoading ? 'Verifying & Creating...' : 'Verify & Create Account'}</span>
+                        </button>
+                      </form>
+                    )
+                  )}
 
                   <div className="flex items-center my-3">
                     <div className="flex-grow border-t border-[#d6c7ab]"></div>
@@ -2290,7 +2760,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="font-medium text-neutral-600">Sign-in Method:</span>
-                        <span className="font-semibold text-neutral-800 text-xs">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email/Password')}</span>
+                        <span className="font-semibold text-neutral-800 text-xs">{authProviderName || (auth.currentUser?.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email')}</span>
                       </div>
                       <button
                         type="button"
@@ -2315,7 +2785,15 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     {/* Update Email Button */}
                     <button
                       type="button"
-                      onClick={() => { setShowEmailUpdateModal(true); setEmailUpdateError(''); setNewEmailInput(''); setEmailUpdatePassword(''); }}
+                      onClick={() => {
+                        setShowAuthModal(false);
+                        setShowProfileTooltip(true);
+                        setShowEmailUpdateModal(true);
+                        setEmailUpdateError('');
+                        setNewEmailInput('');
+                        setEmailUpdateOtpSent(false);
+                        setEmailUpdateOtpInput('');
+                      }}
                       disabled={authLoading || authProviderName === 'Google'}
                       className={`w-full font-semibold py-2.5 px-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border shadow-xs ${
                         authProviderName === 'Google'
