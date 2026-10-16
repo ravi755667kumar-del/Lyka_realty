@@ -50,7 +50,6 @@ import { LeadProfileSidebar } from './components/LeadProfileSidebar';
 import { CrmPipeline } from './components/CrmPipeline';
 import { PropertyInventory } from './components/PropertyInventory';
 import { AssignedPropertiesView } from './components/AssignedPropertiesView';
-import { MongoEmbeddingHub } from './components/MongoEmbeddingHub';
 import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
@@ -81,7 +80,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties'>('chat');
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
@@ -1557,10 +1556,6 @@ export default function App() {
               />
             )}
 
-            {adminAuthenticated && activeTab === 'embeddings' && (
-              <MongoEmbeddingHub currentLead={currentLead} />
-            )}
-
             {adminAuthenticated && activeTab === 'knowledge' && (
               <KnowledgeBaseView />
             )}
@@ -1594,6 +1589,7 @@ export default function App() {
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
+                canAddProperty={adminTargetPortal === 'property_manager'}
                 onBookViewing={(prop) => setViewingModalProperty(prop)}
                 onAddProperty={async (newProp) => {
                   // 1. Immediately update UI state & local cache

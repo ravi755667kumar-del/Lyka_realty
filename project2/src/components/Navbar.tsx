@@ -19,8 +19,8 @@ import {
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties';
-  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'embeddings' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties') => void;
+  activeTab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties';
+  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties') => void;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
@@ -58,7 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAbout,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
-  const isAdminTab = ['crm', 'properties', 'embeddings', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties'].includes(activeTab);
 
   // Triple-tap / triple-click counter to open Admin Panel
   const tapCountRef = useRef(0);
@@ -226,7 +226,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">CRM, AI Embeddings & Knowledge</p>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">CRM Pipeline, Knowledge & Analytics</p>
                       </div>
                     </button>
 
@@ -286,18 +286,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('embeddings')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    activeTab === 'embeddings'
-                      ? 'bg-violet-600 text-white shadow-md'
-                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
-                  }`}
-                >
-                  <Database className="w-3.5 h-3.5" />
-                  <span>Vector Embeddings</span>
-                </button>
-
-                <button
                   onClick={() => setActiveTab('knowledge')}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'knowledge'
@@ -350,6 +338,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span>Property Stats</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('properties')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'properties'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Dubai Properties</span>
+                  <span className="text-[9px] px-1.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    See Only
+                  </span>
                 </button>
 
                 <button

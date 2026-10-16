@@ -46,6 +46,19 @@ interface AdminCopilotChatProps {
   activeTab: string;
   onNavigateTab: (tab: string) => void;
 }
+const renderFormattedContent = (content: string) => {
+  const parts = content.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-bold text-black">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+};
 
 export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
   properties,
@@ -154,9 +167,9 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
         reply += `\n\n**Today's Booked Units:**\n${listText}`;
 
         metrics = [
-          { label: "Today's Volume", value: `AED ${(todaySales.totalVolume / 1000000).toFixed(2)}M`, color: 'text-amber-400' },
-          { label: 'Units Booked', value: `${todaySales.count}`, color: 'text-emerald-400' },
-          { label: 'Deposits', value: `AED ${todaySales.totalDeposits.toLocaleString()}`, color: 'text-violet-400' }
+          { label: "Today's Volume", value: `AED ${(todaySales.totalVolume / 1000000).toFixed(2)}M`, color: 'text-amber-700' },
+          { label: 'Units Booked', value: `${todaySales.count}`, color: 'text-emerald-700' },
+          { label: 'Deposits', value: `AED ${todaySales.totalDeposits.toLocaleString()}`, color: 'text-violet-700' }
         ];
 
         actionBtn = {
@@ -167,9 +180,9 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       } else {
         reply = `No properties have been booked today yet (${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}). All-time booked volume stands at **AED ${allTimeSales.totalVolume.toLocaleString()}** across **${allTimeSales.count} total units**.`;
         metrics = [
-          { label: "Today's Volume", value: 'AED 0', color: 'text-slate-400' },
-          { label: 'Today Bookings', value: '0 Units', color: 'text-slate-400' },
-          { label: 'All-Time Sales', value: `AED ${(allTimeSales.totalVolume / 1000000).toFixed(1)}M`, color: 'text-emerald-400' }
+          { label: "Today's Volume", value: 'AED 0', color: 'text-zinc-600' },
+          { label: 'Today Bookings', value: '0 Units', color: 'text-zinc-600' },
+          { label: 'All-Time Sales', value: `AED ${(allTimeSales.totalVolume / 1000000).toFixed(1)}M`, color: 'text-emerald-700' }
         ];
         actionBtn = {
           label: 'Open Assigned Properties & Sales',
@@ -189,9 +202,9 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
     ) {
       reply = `Total booked sales volume to date is **AED ${allTimeSales.totalVolume.toLocaleString()}** (≈ ₹${((allTimeSales.totalVolume * 22.8) / 10000000).toFixed(1)} Cr) across **${allTimeSales.count} booked properties**. Total booking deposits held: **AED ${allTimeSales.totalDeposits.toLocaleString()}**.`;
       metrics = [
-        { label: 'Total Volume', value: `AED ${(allTimeSales.totalVolume / 1000000).toFixed(2)}M`, color: 'text-amber-400' },
-        { label: 'Properties Booked', value: `${allTimeSales.count} Units`, color: 'text-emerald-400' },
-        { label: 'Total Deposits', value: `AED ${allTimeSales.totalDeposits.toLocaleString()}`, color: 'text-violet-400' }
+        { label: 'Total Volume', value: `AED ${(allTimeSales.totalVolume / 1000000).toFixed(2)}M`, color: 'text-amber-700' },
+        { label: 'Properties Booked', value: `${allTimeSales.count} Units`, color: 'text-emerald-700' },
+        { label: 'Total Deposits', value: `AED ${allTimeSales.totalDeposits.toLocaleString()}`, color: 'text-violet-700' }
       ];
       actionBtn = {
         label: 'View Assigned Properties Pipeline',
@@ -210,9 +223,9 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       const availableCount = properties.length - bookedCount;
       reply = `Inventory status: You have **${properties.length} total properties** registered. **${bookedCount} units** are booked/assigned, and **${availableCount} units** are currently available for sale.`;
       metrics = [
-        { label: 'Total Inventory', value: `${properties.length}`, color: 'text-slate-200' },
-        { label: 'Available', value: `${availableCount}`, color: 'text-emerald-400' },
-        { label: 'Booked', value: `${bookedCount}`, color: 'text-rose-400' }
+        { label: 'Total Inventory', value: `${properties.length}`, color: 'text-zinc-700' },
+        { label: 'Available', value: `${availableCount}`, color: 'text-emerald-700' },
+        { label: 'Booked', value: `${bookedCount}`, color: 'text-rose-700' }
       ];
       actionBtn = {
         label: 'Open Dubai Property Inventory',
@@ -231,9 +244,9 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       const viewing = leads.filter(l => l.lead_status === 'Viewing').length;
       reply = `The CRM Pipeline has **${leads.length} active leads** (${newLeads} New, ${qualified} Qualified, ${viewing} Viewings Scheduled). Follow-up tasks in queue: **${followUps.length}**.`;
       metrics = [
-        { label: 'Total Leads', value: `${leads.length}`, color: 'text-violet-400' },
-        { label: 'New Inquiries', value: `${newLeads}`, color: 'text-amber-400' },
-        { label: 'Qualified', value: `${qualified}`, color: 'text-emerald-400' }
+        { label: 'Total Leads', value: `${leads.length}`, color: 'text-violet-700' },
+        { label: 'New Inquiries', value: `${newLeads}`, color: 'text-amber-700' },
+        { label: 'Qualified', value: `${qualified}`, color: 'text-emerald-700' }
       ];
       actionBtn = {
         label: 'Open CRM Pipeline',
@@ -249,7 +262,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
     ) {
       reply = `You have **${customerCount} registered customer accounts** tracked in Firebase Firestore. You can inspect login timestamps, verified emails, and activity trends in Customer Profiles.`;
       metrics = [
-        { label: 'Registered Customers', value: `${customerCount}`, color: 'text-amber-400' }
+        { label: 'Registered Customers', value: `${customerCount}`, color: 'text-amber-700' }
       ];
       actionBtn = {
         label: 'Open Customer Profiles & Login Trends',
@@ -267,8 +280,8 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       const avgPrice = Math.round(properties.reduce((s, p) => s + p.price_aed, 0) / (properties.length || 1));
       reply = `Dubai property portfolio summary: Average listing price is **AED ${avgPrice.toLocaleString()}** with an average projected yield of **7.5% – 8.5% net ROI**. Detailed community charts and price bands are available in Property Stats.`;
       metrics = [
-        { label: 'Avg Price', value: `AED ${(avgPrice / 1000000).toFixed(2)}M`, color: 'text-amber-400' },
-        { label: 'Avg ROI', value: '7.8% net', color: 'text-emerald-400' }
+        { label: 'Avg Price', value: `AED ${(avgPrice / 1000000).toFixed(2)}M`, color: 'text-amber-700' },
+        { label: 'Avg ROI', value: '7.8% net', color: 'text-emerald-700' }
       ];
       actionBtn = {
         label: 'Open Property Stats & Charts',
@@ -350,25 +363,25 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       {/* Expanded Right-Side Chatbot Drawer */}
       {isOpen && (
         <aside
-          className="w-80 sm:w-96 bg-slate-900/98 backdrop-blur-xl border-l border-slate-800 flex flex-col h-full shrink-0 shadow-2xl z-30 transition-all duration-300 relative"
+          className="w-80 sm:w-96 bg-white border-l border-slate-200 flex flex-col h-full shrink-0 shadow-2xl z-30 transition-all duration-300 relative"
           aria-label="Admin Copilot Panel"
         >
           {/* Header */}
-          <div className="p-3.5 bg-gradient-to-r from-violet-950 via-slate-900 to-amber-950/40 border-b border-slate-800 shrink-0">
+          <div className="p-3.5 bg-gradient-to-r from-espresso-900 via-espresso-800 to-amber-950 border-b border-espresso-700 shrink-0 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/40 flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-amber-400" />
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+                  <Bot className="w-4.5 h-4.5 text-amber-300" />
                 </div>
                 <div>
                   <div className="flex items-center space-x-1.5">
-                    <h3 className="text-xs font-bold text-slate-100">Admin Copilot</h3>
-                    <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    <h3 className="text-xs font-bold text-white">Admin Copilot</h3>
+                    <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
                       Live Data
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400">Live Sales Analytics & Navigation</p>
+                  <p className="text-[10px] text-amber-200/90 font-medium">Live Sales Analytics & Navigation</p>
                 </div>
               </div>
 
@@ -385,7 +398,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                       }
                     ]);
                   }}
-                  className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-1.5 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded-lg transition-colors"
                   title="Reset conversation"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -393,7 +406,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-1.5 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded-lg transition-colors"
                   title="Minimize Copilot"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -406,28 +419,28 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("What is today's sales?")}
-                className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 border border-amber-600/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
               >
                 <span>💰 Today's Sales</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("What is total sales?")}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95"
+                className="bg-slate-100 hover:bg-slate-200 text-zinc-800 border border-slate-300 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95 font-medium"
               >
                 <span>📊 Total Revenue</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("How many properties are booked?")}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95"
+                className="bg-slate-100 hover:bg-slate-200 text-zinc-800 border border-slate-300 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95 font-medium"
               >
                 <span>🔒 Booked Units</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("How many leads in CRM?")}
-                className="bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95"
+                className="bg-slate-100 hover:bg-slate-200 text-zinc-800 border border-slate-300 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95 font-medium"
               >
                 <span>📋 CRM Leads</span>
               </button>
@@ -435,14 +448,14 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
           </div>
 
           {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs">
+          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs bg-[#faf8f4]">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
               >
                 {/* Role & Timestamp Header */}
-                <span className="text-[10px] text-slate-400 mb-1 px-1">
+                <span className="text-[10px] text-zinc-500 font-medium mb-1 px-1">
                   {msg.role === 'user' ? 'You (Super Admin)' : 'Admin Copilot'} • {msg.timestamp}
                 </span>
 
@@ -451,20 +464,20 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                   className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 leading-relaxed space-y-2 shadow-sm ${
                     msg.role === 'user'
                       ? 'bg-violet-600 text-white rounded-br-xs font-medium'
-                      : 'bg-slate-800/90 border border-slate-700/80 text-slate-200 rounded-bl-xs'
+                      : 'bg-white border border-amber-600/20 text-[#1e2430] rounded-bl-xs shadow-xs'
                   }`}
                 >
-                  <div className="whitespace-pre-line text-[11.5px] leading-relaxed">
-                    {msg.content}
+                  <div className="whitespace-pre-line text-[11.5px] leading-relaxed text-[#1e2430]">
+                    {renderFormattedContent(msg.content)}
                   </div>
 
                   {/* Key Metrics Chips (if any) */}
                   {msg.metrics && msg.metrics.length > 0 && (
-                    <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-700/60">
+                    <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-amber-500/20">
                       {msg.metrics.map((m, idx) => (
-                        <div key={idx} className="bg-slate-900/80 border border-slate-700/60 rounded-xl p-2">
-                          <span className="text-[9.5px] text-slate-400 uppercase tracking-wider block">{m.label}</span>
-                          <span className={`text-xs font-bold font-mono ${m.color || 'text-amber-400'}`}>{m.value}</span>
+                        <div key={idx} className="bg-[#faf8f4] border border-amber-600/20 rounded-xl p-2 shadow-xs">
+                          <span className="text-[9.5px] text-zinc-600 uppercase tracking-wider block font-semibold">{m.label}</span>
+                          <span className={`text-xs font-bold font-mono ${m.color || 'text-amber-800'}`}>{m.value}</span>
                         </div>
                       ))}
                     </div>
@@ -482,7 +495,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                         <ArrowRight className="w-3.5 h-3.5 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                       {msg.actionButton.description && (
-                        <p className="text-[9.5px] text-slate-400 mt-1 px-1">
+                        <p className="text-[9.5px] text-zinc-600 mt-1 px-1 font-medium">
                           {msg.actionButton.description}
                         </p>
                       )}
@@ -493,11 +506,11 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
             ))}
 
             {isTyping && (
-              <div className="flex items-center space-x-2 text-slate-400 text-xs py-1">
-                <div className="w-6 h-6 rounded-lg bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
-                  <Bot className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+              <div className="flex items-center space-x-2 text-zinc-600 text-xs py-1">
+                <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                  <Bot className="w-3.5 h-3.5 text-amber-700 animate-spin" />
                 </div>
-                <span className="text-[11px] italic">Analyzing real-time database records...</span>
+                <span className="text-[11px] italic font-medium">Analyzing real-time database records...</span>
               </div>
             )}
 
@@ -505,7 +518,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
           </div>
 
           {/* Input Footer */}
-          <div className="p-3 bg-slate-900 border-t border-slate-800 shrink-0">
+          <div className="p-3 bg-white border-t border-slate-200 shrink-0">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -518,7 +531,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
                 placeholder="Ask e.g. What is today's sales?..."
-                className="flex-1 bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none transition-colors"
+                className="flex-1 bg-slate-50 border border-slate-300 focus:border-amber-500 focus:bg-white rounded-xl px-3 py-2 text-xs text-zinc-800 placeholder-zinc-400 outline-none transition-colors font-medium"
               />
               <button
                 type="submit"
@@ -529,9 +542,9 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                 <Send className="w-4 h-4" />
               </button>
             </form>
-            <div className="flex items-center justify-between text-[9.5px] text-slate-400 pt-1.5 px-0.5">
+            <div className="flex items-center justify-between text-[9.5px] text-zinc-500 pt-1.5 px-0.5 font-medium">
               <span>Super Admin Exclusive</span>
-              <span className="text-amber-600 font-medium">Real-Time Firestore & State</span>
+              <span className="text-amber-700 font-semibold">Real-Time Firestore & State</span>
             </div>
           </div>
         </aside>

@@ -27,6 +27,7 @@ interface PropertyInventoryProps {
   onBookViewing: (property: PropertyListing) => void;
   onAddProperty: (property: PropertyListing) => void;
   onUpdateProperty?: (property: PropertyListing) => void;
+  canAddProperty?: boolean;
 }
 
 export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
@@ -35,6 +36,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   onBookViewing,
   onAddProperty,
   onUpdateProperty,
+  canAddProperty = true,
 }) => {
   const [selectedCity, setSelectedCity] = useState<string>('ALL');
   const [selectedCommunity, setSelectedCommunity] = useState<string>('ALL');
@@ -387,13 +389,20 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             </p>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Property Listing</span>
-          </button>
+          {canAddProperty ? (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Property Listing</span>
+            </button>
+          ) : (
+            <div className="flex items-center space-x-1.5 text-xs bg-slate-100 text-zinc-600 border border-slate-300 px-3 py-1.5 rounded-xl font-semibold shadow-xs">
+              <Lock className="w-3.5 h-3.5 text-amber-700" />
+              <span>See Only (Admin)</span>
+            </div>
+          )}
         </div>
 
         {/* Filter Row */}
@@ -589,15 +598,17 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditModal(prop)}
-                        className="bg-slate-800 hover:bg-slate-700 text-amber-500 hover:text-amber-400 text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 border border-slate-700 shadow-sm"
-                        title="Edit property details"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit</span>
-                      </button>
+                      {canAddProperty && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(prop)}
+                          className="bg-slate-800 hover:bg-slate-700 text-amber-500 hover:text-amber-400 text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 border border-slate-700 shadow-sm"
+                          title="Edit property details"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                      )}
 
                       <button
                         type="button"
@@ -617,7 +628,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       </div>
 
       {/* Add Property Modal */}
-      {showAddModal && (
+      {canAddProperty && showAddModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
@@ -1004,7 +1015,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       )}
 
       {/* Edit Property Modal */}
-      {showEditModal && editingProperty && (
+      {canAddProperty && showEditModal && editingProperty && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
