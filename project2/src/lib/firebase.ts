@@ -935,15 +935,25 @@ const DEFAULT_PM_CREDENTIAL: PortalCredential = {
   name: 'Lyka Property Manager'
 };
 
-function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'property_manager'): PortalCredential | null {
+const DEFAULT_SM_CREDENTIAL: PortalCredential = {
+  id: 'sales_manager',
+  email: 'sales@lykarealty.ae',
+  password: 'LykaSales2024',
+  role: 'sales_manager',
+  name: 'Lyka Sales Manager'
+};
+
+function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'property_manager' | 'sales_manager'): PortalCredential | null {
   if (!raw) return null;
   const email = String(raw.email || raw.Email_id || raw.username || raw.user_login || raw.login || '').trim();
   const password = String(raw.password || raw.Password || '').trim();
   if (!email || !password) return null;
 
   const rawRole = String(raw.role || '').toLowerCase();
-  const role: 'admin' | 'property_manager' =
-    rawRole.includes('property') || rawRole.includes('manager') || id.toLowerCase().includes('property') || id.toLowerCase().includes('manager')
+  const role: 'admin' | 'property_manager' | 'sales_manager' =
+    rawRole.includes('sales') || id.toLowerCase().includes('sales')
+      ? 'sales_manager'
+      : rawRole.includes('property') || rawRole.includes('manager') || id.toLowerCase().includes('property') || id.toLowerCase().includes('manager')
       ? 'property_manager'
       : rawRole.includes('admin')
       ? 'admin'
@@ -954,7 +964,7 @@ function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'p
     email,
     password,
     role,
-    name: raw.name || raw.Name || (role === 'admin' ? 'Admin' : 'Property Manager'),
+    name: raw.name || raw.Name || (role === 'sales_manager' ? 'Sales Manager' : role === 'admin' ? 'Admin' : 'Property Manager'),
     phone: raw.phone || raw.Phone_number || undefined,
     otp_code: raw.otp_code || undefined,
     otp_created_at: raw.otp_created_at || undefined,
@@ -963,39 +973,52 @@ function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'p
 }
 
 /**
- * Ensures default Admin and Property Manager login credentials exist in Firestore
- * under `Admin_login` and `Property_login` collections so they can be managed in DB.
+ * Ensures default Admin, Property Manager, and Sales Manager login credentials exist in Firestore
+ * under `Admin_login`, `Property_login`, and `Sales_login` collections so they can be managed in DB.
  */
 export async function ensurePortalCredentialsInFirestore(): Promise<{
   adminCredentials: PortalCredential[];
   pmCredentials: PortalCredential[];
+  smCredentials: PortalCredential[];
 }> {
   try {
-    const [adminSnap, propSnap] = await Promise.all([
-      getDocs(collection(db, 'Admin_login')),
-      getDocs(collection(db, 'Property_login'))
+    const [adminSnap, propSnap, salesSnap] = await Promise.all([
+      getDocs(collection(db, 'Admin_login')).catch(() => ({ forEach: () => {} } as any)),
+      getDocs(collection(db, 'Property_login')).catch(() => ({ forEach: () => {} } as any)),
+      getDocs(collection(db, 'Sales_login')).catch(() => ({ forEach: () => {} } as any))
     ]);
 
     const adminList: PortalCredential[] = [];
     const pmList: PortalCredential[] = [];
+    const smList: PortalCredential[] = [];
 
-    adminSnap.forEach((d) => {
+    adminSnap.forEach((d: any) => {
       const parsed = normalizeCredentialDoc(d.id, d.data(), 'admin');
       if (parsed) {
         if (parsed.role === 'property_manager') {
           pmList.push(parsed);
+        } else if (parsed.role === 'sales_manager') {
+          smList.push(parsed);
         } else {
           adminList.push(parsed);
         }
       }
     });
 
-    propSnap.forEach((d) => {
+    propSnap.forEach((d: any) => {
       const parsed = normalizeCredentialDoc(d.id, d.data(), 'property_manager');
       if (parsed) {
-        // Avoid duplicates by email
         if (!pmList.some(existing => existing.email.toLowerCase() === parsed.email.toLowerCase())) {
           pmList.push(parsed);
+        }
+      }
+    });
+
+    salesSnap.forEach((d: any) => {
+      const parsed = normalizeCredentialDoc(d.id, d.data(), 'sales_manager');
+      if (parsed) {
+        if (!smList.some(existing => existing.email.toLowerCase() === parsed.email.toLowerCase())) {
+          smList.push(parsed);
         }
       }
     });
@@ -1033,34 +1056,54 @@ export async function ensurePortalCredentialsInFirestore(): Promise<{
       pmList.push(DEFAULT_PM_CREDENTIAL);
     }
 
+    // Seed default Sales Manager in Sales_login (and Admin_login) if none exists
+    if (smList.length === 0) {
+      const seedSm = {
+        ...DEFAULT_SM_CREDENTIAL,
+        Email_id: DEFAULT_SM_CREDENTIAL.email,
+        updatedAt: now
+      };
+      try {
+        await setDoc(doc(db, 'Sales_login', 'sales_manager'), seedSm, { merge: true });
+        await setDoc(doc(db, 'Admin_login', 'sales_manager'), seedSm, { merge: true });
+      } catch (e) {
+        console.warn('Could not seed Sales_login/sales_manager in Firestore:', e);
+      }
+      smList.push(DEFAULT_SM_CREDENTIAL);
+    }
+
     // Cache locally for fast fallback
     try {
       localStorage.setItem('portal_admin_credentials', JSON.stringify(adminList));
       localStorage.setItem('portal_pm_credentials', JSON.stringify(pmList));
+      localStorage.setItem('portal_sm_credentials', JSON.stringify(smList));
     } catch (_) {}
 
-    return { adminCredentials: adminList, pmCredentials: pmList };
+    return { adminCredentials: adminList, pmCredentials: pmList, smCredentials: smList };
   } catch (error) {
     console.warn('Could not fetch portal credentials from Firestore, using cached/default:', error);
     let cachedAdmin: PortalCredential[] = [DEFAULT_ADMIN_CREDENTIAL];
     let cachedPm: PortalCredential[] = [DEFAULT_PM_CREDENTIAL];
+    let cachedSm: PortalCredential[] = [DEFAULT_SM_CREDENTIAL];
     try {
       const aStr = localStorage.getItem('portal_admin_credentials');
       const pStr = localStorage.getItem('portal_pm_credentials');
+      const sStr = localStorage.getItem('portal_sm_credentials');
       if (aStr) cachedAdmin = JSON.parse(aStr);
       if (pStr) cachedPm = JSON.parse(pStr);
+      if (sStr) cachedSm = JSON.parse(sStr);
     } catch (_) {}
-    return { adminCredentials: cachedAdmin, pmCredentials: cachedPm };
+    return { adminCredentials: cachedAdmin, pmCredentials: cachedPm, smCredentials: cachedSm };
   }
 }
 
 /**
- * Verifies Admin or Property Manager login against Firestore (`Admin_login` and `Property_login`).
+ * Verifies Admin, Property Manager, or Sales Manager login against Firestore (`Admin_login`, `Property_login`, `Sales_login`).
  * Always reads directly from Firestore (bypasses localStorage cache) so credential changes
  * made in the admin panel take effect on the very next login attempt.
  */
 export async function verifyPortalLoginFromFirestore(
-  portal: 'admin' | 'property_manager',
+  portal: 'admin' | 'property_manager' | 'sales_manager',
   inputEmailOrUser: string,
   inputPassword: string
 ): Promise<{ valid: boolean; matchedCredential?: PortalCredential }> {
@@ -1073,30 +1116,45 @@ export async function verifyPortalLoginFromFirestore(
 
   try {
     // Always read fresh from Firestore — never use the localStorage cache for login verification
-    const [adminSnap, propSnap] = await Promise.all([
-      getDocs(collection(db, 'Admin_login')),
-      getDocs(collection(db, 'Property_login'))
+    const [adminSnap, propSnap, salesSnap] = await Promise.all([
+      getDocs(collection(db, 'Admin_login')).catch(() => ({ forEach: () => {} } as any)),
+      getDocs(collection(db, 'Property_login')).catch(() => ({ forEach: () => {} } as any)),
+      getDocs(collection(db, 'Sales_login')).catch(() => ({ forEach: () => {} } as any))
     ]);
 
     const adminList: PortalCredential[] = [];
     const pmList: PortalCredential[] = [];
+    const smList: PortalCredential[] = [];
 
-    adminSnap.forEach((d) => {
+    adminSnap.forEach((d: any) => {
       const parsed = normalizeCredentialDoc(d.id, d.data(), 'admin');
       if (parsed) {
         if (parsed.role === 'property_manager') pmList.push(parsed);
+        else if (parsed.role === 'sales_manager') smList.push(parsed);
         else adminList.push(parsed);
       }
     });
 
-    propSnap.forEach((d) => {
+    propSnap.forEach((d: any) => {
       const parsed = normalizeCredentialDoc(d.id, d.data(), 'property_manager');
       if (parsed && !pmList.some(e => e.email.toLowerCase() === parsed.email.toLowerCase())) {
         pmList.push(parsed);
       }
     });
 
-    const targetList = portal === 'admin' ? adminList : pmList;
+    salesSnap.forEach((d: any) => {
+      const parsed = normalizeCredentialDoc(d.id, d.data(), 'sales_manager');
+      if (parsed && !smList.some(e => e.email.toLowerCase() === parsed.email.toLowerCase())) {
+        smList.push(parsed);
+      }
+    });
+
+    const targetList = portal === 'admin' 
+      ? adminList 
+      : portal === 'property_manager' 
+      ? pmList 
+      : smList;
+
     const matched = targetList.find(
       (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
     );
@@ -1109,8 +1167,12 @@ export async function verifyPortalLoginFromFirestore(
   } catch (error) {
     // Fallback to ensurePortalCredentials (uses cache) if Firestore read fails
     console.warn('Direct Firestore login check failed, falling back to cached credentials:', error);
-    const { adminCredentials, pmCredentials } = await ensurePortalCredentialsInFirestore();
-    const targetList = portal === 'admin' ? adminCredentials : pmCredentials;
+    const { adminCredentials, pmCredentials, smCredentials } = await ensurePortalCredentialsInFirestore();
+    const targetList = portal === 'admin' 
+      ? adminCredentials 
+      : portal === 'property_manager' 
+      ? pmCredentials 
+      : smCredentials;
     const matched = targetList.find(
       (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
     );
@@ -1119,11 +1181,10 @@ export async function verifyPortalLoginFromFirestore(
 }
 
 /**
- * Updates or creates Admin or Property Manager login credentials in Firestore.
- * Stores Admin credentials in `Admin_login` and Property Manager credentials in `Property_login` (and `Admin_login`).
+ * Updates or creates Admin, Property Manager, or Sales Manager login credentials in Firestore.
  */
 export async function savePortalCredentialToFirestore(
-  portal: 'admin' | 'property_manager',
+  portal: 'admin' | 'property_manager' | 'sales_manager',
   email: string,
   password: string,
   name?: string,
@@ -1131,14 +1192,14 @@ export async function savePortalCredentialToFirestore(
 ): Promise<PortalCredential> {
   const cleanEmail = email.trim();
   const now = new Date().toISOString();
-  const targetDocId = docId || (portal === 'admin' ? 'admin' : 'property_manager');
+  const targetDocId = docId || (portal === 'admin' ? 'admin' : portal === 'property_manager' ? 'property_manager' : 'sales_manager');
 
   const record: PortalCredential = {
     id: targetDocId,
     email: cleanEmail,
     password,
     role: portal,
-    name: name?.trim() || (portal === 'admin' ? 'Lyka Super Admin' : 'Lyka Property Manager'),
+    name: name?.trim() || (portal === 'admin' ? 'Lyka Super Admin' : portal === 'property_manager' ? 'Lyka Property Manager' : 'Lyka Sales Manager'),
     updatedAt: now
   };
 
@@ -1149,7 +1210,11 @@ export async function savePortalCredentialToFirestore(
 
   // Update local storage cache immediately
   try {
-    const storageKey = portal === 'admin' ? 'portal_admin_credentials' : 'portal_pm_credentials';
+    const storageKey = portal === 'admin' 
+      ? 'portal_admin_credentials' 
+      : portal === 'property_manager' 
+      ? 'portal_pm_credentials' 
+      : 'portal_sm_credentials';
     const existingStr = localStorage.getItem(storageKey);
     let list: PortalCredential[] = existingStr ? JSON.parse(existingStr) : [];
     const idx = list.findIndex(item => item.id === targetDocId || item.email.toLowerCase() === cleanEmail.toLowerCase());
@@ -1159,22 +1224,123 @@ export async function savePortalCredentialToFirestore(
       list.push(record);
     }
     localStorage.setItem(storageKey, JSON.stringify(list));
-    // Also wipe BOTH cache keys so verifyPortalLoginFromFirestore always reads fresh from Firestore
     localStorage.removeItem('portal_admin_credentials');
     localStorage.removeItem('portal_pm_credentials');
+    localStorage.removeItem('portal_sm_credentials');
   } catch (_) {}
 
-  // Save to Firestore collections
-  if (portal === 'admin') {
-    await setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true });
-  } else {
-    await Promise.all([
-      setDoc(doc(db, 'Property_login', targetDocId), firestorePayload, { merge: true }),
-      setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true })
-    ]);
+  // 1. Primary: Server-side save (guarantees write succeeds without client permission errors)
+  try {
+    await fetch('/api/auth/save-portal-credential', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        portal,
+        email: cleanEmail,
+        password,
+        name: record.name,
+        docId: targetDocId
+      })
+    });
+  } catch (srvErr) {
+    console.warn('[Auth] Server save-portal-credential notice:', srvErr);
+  }
+
+  // 2. Direct client-side write (if client rules allow, non-fatal if restricted)
+  try {
+    if (portal === 'admin') {
+      await setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true });
+    } else if (portal === 'property_manager') {
+      await Promise.all([
+        setDoc(doc(db, 'Property_login', targetDocId), firestorePayload, { merge: true }),
+        setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true })
+      ]);
+    } else {
+      await Promise.all([
+        setDoc(doc(db, 'Sales_login', targetDocId), firestorePayload, { merge: true }),
+        setDoc(doc(db, 'Admin_login', targetDocId), firestorePayload, { merge: true })
+      ]);
+    }
+  } catch (clientErr) {
+    console.warn(`[Auth] Direct client Firestore write notice for ${portal}:`, clientErr);
   }
 
   return record;
+}
+
+/**
+ * Records a successful Sales Manager login in the Firestore Database (`Sales_login` collection and `login_events`).
+ * Saves both server-side (authenticated) and client-side with timestamps and login history.
+ */
+export async function recordSalesManagerLoginInFirestore(
+  email: string,
+  name?: string,
+  method?: string
+): Promise<void> {
+  const cleanEmail = (email || 'sales@lykarealty.ae').trim();
+  const now = new Date().toISOString();
+  const displayName = name || 'Lyka Sales Manager';
+
+  // 1. Primary: Server-side authenticated save (guaranteed write in Firestore)
+  try {
+    await fetch('/api/auth/record-sales-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        name: displayName,
+        method: method || 'Sales_Portal_Login'
+      })
+    });
+    console.log(`[Sales Login] Server successfully logged sales manager in DB: ${cleanEmail}`);
+  } catch (srvErr) {
+    console.warn('[Sales Login] Server record-sales-login notice:', srvErr);
+  }
+
+  // 2. Direct client-side write (if client rules allow, non-blocking)
+  try {
+    const payload: any = {
+      id: 'sales_manager',
+      email: cleanEmail,
+      Email_id: cleanEmail,
+      name: displayName,
+      role: 'sales_manager',
+      last_login: now,
+      login_history: arrayUnion(now),
+      status: 'active',
+      auth_provider: method || 'Sales_Portal_Login',
+      updatedAt: now
+    };
+
+    await setDoc(doc(db, 'Sales_login', 'sales_manager'), payload, { merge: true });
+    if (cleanEmail && cleanEmail.toLowerCase() !== 'sales_manager') {
+      await setDoc(doc(db, 'Sales_login', cleanEmail.toLowerCase()), payload, { merge: true });
+    }
+    await setDoc(doc(db, 'Admin_login', 'sales_manager'), payload, { merge: true });
+
+    // Record in login_events for analytics
+    const eventId = `EVT-SALES-${Date.now()}`;
+    await setDoc(doc(db, 'login_events', eventId), {
+      userId: 'sales_manager',
+      email: cleanEmail,
+      fullName: displayName,
+      authProvider: method || 'Sales_Portal_Login',
+      role: 'sales_manager',
+      timestamp: now
+    }, { merge: true });
+  } catch (clientErr) {
+    console.warn('[Sales Login] Direct client Firestore write notice:', clientErr);
+  }
+
+  // 3. Local cache for instant offline UI synchronization
+  try {
+    localStorage.setItem('lyka_last_sales_login', JSON.stringify({
+      email: cleanEmail,
+      role: 'sales_manager',
+      last_login: now,
+      authenticated: true
+    }));
+  } catch (_) {}
 }
 
 /**

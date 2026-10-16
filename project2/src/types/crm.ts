@@ -313,12 +313,37 @@ export interface PortalCredential {
   id: string;
   email: string;
   password: string;
-  role: 'admin' | 'property_manager';
+  role: 'admin' | 'property_manager' | 'sales_manager';
   name?: string;
   phone?: string;
   otp_code?: string;
   otp_created_at?: string;
   updatedAt?: string;
+}
+
+export interface DuplicatePropertyPair {
+  id: string;
+  primaryProperty: PropertyListing;
+  duplicateProperties: PropertyListing[];
+  confidence: number;
+  reason: string;
+  matchType: 'exact_title' | 'community_specs' | 'rera_id' | 'image_match';
+}
+
+export interface PropertyRequirementIssue {
+  field: string;
+  label: string;
+  severity: 'critical' | 'warning' | 'info';
+  description: string;
+}
+
+export interface PropertyRequirementAudit {
+  property: PropertyListing;
+  completenessScore: number;
+  criticalIssues: PropertyRequirementIssue[];
+  warningIssues: PropertyRequirementIssue[];
+  infoIssues: PropertyRequirementIssue[];
+  status: 'action_required' | 'incomplete' | 'sales_ready';
 }
 
 

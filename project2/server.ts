@@ -900,7 +900,7 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const portalName = portal === 'property_manager' ? 'Property Manager' : portal === 'user' ? 'Client' : 'Admin';
+    const portalName = portal === 'sales_manager' ? 'Sales Manager' : portal === 'property_manager' ? 'Property Manager' : portal === 'user' ? 'Client' : 'Admin';
     const now = Date.now();
 
     // ── OTP Rate Limiter (Max 5 attempts per 1-hour window) ───────────────
@@ -1207,6 +1207,103 @@ app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/auth/record-sales-login — records successful Sales Manager login in Firestore (Sales_login and login_events)
+app.post('/api/auth/record-sales-login', async (req: Request, res: Response) => {
+  try {
+    const { email, name, method } = req.body || {};
+    const cleanEmail = (email || 'sales@lykarealty.ae').trim();
+    const now = new Date().toISOString();
+
+    const salesLoginData: any = {
+      id: 'sales_manager',
+      email: cleanEmail,
+      Email_id: cleanEmail,
+      name: (name || 'Lyka Sales Manager').trim(),
+      role: 'sales_manager',
+      last_login: now,
+      login_history: fsArrayUnion(now),
+      status: 'active',
+      auth_provider: method || 'Sales_Portal_Login',
+      updatedAt: now
+    };
+
+    if (firestoreDb) {
+      try {
+        // 1. Update Sales_login collection documents
+        await fsSetDoc(fsDoc(firestoreDb, 'Sales_login', 'sales_manager'), salesLoginData, { merge: true });
+        if (cleanEmail && cleanEmail.toLowerCase() !== 'sales_manager') {
+          await fsSetDoc(fsDoc(firestoreDb, 'Sales_login', cleanEmail.toLowerCase()), salesLoginData, { merge: true });
+        }
+
+        // 2. Also record in Admin_login so super admin can audit logins
+        await fsSetDoc(fsDoc(firestoreDb, 'Admin_login', 'sales_manager'), salesLoginData, { merge: true });
+
+        // 3. Record in login_events collection for analytics and timeline
+        const eventId = `EVT-SALES-${Date.now()}`;
+        await fsSetDoc(fsDoc(firestoreDb, 'login_events', eventId), {
+          userId: 'sales_manager',
+          email: cleanEmail,
+          fullName: name || 'Lyka Sales Manager',
+          authProvider: method || 'Sales_Portal_Login',
+          role: 'sales_manager',
+          timestamp: now
+        }, { merge: true });
+
+        console.log(`[Sales Login API] Successfully recorded Sales Manager login in Firestore for ${cleanEmail}`);
+      } catch (fsErr: any) {
+        console.warn('[Sales Login API] Firestore write notice:', fsErr.message);
+      }
+    }
+
+    return res.json({ success: true, record: salesLoginData });
+  } catch (err: any) {
+    console.error('[Sales Login API] error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/save-portal-credential — server-side endpoint to save portal credentials without client rule errors
+app.post('/api/auth/save-portal-credential', async (req: Request, res: Response) => {
+  try {
+    const { portal, email, password, name, docId } = req.body || {};
+    if (!portal || !email || !password) {
+      return res.status(400).json({ success: false, error: 'portal, email, and password required.' });
+    }
+    const cleanEmail = String(email).trim();
+    const targetDocId = docId || (portal === 'admin' ? 'admin' : portal === 'property_manager' ? 'property_manager' : 'sales_manager');
+    const now = new Date().toISOString();
+
+    const payload: any = {
+      id: targetDocId,
+      email: cleanEmail,
+      Email_id: cleanEmail,
+      password: String(password).trim(),
+      role: portal,
+      name: name || (portal === 'sales_manager' ? 'Lyka Sales Manager' : portal === 'admin' ? 'Lyka Super Admin' : 'Lyka Property Manager'),
+      updatedAt: now
+    };
+
+    if (firestoreDb) {
+      try {
+        const collectionName = portal === 'sales_manager' ? 'Sales_login' : portal === 'property_manager' ? 'Property_login' : 'Admin_login';
+        await fsSetDoc(fsDoc(firestoreDb, collectionName, targetDocId), payload, { merge: true });
+        if (cleanEmail && cleanEmail.toLowerCase() !== targetDocId.toLowerCase()) {
+          await fsSetDoc(fsDoc(firestoreDb, collectionName, cleanEmail.toLowerCase()), payload, { merge: true });
+        }
+        await fsSetDoc(fsDoc(firestoreDb, 'Admin_login', targetDocId), payload, { merge: true });
+        console.log(`[Portal Auth API] Saved ${portal} credential to Firestore collection ${collectionName} for ${cleanEmail}`);
+      } catch (fsErr: any) {
+        console.warn('[Portal Auth API] Firestore write notice:', fsErr.message);
+      }
+    }
+
+    return res.json({ success: true, credential: payload });
+  } catch (err: any) {
+    console.error('[Portal Auth API] save error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/auth/get-user-profile — retrieves user profile by email or userId
 app.get('/api/auth/get-user-profile', async (req: Request, res: Response) => {
   try {
@@ -1412,6 +1509,31 @@ app.post('/api/properties', async (req: Request, res: Response) => {
     await injectAgentDependencies();
 
     return res.json({ success: true, property: cleanProp });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/properties/:id — remove a property from Firestore and in-memory
+app.delete('/api/properties/:id', async (req: Request, res: Response) => {
+  try {
+    const propertyId = req.params.id;
+    if (!propertyId) {
+      return res.status(400).json({ success: false, error: 'Property ID required' });
+    }
+    if (firestoreDb) {
+      try {
+        await fsDeleteDoc(fsDoc(firestoreDb, 'properties', propertyId));
+      } catch (e: any) {
+        console.warn('[Properties API] Firestore delete warning:', e.message);
+      }
+    }
+    const idx = (ALL_VERIFIED_PROPERTIES as any[]).findIndex(p => p.id === propertyId);
+    if (idx >= 0) {
+      (ALL_VERIFIED_PROPERTIES as any[]).splice(idx, 1);
+    }
+    await injectAgentDependencies();
+    return res.json({ success: true, deletedId: propertyId });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

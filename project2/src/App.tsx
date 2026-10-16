@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LeadProfile, 
   ChatMessage, 
@@ -38,9 +38,11 @@ import {
   ensurePortalCredentialsInFirestore,
   verifyPortalLoginFromFirestore,
   savePortalCredentialToFirestore,
+  recordSalesManagerLoginInFirestore,
   deletePortalOtpFromFirestore,
   savePropertyToFirestore,
   getPropertiesFromFirestore,
+  deletePropertyFromFirestore,
   auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
@@ -49,6 +51,7 @@ import { AgenticChat } from './components/AgenticChat';
 import { LeadProfileSidebar } from './components/LeadProfileSidebar';
 import { CrmPipeline } from './components/CrmPipeline';
 import { PropertyInventory } from './components/PropertyInventory';
+import { SalesManagerDashboard } from './components/SalesManagerDashboard';
 import { AssignedPropertiesView } from './components/AssignedPropertiesView';
 import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
@@ -80,7 +83,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements'>('chat');
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
@@ -107,10 +110,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager'>(() => {
+  const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager' | 'sales_manager'>(() => {
     try {
       const saved = localStorage.getItem('lyka_admin_target_portal');
-      if (saved === 'property_manager' || saved === 'admin') return saved;
+      if (saved === 'property_manager' || saved === 'admin' || saved === 'sales_manager') return saved;
     } catch (e) {}
     return 'admin';
   });
@@ -129,9 +132,18 @@ export default function App() {
       return false;
     }
   });
+  const [salesManagerAuthenticated, setSalesManagerAuthenticated] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lyka_sm_authenticated') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
   const isPortalAuthed = adminTargetPortal === 'admin' 
     ? adminAuthenticated 
-    : (propertyManagerAuthenticated || adminAuthenticated);
+    : adminTargetPortal === 'property_manager'
+    ? (propertyManagerAuthenticated || adminAuthenticated)
+    : (salesManagerAuthenticated || adminAuthenticated);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
@@ -140,12 +152,15 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
-  // Database-backed Admin & Property Manager credentials (from Firestore Admin_login & Property_login)
+  // Database-backed Admin, Property Manager, & Sales Manager credentials (from Firestore Admin_login, Property_login, Sales_login)
   const [adminDbCredentials, setAdminDbCredentials] = useState<PortalCredential[]>([
     { id: 'admin', email: 'admin@lykarealty.ae', password: 'LykaAdmin2024', role: 'admin', name: 'Lyka Super Admin' }
   ]);
   const [pmDbCredentials, setPmDbCredentials] = useState<PortalCredential[]>([
     { id: 'property_manager', email: 'manager@lykarealty.ae', password: 'LykaManager2024', role: 'property_manager', name: 'Lyka Property Manager' }
+  ]);
+  const [salesDbCredentials, setSalesDbCredentials] = useState<PortalCredential[]>([
+    { id: 'sales_manager', email: 'sales@lykarealty.ae', password: 'LykaSales2024', role: 'sales_manager', name: 'Lyka Sales Manager' }
   ]);
   const [showCredentialConfig, setShowCredentialConfig] = useState(false);
   const [configEmailInput, setConfigEmailInput] = useState('');
@@ -156,6 +171,7 @@ export default function App() {
 
   const ADMIN_EMAIL = adminDbCredentials[0]?.email || 'admin@lykarealty.ae';
   const PM_EMAIL = pmDbCredentials[0]?.email || 'manager@lykarealty.ae';
+  const SALES_EMAIL = salesDbCredentials[0]?.email || 'sales@lykarealty.ae';
 
   // Email 6-Digit OTP states for Admin / Property Manager Login (Valid for 3 Minutes)
   const [adminOtpInput, setAdminOtpInput] = useState('');
@@ -533,11 +549,12 @@ export default function App() {
         console.warn('Customer count fetch notice:', err);
       }
 
-      // Ensure Admin & Property Manager credentials exist in Firestore (Admin_login & Property_login)
+      // Ensure Admin, Property Manager & Sales Manager credentials exist in Firestore
       try {
-        const { adminCredentials, pmCredentials } = await ensurePortalCredentialsInFirestore();
+        const { adminCredentials, pmCredentials, smCredentials } = await ensurePortalCredentialsInFirestore();
         if (adminCredentials.length > 0) setAdminDbCredentials(adminCredentials);
         if (pmCredentials.length > 0) setPmDbCredentials(pmCredentials);
+        if (smCredentials && smCredentials.length > 0) setSalesDbCredentials(smCredentials);
       } catch (err) {
         console.warn('Portal credentials init notice:', err);
       }
@@ -1379,6 +1396,113 @@ export default function App() {
     }
   };
 
+  const handleAddProperty = async (newProp: PropertyListing) => {
+    setPropertiesList(prev => {
+      const updated = [newProp, ...prev];
+      try {
+        localStorage.setItem('localProperties', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save localProperties to localStorage:', e);
+      }
+      return updated;
+    });
+    try {
+      await savePropertyToFirestore(newProp);
+    } catch (err) {
+      console.warn('Could not save property to Firestore:', err);
+    }
+    try {
+      await fetch('/api/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProp)
+      });
+    } catch (err) {
+      console.warn('Could not save property to backend server:', err);
+    }
+  };
+
+  const handleUpdateProperty = async (updatedProp: PropertyListing) => {
+    setPropertiesList(prev => {
+      const updated = prev.map(p => p.id === updatedProp.id ? updatedProp : p);
+      try {
+        localStorage.setItem('localProperties', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save localProperties to localStorage:', e);
+      }
+      return updated;
+    });
+    try {
+      await savePropertyToFirestore(updatedProp);
+    } catch (err) {
+      console.warn('Could not save updated property to Firestore:', err);
+    }
+    try {
+      await fetch('/api/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProp)
+      });
+    } catch (err) {
+      console.warn('Could not save updated property to backend server:', err);
+    }
+  };
+
+  const handleDeleteProperty = async (propertyId: string) => {
+    setPropertiesList(prev => {
+      const updated = prev.filter(p => p.id !== propertyId);
+      try {
+        localStorage.setItem('localProperties', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not save localProperties to localStorage:', e);
+      }
+      return updated;
+    });
+    try {
+      await deletePropertyFromFirestore(propertyId);
+    } catch (err) {
+      console.warn('Could not delete property from Firestore:', err);
+    }
+    try {
+      await fetch(`/api/properties/${encodeURIComponent(propertyId)}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn('Could not delete property from backend server:', err);
+    }
+  };
+
+  // Fast duplicate & missing requirements count for Navbar badges
+  const { duplicateCount, missingRequirementsCount } = useMemo(() => {
+    const list = propertiesList;
+    let dupCount = 0;
+    const paired = new Set<string>();
+    for (let i = 0; i < list.length; i++) {
+      if (paired.has(list[i].id)) continue;
+      const t1 = (list[i].title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+      for (let j = i + 1; j < list.length; j++) {
+        if (paired.has(list[j].id)) continue;
+        const t2 = (list[j].title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+        const r1 = (list[i].rera_id || '').trim().toLowerCase();
+        const r2 = (list[j].rera_id || '').trim().toLowerCase();
+        if ((r1 && r2 && r1 === r2) || (t1 && t2 && t1 === t2)) {
+          dupCount += 1;
+          paired.add(list[j].id);
+          break;
+        }
+      }
+    }
+
+    let missingCount = 0;
+    list.forEach(p => {
+      if (!p.rera_id || !p.price_aed || !p.size_sqft || !p.image_url || !p.developer || !p.handover_date || !p.payment_plan) {
+        missingCount += 1;
+      }
+    });
+
+    return { duplicateCount: dupCount, missingRequirementsCount: missingCount };
+  }, [propertiesList]);
+
   const bookedPropertyCount = propertiesList.filter(p => p.is_booked || (p.status || '').toLowerCase() === 'booked').length;
 
   const isOtpLocked = Boolean(adminOtpLockedUntil && adminOtpLockedUntil > Date.now());
@@ -1396,6 +1520,8 @@ export default function App() {
         leadCount={leadsList.filter(l => l.lead_status !== 'New').length}
         propertyCount={propertiesList.length}
         bookedPropertyCount={bookedPropertyCount}
+        duplicateCount={duplicateCount}
+        missingRequirementsCount={missingRequirementsCount}
         customerCount={customerCount}
         firestoreActive={firestoreActive}
         vectorStatus={mongoStatus}
@@ -1403,6 +1529,7 @@ export default function App() {
         adminPanelOpen={adminPanelOpen}
         adminAuthenticated={adminAuthenticated}
         propertyManagerAuthenticated={propertyManagerAuthenticated}
+        salesManagerAuthenticated={salesManagerAuthenticated}
         adminTargetPortal={adminTargetPortal}
         onSelectPortal={(portal) => {
           setAdminTargetPortal(portal);
@@ -1411,7 +1538,9 @@ export default function App() {
           } catch (e) {}
           const isAuthed = portal === 'admin' 
             ? adminAuthenticated 
-            : (propertyManagerAuthenticated || adminAuthenticated);
+            : portal === 'property_manager'
+            ? (propertyManagerAuthenticated || adminAuthenticated)
+            : (salesManagerAuthenticated || adminAuthenticated);
           if (!isAuthed) {
             resetAdminModalState();
             setAdminEmailInput('');
@@ -1421,6 +1550,8 @@ export default function App() {
             setAdminPanelOpen(true);
             if (portal === 'property_manager') {
               setActiveTab('properties');
+            } else if (portal === 'sales_manager') {
+              setActiveTab('sales_duplicates');
             } else {
               setActiveTab('crm');
             }
@@ -1434,7 +1565,9 @@ export default function App() {
           } else {
             const isAuthed = adminTargetPortal === 'admin' 
               ? adminAuthenticated 
-              : (propertyManagerAuthenticated || adminAuthenticated);
+              : adminTargetPortal === 'property_manager'
+              ? (propertyManagerAuthenticated || adminAuthenticated)
+              : (salesManagerAuthenticated || adminAuthenticated);
             if (!isAuthed) {
               // Not logged in → show login gate
               resetAdminModalState();
@@ -1446,6 +1579,8 @@ export default function App() {
               setAdminPanelOpen(true);
               if (adminTargetPortal === 'property_manager') {
                 setActiveTab('properties');
+              } else if (adminTargetPortal === 'sales_manager') {
+                setActiveTab('sales_duplicates');
               } else {
                 setActiveTab('crm');
               }
@@ -1455,9 +1590,11 @@ export default function App() {
         onAdminLogout={async () => {
           setAdminAuthenticated(false);
           setPropertyManagerAuthenticated(false);
+          setSalesManagerAuthenticated(false);
           try {
             localStorage.removeItem('lyka_admin_authenticated');
             localStorage.removeItem('lyka_pm_authenticated');
+            localStorage.removeItem('lyka_sm_authenticated');
             localStorage.removeItem('lyka_admin_target_portal');
           } catch (e) {}
           setAdminPanelOpen(false);
@@ -1584,73 +1721,27 @@ export default function App() {
               <CustomerAnalytics onNavigateToProfiles={() => setActiveTab('customers')} />
             )}
 
-            {/* Property Manager & Admin Portal Pages — require propertyManagerAuthenticated or adminAuthenticated */}
-            {(propertyManagerAuthenticated || adminAuthenticated) && activeTab === 'properties' && (
+            {/* Property Manager, Admin, & Sales Manager Portal Properties Page */}
+            {(propertyManagerAuthenticated || adminAuthenticated || salesManagerAuthenticated) && activeTab === 'properties' && (
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
                 canAddProperty={adminTargetPortal === 'property_manager'}
                 onBookViewing={(prop) => setViewingModalProperty(prop)}
-                onAddProperty={async (newProp) => {
-                  // 1. Immediately update UI state & local cache
-                  setPropertiesList(prev => {
-                    const updated = [newProp, ...prev];
-                    try {
-                      localStorage.setItem('localProperties', JSON.stringify(updated));
-                    } catch (e) {
-                      console.warn('Could not save localProperties to localStorage:', e);
-                    }
-                    return updated;
-                  });
+                onAddProperty={handleAddProperty}
+                onUpdateProperty={handleUpdateProperty}
+              />
+            )}
 
-                  // 2. Persist to Firestore database ('properties' collection)
-                  try {
-                    await savePropertyToFirestore(newProp);
-                  } catch (err) {
-                    console.warn('Could not save property to Firestore:', err);
-                  }
-
-                  // 3. Persist to backend server (/api/properties)
-                  try {
-                    await fetch('/api/properties', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(newProp)
-                    });
-                  } catch (err) {
-                    console.warn('Could not save property to backend server:', err);
-                  }
-                }}
-                onUpdateProperty={async (updatedProp) => {
-                  // 1. Immediately update UI state & local cache
-                  setPropertiesList(prev => {
-                    const updated = prev.map(p => p.id === updatedProp.id ? updatedProp : p);
-                    try {
-                      localStorage.setItem('localProperties', JSON.stringify(updated));
-                    } catch (e) {
-                      console.warn('Could not save localProperties to localStorage:', e);
-                    }
-                    return updated;
-                  });
-
-                  // 2. Persist to Firestore database ('properties' collection)
-                  try {
-                    await savePropertyToFirestore(updatedProp);
-                  } catch (err) {
-                    console.warn('Could not save updated property to Firestore:', err);
-                  }
-
-                  // 3. Persist to backend server (/api/properties)
-                  try {
-                    await fetch('/api/properties', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(updatedProp)
-                    });
-                  } catch (err) {
-                    console.warn('Could not save updated property to backend server:', err);
-                  }
-                }}
+            {/* Sales Manager Portal Pages — Duplicate Detection & Missing Requirements Quality Audit */}
+            {(salesManagerAuthenticated || adminAuthenticated) && (activeTab === 'sales_duplicates' || activeTab === 'sales_missing_requirements') && (
+              <SalesManagerDashboard
+                properties={propertiesList}
+                activeSubTab={activeTab === 'sales_missing_requirements' ? 'missing_requirements' : 'duplicates'}
+                onChangeSubTab={(sub) => setActiveTab(sub === 'missing_requirements' ? 'sales_missing_requirements' : 'sales_duplicates')}
+                onUpdateProperty={handleUpdateProperty}
+                onDeleteProperty={handleDeleteProperty}
+                onAddProperty={handleAddProperty}
               />
             )}
 
@@ -1911,23 +2002,33 @@ export default function App() {
             <div className={`px-6 py-5 shrink-0 transition-colors ${
               adminTargetPortal === 'property_manager'
                 ? 'bg-gradient-to-r from-amber-700 via-amber-600 to-yellow-600'
+                : adminTargetPortal === 'sales_manager'
+                ? 'bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-700'
                 : 'bg-gradient-to-r from-violet-700 via-violet-600 to-purple-700'
             }`}>
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center">
                   {adminTargetPortal === 'property_manager' ? (
                     <Building2 className="w-5 h-5 text-amber-100" />
+                  ) : adminTargetPortal === 'sales_manager' ? (
+                    <Copy className="w-5 h-5 text-emerald-100" />
                   ) : (
                     <ShieldCheck className="w-5 h-5 text-slate-300" />
                   )}
                 </div>
                 <div>
                   <h2 className="text-slate-800 font-bold text-base">
-                    {adminTargetPortal === 'property_manager' ? 'Property Admin Portal' : 'Admin Portal Access'}
+                    {adminTargetPortal === 'property_manager' 
+                      ? 'Property Admin Portal' 
+                      : adminTargetPortal === 'sales_manager'
+                      ? 'Sales Manager Portal'
+                      : 'Admin Portal Access'}
                   </h2>
                   <p className="text-slate-700 text-xs mt-0.5">
                     {adminTargetPortal === 'property_manager'
                       ? 'Lyka Realty Property Inventory & Statistics'
+                      : adminTargetPortal === 'sales_manager'
+                      ? 'Duplicate Control & Property Requirements Quality Audit'
                       : 'Lyka Realty CRM & System Management'}
                   </p>
                 </div>
@@ -1965,7 +2066,22 @@ export default function App() {
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>Property Admin</span>
+                  <span>Property</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminTargetPortal('sales_manager');
+                    resetAdminModalState();
+                  }}
+                  className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    adminTargetPortal === 'sales_manager'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Sales</span>
                 </button>
               </div>
 
@@ -1974,7 +2090,9 @@ export default function App() {
                 <div className="flex items-center space-x-1.5 text-emerald-400 font-medium">
                   <Database className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    DB: <code className="font-mono text-[10px] text-slate-200">{adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'}</code>
+                    DB: <code className="font-mono text-[10px] text-slate-200">
+                      {adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'}
+                    </code>
                   </span>
                 </div>
                 <button
@@ -1985,7 +2103,7 @@ export default function App() {
                     setConfigErrorMsg('');
                     setConfigSuccessMsg('');
                     if (nextShow) {
-                      setConfigEmailInput(adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL);
+                      setConfigEmailInput(adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL);
                       setConfigPasswordInput('');
                     }
                   }}
@@ -2019,13 +2137,15 @@ export default function App() {
                       );
                       if (adminTargetPortal === 'admin') {
                         setAdminDbCredentials([saved]);
-                      } else {
+                      } else if (adminTargetPortal === 'property_manager') {
                         setPmDbCredentials([saved]);
+                      } else {
+                        setSalesDbCredentials([saved]);
                       }
                       setAdminEmailInput(saved.email);
                       setAdminPasswordInput('');
                       setConfigSuccessMsg(
-                        `Saved to Firestore (${adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'})!`
+                        `Saved to Firestore (${adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'})!`
                       );
                       setTimeout(() => {
                         setShowCredentialConfig(false);
@@ -2043,26 +2163,26 @@ export default function App() {
                     <p className="font-bold text-white flex items-center space-x-1.5">
                       <Database className="w-3.5 h-3.5 text-amber-600" />
                       <span>
-                        Update {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'} DB Login
+                        Update {adminTargetPortal === 'property_manager' ? 'Property Manager' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'} DB Login
                       </span>
                     </p>
                     <p className="text-[11px] text-slate-400">
                       Saves login & password directly to Firestore collection{' '}
                       <code className="text-amber-700 font-mono">
-                        {adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'}
+                        {adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'}
                       </code>.
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      New {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'} Login (Email / Username)
+                      New {adminTargetPortal === 'property_manager' ? 'Property Manager' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'} Login (Email / Username)
                     </label>
                     <input
                       type="text"
                       value={configEmailInput}
                       onChange={(e) => { setConfigEmailInput(e.target.value); setConfigErrorMsg(''); }}
-                      placeholder={adminTargetPortal === 'property_manager' ? 'manager@lykarealty.ae' : 'admin@lykarealty.ae'}
+                      placeholder={adminTargetPortal === 'property_manager' ? 'manager@lykarealty.ae' : adminTargetPortal === 'sales_manager' ? 'sales@lykarealty.ae' : 'admin@lykarealty.ae'}
                       required
                       className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
                     />
@@ -2193,7 +2313,7 @@ export default function App() {
                       return;
                     }
 
-                    // 6. Verify credentials against Firestore (Admin_login or Property_login)
+                    // 6. Verify credentials against Firestore (Admin_login, Property_login, or Sales_login)
                     const { valid } = await verifyPortalLoginFromFirestore(
                       adminTargetPortal,
                       adminEmailInput,
@@ -2201,36 +2321,59 @@ export default function App() {
                     );
 
                     // Refresh state from Firestore so hint stays current
-                    const { adminCredentials, pmCredentials } = await ensurePortalCredentialsInFirestore();
+                    const { adminCredentials, pmCredentials, smCredentials } = await ensurePortalCredentialsInFirestore();
                     if (adminCredentials.length > 0) setAdminDbCredentials(adminCredentials);
                     if (pmCredentials.length > 0) setPmDbCredentials(pmCredentials);
+                    if (smCredentials && smCredentials.length > 0) setSalesDbCredentials(smCredentials);
 
                     if (valid) {
                       if (adminTargetPortal === 'admin') {
                         setAdminAuthenticated(true);
                         setPropertyManagerAuthenticated(true);
+                        setSalesManagerAuthenticated(true);
                         try {
                           localStorage.setItem('lyka_admin_authenticated', 'true');
                           localStorage.setItem('lyka_pm_authenticated', 'true');
+                          localStorage.setItem('lyka_sm_authenticated', 'true');
                           localStorage.setItem('lyka_admin_target_portal', 'admin');
                         } catch (e) {}
-                      } else {
+
+                        // Record super admin access
+                        recordSalesManagerLoginInFirestore(adminEmailInput.trim(), 'Lyka Super Admin', 'Master_Admin_Login').catch(() => {});
+
+                        setShowAdminLoginModal(false);
+                        setAdminPanelOpen(true);
+                        setActiveTab('crm');
+                      } else if (adminTargetPortal === 'property_manager') {
                         setPropertyManagerAuthenticated(true);
                         try {
                           localStorage.setItem('lyka_pm_authenticated', 'true');
                           localStorage.setItem('lyka_admin_target_portal', 'property_manager');
                         } catch (e) {}
-                      }
-                      setShowAdminLoginModal(false);
-                      setAdminPanelOpen(true);
-                      if (adminTargetPortal === 'property_manager') {
+                        setShowAdminLoginModal(false);
+                        setAdminPanelOpen(true);
                         setActiveTab('properties');
                       } else {
-                        setActiveTab('crm');
+                        setSalesManagerAuthenticated(true);
+                        try {
+                          localStorage.setItem('lyka_sm_authenticated', 'true');
+                          localStorage.setItem('lyka_admin_target_portal', 'sales_manager');
+                        } catch (e) {}
+
+                        // Store successful Sales Manager login in Firestore DB (Sales_login and login_events)
+                        await recordSalesManagerLoginInFirestore(
+                          adminEmailInput.trim() || 'sales@lykarealty.ae',
+                          'Lyka Sales Manager',
+                          'Sales_Portal_Login'
+                        );
+
+                        setShowAdminLoginModal(false);
+                        setAdminPanelOpen(true);
+                        setActiveTab('sales_duplicates');
                       }
                     } else {
                       setAdminLoginError(
-                        `Invalid login or password in ${adminTargetPortal === 'property_manager' ? 'Property_login' : 'Admin_login'} database.`
+                        `Invalid login or password in ${adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'} database.`
                       );
                     }
                     setAdminLoginLoading(false);
@@ -2240,7 +2383,7 @@ export default function App() {
                   {/* Email / Login with Get OTP button */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                      <span>{adminTargetPortal === 'property_manager' ? 'Manager Email / Login' : 'Admin Email / Login'}</span>
+                      <span>{adminTargetPortal === 'property_manager' ? 'Manager Email / Login' : adminTargetPortal === 'sales_manager' ? 'Sales Manager Email / Login' : 'Admin Email / Login'}</span>
                       {isOtpLocked ? (
                         <span className="text-[10px] text-rose-400 font-semibold flex items-center space-x-1">
                           <Lock className="w-3 h-3 text-rose-400" />
@@ -2264,7 +2407,7 @@ export default function App() {
                           type="email"
                           value={adminEmailInput}
                           onChange={(e) => { setAdminEmailInput(e.target.value); setAdminLoginError(''); }}
-                          placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL}
+                          placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
                           autoFocus
                           required
                           className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
@@ -2458,8 +2601,8 @@ export default function App() {
                   <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-[11px] text-slate-500 flex items-center justify-between">
                     <div>
                       <span className="text-slate-400 font-medium">DB Login:</span>{' '}
-                      <span className={adminTargetPortal === 'property_manager' ? 'text-amber-600 font-mono' : 'text-violet-400 font-mono'}>
-                        {adminTargetPortal === 'property_manager' ? PM_EMAIL : ADMIN_EMAIL}
+                      <span className={adminTargetPortal === 'property_manager' ? 'text-amber-600 font-mono' : adminTargetPortal === 'sales_manager' ? 'text-emerald-400 font-mono' : 'text-violet-400 font-mono'}>
+                        {adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
                       </span>
                     </div>
                     <span className="text-[10px] text-emerald-400 font-medium flex items-center space-x-1">
@@ -2486,6 +2629,8 @@ export default function App() {
                       className={`flex-1 disabled:opacity-50 disabled:cursor-not-allowed py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md ${
                         adminTargetPortal === 'property_manager'
                           ? 'bg-amber-500 hover:bg-amber-400 text-amber-950'
+                          : adminTargetPortal === 'sales_manager'
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                           : 'bg-violet-600 hover:bg-violet-500 text-white'
                       }`}
                     >
@@ -2498,7 +2643,7 @@ export default function App() {
                           <span>Verifying OTP & Login...</span>
                         </>
                       ) : (
-                        <span>Verify & Enter {adminTargetPortal === 'property_manager' ? 'Property Manager' : 'Admin'}</span>
+                        <span>Verify & Enter {adminTargetPortal === 'property_manager' ? 'Property Manager' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'}</span>
                       )}
                     </button>
                   </div>

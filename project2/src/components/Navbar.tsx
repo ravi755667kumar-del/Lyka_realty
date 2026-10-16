@@ -15,25 +15,30 @@ import {
   LogOut,
   BookmarkCheck,
   Info,
-  MoreVertical
+  MoreVertical,
+  Copy,
+  AlertTriangle
 } from 'lucide-react';
 
 interface NavbarProps {
-  activeTab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties';
-  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties') => void;
+  activeTab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements';
+  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements') => void;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
   bookedPropertyCount?: number;
+  duplicateCount?: number;
+  missingRequirementsCount?: number;
   firestoreActive: boolean;
   vectorStatus?: { connected: boolean; count: number };
   onStartNewChat?: () => void;
   adminPanelOpen: boolean;
   onToggleAdminPanel: () => void;
-  onSelectPortal?: (portal: 'admin' | 'property_manager') => void;
+  onSelectPortal?: (portal: 'admin' | 'property_manager' | 'sales_manager') => void;
   adminAuthenticated: boolean;
   propertyManagerAuthenticated: boolean;
-  adminTargetPortal: 'admin' | 'property_manager';
+  salesManagerAuthenticated?: boolean;
+  adminTargetPortal: 'admin' | 'property_manager' | 'sales_manager';
   onAdminLogout: () => void;
   onOpenAbout: () => void;
 }
@@ -45,6 +50,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   customerCount,
   propertyCount,
   bookedPropertyCount,
+  duplicateCount,
+  missingRequirementsCount,
   firestoreActive,
   vectorStatus,
   onStartNewChat,
@@ -53,12 +60,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectPortal,
   adminAuthenticated,
   propertyManagerAuthenticated,
+  salesManagerAuthenticated,
   adminTargetPortal,
   onAdminLogout,
   onOpenAbout,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
-  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements'].includes(activeTab);
 
   // Triple-tap / triple-click counter to open Admin Panel
   const tapCountRef = useRef(0);
@@ -79,12 +87,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Determine which portal is currently authenticated (Super Admin has access to both)
+  // Determine which portal is currently authenticated (Super Admin has access to all)
   const currentPortal = adminTargetPortal;
   const isPortalAuthed = currentPortal === 'admin' 
     ? adminAuthenticated 
-    : (propertyManagerAuthenticated || adminAuthenticated);
-  const isAnyAuthed = adminAuthenticated || propertyManagerAuthenticated;
+    : currentPortal === 'property_manager'
+    ? (propertyManagerAuthenticated || adminAuthenticated)
+    : (Boolean(salesManagerAuthenticated) || adminAuthenticated);
+  const isAnyAuthed = adminAuthenticated || propertyManagerAuthenticated || Boolean(salesManagerAuthenticated);
 
   return (
     <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50 select-none">
@@ -163,9 +173,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
                   adminTargetPortal === 'admin'
                     ? 'bg-violet-600/30 border-violet-500/60 text-violet-200 hover:bg-violet-600/40 hover:border-violet-400'
-                    : 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
+                    : adminTargetPortal === 'property_manager'
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
+                    : 'bg-emerald-600/25 border-emerald-500/60 text-emerald-200 hover:bg-emerald-600/40 hover:border-emerald-400'
                 }`}
-                title="Choose Admin or Property Admin"
+                title="Choose Admin, Property Admin, or Sales Manager"
               >
                 {adminTargetPortal === 'admin' ? (
                   <>
@@ -177,13 +189,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
                     )}
                   </>
-                ) : (
+                ) : adminTargetPortal === 'property_manager' ? (
                   <>
                     <Building2 className="w-3.5 h-3.5 text-amber-400" />
                     <span>Property Admin</span>
                     {propertyCount !== undefined && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-950/40 text-amber-950">
                         {propertyCount}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Sales Manager</span>
+                    {duplicateCount !== undefined && duplicateCount > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-rose-900/60 text-rose-200">
+                        {duplicateCount}
                       </span>
                     )}
                   </>
@@ -254,6 +276,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                           )}
                         </div>
                         <p className="text-[10px] text-slate-400 truncate mt-0.5">Dubai Properties & Inventory</p>
+                      </div>
+                    </button>
+
+                    {/* Option 3: Sales Manager */}
+                    <button
+                      onClick={() => {
+                        setRoleDropdownOpen(false);
+                        if (onSelectPortal) onSelectPortal('sales_manager');
+                        setActiveTab('sales_duplicates');
+                      }}
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
+                        adminTargetPortal === 'sales_manager'
+                          ? 'bg-emerald-600/25 border-emerald-500 text-white shadow-sm'
+                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Copy className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">Sales Manager</span>
+                          {adminTargetPortal === 'sales_manager' && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/30 text-emerald-200">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">Duplicate Control & Quality Audit</p>
                       </div>
                     </button>
                   </div>
@@ -431,6 +480,64 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
+            {adminTargetPortal === 'sales_manager' && (
+              // Sales Manager Tabs
+              <div className="flex items-center space-x-1 flex-shrink-0">
+                <button
+                  onClick={() => setActiveTab('sales_duplicates')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'sales_duplicates'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Duplicate Properties</span>
+                  {duplicateCount !== undefined && duplicateCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'sales_duplicates' ? 'bg-emerald-950/40 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
+                    }`}>
+                      {duplicateCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('sales_missing_requirements')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'sales_missing_requirements'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Missing Requirements</span>
+                  {missingRequirementsCount !== undefined && missingRequirementsCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'sales_missing_requirements' ? 'bg-emerald-950/40 text-emerald-200' : 'bg-amber-500/30 text-amber-200'
+                    }`}>
+                      {missingRequirementsCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('properties')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'properties'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Dubai Properties</span>
+                  <span className="text-[9px] px-1.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    See Only
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* Downside Right Actions: Logout and Back to Chat */}
             <div className="ml-auto flex items-center space-x-2 flex-shrink-0 pl-3">
               <button
@@ -494,12 +601,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setActiveTab('properties');
               }}
               className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-                (adminPanelOpen || isAdminTab) && activeTab === 'properties'
+                (adminPanelOpen || isAdminTab) && adminTargetPortal === 'property_manager'
                   ? 'bg-amber-500 text-amber-950 border-amber-400'
                   : 'text-espresso-400 border-espresso-700'
               }`}
             >
               Property Admin
+            </button>
+            <button
+              onClick={() => {
+                if (onSelectPortal) onSelectPortal('sales_manager');
+                setActiveTab('sales_duplicates');
+              }}
+              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
+                (adminPanelOpen || isAdminTab) && adminTargetPortal === 'sales_manager'
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'text-espresso-400 border-espresso-700'
+              }`}
+            >
+              Sales Manager
             </button>
             <button
               onClick={() => setActiveTab('assigned_properties')}
