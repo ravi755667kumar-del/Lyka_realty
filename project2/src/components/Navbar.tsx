@@ -399,9 +399,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Building2 className="w-3.5 h-3.5" />
                   <span>Dubai Properties</span>
-                  <span className="text-[9px] px-1.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    See Only
-                  </span>
                 </button>
 
                 <button
@@ -531,9 +528,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Building2 className="w-3.5 h-3.5" />
                   <span>Dubai Properties</span>
-                  <span className="text-[9px] px-1.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    See Only
-                  </span>
                 </button>
               </div>
             )}

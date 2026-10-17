@@ -389,7 +389,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             </p>
           </div>
 
-          {canAddProperty ? (
+          {canAddProperty && (
             <button
               onClick={() => setShowAddModal(true)}
               className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md"
@@ -397,11 +397,6 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               <Plus className="w-4 h-4" />
               <span>Add Property Listing</span>
             </button>
-          ) : (
-            <div className="flex items-center space-x-1.5 text-xs bg-slate-100 text-zinc-600 border border-slate-300 px-3 py-1.5 rounded-xl font-semibold shadow-xs">
-              <Lock className="w-3.5 h-3.5 text-amber-700" />
-              <span>See Only (Admin)</span>
-            </div>
           )}
         </div>
 

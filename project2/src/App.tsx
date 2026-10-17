@@ -163,11 +163,16 @@ export default function App() {
     { id: 'sales_manager', email: 'sales@lykarealty.ae', password: 'LykaSales2024', role: 'sales_manager', name: 'Lyka Sales Manager' }
   ]);
   const [showCredentialConfig, setShowCredentialConfig] = useState(false);
-  const [configEmailInput, setConfigEmailInput] = useState('');
-  const [configPasswordInput, setConfigPasswordInput] = useState('');
+  const [configAdminEmail, setConfigAdminEmail] = useState('');
+  const [configAdminPassword, setConfigAdminPassword] = useState('');
+  const [configPmEmail, setConfigPmEmail] = useState('');
+  const [configPmPassword, setConfigPmPassword] = useState('');
+  const [configSalesEmail, setConfigSalesEmail] = useState('');
+  const [configSalesPassword, setConfigSalesPassword] = useState('');
   const [configSaving, setConfigSaving] = useState(false);
   const [configSuccessMsg, setConfigSuccessMsg] = useState('');
   const [configErrorMsg, setConfigErrorMsg] = useState('');
+  const [configPortalTab, setConfigPortalTab] = useState<'admin' | 'property_manager' | 'sales_manager'>('sales_manager');
 
   const ADMIN_EMAIL = adminDbCredentials[0]?.email || 'admin@lykarealty.ae';
   const PM_EMAIL = pmDbCredentials[0]?.email || 'manager@lykarealty.ae';
@@ -286,6 +291,79 @@ export default function App() {
     setOtpTimeRemaining(180);
     setConfigSuccessMsg('');
     setConfigErrorMsg('');
+  };
+
+  const handleSelectPortalTab = (portal: 'admin' | 'property_manager' | 'sales_manager') => {
+    setAdminTargetPortal(portal);
+    setConfigPortalTab(portal);
+    resetAdminModalState();
+    if (portal === 'admin') {
+      setAdminEmailInput(adminDbCredentials[0]?.email || ADMIN_EMAIL);
+    } else if (portal === 'property_manager') {
+      setAdminEmailInput(pmDbCredentials[0]?.email || PM_EMAIL);
+    } else {
+      setAdminEmailInput(salesDbCredentials[0]?.email || SALES_EMAIL);
+    }
+    setAdminPasswordInput('');
+  };
+
+  const handleSaveIndividualPortalCredential = async (portal: 'admin' | 'property_manager' | 'sales_manager') => {
+    setConfigSaving(true);
+    setConfigErrorMsg('');
+    setConfigSuccessMsg('');
+
+    try {
+      if (portal === 'sales_manager') {
+        const emailToSave = configSalesEmail.trim();
+        const passToSave = configSalesPassword.trim();
+        if (!emailToSave || !passToSave) {
+          setConfigErrorMsg('Please provide Sales Manager email and password.');
+          setConfigSaving(false);
+          return;
+        }
+        const saved = await savePortalCredentialToFirestore('sales_manager', emailToSave, passToSave, 'Lyka Sales Manager', 'sales_manager');
+        setSalesDbCredentials([saved]);
+        setAdminEmailInput(saved.email);
+        setAdminTargetPortal('sales_manager');
+        setConfigSuccessMsg(`Sales Admin saved to Sales_login in DB! OTP will now be sent to ${saved.email}`);
+      } else if (portal === 'property_manager') {
+        const emailToSave = configPmEmail.trim();
+        const passToSave = configPmPassword.trim();
+        if (!emailToSave || !passToSave) {
+          setConfigErrorMsg('Please provide Property Manager email and password.');
+          setConfigSaving(false);
+          return;
+        }
+        const saved = await savePortalCredentialToFirestore('property_manager', emailToSave, passToSave, 'Lyka Property Manager', 'property_manager');
+        setPmDbCredentials([saved]);
+        setAdminEmailInput(saved.email);
+        setAdminTargetPortal('property_manager');
+        setConfigSuccessMsg(`Property Admin saved to Property_login in DB!`);
+      } else {
+        const emailToSave = configAdminEmail.trim();
+        const passToSave = configAdminPassword.trim();
+        if (!emailToSave || !passToSave) {
+          setConfigErrorMsg('Please provide Super Admin email and password.');
+          setConfigSaving(false);
+          return;
+        }
+        const saved = await savePortalCredentialToFirestore('admin', emailToSave, passToSave, 'Lyka Super Admin', 'admin');
+        setAdminDbCredentials([saved]);
+        setAdminEmailInput(saved.email);
+        setAdminTargetPortal('admin');
+        setConfigSuccessMsg(`Super Admin saved to Admin_login in DB!`);
+      }
+
+      setAdminPasswordInput('');
+      setTimeout(() => {
+        setShowCredentialConfig(false);
+        setConfigSuccessMsg('');
+      }, 1400);
+    } catch (err: any) {
+      setConfigErrorMsg(err.message || 'Failed to save credentials to database.');
+    } finally {
+      setConfigSaving(false);
+    }
   };
 
   const handleGetAdminOtp = async () => {
@@ -1281,6 +1359,12 @@ export default function App() {
       booking_notes?: string;
     }
   ) => {
+    // Guard: Super Admin is view-only for assignments/bookings
+    if (adminTargetPortal === 'admin') {
+      alert('Action not permitted: Super Admin is View-Only for bookings and assignments. Only Property Admin can book or assign properties.');
+      return;
+    }
+
     const finalCustomerName = (bookingDetails.customerName || bookingDetails.assigned_to || '').trim();
     const finalCustomerPhone = (bookingDetails.customerPhone || bookingDetails.assigned_phone || '').trim();
     const finalCustomerEmail = (bookingDetails.customerEmail || bookingDetails.assigned_email || '').trim();
@@ -1352,6 +1436,12 @@ export default function App() {
 
   // Unbook / Reopen an assigned property
   const handleUnbookProperty = async (propertyId: string) => {
+    // Guard: Super Admin is view-only for assignments/bookings
+    if (adminTargetPortal === 'admin') {
+      alert('Action not permitted: Super Admin is View-Only for bookings and assignments. Only Property Admin can release bookings.');
+      return;
+    }
+
     let updatedPropertyObj: PropertyListing | null = null;
     setPropertiesList(prev => {
       const updated = prev.map(p => {
@@ -1542,9 +1632,7 @@ export default function App() {
             ? (propertyManagerAuthenticated || adminAuthenticated)
             : (salesManagerAuthenticated || adminAuthenticated);
           if (!isAuthed) {
-            resetAdminModalState();
-            setAdminEmailInput('');
-            setAdminPasswordInput('');
+            handleSelectPortalTab(portal);
             setShowAdminLoginModal(true);
           } else {
             setAdminPanelOpen(true);
@@ -1570,9 +1658,7 @@ export default function App() {
               : (salesManagerAuthenticated || adminAuthenticated);
             if (!isAuthed) {
               // Not logged in → show login gate
-              resetAdminModalState();
-              setAdminEmailInput('');
-              setAdminPasswordInput('');
+              handleSelectPortalTab(adminTargetPortal);
               setShowAdminLoginModal(true);
             } else {
               // Already authed → open portal
@@ -1708,6 +1794,7 @@ export default function App() {
                 properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
                 onBookProperty={handleBookProperty}
                 onUnbookProperty={handleUnbookProperty}
+                canManageBookings={adminTargetPortal === 'property_manager'}
               />
             )}
 
@@ -1754,9 +1841,7 @@ export default function App() {
                   <p className="text-slate-500 mb-6">Please sign in to access this portal.</p>
                   <button
                     onClick={() => {
-                      setAdminLoginError('');
-                      setAdminEmailInput('');
-                      setAdminPasswordInput('');
+                      handleSelectPortalTab(adminTargetPortal);
                       setShowAdminLoginModal(true);
                     }}
                     className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-xl text-sm transition-colors"
@@ -1997,7 +2082,7 @@ export default function App() {
       ───────────────────────────────────────── */}
       {showAdminLoginModal && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+          <div className={`bg-slate-900 border border-slate-700 rounded-2xl w-full ${showCredentialConfig ? 'max-w-xl' : 'max-w-md'} shadow-2xl overflow-hidden max-h-[92vh] flex flex-col transition-all duration-200`}>
             {/* Header */}
             <div className={`px-6 py-5 shrink-0 transition-colors ${
               adminTargetPortal === 'property_manager'
@@ -2040,10 +2125,7 @@ export default function App() {
               <div className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
                 <button
                   type="button"
-                  onClick={() => {
-                    setAdminTargetPortal('admin');
-                    resetAdminModalState();
-                  }}
+                  onClick={() => handleSelectPortalTab('admin')}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'admin'
                       ? 'bg-violet-600 text-white shadow-sm'
@@ -2055,10 +2137,7 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAdminTargetPortal('property_manager');
-                    resetAdminModalState();
-                  }}
+                  onClick={() => handleSelectPortalTab('property_manager')}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'property_manager'
                       ? 'bg-amber-500 text-amber-950 shadow-sm'
@@ -2070,10 +2149,7 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAdminTargetPortal('sales_manager');
-                    resetAdminModalState();
-                  }}
+                  onClick={() => handleSelectPortalTab('sales_manager')}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'sales_manager'
                       ? 'bg-emerald-600 text-white shadow-sm'
@@ -2090,7 +2166,7 @@ export default function App() {
                 <div className="flex items-center space-x-1.5 text-emerald-400 font-medium">
                   <Database className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    DB: <code className="font-mono text-[10px] text-slate-200">
+                    DB Collection: <code className="font-mono text-[10px] text-amber-300 font-bold">
                       {adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'}
                     </code>
                   </span>
@@ -2103,14 +2179,19 @@ export default function App() {
                     setConfigErrorMsg('');
                     setConfigSuccessMsg('');
                     if (nextShow) {
-                      setConfigEmailInput(adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL);
-                      setConfigPasswordInput('');
+                      setConfigPortalTab(adminTargetPortal);
+                      setConfigAdminEmail(adminDbCredentials[0]?.email || 'admin@lykarealty.ae');
+                      setConfigAdminPassword(adminDbCredentials[0]?.password || 'LykaAdmin2024');
+                      setConfigPmEmail(pmDbCredentials[0]?.email || 'manager@lykarealty.ae');
+                      setConfigPmPassword(pmDbCredentials[0]?.password || 'LykaManager2024');
+                      setConfigSalesEmail(salesDbCredentials[0]?.email || 'sales@lykarealty.ae');
+                      setConfigSalesPassword(salesDbCredentials[0]?.password || 'LykaSales2024');
                     }
                   }}
-                  className="text-[11px] font-semibold text-amber-600 hover:text-amber-700 flex items-center space-x-1 underline"
+                  className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 flex items-center space-x-1 underline"
                 >
                   <Settings className="w-3 h-3" />
-                  <span>{showCredentialConfig ? 'Back to Login' : 'Set DB Login'}</span>
+                  <span>{showCredentialConfig ? 'Back to Login' : 'Set in DB'}</span>
                 </button>
               </div>
             </div>
@@ -2118,89 +2199,274 @@ export default function App() {
             {/* Scrollable Form Body */}
             <div className="overflow-y-auto px-6 py-4 flex-1">
               {showCredentialConfig ? (
-                /* ── Set / Update DB Credentials Form (Writes to Admin_login / Property_login) ── */
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (!configEmailInput.trim() || !configPasswordInput.trim()) {
-                      setConfigErrorMsg('Please provide both login email/username and password.');
-                      return;
-                    }
-                    setConfigSaving(true);
-                    setConfigErrorMsg('');
-                    setConfigSuccessMsg('');
-                    try {
-                      const saved = await savePortalCredentialToFirestore(
-                        adminTargetPortal,
-                        configEmailInput.trim(),
-                        configPasswordInput
-                      );
-                      if (adminTargetPortal === 'admin') {
-                        setAdminDbCredentials([saved]);
-                      } else if (adminTargetPortal === 'property_manager') {
-                        setPmDbCredentials([saved]);
-                      } else {
-                        setSalesDbCredentials([saved]);
-                      }
-                      setAdminEmailInput(saved.email);
-                      setAdminPasswordInput('');
-                      setConfigSuccessMsg(
-                        `Saved to Firestore (${adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'})!`
-                      );
-                      setTimeout(() => {
-                        setShowCredentialConfig(false);
-                        setConfigSuccessMsg('');
-                      }, 1200);
-                    } catch (err: any) {
-                      setConfigErrorMsg(err.message || 'Failed to save credentials to database.');
-                    } finally {
-                      setConfigSaving(false);
-                    }
-                  }}
-                  className="space-y-4"
-                >
-                  <div className="bg-slate-800/70 border border-slate-700/60 rounded-xl p-3 text-xs text-slate-300 space-y-1">
-                    <p className="font-bold text-white flex items-center space-x-1.5">
-                      <Database className="w-3.5 h-3.5 text-amber-600" />
-                      <span>
-                        Update {adminTargetPortal === 'property_manager' ? 'Property Manager' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'} DB Login
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      Saves login & password directly to Firestore collection{' '}
-                      <code className="text-amber-700 font-mono">
-                        {adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'}
-                      </code>.
-                    </p>
+                /* ── Distinct Per-Admin Set in DB View: Each admin has its own dedicated collection and option ── */
+                <div className="space-y-4">
+                  {/* Sub-selector for which Admin to configure in DB */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Select Admin to Update in DB:
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfigPortalTab('admin');
+                          setConfigErrorMsg('');
+                          setConfigSuccessMsg('');
+                        }}
+                        className={`flex items-center justify-center space-x-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                          configPortalTab === 'admin'
+                            ? 'bg-violet-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        <span>Super Admin</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfigPortalTab('property_manager');
+                          setConfigErrorMsg('');
+                          setConfigSuccessMsg('');
+                        }}
+                        className={`flex items-center justify-center space-x-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                          configPortalTab === 'property_manager'
+                            ? 'bg-amber-500 text-amber-950 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <Building2 className="w-3 h-3" />
+                        <span>Property</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfigPortalTab('sales_manager');
+                          setConfigErrorMsg('');
+                          setConfigSuccessMsg('');
+                        }}
+                        className={`flex items-center justify-center space-x-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                          configPortalTab === 'sales_manager'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Sales Admin</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      New {adminTargetPortal === 'property_manager' ? 'Property Manager' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'} Login (Email / Username)
-                    </label>
-                    <input
-                      type="text"
-                      value={configEmailInput}
-                      onChange={(e) => { setConfigEmailInput(e.target.value); setConfigErrorMsg(''); }}
-                      placeholder={adminTargetPortal === 'property_manager' ? 'manager@lykarealty.ae' : adminTargetPortal === 'sales_manager' ? 'sales@lykarealty.ae' : 'admin@lykarealty.ae'}
-                      required
-                      className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
-                    />
-                  </div>
+                  {/* ── Option 1: Sales Admin Option (Saves into Sales_login collection) ── */}
+                  {configPortalTab === 'sales_manager' && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveIndividualPortalCredential('sales_manager');
+                      }}
+                      className="bg-slate-800/50 border border-emerald-500/40 rounded-xl p-4 space-y-3 shadow-md"
+                    >
+                      <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <Copy className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs font-bold text-emerald-300">Sales Admin Database Configuration</span>
+                        </div>
+                        <code className="text-[10px] font-mono text-emerald-300 bg-emerald-950/80 border border-emerald-700/50 px-2 py-0.5 rounded">
+                          Sales_login/sales_manager
+                        </code>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Sets the dedicated email ID and password for the Sales Manager. Saved strictly in the <code className="text-emerald-400">Sales_login</code> collection. OTP verification codes will be sent directly to this email.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+                            Sales Admin Email ID
+                          </label>
+                          <input
+                            type="email"
+                            value={configSalesEmail}
+                            onChange={(e) => { setConfigSalesEmail(e.target.value); setConfigErrorMsg(''); }}
+                            placeholder="sales@lykarealty.ae"
+                            required
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+                            Sales Admin Password
+                          </label>
+                          <input
+                            type="text"
+                            value={configSalesPassword}
+                            onChange={(e) => { setConfigSalesPassword(e.target.value); setConfigErrorMsg(''); }}
+                            placeholder="Enter sales password"
+                            required
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+                          />
+                        </div>
+                      </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      New Password
-                    </label>
-                    <input
-                      type="text"
-                      value={configPasswordInput}
-                      onChange={(e) => { setConfigPasswordInput(e.target.value); setConfigErrorMsg(''); }}
-                      placeholder="Enter new password for database"
-                      required
-                      className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors font-mono"
-                    />
-                  </div>
+                      <div className="pt-2 flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCredentialConfig(false)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={configSaving}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{configSaving ? 'Saving to Sales_login...' : 'Save Sales Admin to DB'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* ── Option 2: Property Manager Option (Saves into Property_login collection) ── */}
+                  {configPortalTab === 'property_manager' && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveIndividualPortalCredential('property_manager');
+                      }}
+                      className="bg-slate-800/50 border border-amber-500/40 rounded-xl p-4 space-y-3 shadow-md"
+                    >
+                      <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <Building2 className="w-4 h-4 text-amber-400" />
+                          <span className="text-xs font-bold text-amber-300">Property Admin Database Configuration</span>
+                        </div>
+                        <code className="text-[10px] font-mono text-amber-300 bg-amber-950/80 border border-amber-700/50 px-2 py-0.5 rounded">
+                          Property_login/property_manager
+                        </code>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Sets the dedicated email ID and password for Property Manager. Saved strictly in the <code className="text-amber-400">Property_login</code> collection.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+                            Property Admin Email ID
+                          </label>
+                          <input
+                            type="email"
+                            value={configPmEmail}
+                            onChange={(e) => { setConfigPmEmail(e.target.value); setConfigErrorMsg(''); }}
+                            placeholder="manager@lykarealty.ae"
+                            required
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+                            Property Admin Password
+                          </label>
+                          <input
+                            type="text"
+                            value={configPmPassword}
+                            onChange={(e) => { setConfigPmPassword(e.target.value); setConfigErrorMsg(''); }}
+                            placeholder="Enter property password"
+                            required
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCredentialConfig(false)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={configSaving}
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{configSaving ? 'Saving to Property_login...' : 'Save Property Admin to DB'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* ── Option 3: Super Admin Option (Saves into Admin_login collection) ── */}
+                  {configPortalTab === 'admin' && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveIndividualPortalCredential('admin');
+                      }}
+                      className="bg-slate-800/50 border border-violet-500/40 rounded-xl p-4 space-y-3 shadow-md"
+                    >
+                      <div className="flex items-center justify-between border-b border-violet-500/20 pb-2">
+                        <div className="flex items-center space-x-2">
+                          <ShieldCheck className="w-4 h-4 text-violet-400" />
+                          <span className="text-xs font-bold text-violet-300">Super Admin Database Configuration</span>
+                        </div>
+                        <code className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-700/50 px-2 py-0.5 rounded">
+                          Admin_login/admin
+                        </code>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Sets the dedicated email ID and password for Super Admin. Saved strictly in the <code className="text-violet-400">Admin_login</code> collection.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+                            Super Admin Email ID
+                          </label>
+                          <input
+                            type="email"
+                            value={configAdminEmail}
+                            onChange={(e) => { setConfigAdminEmail(e.target.value); setConfigErrorMsg(''); }}
+                            placeholder="admin@lykarealty.ae"
+                            required
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
+                            Super Admin Password
+                          </label>
+                          <input
+                            type="text"
+                            value={configAdminPassword}
+                            onChange={(e) => { setConfigAdminPassword(e.target.value); setConfigErrorMsg(''); }}
+                            placeholder="Enter admin password"
+                            required
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowCredentialConfig(false)}
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={configSaving}
+                          className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{configSaving ? 'Saving to Admin_login...' : 'Save Super Admin to DB'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
 
                   {configErrorMsg && (
                     <div className="text-xs text-red-400 bg-red-950/50 border border-red-500/40 rounded-xl px-3 py-2">
@@ -2214,25 +2480,7 @@ export default function App() {
                       <span>{configSuccessMsg}</span>
                     </div>
                   )}
-
-                  <div className="flex space-x-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowCredentialConfig(false)}
-                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={configSaving}
-                      className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-md"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>{configSaving ? 'Saving...' : 'Save'}</span>
-                    </button>
-                  </div>
-                </form>
+                </div>
               ) : (
                 /* ── Standard Portal Login Form (Verifies Email, Password & 6-Digit OTP against Firestore DB) ── */
                 <form

@@ -30,6 +30,7 @@ import {
 
 interface AssignedPropertiesViewProps {
   properties: PropertyListing[];
+  canManageBookings?: boolean;
   onBookProperty: (propertyId: string, details: {
     customerName: string;
     customerPhone: string;
@@ -42,6 +43,7 @@ interface AssignedPropertiesViewProps {
 
 export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
   properties,
+  canManageBookings = true,
   onBookProperty,
   onUnbookProperty,
 }) => {
@@ -132,6 +134,10 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
   const handleApplyBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManageBookings) {
+      setErrorBanner('Super Admin has View-Only access. Only Property Admin can book or assign properties.');
+      return;
+    }
     if (!selectedPropId) {
       setErrorBanner('Please select a property to assign.');
       return;
@@ -180,6 +186,10 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
   };
 
   const handleReleaseBooking = async (propertyId: string, title: string) => {
+    if (!canManageBookings) {
+      setErrorBanner('Super Admin has View-Only access. Only Property Admin can cancel or release bookings.');
+      return;
+    }
     if (!confirm(`Are you sure you want to cancel booking for "${title}" and make it AVAILABLE again?`)) {
       return;
     }
@@ -242,23 +252,25 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 </span>
               </h2>
               <p className="text-xs text-slate-500">
-                Click any available property in the list area below to assign / book it. Once booked, it is automatically locked and <span className="text-amber-700 font-bold">excluded from AI Chatbot recommendations</span>.
+                Click any available property in the list area below to assign or book it. Once booked, it is automatically locked and excluded from AI Chatbot recommendations.
               </p>
             </div>
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            setErrorBanner(null);
-            setSelectedPropId(availableProperties[0]?.id || '');
-            setShowAssignModal(true);
-          }}
-          className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md self-start sm:self-auto cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Book / Assign Property</span>
-        </button>
+        {canManageBookings && (
+          <button
+            onClick={() => {
+              setErrorBanner(null);
+              setSelectedPropId(availableProperties[0]?.id || '');
+              setShowAssignModal(true);
+            }}
+            className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md self-start sm:self-auto cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Book / Assign Property</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -457,15 +469,17 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   </div>
 
                   {/* Primary Click to Book Button */}
-                  <div className="p-4 pt-0">
-                    <button
-                      onClick={() => handleOpenBookingForProperty(prop.id)}
-                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer group-hover:bg-emerald-500"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>⚡ Book / Assign This Property</span>
-                    </button>
-                  </div>
+                  {canManageBookings && (
+                    <div className="p-4 pt-0">
+                      <button
+                        onClick={() => handleOpenBookingForProperty(prop.id)}
+                        className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer group-hover:bg-emerald-500"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>⚡ Book / Assign This Property</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -598,15 +612,17 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                         <span>🔒 Excluded from Chatbot</span>
                       </span>
 
-                      <button
-                        onClick={() => handleReleaseBooking(prop.id, prop.title)}
-                        disabled={actionLoading}
-                        className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2.5 py-1.5 rounded-lg border border-rose-500/30 hover:border-rose-500 hover:bg-rose-50 transition-all flex items-center space-x-1 cursor-pointer"
-                        title="Cancel booking and restore property to available status in AI Chatbot"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Cancel Booking</span>
-                      </button>
+                      {canManageBookings && (
+                        <button
+                          onClick={() => handleReleaseBooking(prop.id, prop.title)}
+                          disabled={actionLoading}
+                          className="text-xs text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1.5 rounded-lg border border-rose-500/30 hover:border-rose-500 hover:bg-rose-950/30 transition-all flex items-center space-x-1 cursor-pointer"
+                          title="Cancel booking and restore property to available status in AI Chatbot"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Cancel Booking</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -675,23 +691,25 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-800 flex items-center justify-end">
-                      {isBooked ? (
-                        <button
-                          onClick={() => handleReleaseBooking(prop.id, prop.title)}
-                          className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2.5 py-1 rounded-lg border border-rose-500/30 hover:border-rose-500 cursor-pointer"
-                        >
-                          Cancel Booking
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleOpenBookingForProperty(prop.id)}
-                          className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg cursor-pointer"
-                        >
-                          Book Unit
-                        </button>
-                      )}
-                    </div>
+                    {canManageBookings && (
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-end">
+                        {isBooked ? (
+                          <button
+                            onClick={() => handleReleaseBooking(prop.id, prop.title)}
+                            className="text-xs text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg border border-rose-500/30 hover:border-rose-500 cursor-pointer"
+                          >
+                            Cancel Booking
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenBookingForProperty(prop.id)}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg cursor-pointer"
+                          >
+                            Book Unit
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

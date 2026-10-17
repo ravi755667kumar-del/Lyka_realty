@@ -114,6 +114,131 @@ async function initFirebase(): Promise<boolean> {
   }
 }
 
+// ── Persistent Disk Store & Safe Firestore Helpers for Portal Credentials ─────
+const CREDENTIALS_FILE = path.join(__dirname, 'portal-credentials.json');
+
+interface StoredPortalCredentials {
+  admin: {
+    id: string;
+    email: string;
+    password: string;
+    role: string;
+    name: string;
+    updatedAt: string;
+  };
+  property_manager: {
+    id: string;
+    email: string;
+    password: string;
+    role: string;
+    name: string;
+    updatedAt: string;
+  };
+  sales_manager: {
+    id: string;
+    email: string;
+    password: string;
+    role: string;
+    name: string;
+    updatedAt: string;
+  };
+}
+
+const DEFAULT_SERVER_CREDENTIALS: StoredPortalCredentials = {
+  admin: {
+    id: 'admin',
+    email: 'admin@lykarealty.ae',
+    password: 'LykaAdmin2024',
+    role: 'admin',
+    name: 'Lyka Super Admin',
+    updatedAt: new Date().toISOString()
+  },
+  property_manager: {
+    id: 'property_manager',
+    email: 'manager@lykarealty.ae',
+    password: 'LykaManager2024',
+    role: 'property_manager',
+    name: 'Lyka Property Manager',
+    updatedAt: new Date().toISOString()
+  },
+  sales_manager: {
+    id: 'sales_manager',
+    email: 'sales@lykarealty.ae',
+    password: 'LykaSales2024',
+    role: 'sales_manager',
+    name: 'Lyka Sales Manager',
+    updatedAt: new Date().toISOString()
+  }
+};
+
+function loadStoredPortalCredentials(): StoredPortalCredentials {
+  try {
+    if (fs.existsSync(CREDENTIALS_FILE)) {
+      const raw = fs.readFileSync(CREDENTIALS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return {
+        admin: { ...DEFAULT_SERVER_CREDENTIALS.admin, ...(parsed.admin || {}) },
+        property_manager: { ...DEFAULT_SERVER_CREDENTIALS.property_manager, ...(parsed.property_manager || {}) },
+        sales_manager: { ...DEFAULT_SERVER_CREDENTIALS.sales_manager, ...(parsed.sales_manager || {}) }
+      };
+    }
+  } catch (err: any) {
+    console.warn('[Credentials] Failed reading credentials file:', err.message);
+  }
+  return { ...DEFAULT_SERVER_CREDENTIALS };
+}
+
+function saveStoredPortalCredentials(creds: StoredPortalCredentials): void {
+  try {
+    fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), 'utf-8');
+  } catch (err: any) {
+    console.warn('[Credentials] Failed writing credentials file:', err.message);
+  }
+}
+
+// Ensure credentials file is initialized on disk
+try {
+  if (!fs.existsSync(CREDENTIALS_FILE)) {
+    saveStoredPortalCredentials(DEFAULT_SERVER_CREDENTIALS);
+  }
+} catch (_) {}
+
+/**
+ * Safe non-blocking Firestore write that times out after timeoutMs (default 3500ms).
+ * Prevents gRPC ETIMEDOUT stream locks from hanging API requests.
+ */
+async function safeFirestoreSetDoc(docRef: any, data: any, options: any = { merge: true }, timeoutMs = 3500): Promise<boolean> {
+  if (!firestoreDb) return false;
+  try {
+    const writePromise = fsSetDoc(docRef, data, options);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore write timeout')), timeoutMs)
+    );
+    await Promise.race([writePromise, timeoutPromise]);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Firestore Safe Write] Non-blocking notice for ${docRef?.path || 'doc'}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Safe non-blocking Firestore read with a timeout.
+ */
+async function safeFirestoreGetDoc(docRef: any, timeoutMs = 3000): Promise<any> {
+  if (!firestoreDb) return null;
+  try {
+    const getPromise = fsGetDoc(docRef);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore read timeout')), timeoutMs)
+    );
+    return await Promise.race([getPromise, timeoutPromise]);
+  } catch (err: any) {
+    console.warn(`[Firestore Safe Read] Non-blocking notice for ${docRef?.path || 'doc'}:`, err.message);
+    return null;
+  }
+}
+
 // Vector status state for Firebase Firestore (Primary Vector Database)
 let vectorStoreStatus = {
   storageMode: 'Firebase Firestore',
@@ -426,11 +551,7 @@ async function syncPdfEmbeddingsToFirebase() {
 
     // Save directly to Firebase Firestore collection 'pdf_knowledge_embeddings'
     if (firestoreDb) {
-      try {
-        await fsSetDoc(fsDoc(firestoreDb, 'pdf_knowledge_embeddings', docId), doc, { merge: true });
-      } catch (err: any) {
-        console.warn('[PDF] Firestore pdf embedding sync notice:', err.message);
-      }
+      await safeFirestoreSetDoc(fsDoc(firestoreDb, 'pdf_knowledge_embeddings', docId), doc, { merge: true }, 2500);
     }
   }
 
@@ -484,11 +605,7 @@ async function syncPropertyEmbeddingsToFirebase() {
     localPropertyEmbeddingsStore.push(doc);
 
     if (firestoreDb) {
-      try {
-        await fsSetDoc(fsDoc(firestoreDb, 'property_embeddings', docId), doc, { merge: true });
-      } catch (err: any) {
-        console.warn('[Properties] Firestore property embedding sync notice:', err.message);
-      }
+      await safeFirestoreSetDoc(fsDoc(firestoreDb, 'property_embeddings', docId), doc, { merge: true }, 2500);
     }
   }
   if (firestoreDb) {
@@ -1104,7 +1221,12 @@ app.post('/api/auth/verify-email-otp', async (req: Request, res: Response) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = String(otp).trim();
     const otpKey = `${portal || 'admin'}_${cleanEmail}`;
-    const record = activeEmailOtps[otpKey];
+    let record = activeEmailOtps[otpKey];
+    if (!record) {
+      // Robust lookup fallback: find any active OTP registered for this email
+      const matchedKey = Object.keys(activeEmailOtps).find(k => k.endsWith(`_${cleanEmail}`));
+      if (matchedKey) record = activeEmailOtps[matchedKey];
+    }
 
     if (!record) {
       return res.status(400).json({ valid: false, message: 'No OTP requested for this email. Please click "Get OTP" first.' });
@@ -1122,6 +1244,8 @@ app.post('/api/auth/verify-email-otp', async (req: Request, res: Response) => {
 
     // OTP is valid! Delete once consumed
     delete activeEmailOtps[otpKey];
+    const anyAlt = Object.keys(activeEmailOtps).find(k => k.endsWith(`_${cleanEmail}`));
+    if (anyAlt) delete activeEmailOtps[anyAlt];
     return res.json({ valid: true, message: 'OTP verified successfully.' });
 
   } catch (error: any) {
@@ -1138,6 +1262,7 @@ app.post('/api/auth/clear-email-otp', async (req: Request, res: Response) => {
       delete activeEmailOtps[`${portal || 'admin'}_${cleanEmail}`];
       delete activeEmailOtps[`admin_${cleanEmail}`];
       delete activeEmailOtps[`property_manager_${cleanEmail}`];
+      delete activeEmailOtps[`sales_manager_${cleanEmail}`];
     } else {
       for (const k of Object.keys(activeEmailOtps)) {
         delete activeEmailOtps[k];
@@ -1207,6 +1332,47 @@ app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/auth/portal-credentials — retrieves current credentials from persistent store & Firestore
+app.get('/api/auth/portal-credentials', async (_req: Request, res: Response) => {
+  try {
+    const diskCreds = loadStoredPortalCredentials();
+    const result: any = {
+      admin: { ...diskCreds.admin },
+      property_manager: { ...diskCreds.property_manager },
+      sales_manager: { ...diskCreds.sales_manager }
+    };
+
+    // Fast-query Firestore if connected and responsive
+    if (firestoreDb) {
+      try {
+        const [aSnap, pSnap, sSnap] = await Promise.all([
+          safeFirestoreGetDoc(fsDoc(firestoreDb, 'Admin_login', 'admin'), 2500),
+          safeFirestoreGetDoc(fsDoc(firestoreDb, 'Property_login', 'property_manager'), 2500),
+          safeFirestoreGetDoc(fsDoc(firestoreDb, 'Sales_login', 'sales_manager'), 2500)
+        ]);
+        if (aSnap && aSnap.exists()) {
+          const d = aSnap.data();
+          if (d.email && d.password) result.admin = { ...result.admin, ...d, email: d.email || d.Email_id };
+        }
+        if (pSnap && pSnap.exists()) {
+          const d = pSnap.data();
+          if (d.email && d.password) result.property_manager = { ...result.property_manager, ...d, email: d.email || d.Email_id };
+        }
+        if (sSnap && sSnap.exists()) {
+          const d = sSnap.data();
+          if (d.email && d.password) result.sales_manager = { ...result.sales_manager, ...d, email: d.email || d.Email_id };
+        }
+      } catch (err: any) {
+        console.warn('[Portal Auth API] Fast Firestore credentials read notice:', err.message);
+      }
+    }
+
+    return res.json({ success: true, credentials: result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // POST /api/auth/record-sales-login — records successful Sales Manager login in Firestore (Sales_login and login_events)
 app.post('/api/auth/record-sales-login', async (req: Request, res: Response) => {
   try {
@@ -1221,38 +1387,30 @@ app.post('/api/auth/record-sales-login', async (req: Request, res: Response) => 
       name: (name || 'Lyka Sales Manager').trim(),
       role: 'sales_manager',
       last_login: now,
-      login_history: fsArrayUnion(now),
       status: 'active',
       auth_provider: method || 'Sales_Portal_Login',
       updatedAt: now
     };
 
     if (firestoreDb) {
-      try {
-        // 1. Update Sales_login collection documents
-        await fsSetDoc(fsDoc(firestoreDb, 'Sales_login', 'sales_manager'), salesLoginData, { merge: true });
-        if (cleanEmail && cleanEmail.toLowerCase() !== 'sales_manager') {
-          await fsSetDoc(fsDoc(firestoreDb, 'Sales_login', cleanEmail.toLowerCase()), salesLoginData, { merge: true });
-        }
+      // 1. Update Sales_login collection document safely (non-blocking with timeout)
+      safeFirestoreSetDoc(fsDoc(firestoreDb, 'Sales_login', 'sales_manager'), {
+        ...salesLoginData,
+        login_history: fsArrayUnion(now)
+      }, { merge: true }, 3000).catch(e => console.warn('[Sales Login API] Firestore notice:', e.message));
 
-        // 2. Also record in Admin_login so super admin can audit logins
-        await fsSetDoc(fsDoc(firestoreDb, 'Admin_login', 'sales_manager'), salesLoginData, { merge: true });
+      // 2. Record in login_events collection for analytics and timeline
+      const eventId = `EVT-SALES-${Date.now()}`;
+      safeFirestoreSetDoc(fsDoc(firestoreDb, 'login_events', eventId), {
+        userId: 'sales_manager',
+        email: cleanEmail,
+        fullName: name || 'Lyka Sales Manager',
+        authProvider: method || 'Sales_Portal_Login',
+        role: 'sales_manager',
+        timestamp: now
+      }, { merge: true }, 3000).catch(e => console.warn('[Sales Login API] Firestore event notice:', e.message));
 
-        // 3. Record in login_events collection for analytics and timeline
-        const eventId = `EVT-SALES-${Date.now()}`;
-        await fsSetDoc(fsDoc(firestoreDb, 'login_events', eventId), {
-          userId: 'sales_manager',
-          email: cleanEmail,
-          fullName: name || 'Lyka Sales Manager',
-          authProvider: method || 'Sales_Portal_Login',
-          role: 'sales_manager',
-          timestamp: now
-        }, { merge: true });
-
-        console.log(`[Sales Login API] Successfully recorded Sales Manager login in Firestore for ${cleanEmail}`);
-      } catch (fsErr: any) {
-        console.warn('[Sales Login API] Firestore write notice:', fsErr.message);
-      }
+      console.log(`[Sales Login API] Initiated Sales Manager login recording in Firestore for ${cleanEmail}`);
     }
 
     return res.json({ success: true, record: salesLoginData });
@@ -1270,31 +1428,35 @@ app.post('/api/auth/save-portal-credential', async (req: Request, res: Response)
       return res.status(400).json({ success: false, error: 'portal, email, and password required.' });
     }
     const cleanEmail = String(email).trim();
-    const targetDocId = docId || (portal === 'admin' ? 'admin' : portal === 'property_manager' ? 'property_manager' : 'sales_manager');
+    const cleanPassword = String(password).trim();
+    const portalKey: 'admin' | 'property_manager' | 'sales_manager' =
+      portal === 'sales_manager' ? 'sales_manager' : portal === 'property_manager' ? 'property_manager' : 'admin';
+    const targetDocId = docId || portalKey;
     const now = new Date().toISOString();
 
     const payload: any = {
       id: targetDocId,
       email: cleanEmail,
       Email_id: cleanEmail,
-      password: String(password).trim(),
-      role: portal,
-      name: name || (portal === 'sales_manager' ? 'Lyka Sales Manager' : portal === 'admin' ? 'Lyka Super Admin' : 'Lyka Property Manager'),
+      password: cleanPassword,
+      role: portalKey,
+      name: name || (portalKey === 'sales_manager' ? 'Lyka Sales Manager' : portalKey === 'admin' ? 'Lyka Super Admin' : 'Lyka Property Manager'),
       updatedAt: now
     };
 
+    // 1. Immediately persist to server disk & memory
+    const allCreds = loadStoredPortalCredentials();
+    allCreds[portalKey] = payload;
+    saveStoredPortalCredentials(allCreds);
+
+    // 2. Safely sync to Firestore in the dedicated collection without hanging
     if (firestoreDb) {
-      try {
-        const collectionName = portal === 'sales_manager' ? 'Sales_login' : portal === 'property_manager' ? 'Property_login' : 'Admin_login';
-        await fsSetDoc(fsDoc(firestoreDb, collectionName, targetDocId), payload, { merge: true });
-        if (cleanEmail && cleanEmail.toLowerCase() !== targetDocId.toLowerCase()) {
-          await fsSetDoc(fsDoc(firestoreDb, collectionName, cleanEmail.toLowerCase()), payload, { merge: true });
-        }
-        await fsSetDoc(fsDoc(firestoreDb, 'Admin_login', targetDocId), payload, { merge: true });
-        console.log(`[Portal Auth API] Saved ${portal} credential to Firestore collection ${collectionName} for ${cleanEmail}`);
-      } catch (fsErr: any) {
-        console.warn('[Portal Auth API] Firestore write notice:', fsErr.message);
-      }
+      const collectionName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
+      const docRef = fsDoc(firestoreDb, collectionName, targetDocId);
+      safeFirestoreSetDoc(docRef, payload, { merge: true }, 4000).catch((e) => {
+        console.warn(`[Portal Auth API] Background Firestore write warning for ${collectionName}:`, e.message);
+      });
+      console.log(`[Portal Auth API] Saved ${portalKey} credential for ${cleanEmail} to ${collectionName}/${targetDocId}`);
     }
 
     return res.json({ success: true, credential: payload });
