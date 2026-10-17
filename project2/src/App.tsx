@@ -2292,7 +2292,7 @@ export default function App() {
                             onChange={(e) => { setConfigSalesEmail(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="sales@lykarealty.ae"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none"
                           />
                         </div>
                         <div>
@@ -2305,7 +2305,7 @@ export default function App() {
                             onChange={(e) => { setConfigSalesPassword(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="Enter sales password"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
                           />
                         </div>
                       </div>
@@ -2362,7 +2362,7 @@ export default function App() {
                             onChange={(e) => { setConfigPmEmail(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="manager@lykarealty.ae"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none"
                           />
                         </div>
                         <div>
@@ -2375,7 +2375,7 @@ export default function App() {
                             onChange={(e) => { setConfigPmPassword(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="Enter property password"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
                           />
                         </div>
                       </div>
@@ -2432,7 +2432,7 @@ export default function App() {
                             onChange={(e) => { setConfigAdminEmail(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="admin@lykarealty.ae"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none"
                           />
                         </div>
                         <div>
@@ -2445,7 +2445,7 @@ export default function App() {
                             onChange={(e) => { setConfigAdminPassword(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="Enter admin password"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none font-mono"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
                           />
                         </div>
                       </div>
@@ -2660,7 +2660,7 @@ export default function App() {
                           placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
                           autoFocus
                           required
-                          className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
+                          className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#1c1611] font-semibold placeholder-slate-500 outline-none transition-colors"
                         />
                       </div>
                       <button
@@ -2761,7 +2761,7 @@ export default function App() {
                         onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminLoginError(''); }}
                         placeholder="Enter password"
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-300 placeholder-slate-500 outline-none transition-colors"
+                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#1c1611] font-semibold placeholder-slate-500 outline-none transition-colors"
                       />
                     </div>
                   </div>
@@ -2825,7 +2825,7 @@ export default function App() {
                       }}
                       placeholder={adminOtpSent ? "Type 6-digit OTP from email" : "Click 'Get OTP' above first"}
                       required
-                      className={`w-full bg-slate-800 border rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-500 outline-none transition-colors font-mono tracking-widest ${
+                      className={`w-full bg-slate-800 border rounded-xl px-3.5 py-2.5 text-sm text-[#1c1611] font-bold placeholder-slate-500 outline-none transition-colors font-mono tracking-widest ${
                         !adminOtpSent
                           ? 'opacity-50 cursor-not-allowed border-slate-700'
                           : 'border-slate-700 focus:border-amber-500'

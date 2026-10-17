@@ -1954,43 +1954,43 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         </div>
 
         {/* ─── Conversation Stream ─── */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 space-y-6">
-          <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-3 sm:py-4 space-y-4">
+          <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto space-y-4">
 
             {/* Welcome Hero */}
             {messages.length <= 1 && (
-              <div className="py-6 sm:py-10 space-y-8 animate-fade-in">
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center justify-center mb-1">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 shadow-md shadow-amber-500/20 border border-amber-300/60">
-                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 fill-amber-950 text-amber-950" />
+              <div className="pt-1 pb-2 sm:pt-2 sm:pb-3 space-y-4 animate-fade-in">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center mb-0.5">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 shadow-md shadow-amber-500/20 border border-amber-300/60">
+                      <Sparkles className="w-5 h-5 fill-amber-950 text-amber-950" />
                     </div>
                   </div>
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-amber-800 via-amber-900 to-amber-950 bg-clip-text text-transparent text-center tracking-tight">
+                  <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-amber-800 via-amber-900 to-amber-950 bg-clip-text text-transparent text-center tracking-tight">
                     Hello{userLoggedIn ? `, ${userName}` : ''}! Welcome to Lyka Realty.
                   </h1>
-                  <p className="text-base sm:text-lg text-[#6b5843] leading-relaxed text-center max-w-2xl mx-auto">
+                  <p className="text-sm sm:text-base text-[#6b5843] leading-relaxed text-center max-w-2xl mx-auto">
                     I'm your AI Property Advisor for Dubai & prime India corridors. Tell me what you're looking for — I'll qualify your requirements and find matching verified properties.
                   </p>
                 </div>
 
                 {/* Prompt Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 pt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                   {promptCards.map((card, i) => (
                     <div
                       key={i}
                       onClick={() => onSendMessage(card.prompt, { groqApiKey: groqKeyInput.trim() || undefined, groqModel: activeModel })}
-                      className="bg-[#f7f2e6] hover:bg-[#eee6d3] border border-[#d6cbb4] hover:border-amber-400/60 p-5 sm:p-6 rounded-2xl cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-3 group shadow-xs hover:shadow-md"
+                      className="bg-[#f7f2e6] hover:bg-[#eee6d3] border border-[#d6cbb4] hover:border-amber-400/60 p-3.5 sm:p-4 rounded-xl cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-2 group shadow-xs hover:shadow-md"
                     >
                       <div className="flex items-start justify-between">
-                        <span className="font-bold text-slate-300 text-sm sm:text-base group-hover:text-amber-800 transition-colors">
+                        <span className="font-bold text-slate-300 text-sm group-hover:text-amber-800 transition-colors">
                           {card.title}
                         </span>
-                        <div className="p-2 sm:p-2.5 rounded-xl bg-[#ffffff] border border-[#d6cbb4] group-hover:border-amber-400/60 transition-colors">
+                        <div className="p-1.5 sm:p-2 rounded-lg bg-[#ffffff] border border-[#d6cbb4] group-hover:border-amber-400/60 transition-colors">
                           {card.icon}
                         </div>
                       </div>
-                      <p className="text-xs sm:text-sm text-[#6b5843] leading-relaxed">{card.desc}</p>
+                      <p className="text-xs text-[#6b5843] leading-relaxed">{card.desc}</p>
                     </div>
                   ))}
                 </div>
