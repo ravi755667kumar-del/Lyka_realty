@@ -18,7 +18,9 @@
   --color-slate-800: #f7f2e6;  /* cards */
   --color-slate-700: #eee6d3;  /* chips / tags */
 
-  /* Warm dark browns for text — 300 strongest, 600 most muted */
+  /* Warm dark browns for text — 100/200 lite black, 300 strongest brown, 600 most muted */
+  --color-slate-100: #1c1611;
+  --color-slate-200: #2d241d;
   --color-slate-300: #463726;
   --color-slate-400: #5a4835;
   --color-slate-500: #6b5843;
