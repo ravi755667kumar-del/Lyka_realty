@@ -576,15 +576,11 @@ function cleanStatedName(value: string): string | undefined {
 // Wording per Section 5.5: a genuine re-ask must be phrased differently and
 // carry context. This is the only re-ask the guide permits (Section 5.4).
 const CONTACT_QUESTIONS: Record<'name' | 'mobile' | 'email', (recheck: boolean) => string> = {
-  name: (recheck) => recheck
-    ? `So that I can pass this on correctly, could you tell me your name again?`
-    : `Before we go further — so the Lyka Realty team knows exactly who to follow up with, may I have your name?`,
+  name: (_recheck) => `Could you please share your **mobile number** (with country code)?`,
   mobile: (recheck) => recheck
-    ? `Thank you. So the team can call or WhatsApp you, what is the best mobile number to reach you on? That one looked a little incomplete.`
-    : `Thank you. These details are only so the sales team can follow up properly. Could you share a mobile number where they can reach you, by call or WhatsApp?`,
-  email: (recheck) => recheck
-    ? `Thank you! That email address does not look complete — could you confirm it for the team?`
-    : `Perfect. Lastly, may I have your email address too, so the team can send you the shortlisted properties?`,
+    ? `Thank you. Could you please confirm your **mobile number** (with country code) so our senior advisor can assist you on call or WhatsApp?`
+    : `Could you please share your **mobile number** (with country code)? This way, our senior property advisor can share detailed property options and brochure details directly with you on call or WhatsApp.`,
+  email: (_recheck) => `Could you please share your **mobile number** (with country code)?`,
 };
 
 // ─── Answer Extraction ───────────────────────────────────────────────────────
@@ -797,28 +793,28 @@ function markUncertainSlot(profile: CustomerProfile, fields: string[], userMessa
   }
 }
 
-const BUY_SLOTS = ['budget_max', 'preferred_communities', 'property_type', 'bedrooms', 'ready_or_offplan', 'financing', 'timeline'];
-const RENT_SLOTS = ['rental_budget', 'preferred_communities', 'property_type', 'bedrooms', 'furnishing', 'move_in_date'];
-const INVEST_SLOTS = ['budget_max', 'investment_goal', 'preferred_communities', 'property_type', 'ready_or_offplan'];
-const SELL_SLOTS = ['preferred_communities', 'property_type', 'budget_max'];
+const BUY_SLOTS = ['target_city', 'bedrooms', 'budget_max', 'preferred_communities', 'property_type', 'ready_or_offplan', 'financing', 'timeline'];
+const RENT_SLOTS = ['target_city', 'bedrooms', 'rental_budget', 'preferred_communities', 'property_type', 'furnishing', 'move_in_date'];
+const INVEST_SLOTS = ['target_city', 'bedrooms', 'budget_max', 'investment_goal', 'preferred_communities', 'property_type', 'ready_or_offplan'];
+const SELL_SLOTS = ['target_city', 'preferred_communities', 'property_type', 'budget_max'];
 
 // ─── Graph Nodes ─────────────────────────────────────────────────────────────
 
 async function nodeGreet(state: AgentState): Promise<Partial<AgentState>> {
   if (isPropertyQuery(state.userMessage)) {
     const propAnswer = queryPropertyDatabase(state.userMessage);
-    const reply = `Hello, and welcome to Lyka Realty! 🏙️\n\n${propAnswer}\n\nTo help me tailor our listings to your specific journey — are you looking to **buy**, **rent**, **invest**, or **sell** a property today?`;
+    const reply = `Hello, and welcome to Lyka Realty! 🏙️\n\n${propAnswer}\n\nWhich country or city are you looking to explore — **Dubai (UAE)** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`;
     return { reply, provider: 'LangGraph → Property DB & Greet', currentNode: 'classify_intent', ragContext: '' };
   }
 
   const ragCtx = getRagContext(state.userMessage);
-  const systemPrompt = `You are Lyka, a warm and professional AI real estate concierge for Lyka Realty Dubai.
-The customer has just reached out for the first time with: "${state.userMessage}"
+  const systemPrompt = `You are Lyka, a warm and professional AI real estate concierge for Lyka Realty serving Dubai and India (Mumbai).
+The customer has just reached out with: "${state.userMessage}"
 
 CRITICAL INSTRUCTION — Follow this exact logic:
 1. First, check if the customer's message is a QUESTION (e.g., "Where are you located?", "Who are you?", "What properties do you have?", etc.)
-2. If YES — answer their question helpfully and accurately using the context below. Then, warmly greet them, briefly mention Lyka Realty's expertise (Dubai & Mumbai markets, 300+ clients), and smoothly ask if they are looking to **buy**, **rent**, **invest**, or **sell** a property.
-3. If NO (just a "hi" or general greeting) — greet them genuinely, briefly mention Lyka Realty's expertise, and ask if they are looking to **buy**, **rent**, **invest**, or **sell**.
+2. If YES — answer their question helpfully and accurately using the context below. Then, warmly greet them and ask which country/city they are exploring — **Dubai (UAE)** or **India (Mumbai)** — and if they want to **buy**, **rent**, or **invest**.
+3. If NO (just a "hi" or general greeting) — greet them genuinely, mention Lyka Realty's verified properties across Dubai and Mumbai, and ask whether they are looking for properties in **Dubai** or **India (Mumbai)**, and whether to **buy**, **rent**, or **invest**.
 
 NEVER ignore a user's question. Always answer it first.
 Keep your response conversational, warm, and under 120 words. No bullet points.
@@ -826,7 +822,7 @@ Keep your response conversational, warm, and under 120 words. No bullet points.
 ${ragCtx ? `KNOWLEDGE BASE CONTEXT:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory)
-    || `Hello and a very warm welcome to Lyka Realty! 🏙️ We're a premier Dubai-based real estate brokerage serving 300+ happy clients across Dubai and Mumbai.\n\nI'm Lyka, your personal AI property concierge. May I ask — are you looking to **buy**, **rent**, **invest**, or **sell** a property today?`;
+    || `Hello and a very warm welcome to Lyka Realty! 🏙️ We specialize in verified luxury and investment properties across **Dubai (UAE)** and **India (Mumbai)**.\n\nI'm Lyka, your personal property concierge. Which country are you looking to explore — **Dubai** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`;
 
   return { reply, provider: 'LangGraph → Greet Node', currentNode: 'greet', ragContext: ragCtx };
 }
@@ -834,46 +830,50 @@ ${ragCtx ? `KNOWLEDGE BASE CONTEXT:\n${ragCtx}\n` : ''}`;
 async function nodeClassifyIntent(state: AgentState): Promise<Partial<AgentState>> {
   const msg = state.userMessage.toLowerCase();
   let intent = state.profile.intent || '';
+  let targetCity = state.profile.target_city || '';
 
+  // Extract country / city
+  if (!targetCity) {
+    if (/\b(dubai|uae)\b/.test(msg)) targetCity = 'Dubai';
+    else if (/\b(india|mumbai|worli|bandra|juhu|bkc|powai|andheri|thane)\b/.test(msg)) targetCity = 'Mumbai';
+  }
+
+  // Extract intent
   if (!intent) {
     if (/\b(buy|purchase|buying|own|ownership|first home|end.?user)\b/.test(msg)) intent = 'Buy';
     else if (/\b(rent|renting|tenant|lease|monthly|short.?term)\b/.test(msg)) intent = 'Rent';
     else if (/\b(invest|investment|roi|yield|returns|portfolio|off.?plan|passive income)\b/.test(msg)) intent = 'Invest';
     else if (/\b(sell|selling|dispose|list my|put on market)\b/.test(msg)) intent = 'Sell';
+    else if (/\b(bed|beds|bedroom|bedrooms|bhk|br|apartment|villa|townhouse|penthouse)\b/.test(msg)) intent = 'Buy';
   }
 
   const ragCtx = getRagContext(state.userMessage);
-  const updatedProfile: CustomerProfile = { ...state.profile, intent: intent || undefined };
+  const updatedProfile: CustomerProfile = { ...state.profile, intent: intent || undefined, target_city: targetCity || undefined };
 
   if (!intent) {
     if (isPropertyQuery(state.userMessage)) {
       const propAnswer = queryPropertyDatabase(state.userMessage);
-      const reply = `${propAnswer}\n\nTo help me guide you to the right properties from our collection — are you looking to **buy**, **rent**, **invest**, or **sell** a property?`;
+      const reply = `${propAnswer}\n\nWhich country or city are you looking to explore — **Dubai (UAE)** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`;
       return { reply, provider: 'LangGraph → Property DB & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
     }
 
     const generalAnswer = queryGeneralKnowledge(state.userMessage);
     if (generalAnswer) {
-      const reply = `${generalAnswer}\n\nTo help guide your search — are you looking to **buy**, **rent**, **invest**, or **sell** a property?`;
+      const reply = `${generalAnswer}\n\nWhich country are you interested in — **Dubai (UAE)** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`;
       return { reply, provider: 'LangGraph → Knowledge & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
     }
 
     const systemPrompt = `You are Lyka, a warm Lyka Realty AI assistant for Dubai & Mumbai properties.
 
 The customer sent: "${state.userMessage}"
-You could not clearly detect their primary intent (Buy/Rent/Invest/Sell).
-
-CRITICAL INSTRUCTION — Follow this exact logic:
-1. First, check if the customer's message is a QUESTION (e.g., "Where is your office?", "What services do you offer?", "Tell me about Dubai real estate", etc.)
-2. If YES — answer their question helpfully and accurately using the context below. Then, smoothly ask if they are looking to **buy**, **rent**, **invest**, or **sell** a property.
-3. If NO — politely clarify their intent by asking if they are looking to **buy**, **rent**, **invest**, or **sell**.
+Ask whether they are looking for properties in **Dubai (UAE)** or **India (Mumbai)**, and whether they want to **buy**, **rent**, or **invest**.
 
 NEVER ignore a user's question. Always answer it first.
 Do not list bullet points. Keep it under 100 words.
 
 ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}` : ''}`;
     const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory)
-      || `Thank you for reaching out! Just to make sure I find the perfect match for you — are you looking to **buy**, **rent**, **invest**, or are you thinking of **selling** a property?`;
+      || `Thank you for reaching out! Which country are you looking to explore — **Dubai (UAE)** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`;
     return { reply, provider: 'LangGraph → Intent Classifier', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
   }
 
@@ -940,16 +940,38 @@ ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
     return { reply: finalReply, provider: 'LangGraph → Buy Qualification (Digression)', profile: p, currentNode: 'qualify_buy', ragContext: ragCtx };
   }
   
+  // 1. Prioritize Country / City selection (Dubai vs India)
+  if (slotMissing(p, 'target_city')) {
+    const question = `Which country or city are you looking to explore — **Dubai (UAE)** or **India (Mumbai)**?`;
+    const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
+The customer wants to buy a property.
+Customer's message: "${state.userMessage}"
+Warmly ask whether they are looking for properties in **Dubai (UAE)** or **India (Mumbai)**. Keep it polite, clear, and under 50 words.`;
+    const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
+    return { reply, provider: 'LangGraph → Location Selection', profile: p, currentNode: 'qualify_buy', ragContext: ragCtx };
+  }
+
+  // 2. Immediate property matching when parameters like bedrooms (e.g. 2 beds), community, or budget are provided
+  const hasCoreParameters = !!p.bedrooms || (p.preferred_communities && p.preferred_communities.length > 0) || !!p.budget_max || !!p.property_type;
+  if (hasCoreParameters) {
+    const matched = searchProperties(p);
+    if (matched.length > 0) {
+      return { matchedProperties: matched, profile: p, currentNode: 'present_results', reply: '' };
+    }
+  }
+
   // Normal qualification flow
   let question = '';
-  if (slotMissing(p, 'budget_max')) {
+  if (slotMissing(p, 'bedrooms')) {
+    question = `How many bedrooms would suit you best — Studio, 1BR, 2BR, 3BR, or larger?`;
+  } else if (slotMissing(p, 'budget_max')) {
     question = `What's your budget range for the purchase? For example, AED 1.5M – 3M (or in INR if you prefer). This helps me shortlist the best communities for you.`;
   } else if (slotMissing(p, 'preferred_communities')) {
-    question = `Great! Which Dubai community appeals to you most? Popular choices include Dubai Marina, Downtown, Palm Jumeirah, Business Bay, or Dubai Hills Estate. Any preferences, or shall I suggest based on your budget?`;
+    question = p.target_city === 'Mumbai'
+      ? `Which Mumbai locality do you prefer? (e.g. Worli, Bandra, Juhu, BKC, or Powai)`
+      : `Great! Which Dubai community appeals to you most? Popular choices include Dubai Marina, Downtown, Palm Jumeirah, Business Bay, or Dubai Hills Estate. Any preferences?`;
   } else if (slotMissing(p, 'property_type')) {
-    question = `Are you envisioning an apartment, a villa, a townhouse, or a penthouse? This helps me tailor the exact listings.`;
-  } else if (slotMissing(p, 'bedrooms')) {
-    question = `How many bedrooms would suit you best — 1BR, 2BR, 3BR, or larger?`;
+    question = `Are you envisioning an apartment, a villa, a townhouse, or a penthouse?`;
   } else if (slotMissing(p, 'ready_or_offplan')) {
     question = `Would you prefer a **ready** property (immediate move-in or rental income) or an **off-plan** project (flexible payment plans and potentially higher capital gains)?`;
   } else if (slotMissing(p, 'financing')) {
@@ -1033,16 +1055,38 @@ ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
     return { reply: finalReply, provider: 'LangGraph → Rent Qualification (Digression)', profile: p, currentNode: 'qualify_rent', ragContext: ragCtx };
   }
   
+  // 1. Prioritize Country / City selection (Dubai vs India)
+  if (slotMissing(p, 'target_city')) {
+    const question = `Which country or city are you looking to explore for rent — **Dubai (UAE)** or **India (Mumbai)**?`;
+    const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
+The customer wants to rent a property.
+Customer's message: "${state.userMessage}"
+Warmly ask whether they are looking for rental properties in **Dubai (UAE)** or **India (Mumbai)**. Keep it polite, clear, and under 50 words.`;
+    const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
+    return { reply, provider: 'LangGraph → Location Selection', profile: p, currentNode: 'qualify_rent', ragContext: ragCtx };
+  }
+
+  // 2. Immediate property matching when parameters like bedrooms (e.g. 2 beds), community, or rental budget are provided
+  const hasCoreParameters = !!p.bedrooms || (p.preferred_communities && p.preferred_communities.length > 0) || !!p.rental_budget || !!p.property_type;
+  if (hasCoreParameters) {
+    const matched = searchProperties(p);
+    if (matched.length > 0) {
+      return { matchedProperties: matched, profile: p, currentNode: 'present_results', reply: '' };
+    }
+  }
+
   // Normal qualification flow
   let question = '';
-  if (slotMissing(p, 'rental_budget')) {
+  if (slotMissing(p, 'bedrooms')) {
+    question = `How many bedrooms do you need — Studio, 1BR, 2BR, 3BR, or more?`;
+  } else if (slotMissing(p, 'rental_budget')) {
     question = `What's your rental budget? For example, AED 80,000 – 130,000 per year, or a monthly amount — whatever is easier for you.`;
   } else if (slotMissing(p, 'preferred_communities')) {
-    question = `Which area of Dubai are you thinking of living in? Dubai Marina, JLT, Business Bay, Downtown, or JVC are all popular with renters. Any preference?`;
+    question = p.target_city === 'Mumbai'
+      ? `Which Mumbai locality are you thinking of renting in? (e.g. Bandra, Worli, Powai, Juhu)`
+      : `Which area of Dubai are you thinking of living in? Dubai Marina, JLT, Business Bay, Downtown, or JVC are all popular with renters. Any preference?`;
   } else if (slotMissing(p, 'property_type')) {
     question = `Are you looking for an apartment, a villa, or a townhouse?`;
-  } else if (slotMissing(p, 'bedrooms')) {
-    question = `How many bedrooms do you need — studio, 1BR, 2BR, or more?`;
   } else if (slotMissing(p, 'furnishing')) {
     question = `Would you prefer a **furnished** apartment (ready to move in) or **unfurnished** (you bring your own furniture)?`;
   } else if (slotMissing(p, 'move_in_date')) {
@@ -1122,14 +1166,38 @@ ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
     return { reply: finalReply, provider: 'LangGraph → Invest Qualification (Digression)', profile: p, currentNode: 'qualify_invest', ragContext: ragCtx };
   }
   
+  // 1. Prioritize Country / City selection (Dubai vs India)
+  if (slotMissing(p, 'target_city')) {
+    const question = `Which country or city are you looking to invest in — **Dubai (UAE)** or **India (Mumbai)**?`;
+    const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
+The customer wants to invest.
+Customer's message: "${state.userMessage}"
+Warmly ask whether they are looking to invest in **Dubai (UAE)** or **India (Mumbai)**. Keep it polite, clear, and under 50 words.`;
+    const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || question;
+    return { reply, provider: 'LangGraph → Location Selection', profile: p, currentNode: 'qualify_invest', ragContext: ragCtx };
+  }
+
+  // 2. Immediate property matching when parameters like bedrooms (e.g. 2 beds), community, or budget are provided
+  const hasCoreParameters = !!p.bedrooms || (p.preferred_communities && p.preferred_communities.length > 0) || !!p.budget_max || !!p.property_type;
+  if (hasCoreParameters) {
+    const matched = searchProperties(p);
+    if (matched.length > 0) {
+      return { matchedProperties: matched, profile: p, currentNode: 'present_results', reply: '' };
+    }
+  }
+
   // Normal qualification flow
   let question = '';
-  if (slotMissing(p, 'budget_max')) {
+  if (slotMissing(p, 'bedrooms')) {
+    question = `How many bedrooms would you prefer for this investment unit — Studio, 1BR, 2BR, or 3BR?`;
+  } else if (slotMissing(p, 'budget_max')) {
     question = `What is your investment budget? (e.g. AED 1M – 3M, or equivalent in INR/USD)`;
   } else if (slotMissing(p, 'investment_goal')) {
-    question = `Are you primarily targeting **rental yield** (steady monthly income) or **capital appreciation** (long-term value growth)? Or perhaps a balance of both?`;
+    question = `Are you primarily targeting **rental yield** (steady monthly income) or **capital appreciation** (long-term value growth)?`;
   } else if (slotMissing(p, 'preferred_communities')) {
-    question = `Which Dubai community are you interested in? Dubai Marina, Business Bay, and Dubai Creek Harbour are popular for investors right now. Any preference?`;
+    question = p.target_city === 'Mumbai'
+      ? `Which Mumbai locality are you interested in investing in? (e.g. Worli, Bandra, BKC)`
+      : `Which Dubai community are you interested in? Dubai Marina, Business Bay, and Dubai Creek Harbour are popular for investors right now. Any preference?`;
   } else if (slotMissing(p, 'property_type')) {
     question = `What type of investment property suits you — an apartment for holiday rentals, a villa, or a commercial unit?`;
   } else if (slotMissing(p, 'ready_or_offplan')) {
@@ -1263,25 +1331,17 @@ async function nodeQualifyContact(state: AgentState): Promise<Partial<AgentState
 
   // Declining contact details is a legitimate answer (Section 5.3): accept it,
   // record it, and carry on qualifying without them.
-  const gaveNothing = !profile.full_name && !profile.mobile && !profile.email;
+  const gaveNothing = !profile.mobile;
   if (gaveNothing && DECLINE_RE.test(text)) profile.contact_declined = true;
-
-  // Section 13: email is a must-have for investors, optional for buyers/sellers.
-  const emailRequired = profile.intent === 'Invest';
 
   let slot: 'name' | 'mobile' | 'email' | null = null;
   let recheck = false;
 
+  // ONLY ask for mobile number - no name, no email
   if (!profile.contact_declined) {
-    if (!profile.full_name) {
-      slot = 'name';
-      if (p.contact_pending === 'name' && text) recheck = true;
-    } else if (!profile.mobile) {
+    if (!profile.mobile) {
       slot = 'mobile';
       if (p.contact_pending === 'mobile' && text) recheck = true;
-    } else if (emailRequired && !profile.email) {
-      slot = 'email';
-      if (p.contact_pending === 'email' && text) recheck = true;
     }
   }
 
@@ -1290,6 +1350,10 @@ async function nodeQualifyContact(state: AgentState): Promise<Partial<AgentState
 
   if (!slot) {
     const next = profile.intent === 'Sell' ? 'sell_handoff' : 'search_properties';
+    if (profile.mobile) {
+      const reply = `Thank you! Your mobile number (${profile.mobile}) has been confirmed and registered.\n\nTo get more information, view floor plans, or speak directly with our senior advisor, please click the **'Talk to Agent'** button!`;
+      return { profile: { ...profile, contact_pending: undefined }, currentNode: next, reply, ragContext: ragCtx };
+    }
     return { profile: { ...profile, contact_pending: undefined }, currentNode: next, reply: '', ragContext: ragCtx };
   }
 
@@ -1421,30 +1485,37 @@ async function nodePresentResults(state: AgentState): Promise<Partial<AgentState
   if (props.length > 0) {
     propContext = props.map((prop, i) => 
       `Property ${i + 1}: ${prop.title}\n` +
-      `  Community: ${prop.community} | ${prop.property_type} | ${prop.bedrooms}BR | ${prop.size_sqft} sq ft\n` +
+      `  Location: ${prop.community}, ${prop.city || 'Dubai'} | ${prop.property_type} | ${prop.bedrooms} Bed | ${prop.size_sqft} sq ft\n` +
       `  Price: AED ${prop.price_aed.toLocaleString()}${prop.price_inr ? ` / INR ${(prop.price_inr/10000000).toFixed(1)} Cr` : ''}\n` +
       `  ROI: ${prop.expected_roi || 'N/A'} | Status: ${prop.status}\n` +
       `  Highlights: ${prop.amenities.slice(0, 3).join(', ')}`
     ).join('\n\n');
   }
 
+  const askMobile = !p.mobile;
+
   const systemPrompt = `You are Lyka, Lyka Realty's warm AI property concierge.
-Based on the customer's requirements, you have found ${props.length} matching properties.
+Based on the customer's requirements, you have found ${props.length} matching properties in our verified portfolio.
 Customer profile summary: ${JSON.stringify(p, null, 2)}
 
 ${props.length > 0
-  ? `Present these ${props.length} properties warmly and concisely. Highlight why each fits their needs.\n\nMATCHED PROPERTIES:\n${propContext}`
-  : `No exact matches found. Warmly explain this, suggest broadening their criteria (e.g. budget, location), and offer to connect them with a Lyka Realty expert.`
+  ? `Present these ${props.length} properties warmly and concisely. Include property title, location, bedrooms, and price in AED (and INR if applicable).\n\nMATCHED PROPERTIES:\n${propContext}`
+  : `No exact matches found. Warmly explain this, and offer to connect them with a Lyka Realty senior advisor who has access to off-market inventory.`
 }
 
 ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
-End by asking if they'd like to **book a viewing** or speak with a Lyka Realty advisor.
+CRITICAL INSTRUCTIONS:
+1. ${askMobile ? 'Before confirming these recommendations for the client, politely ask for their mobile number (with country code).' : 'Acknowledge their registered mobile number.'}
+2. Always conclude clearly with: "To get more information, arrange an exclusive viewing, or speak with an expert, please click the **'Talk to Agent'** button!"
 Be warm, professional, concise. Max 200 words.`;
 
-  const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory)
-    || (props.length > 0
-      ? `Great news! Based on your requirements, I've found ${props.length} excellent matches for you. Our Lyka Realty advisor will reach out to arrange viewings at your convenience. Would you like to speak with them directly?`
-      : `I wasn't able to find an exact match right now, but don't worry! Our Lyka Realty experts have access to off-market listings too. Shall I connect you with one of our senior advisors?`);
+  const fallback = props.length > 0
+    ? `Great news! Based on your preference for ${p.bedrooms ? `${p.bedrooms} bedroom ` : ''}${p.target_city || 'our'} properties, here are matching verified listings from Lyka Realty's portfolio:\n\n` +
+      props.map((prop, i) => `${i + 1}. **${prop.title}** (${prop.community}) — ${prop.bedrooms} Bed • AED ${prop.price_aed.toLocaleString()}${prop.price_inr ? ` / INR ${(prop.price_inr/10000000).toFixed(1)} Cr` : ''}${prop.expected_roi ? ` • ROI: ${prop.expected_roi}` : ''}`).join('\n') +
+      `\n\n${askMobile ? 'Before we confirm these options for you, could you please share your **mobile number** (with country code)?\n\n' : ''}To get more information, arrange a viewing, or speak directly with our senior advisor, please click the **'Talk to Agent'** button!`
+    : `We don't have an exact active match on our website right now, but our senior advisors have access to exclusive off-market listings. To get more information, please click the **'Talk to Agent'** button!`;
+
+  const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || fallback;
 
   return { reply, provider: 'LangGraph → Property Results', currentNode: 'present_results', isComplete: true, ragContext: ragCtx };
 }
@@ -1461,6 +1532,7 @@ function routeAfterClassify(state: AgentState): string {
 }
 
 function routeAfterQualify(state: AgentState): string {
+  if (state.currentNode === 'present_results') return 'present_results';
   if (state.currentNode === 'qualify_contact') return 'qualify_contact';
   if (state.currentNode === 'search_properties') return 'search_properties';
   if (state.reply) return END; // Question asked, wait for user
@@ -1517,21 +1589,25 @@ function buildLykaGraph() {
 
   workflow.addConditionalEdges('qualify_buy', routeAfterQualify, {
     qualify_contact: 'qualify_contact',
+    present_results: 'present_results',
     search_properties: 'search_properties',
     [END]: END,
   });
   workflow.addConditionalEdges('qualify_rent', routeAfterQualify, {
     qualify_contact: 'qualify_contact',
+    present_results: 'present_results',
     search_properties: 'search_properties',
     [END]: END,
   });
   workflow.addConditionalEdges('qualify_invest', routeAfterQualify, {
     qualify_contact: 'qualify_contact',
+    present_results: 'present_results',
     search_properties: 'search_properties',
     [END]: END,
   });
   workflow.addConditionalEdges('qualify_sell', routeAfterQualify, {
     qualify_contact: 'qualify_contact',
+    present_results: 'present_results',
     search_properties: 'search_properties',
     [END]: END,
   });

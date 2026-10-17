@@ -26,6 +26,7 @@ import {
   getUserLeadsFromFirestore,
   saveInteractionToFirestore, 
   saveUserChatToFirestore,
+  deleteUserChatFromFirestore,
   getMessagesForLead,
   saveFollowUpToFirestore, 
   getFollowUpsFromFirestore,
@@ -767,10 +768,10 @@ export default function App() {
   };
 
   // Start new customer chat
-  const handleStartNewChat = () => {
-    // Save active chat before switching to a new one ONLY if user actually queried
+  const handleStartNewChat = (options?: { skipSaveCurrent?: boolean }) => {
+    // Save active chat before switching to a new one ONLY if user actually queried and not skipping save
     const hasUserMsg = messages.some(m => m.role === 'user');
-    if (currentLead.id && hasUserMsg) {
+    if (!options?.skipSaveCurrent && currentLead.id && hasUserMsg) {
       // Unconditionally save to localStorage
       try {
         const localMsgs = JSON.parse(localStorage.getItem('localInteractions') || '[]');
@@ -868,28 +869,7 @@ export default function App() {
   };
 
   const handleDeleteChat = async (leadId: string) => {
-    // 1. Remove from active state
-    setLeadsList(prev => prev.filter(l => l.id !== leadId));
-    if (currentLead.id === leadId) {
-      handleStartNewChat();
-    }
-    
-    // 2. Resolve effective user ID & email
-    const effectiveUid = currentUserId || auth.currentUser?.uid;
-    const effectiveEmail = currentUserEmail || auth.currentUser?.email;
-
-    // 3. Delete from Firebase Firestore (leads, interactions, user_chat, User_login)
-    try {
-      await deleteLeadFromFirestore(leadId);
-      await deleteMessagesForLead(leadId);
-      if (effectiveUid) {
-        await deleteSessionFromUserProfile(effectiveEmail || null, effectiveUid, leadId);
-      }
-    } catch (err) {
-      console.warn('Error deleting chat from Firestore:', err);
-    }
-
-    // 4. Also clean local storage
+    // 1. Immediately clean local storage synchronously so background sync never re-uploads it
     try {
       let localLeads = JSON.parse(localStorage.getItem('localLeads') || '[]');
       localLeads = localLeads.filter((l: LeadProfile) => l.id !== leadId);
@@ -899,6 +879,28 @@ export default function App() {
       localMsgs = localMsgs.filter((m: ChatMessage) => m.lead_id !== leadId);
       localStorage.setItem('localInteractions', JSON.stringify(localMsgs));
     } catch (e) { console.warn(e); }
+
+    // 2. Remove from active state
+    setLeadsList(prev => prev.filter(l => l.id !== leadId));
+    if (currentLead.id === leadId) {
+      handleStartNewChat({ skipSaveCurrent: true });
+    }
+    
+    // 3. Resolve effective user ID & email
+    const effectiveUid = currentUserId || auth.currentUser?.uid;
+    const effectiveEmail = currentUserEmail || auth.currentUser?.email;
+
+    // 4. Delete from Firebase Firestore across all collections (leads, interactions, user_chat, User_login)
+    try {
+      await Promise.allSettled([
+        deleteUserChatFromFirestore(leadId, effectiveUid),
+        deleteLeadFromFirestore(leadId),
+        deleteMessagesForLead(leadId),
+        deleteSessionFromUserProfile(effectiveEmail || null, effectiveUid || '', leadId),
+      ]);
+    } catch (err) {
+      console.warn('Error deleting chat from Firestore:', err);
+    }
   };
 
   const saveInteractionData = (msg: ChatMessage) => {

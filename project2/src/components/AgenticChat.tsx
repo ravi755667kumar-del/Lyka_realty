@@ -1415,22 +1415,20 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                           e.stopPropagation();
                           const sessionToDelete = session.id;
                           setSavedSessions(prev => prev.filter(s => s.id !== sessionToDelete));
-                          if (currentLead.id === sessionToDelete) {
-                            onStartNewChat();
-                          }
                           if (onDeleteChat) {
                             onDeleteChat(sessionToDelete);
-                          }
-                          try {
-                            const effectiveUid = userId || auth.currentUser?.uid;
-                            const effectiveEmail = userEmail || auth.currentUser?.email;
-                            await deleteLeadFromFirestore(sessionToDelete);
-                            await deleteMessagesForLead(sessionToDelete);
-                            if (effectiveUid) {
-                              await deleteSessionFromUserProfile(effectiveEmail || null, effectiveUid, sessionToDelete);
+                          } else {
+                            try {
+                              const effectiveUid = userId || auth.currentUser?.uid;
+                              const effectiveEmail = userEmail || auth.currentUser?.email;
+                              await deleteLeadFromFirestore(sessionToDelete);
+                              await deleteMessagesForLead(sessionToDelete);
+                              if (effectiveUid) {
+                                await deleteSessionFromUserProfile(effectiveEmail || null, effectiveUid, sessionToDelete);
+                              }
+                            } catch (err) {
+                              console.warn('Error deleting chat from Firestore in AgenticChat:', err);
                             }
-                          } catch (err) {
-                            console.warn('Error deleting chat from Firestore in AgenticChat:', err);
                           }
                         }}
                         className="absolute right-2 top-2.5 p-1 text-slate-400 hover:text-red-500 hover:bg-red-50/50 rounded transition-colors opacity-0 group-hover:opacity-100"

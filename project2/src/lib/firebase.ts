@@ -596,22 +596,7 @@ export async function deleteSessionFromUserProfile(
   } catch (_) {}
 
   // 3. Delete from user_chat collection
-  if (userId) {
-    try {
-      await deleteDoc(doc(db, 'user_chat', `${userId}_${leadId}`));
-    } catch (_) {}
-  }
-  try {
-    const ucSnap = await getDocs(collection(db, 'user_chat'));
-    const ucDeletes: Promise<void>[] = [];
-    ucSnap.forEach((d) => {
-      const data = d.data();
-      if (data.leadId === leadId || d.id === `${userId}_${leadId}`) {
-        ucDeletes.push(deleteDoc(d.ref));
-      }
-    });
-    await Promise.all(ucDeletes);
-  } catch (_) {}
+  await deleteUserChatFromFirestore(leadId, userId);
 }
 
 export async function getUserChatSessionsFromFirestore(
@@ -851,6 +836,35 @@ export async function saveUserChatToFirestore(
     }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteUserChatFromFirestore(
+  leadId: string,
+  userId?: string
+): Promise<void> {
+  if (userId) {
+    try {
+      await deleteDoc(doc(db, 'user_chat', `${userId}_${leadId}`));
+    } catch (_) {}
+  }
+  try {
+    const ucSnap = await getDocs(collection(db, 'user_chat'));
+    const ucDeletes: Promise<void>[] = [];
+    ucSnap.forEach((d) => {
+      const data = d.data();
+      if (
+        data?.leadId === leadId ||
+        (userId && d.id === `${userId}_${leadId}`) ||
+        d.id.endsWith(`_${leadId}`) ||
+        d.id.includes(leadId)
+      ) {
+        ucDeletes.push(deleteDoc(d.ref));
+      }
+    });
+    await Promise.all(ucDeletes);
+  } catch (err) {
+    console.warn('Error deleting from user_chat collection:', err);
   }
 }
 

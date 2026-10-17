@@ -11,19 +11,19 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // User chat history - only the user themselves
+    // User chat history - allow read and write
     match /user_chat/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
-    // Interactions (individual messages) - authenticated users only
+    // Interactions (individual messages) - allow read and write
     match /interactions/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
-    // Leads - only the user who owns the lead
+    // Leads - allow read and write
     match /leads/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
 
     // Follow-ups - authenticated users only

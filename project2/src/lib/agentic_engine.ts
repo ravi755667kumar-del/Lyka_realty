@@ -400,13 +400,28 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   }
 
   // Timeline & Move-in date
-  if (fuzzyIncludes(['immediately', 'asap', 'this month', 'urgent', 'right now'])) {
-    extracted.timeline = 'Immediate (within 1 month)';
-    extracted.move_in_date = 'Immediate';
-  } else if (fuzzyIncludes(['1-3 months', 'couple of months', 'next month'])) {
+  const daysMatch = latestUserMessage.match(/\b(\d+)\s*days?\b/i);
+  const weeksMatch = latestUserMessage.match(/\b(\d+)\s*weeks?\b/i);
+  if (
+    fuzzyIncludes(['immediately', 'asap', 'this month', 'urgent', 'right now', 'few days', 'soon', 'this week', 'next week']) ||
+    daysMatch ||
+    weeksMatch ||
+    /\bmove\s*in\b/i.test(latestUserMessage)
+  ) {
+    if (daysMatch) {
+      extracted.timeline = `Within ${daysMatch[1]} days`;
+      extracted.move_in_date = `Within ${daysMatch[1]} days`;
+    } else if (weeksMatch) {
+      extracted.timeline = `Within ${weeksMatch[1]} weeks`;
+      extracted.move_in_date = `Within ${weeksMatch[1]} weeks`;
+    } else {
+      extracted.timeline = 'Immediate (within 1 month)';
+      extracted.move_in_date = 'Immediate';
+    }
+  } else if (fuzzyIncludes(['1-3 months', 'couple of months', 'next month', 'two months', 'three months'])) {
     extracted.timeline = '1-3 months';
     extracted.move_in_date = '1-3 months';
-  } else if (fuzzyIncludes(['end of year', 'next year', '6 months'])) {
+  } else if (fuzzyIncludes(['end of year', 'next year', '6 months', '3-6 months'])) {
     extracted.timeline = '3-6 months';
     extracted.move_in_date = '3-6 months';
   }
@@ -797,13 +812,45 @@ export function getNextQualificationQuestion(lead: LeadProfile): { question: str
   // If no intent yet
   if (!lead.intent) {
     return {
-      question: `What brings you to Lyka Realty today? Are you looking to **buy**, **rent**, **invest**, or are you thinking of **selling** a property?`,
-      rationale: 'Primary intent (Buy/Rent/Invest/Sell) needed to guide qualification.',
+      question: `What brings you to Lyka Realty today? Are you looking to explore properties in **Dubai (UAE)** or **India (Mumbai)**, and are you thinking to **buy**, **rent**, or **invest**?`,
+      rationale: 'Primary intent and country needed to guide qualification.',
       intentCategory: 'Role Identification'
     };
   }
 
+  // 1. Prioritize Country / City selection (Dubai vs India)
+  if (!lead.target_city) {
+    return {
+      question: `Which country or city are you looking to explore — **Dubai (UAE)** or **India (Mumbai)**?`,
+      rationale: 'Location/country selection needed first to filter the portfolio.',
+      intentCategory: 'Location Preference'
+    };
+  }
+
+  // 2. Immediate property matching when parameters like bedrooms (e.g. 2 beds), community, or budget are provided
+  if (lead.bedrooms || (lead.preferred_communities && lead.preferred_communities.length > 0) || lead.budget_max) {
+    const matched = findMatchingProperties(lead);
+    if (matched.length > 0) {
+      if (!lead.phone) {
+        return {
+          question: `Great news! Here are verified ${lead.bedrooms ? `${lead.bedrooms} bedroom ` : ''}properties matching your preferences in ${lead.target_city || 'Dubai'}:\n\n` +
+            matched.slice(0, 3).map((p, i) => `${i + 1}. **${p.title}** (${p.community}) — ${p.bedrooms} Bed • AED ${Number(p.price_aed).toLocaleString()}${p.expected_roi ? ` • ROI: ${p.expected_roi}` : ''}`).join('\n') +
+            `\n\nBefore we confirm these options for you, could you please share your **mobile number**?\n\nTo get more information or speak directly with our senior advisor, please click the **'Talk to Agent'** button!`,
+          rationale: 'Presented matching properties based on user query, requested mobile number before confirming, and provided Talk to Agent.',
+          intentCategory: 'Viewing & Shortlist'
+        };
+      }
+    }
+  }
+
   if (lead.intent === 'Buy') {
+    if (!lead.bedrooms) {
+      return {
+        question: `How many bedrooms would best accommodate you or your guests (e.g. Studio, 1BR, 2BR, 3BR+)?`,
+        rationale: 'Bedrooms dictate unit size and rental yield dynamics.',
+        intentCategory: 'Bedrooms'
+      };
+    }
     if (!lead.budget_max) {
       return {
         question: lead.is_nri 
@@ -863,7 +910,7 @@ export function getNextQualificationQuestion(lead: LeadProfile): { question: str
     if (!lead.budget_max) {
       return {
         question: `What is your targeted annual or monthly rental budget in AED? (For example, AED 100,000/yr or AED 15,000/month)`,
-        rationale: 'Rental budget defines community tiers and cheque payment feasibility.',
+        rationale: 'Rental budget defines community tiers and property feasibility.',
         intentCategory: 'Rental Budget'
       };
     }
@@ -883,7 +930,7 @@ export function getNextQualificationQuestion(lead: LeadProfile): { question: str
     }
     if (!lead.timeline && !lead.move_in_date) {
       return {
-        question: `When would you like to move in, and how many cheques would you prefer to pay your lease with?`,
+        question: `When are you looking to move in? (e.g. immediately, within a couple of weeks, or next month)`,
         rationale: 'Move-in date allows shortlisting currently vacant or expiring tenancy units.',
         intentCategory: 'Move-in Timeline'
       };
@@ -934,8 +981,8 @@ export function generateNextAdaptiveQuestion(lead: LeadProfile, missing: string[
   // 1. If user said hi / hello / greeting
   if (lastUserText && isGreetingMessage(lastUserText)) {
     return {
-      nextQuestion: `Hello, and welcome! Thanks for reaching out to Lyka Realty.\n\nWhat brings you to us today? Are you looking to invest, buy, sell, or something else?`,
-      rationale: 'Customer sent a greeting. Responded with opening: identify role first.',
+      nextQuestion: `Hello, and a very warm welcome to Lyka Realty! 🏙️\n\nWhich country or city are you looking to explore — **Dubai (UAE)** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`,
+      rationale: 'Customer sent a greeting. Responded with opening: identify country and role first.',
       intentCategory: 'Role Identification'
     };
   }
