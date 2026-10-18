@@ -196,6 +196,7 @@ export interface BookedPropertyRecord {
   city?: string;
   bedrooms: string;
   price_aed: number;
+  property_type?: string;
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
@@ -203,6 +204,14 @@ export interface BookedPropertyRecord {
   booked_at: string;
   notes?: string;
   status: 'Booked' | 'Cancelled' | 'Completed';
+  lead_id?: string;
+  intent?: string;
+  target_city?: string;
+  budget_max_aed?: number;
+  move_in_timeline?: string;
+  assigned_agent?: string;
+  booking_type?: string;
+  updatedAt?: string;
 }
 
 export interface FollowUpTask {

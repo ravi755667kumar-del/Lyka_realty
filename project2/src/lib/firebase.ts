@@ -18,7 +18,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, BookedPropertyRecord } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
 export const db = (firebaseConfig as any).firestoreDatabaseId
@@ -926,6 +926,62 @@ export async function deletePropertyFromFirestore(propertyId: string): Promise<v
     await deleteDoc(doc(db, 'properties', propertyId));
   } catch (error) {
     console.warn(`Could not delete property ${propertyId} from Firestore:`, error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Booked Properties Helpers (booked_properties collection)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function saveBookedPropertyToFirestore(booking: BookedPropertyRecord): Promise<void> {
+  const path = `booked_properties/${booking.id}`;
+  try {
+    await setDoc(doc(db, 'booked_properties', booking.id), {
+      ...booking,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log(`[Firestore] Booked property saved to booked_properties: ${booking.id}`);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getBookedPropertiesFromFirestore(): Promise<BookedPropertyRecord[]> {
+  try {
+    const snap = await getDocs(collection(db, 'booked_properties'));
+    const list: BookedPropertyRecord[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as BookedPropertyRecord;
+      list.push({ ...data, id: data.id || d.id });
+    });
+    return list;
+  } catch (error) {
+    console.warn('Could not fetch booked_properties from Firestore:', error);
+    return [];
+  }
+}
+
+export async function deleteBookedPropertyFromFirestore(bookingId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'booked_properties', bookingId));
+  } catch (error) {
+    console.warn(`Could not delete booking ${bookingId} from Firestore:`, error);
+  }
+}
+
+export async function cancelBookedPropertyInFirestore(propertyId: string): Promise<void> {
+  try {
+    const q = query(collection(db, 'booked_properties'), where('property_id', '==', propertyId));
+    const snap = await getDocs(q);
+    const updates = snap.docs.map(d => 
+      updateDoc(doc(db, 'booked_properties', d.id), {
+        status: 'Cancelled',
+        updatedAt: new Date().toISOString()
+      })
+    );
+    await Promise.allSettled(updates);
+  } catch (error) {
+    console.warn(`Could not cancel booked property ${propertyId} in Firestore:`, error);
   }
 }
 

@@ -10,7 +10,6 @@ import {
   Sparkles, 
   ShieldAlert, 
   FileText, 
-  Edit3, 
   Check, 
   X, 
   Building2, 
@@ -21,10 +20,11 @@ import {
   Calendar,
   BadgeAlert,
   Percent,
-  PlusCircle,
   ExternalLink,
   ChevronDown,
-  Database
+  Database,
+  MapPin,
+  DollarSign
 } from 'lucide-react';
 
 interface SalesManagerDashboardProps {
@@ -143,12 +143,12 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
   // State for search and filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommunity, setSelectedCommunity] = useState('ALL');
+  const [priceFilter, setPriceFilter] = useState<'ALL' | 'UNDER_1_5M' | '1_5M_3M' | '3M_6M' | 'ABOVE_6M'>('ALL');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'READY' | 'OFF_PLAN' | 'BOOKED' | 'AVAILABLE'>('ALL');
   const [auditSeverityFilter, setAuditSeverityFilter] = useState<'all' | 'critical' | 'missing_rera' | 'missing_payment' | 'sales_ready'>('all');
   const [dismissedDuplicateGroupIds, setDismissedDuplicateGroupIds] = useState<string[]>([]);
 
-  // State for quick fix modal
-  const [editingAuditProperty, setEditingAuditProperty] = useState<PropertyListing | null>(null);
-  const [quickFixForm, setQuickFixForm] = useState<Partial<PropertyListing>>({});
+  // Toast feedback
   const [saveToast, setSaveToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
   // Auto clear toast
@@ -201,17 +201,17 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         // Check 2: Exact or high title word similarity
         if (!isMatch) {
           const normTitle2 = normalizeText(p2.title);
-          if (normTitle1 && normTitle2 && normTitle1 === normTitle2) {
+          if (normTitle1 && normTitle2 && (normTitle1 === normTitle2 || normTitle1.includes(normTitle2) || normTitle2.includes(normTitle1))) {
             isMatch = true;
-            matchScore = 96;
-            matchReason = 'Identical Project Title and Listing Name';
+            matchScore = normTitle1 === normTitle2 ? 98 : 94;
+            matchReason = normTitle1 === normTitle2 ? 'Identical Project Title and Listing Name' : 'Matching Project Title / Variant Copy';
             matchType = 'exact_title';
           } else {
             const words2 = new Set(normTitle2.split(' ').filter(w => w.length > 2));
             const intersection = [...words1].filter(w => words2.has(w)).length;
             const union = new Set([...words1, ...words2]).size;
             const jaccard = union > 0 ? intersection / union : 0;
-            if (jaccard >= 0.70 && p1.community.toLowerCase() === p2.community.toLowerCase()) {
+            if (jaccard >= 0.55 && p1.community.toLowerCase() === p2.community.toLowerCase()) {
               isMatch = true;
               matchScore = Math.round(jaccard * 100);
               matchReason = `High Title Overlap (${matchScore}%) in same community (${p1.community})`;
@@ -341,9 +341,28 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         if (!matchesTitle && !matchesCommunity && !matchesDev && !matchesId) return false;
       }
 
-      // Community filter
-      if (selectedCommunity !== 'ALL' && p.community !== selectedCommunity) {
+      // Location / Community filter
+      if (selectedCommunity !== 'ALL' && p.community.toLowerCase() !== selectedCommunity.toLowerCase()) {
         return false;
+      }
+
+      // Price filter
+      if (priceFilter !== 'ALL') {
+        const pr = Number(p.price_aed) || 0;
+        if (priceFilter === 'UNDER_1_5M' && (pr <= 0 || pr >= 1500000)) return false;
+        if (priceFilter === '1_5M_3M' && (pr < 1500000 || pr > 3000000)) return false;
+        if (priceFilter === '3M_6M' && (pr < 3000000 || pr > 6000000)) return false;
+        if (priceFilter === 'ABOVE_6M' && pr <= 6000000) return false;
+      }
+
+      // Availability filter
+      if (availabilityFilter !== 'ALL') {
+        const isBooked = Boolean(p.is_booked || (p.status || '').toLowerCase() === 'booked');
+        const st = (p.status || '').toLowerCase();
+        if (availabilityFilter === 'BOOKED' && !isBooked) return false;
+        if (availabilityFilter === 'AVAILABLE' && isBooked) return false;
+        if (availabilityFilter === 'READY' && (st !== 'ready' || isBooked)) return false;
+        if (availabilityFilter === 'OFF_PLAN' && (st !== 'off-plan' && st !== 'off_plan')) return false;
       }
 
       // Severity / Requirement filter
@@ -362,7 +381,39 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
 
       return true;
     });
-  }, [requirementAudits, searchQuery, selectedCommunity, auditSeverityFilter]);
+  }, [requirementAudits, searchQuery, selectedCommunity, priceFilter, availabilityFilter, auditSeverityFilter]);
+
+  // Filtered duplicate groups
+  const filteredDuplicateGroups = useMemo(() => {
+    return duplicateGroups.filter((group) => {
+      const p = group.primaryProperty;
+      if (selectedCommunity !== 'ALL' && p.community.toLowerCase() !== selectedCommunity.toLowerCase()) {
+        return false;
+      }
+      if (priceFilter !== 'ALL') {
+        const pr = Number(p.price_aed) || 0;
+        if (priceFilter === 'UNDER_1_5M' && (pr <= 0 || pr >= 1500000)) return false;
+        if (priceFilter === '1_5M_3M' && (pr < 1500000 || pr > 3000000)) return false;
+        if (priceFilter === '3M_6M' && (pr < 3000000 || pr > 6000000)) return false;
+        if (priceFilter === 'ABOVE_6M' && pr <= 6000000) return false;
+      }
+      if (availabilityFilter !== 'ALL') {
+        const isBooked = Boolean(p.is_booked || (p.status || '').toLowerCase() === 'booked');
+        const st = (p.status || '').toLowerCase();
+        if (availabilityFilter === 'BOOKED' && !isBooked) return false;
+        if (availabilityFilter === 'AVAILABLE' && isBooked) return false;
+        if (availabilityFilter === 'READY' && (st !== 'ready' || isBooked)) return false;
+        if (availabilityFilter === 'OFF_PLAN' && (st !== 'off-plan' && st !== 'off_plan')) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchP = p.title.toLowerCase().includes(q) || p.community.toLowerCase().includes(q) || p.id.toLowerCase().includes(q);
+        const matchDups = group.duplicateProperties.some(d => d.title.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));
+        if (!matchP && !matchDups) return false;
+      }
+      return true;
+    });
+  }, [duplicateGroups, selectedCommunity, priceFilter, availabilityFilter, searchQuery]);
 
   // Communities list for dropdown
   const uniqueCommunities = useMemo(() => {
@@ -382,14 +433,14 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
   // HANDLERS
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // Delete duplicate property
-  const handleDeleteDuplicate = async (dupProperty: PropertyListing) => {
-    if (!window.confirm(`Are you sure you want to permanently delete redundant listing "${dupProperty.title}" (${dupProperty.id})?`)) {
+  // Delete duplicate listing permanently
+  const handleDeleteDuplicate = async (property: PropertyListing) => {
+    if (!window.confirm(`Are you sure you want to permanently delete listing "${property.title}" (${property.id})?`)) {
       return;
     }
     try {
-      await onDeleteProperty(dupProperty.id);
-      triggerToast(`Removed redundant listing ${dupProperty.id} from inventory.`, 'success');
+      await onDeleteProperty(property.id);
+      triggerToast(`Permanently deleted listing ${property.id} from inventory.`, 'success');
     } catch (err: any) {
       triggerToast(`Failed to delete: ${err.message}`, 'info');
     }
@@ -414,7 +465,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
     };
 
     try {
-      await onUpdateProperty(merged);
+      if (onUpdateProperty) await onUpdateProperty(merged);
       await onDeleteProperty(duplicate.id);
       triggerToast(`Merged data into master listing (${primary.id}) & deleted duplicate (${duplicate.id}).`, 'success');
     } catch (err: any) {
@@ -422,67 +473,8 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
     }
   };
 
-  // Add a test duplicate to showcase the engine
-  const handleAddTestDuplicate = async () => {
-    if (properties.length === 0) return;
-    const base = properties[0];
-    const testDup: PropertyListing = {
-      ...base,
-      id: `LYKA-DUP-${Math.floor(1000 + Math.random() * 9000)}`,
-      title: `${base.title} (Duplicate Copy)`,
-      price_aed: base.price_aed,
-      createdAt: new Date().toISOString()
-    };
-    if (onAddProperty) {
-      await onAddProperty(testDup);
-      triggerToast(`Created test duplicate listing: ${testDup.id}`, 'info');
-    }
-  };
-
-  // Open Quick Fix modal
-  const handleOpenQuickFix = (property: PropertyListing) => {
-    setEditingAuditProperty(property);
-    setQuickFixForm({
-      rera_id: property.rera_id || '',
-      price_aed: property.price_aed || 0,
-      size_sqft: property.size_sqft || 0,
-      developer: property.developer || '',
-      handover_date: property.handover_date || '',
-      payment_plan: property.payment_plan || '',
-      expected_roi: property.expected_roi || '',
-      bathrooms: property.bathrooms || '',
-      image_url: property.image_url || '',
-      description: property.description || '',
-      contact_name: property.contact_name || '',
-      contact_mobile: property.contact_mobile || ''
-    });
-  };
-
-  // Save Quick Fix
-  const handleSaveQuickFix = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingAuditProperty) return;
-
-    const updated: PropertyListing = {
-      ...editingAuditProperty,
-      ...quickFixForm,
-      price_aed: Number(quickFixForm.price_aed) || editingAuditProperty.price_aed,
-      price_inr: Math.round((Number(quickFixForm.price_aed) || editingAuditProperty.price_aed) * 22.8),
-      size_sqft: Number(quickFixForm.size_sqft) || editingAuditProperty.size_sqft,
-      updatedAt: new Date().toISOString()
-    };
-
-    try {
-      await onUpdateProperty(updated);
-      setEditingAuditProperty(null);
-      triggerToast(`Successfully updated sales requirements for ${updated.title}!`, 'success');
-    } catch (err: any) {
-      triggerToast(`Failed to update property: ${err.message}`, 'info');
-    }
-  };
-
   return (
-    <div className="flex-1 bg-slate-950 text-slate-100 min-h-screen pb-16">
+    <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-y-auto pb-24">
       {/* Toast Notification */}
       {saveToast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2.5 px-4 py-3 rounded-xl bg-slate-900 border border-emerald-500/50 shadow-2xl shadow-emerald-500/20 text-emerald-200 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-300">
@@ -502,7 +494,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 </span>
                 <span className="text-xs text-slate-400">Lyka Quality Assurance</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center space-x-2">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-100 mt-1 flex items-center space-x-2">
                 <span>Property Duplicate & Quality Audit Control</span>
               </h1>
               <p className="text-xs text-slate-400 mt-1 max-w-2xl">
@@ -517,14 +509,6 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 <span className="font-mono text-[11px]">DB: Sales_login</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" title="Connected to Firestore DB" />
               </div>
-              <button
-                onClick={handleAddTestDuplicate}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700 hover:border-slate-600 transition-all shadow-sm"
-                title="Create a sample duplicate to test duplicate detection"
-              >
-                <PlusCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Add Test Duplicate</span>
-              </button>
             </div>
           </div>
 
@@ -535,7 +519,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 <span>Total Properties</span>
                 <Building2 className="w-3.5 h-3.5 text-slate-500" />
               </div>
-              <div className="text-xl font-black text-white mt-1">{properties.length}</div>
+              <div className="text-xl font-black text-slate-100 mt-1">{properties.length}</div>
               <p className="text-[10px] text-slate-400 mt-0.5">Active Dubai & Mumbai listings</p>
             </div>
 
@@ -570,7 +554,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 <span>Incomplete Listings</span>
                 <ShieldAlert className={`w-3.5 h-3.5 ${criticalIssuesCount > 0 ? 'text-amber-400' : 'text-slate-500'}`} />
               </div>
-              <div className="text-xl font-black text-white mt-1 flex items-baseline space-x-1.5">
+              <div className="text-xl font-black text-slate-100 mt-1 flex items-baseline space-x-1.5">
                 <span className={totalIncompleteCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>
                   {totalIncompleteCount}
                 </span>
@@ -634,6 +618,135 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-8 mt-10">
 
         {/* ═════════════════════════════════════════════════════════════════════════ */}
+        {/* SHARED FILTER & SEARCH TOOLBAR (Location, Price, Availability) */}
+        {/* ═════════════════════════════════════════════════════════════════════════ */}
+        <div className="bg-slate-900/80 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl space-y-3 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                Filter Inventory ({properties.length} Total Properties)
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              Filter listings by Location (Community), Price Range, and Availability
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 1. Search */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search title, community, ID, developer..."
+                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+              />
+            </div>
+
+            {/* 2. Location / Community Filter */}
+            <div className="relative">
+              <MapPin className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={selectedCommunity}
+                onChange={(e) => setSelectedCommunity(e.target.value)}
+                aria-label="Filter by Location"
+                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Locations / Communities ({uniqueCommunities.length})</option>
+                {uniqueCommunities.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 3. Price Range Filter */}
+            <div className="relative">
+              <DollarSign className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={priceFilter}
+                onChange={(e) => setPriceFilter(e.target.value as any)}
+                aria-label="Filter by Price"
+                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Price Ranges</option>
+                <option value="UNDER_1_5M">Under 1.5M AED</option>
+                <option value="1_5M_3M">1.5M - 3M AED</option>
+                <option value="3M_6M">3M - 6M AED</option>
+                <option value="ABOVE_6M">Above 6M AED</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* 4. Availability Filter */}
+            <div className="relative">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={availabilityFilter}
+                onChange={(e) => setAvailabilityFilter(e.target.value as any)}
+                aria-label="Filter by Availability"
+                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Availability Statuses</option>
+                <option value="AVAILABLE">Available (Unbooked)</option>
+                <option value="READY">Ready to Move</option>
+                <option value="OFF_PLAN">Off-Plan / Payment Plan</option>
+                <option value="BOOKED">Booked / Reserved</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Active Filter Chips & Reset */}
+          {(selectedCommunity !== 'ALL' || priceFilter !== 'ALL' || availabilityFilter !== 'ALL' || searchQuery.trim() !== '') && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5 text-slate-400">
+                <span className="font-semibold text-slate-300">Active Filters:</span>
+                {selectedCommunity !== 'ALL' && (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span>Location: {selectedCommunity}</span>
+                    <button onClick={() => setSelectedCommunity('ALL')} className="hover:text-white font-bold ml-1 text-xs">×</button>
+                  </span>
+                )}
+                {priceFilter !== 'ALL' && (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span>Price: {priceFilter === 'UNDER_1_5M' ? '< 1.5M AED' : priceFilter === '1_5M_3M' ? '1.5M - 3M AED' : priceFilter === '3M_6M' ? '3M - 6M AED' : '> 6M AED'}</span>
+                    <button onClick={() => setPriceFilter('ALL')} className="hover:text-white font-bold ml-1 text-xs">×</button>
+                  </span>
+                )}
+                {availabilityFilter !== 'ALL' && (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span>Availability: {availabilityFilter === 'AVAILABLE' ? 'Available' : availabilityFilter === 'READY' ? 'Ready to Move' : availabilityFilter === 'OFF_PLAN' ? 'Off-Plan' : 'Booked'}</span>
+                    <button onClick={() => setAvailabilityFilter('ALL')} className="hover:text-white font-bold ml-1 text-xs">×</button>
+                  </span>
+                )}
+                {searchQuery.trim() !== '' && (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    <span>Search: "{searchQuery}"</span>
+                    <button onClick={() => setSearchQuery('')} className="hover:text-white font-bold ml-1 text-xs">×</button>
+                  </span>
+                )}
+              </div>
+
+              <button
+                onClick={() => {
+                  setSelectedCommunity('ALL');
+                  setPriceFilter('ALL');
+                  setAvailabilityFilter('ALL');
+                  setSearchQuery('');
+                }}
+                className="text-xs font-bold text-red-700 hover:text-red-900 underline transition-colors"
+              >
+                Reset All Filters
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ═════════════════════════════════════════════════════════════════════════ */}
         {/* TAB 1: DUPLICATE PROPERTIES */}
         {/* ═════════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'duplicates' && (
@@ -641,67 +754,65 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
             {/* Header info */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-4 rounded-2xl border border-slate-800">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">
-                  <Copy className="w-4 h-4 text-rose-400" />
+                <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center">
+                  <Copy className="w-4 h-4 text-red-700" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Duplicate Property Detection System</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-sm font-bold text-slate-100">Duplicate Property Detection System</h3>
+                  <p className="text-xs text-slate-200 font-medium">
                     Matches listings based on identical titles, RERA IDs, matching hero photos, or identical specs in the same community.
                   </p>
                 </div>
               </div>
-              <div className="text-xs font-semibold text-slate-400">
-                Found <span className="text-white font-bold">{duplicateGroups.length}</span> duplicate cluster(s)
+              <div className="text-xs font-semibold text-slate-200">
+                Found <span className="text-slate-100 font-bold">{filteredDuplicateGroups.length}</span> duplicate cluster(s)
+                {duplicateGroups.length !== filteredDuplicateGroups.length && (
+                  <span className="text-slate-300 font-medium"> (filtered from {duplicateGroups.length})</span>
+                )}
               </div>
             </div>
 
             {/* If No Duplicates Found */}
-            {duplicateGroups.length === 0 ? (
+            {filteredDuplicateGroups.length === 0 ? (
               <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-12 text-center max-w-xl mx-auto">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+                <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-7 h-7 text-emerald-700" />
                 </div>
-                <h4 className="text-base font-bold text-white">No Duplicate Properties Detected!</h4>
-                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                  All listings in your inventory currently have unique titles, specifications, and permits. Your catalog is clean.
+                <h4 className="text-base font-bold text-slate-100">
+                  {duplicateGroups.length === 0 ? 'No Duplicate Properties Detected!' : 'No Duplicates Match Filter Criteria'}
+                </h4>
+                <p className="text-xs text-slate-200 mt-1 max-w-md mx-auto">
+                  {duplicateGroups.length === 0
+                    ? 'All listings in your inventory currently have unique titles, specifications, and permits. Your catalog is clean.'
+                    : 'Try clearing or adjusting your location, price, or availability filters to view other duplicate groups.'}
                 </p>
-                <div className="mt-5">
-                  <button
-                    onClick={handleAddTestDuplicate}
-                    className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-600/20"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>Generate Test Duplicate to View Detection</span>
-                  </button>
-                </div>
               </div>
             ) : (
               /* Duplicate Groups Cards */
               <div className="space-y-6">
-                {duplicateGroups.map((group, gIdx) => {
+                {filteredDuplicateGroups.map((group, gIdx) => {
                   const primary = group.primaryProperty;
                   const duplicates = group.duplicateProperties;
 
                   return (
                     <div 
                       key={group.id}
-                      className="bg-slate-900/80 border border-rose-900/40 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden"
+                      className="bg-slate-900/90 border border-rose-300/80 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden"
                     >
                       {/* Top banner tag */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-800">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-700/80">
                         <div className="flex items-center space-x-2">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center space-x-1">
-                            <AlertTriangle className="w-3 h-3 text-rose-400 mr-1" />
+                          <span className="px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider bg-rose-100 text-red-950 border border-rose-300 flex items-center space-x-1">
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-700 mr-1" />
                             <span>{group.confidence}% Match Confidence</span>
                           </span>
-                          <span className="text-xs font-medium text-slate-300">
-                            Reason: <strong className="text-slate-100">{group.reason}</strong>
+                          <span className="text-xs font-medium text-slate-100">
+                            Reason: <strong className="text-slate-100 font-bold">{group.reason}</strong>
                           </span>
                         </div>
                         <button
                           onClick={() => setDismissedDuplicateGroupIds(prev => [...prev, group.id])}
-                          className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 px-2.5 py-1 rounded-lg hover:bg-slate-800 transition-colors"
+                          className="text-xs font-bold text-slate-200 hover:text-slate-100 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors"
                           title="Ignore this cluster in this session"
                         >
                           Dismiss / Not Duplicate
@@ -711,8 +822,8 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                       {/* Side-by-side comparison */}
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                         {/* Primary Listing */}
-                        <div className="bg-slate-950/70 border-2 border-emerald-500/40 rounded-2xl p-4 flex flex-col justify-between relative">
-                          <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        <div className="bg-white border-2 border-emerald-500/60 rounded-2xl p-4 flex flex-col justify-between relative shadow-sm">
+                          <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-950 border border-emerald-400">
                             Master / Primary Listing
                           </div>
 
@@ -722,59 +833,61 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                 <img
                                   src={primary.image_url}
                                   alt={primary.title}
-                                  className="w-16 h-16 rounded-xl object-cover border border-slate-800 flex-shrink-0"
+                                  className="w-16 h-16 rounded-xl object-cover border border-slate-300 flex-shrink-0"
                                 />
                               ) : (
-                                <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0">
-                                  <Building2 className="w-6 h-6 text-slate-600" />
+                                <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center flex-shrink-0">
+                                  <Building2 className="w-6 h-6 text-slate-500" />
                                 </div>
                               )}
                               <div className="min-w-0 flex-1 pr-16">
-                                <span className="text-[10px] font-mono text-emerald-400">{primary.id}</span>
-                                <h4 className="text-sm font-bold text-white truncate">{primary.title}</h4>
-                                <p className="text-xs text-slate-400 mt-0.5">{primary.community} • {primary.property_type}</p>
+                                <span className="text-[11px] font-mono font-bold text-emerald-700">{primary.id}</span>
+                                <h4 className="text-sm font-bold text-slate-100 truncate">{primary.title}</h4>
+                                <p className="text-xs text-slate-200 font-medium mt-0.5">{primary.community} • {primary.property_type}</p>
                               </div>
                             </div>
 
                             {/* Key specs comparison */}
-                            <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800/80 text-[11px]">
+                            <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-200 text-xs">
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Price</span>
-                                <span className="font-bold text-emerald-300">AED {primary.price_aed ? primary.price_aed.toLocaleString() : 'N/A'}</span>
+                                <span className="text-[11px] text-slate-200 font-bold block">Price</span>
+                                <span className="font-extrabold text-emerald-800">AED {primary.price_aed ? primary.price_aed.toLocaleString() : 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Size</span>
-                                <span className="font-semibold text-slate-200">{primary.size_sqft ? `${primary.size_sqft} sqft` : 'N/A'}</span>
+                                <span className="text-[11px] text-slate-200 font-bold block">Size</span>
+                                <span className="font-bold text-slate-100">{primary.size_sqft ? `${primary.size_sqft} sqft` : 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Bedrooms</span>
-                                <span className="font-semibold text-slate-200">{primary.bedrooms} BR</span>
+                                <span className="text-[11px] text-slate-200 font-bold block">Bedrooms</span>
+                                <span className="font-bold text-slate-100">{primary.bedrooms} BR</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">RERA Permit</span>
-                                <span className="font-mono text-slate-200">{primary.rera_id || 'None'}</span>
+                                <span className="text-[11px] text-slate-200 font-bold block">RERA Permit</span>
+                                <span className="font-mono text-slate-100 font-bold">{primary.rera_id || 'None'}</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Developer</span>
-                                <span className="text-slate-200 truncate">{primary.developer || 'N/A'}</span>
+                                <span className="text-[11px] text-slate-200 font-bold block">Developer</span>
+                                <span className="text-slate-100 font-bold truncate">{primary.developer || 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[10px] text-slate-400 block">Status</span>
-                                <span className="text-slate-200">{primary.status || 'Ready'}</span>
+                                <span className="text-[11px] text-slate-200 font-bold block">Status</span>
+                                <span className="text-slate-100 font-bold">{primary.status || 'Ready'}</span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                            <span className="text-[10px] text-emerald-400 font-semibold flex items-center space-x-1">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
+                            <span className="text-xs text-emerald-800 font-bold flex items-center space-x-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                               <span>Kept as master reference</span>
                             </span>
                             <button
-                              onClick={() => handleOpenQuickFix(primary)}
-                              className="text-[11px] font-semibold text-slate-300 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-colors"
+                              onClick={() => handleDeleteDuplicate(primary)}
+                              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-red-700 text-red-900 hover:text-white border border-rose-300 transition-all shadow-sm"
+                              title="Permanently remove this master listing from inventory"
                             >
-                              Edit Master
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete Master</span>
                             </button>
                           </div>
                         </div>
@@ -784,9 +897,9 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                           {duplicates.map((dup) => (
                             <div 
                               key={dup.id}
-                              className="bg-slate-950/70 border-2 border-rose-500/40 rounded-2xl p-4 flex flex-col justify-between relative"
+                              className="bg-white border-2 border-rose-400/70 rounded-2xl p-4 flex flex-col justify-between relative shadow-sm"
                             >
-                              <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                              <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-rose-100 text-red-950 border border-rose-400">
                                 Redundant Duplicate
                               </div>
 
@@ -796,54 +909,54 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                     <img
                                       src={dup.image_url}
                                       alt={dup.title}
-                                      className="w-16 h-16 rounded-xl object-cover border border-slate-800 flex-shrink-0"
+                                      className="w-16 h-16 rounded-xl object-cover border border-slate-300 flex-shrink-0"
                                     />
                                   ) : (
-                                    <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center flex-shrink-0">
-                                      <Building2 className="w-6 h-6 text-slate-600" />
+                                    <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center flex-shrink-0">
+                                      <Building2 className="w-6 h-6 text-slate-500" />
                                     </div>
                                   )}
                                   <div className="min-w-0 flex-1 pr-16">
-                                    <span className="text-[10px] font-mono text-rose-400">{dup.id}</span>
-                                    <h4 className="text-sm font-bold text-white truncate">{dup.title}</h4>
-                                    <p className="text-xs text-slate-400 mt-0.5">{dup.community} • {dup.property_type}</p>
+                                    <span className="text-[11px] font-mono font-bold text-red-700">{dup.id}</span>
+                                    <h4 className="text-sm font-bold text-slate-100 truncate">{dup.title}</h4>
+                                    <p className="text-xs text-slate-200 font-medium mt-0.5">{dup.community} • {dup.property_type}</p>
                                   </div>
                                 </div>
 
                                 {/* Specs */}
-                                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800/80 text-[11px]">
+                                <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-200 text-xs">
                                   <div>
-                                    <span className="text-[10px] text-slate-400 block">Price</span>
-                                    <span className="font-bold text-slate-200">AED {dup.price_aed ? dup.price_aed.toLocaleString() : 'N/A'}</span>
+                                    <span className="text-[11px] text-slate-200 font-bold block">Price</span>
+                                    <span className="font-extrabold text-slate-100">AED {dup.price_aed ? dup.price_aed.toLocaleString() : 'N/A'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-slate-400 block">Size</span>
-                                    <span className="font-semibold text-slate-200">{dup.size_sqft ? `${dup.size_sqft} sqft` : 'N/A'}</span>
+                                    <span className="text-[11px] text-slate-200 font-bold block">Size</span>
+                                    <span className="font-bold text-slate-100">{dup.size_sqft ? `${dup.size_sqft} sqft` : 'N/A'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-slate-400 block">Bedrooms</span>
-                                    <span className="font-semibold text-slate-200">{dup.bedrooms} BR</span>
+                                    <span className="text-[11px] text-slate-200 font-bold block">Bedrooms</span>
+                                    <span className="font-bold text-slate-100">{dup.bedrooms} BR</span>
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-slate-400 block">RERA Permit</span>
-                                    <span className="font-mono text-slate-200">{dup.rera_id || 'None'}</span>
+                                    <span className="text-[11px] text-slate-200 font-bold block">RERA Permit</span>
+                                    <span className="font-mono text-slate-100 font-bold">{dup.rera_id || 'None'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-slate-400 block">Developer</span>
-                                    <span className="text-slate-200 truncate">{dup.developer || 'N/A'}</span>
+                                    <span className="text-[11px] text-slate-200 font-bold block">Developer</span>
+                                    <span className="text-slate-100 font-bold truncate">{dup.developer || 'N/A'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-slate-400 block">Status</span>
-                                    <span className="text-slate-200">{dup.status || 'Ready'}</span>
+                                    <span className="text-[11px] text-slate-200 font-bold block">Status</span>
+                                    <span className="text-slate-100 font-bold">{dup.status || 'Ready'}</span>
                                   </div>
                                 </div>
                               </div>
 
                               {/* Action buttons on duplicate */}
-                              <div className="mt-4 pt-3 border-t border-slate-800/60 flex flex-wrap items-center justify-end gap-2">
+                              <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-end gap-2">
                                 <button
                                   onClick={() => handleMergeAndKeepPrimary(primary, dup)}
-                                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white border border-emerald-500/50 transition-all"
+                                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white transition-all shadow-sm"
                                   title="Merge missing fields into master listing, then delete this duplicate"
                                 >
                                   <Layers className="w-3.5 h-3.5" />
@@ -852,7 +965,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
 
                                 <button
                                   onClick={() => handleDeleteDuplicate(dup)}
-                                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/50 transition-all"
+                                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-red-700 hover:bg-red-800 text-white transition-all shadow-sm"
                                   title="Permanently remove this duplicate"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -876,65 +989,52 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         {/* ═════════════════════════════════════════════════════════════════════════ */}
         {activeTab === 'missing_requirements' && (
           <div className="space-y-6">
-            {/* Filter Bar */}
-            <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by property title, community, ID, or developer..."
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-              </div>
-
-              {/* Severity / Issue Type Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5">
+            {/* Severity / Quality Status Sub-Tabs */}
+            <div className="bg-slate-900/60 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setAuditSeverityFilter('all')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     auditSeverityFilter === 'all'
-                      ? 'bg-emerald-600 text-white shadow-md'
-                      : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800'
+                      ? 'bg-emerald-700 text-white shadow-md'
+                      : 'bg-white text-slate-100 hover:bg-slate-100 border border-slate-300'
                   }`}
                 >
-                  All ({requirementAudits.length})
+                  All Properties ({requirementAudits.length})
                 </button>
 
                 <button
                   onClick={() => setAuditSeverityFilter('critical')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 ${
                     auditSeverityFilter === 'critical'
-                      ? 'bg-rose-600 text-white shadow-md'
-                      : 'bg-slate-800/60 text-rose-300 hover:bg-slate-800'
+                      ? 'bg-red-700 text-white shadow-md'
+                      : 'bg-rose-50 text-red-950 hover:bg-rose-100 border border-rose-300 font-bold'
                   }`}
                 >
-                  <ShieldAlert className="w-3 h-3" />
-                  <span>Critical ({criticalIssuesCount})</span>
+                  <ShieldAlert className="w-3.5 h-3.5 text-red-700" />
+                  <span>Critical Mandatory ({criticalIssuesCount})</span>
                 </button>
 
                 <button
                   onClick={() => setAuditSeverityFilter('missing_rera')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     auditSeverityFilter === 'missing_rera'
-                      ? 'bg-amber-600 text-white shadow-md'
-                      : 'bg-slate-800/60 text-amber-300 hover:bg-slate-800'
+                      ? 'bg-amber-700 text-white shadow-md'
+                      : 'bg-amber-50 text-amber-950 hover:bg-amber-100 border border-amber-300 font-bold'
                   }`}
                 >
-                  Missing RERA
+                  Missing RERA Permit ({requirementAudits.filter(a => a.criticalIssues.some(i => i.field === 'rera_id')).length})
                 </button>
 
                 <button
                   onClick={() => setAuditSeverityFilter('missing_payment')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     auditSeverityFilter === 'missing_payment'
-                      ? 'bg-amber-600 text-white shadow-md'
-                      : 'bg-slate-800/60 text-amber-300 hover:bg-slate-800'
+                      ? 'bg-amber-700 text-white shadow-md'
+                      : 'bg-amber-50 text-amber-950 hover:bg-amber-100 border border-amber-300 font-bold'
                   }`}
                 >
-                  Missing Payment/Handover
+                  Missing Payment/Handover ({requirementAudits.filter(a => a.warningIssues.some(i => i.field === 'payment_plan' || i.field === 'handover_date')).length})
                 </button>
 
                 <button
@@ -942,26 +1042,16 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 ${
                     auditSeverityFilter === 'sales_ready'
                       ? 'bg-emerald-700 text-white shadow-md'
-                      : 'bg-slate-800/60 text-emerald-400 hover:bg-slate-800'
+                      : 'bg-emerald-50 text-emerald-950 hover:bg-emerald-100 border border-emerald-300 font-bold'
                   }`}
                 >
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>Ready ({requirementAudits.filter(a => a.status === 'sales_ready').length})</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Sales Ready ({requirementAudits.filter(a => a.status === 'sales_ready').length})</span>
                 </button>
               </div>
 
-              {/* Community Selector */}
-              <div className="flex-shrink-0">
-                <select
-                  value={selectedCommunity}
-                  onChange={(e) => setSelectedCommunity(e.target.value)}
-                  className="bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="ALL">All Communities</option>
-                  {uniqueCommunities.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+              <div className="text-xs font-semibold text-slate-200">
+                Showing <span className="text-slate-100 font-bold">{filteredAudits.length}</span> of <span className="text-slate-100 font-bold">{requirementAudits.length}</span> audited listing(s)
               </div>
             </div>
 
@@ -969,8 +1059,8 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
             {filteredAudits.length === 0 ? (
               <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-12 text-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-white">No properties matching filter</h4>
-                <p className="text-xs text-slate-400 mt-1">Try clearing your search query or selecting a different severity filter.</p>
+                <h4 className="text-sm font-bold text-slate-100">No properties matching filter</h4>
+                <p className="text-xs text-slate-200 mt-1">Try clearing your search query or selecting a different severity filter.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -983,9 +1073,9 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                       key={p.id}
                       className={`bg-slate-900/80 border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all ${
                         audit.status === 'action_required'
-                          ? 'border-rose-800/50 shadow-md shadow-rose-950/20'
+                          ? 'border-rose-400/60 shadow-md shadow-rose-950/10'
                           : audit.status === 'incomplete'
-                          ? 'border-amber-800/40'
+                          ? 'border-amber-400/50'
                           : 'border-slate-800'
                       }`}
                     >
@@ -1001,16 +1091,16 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                               />
                             ) : (
                               <div className="w-14 h-14 rounded-xl bg-slate-950 border border-rose-500/40 flex items-center justify-center flex-shrink-0">
-                                <AlertTriangle className="w-5 h-5 text-rose-400" />
+                                <AlertTriangle className="w-5 h-5 text-rose-500" />
                               </div>
                             )}
                             <div className="min-w-0">
                               <div className="flex items-center space-x-2">
-                                <span className="text-[10px] font-mono text-emerald-400">{p.id}</span>
-                                <span className="text-[10px] text-slate-400">• {p.community}</span>
+                                <span className="text-[11px] font-mono text-emerald-700 font-bold">{p.id}</span>
+                                <span className="text-[11px] text-slate-200 font-semibold">• {p.community}</span>
                               </div>
-                              <h4 className="text-xs font-bold text-white truncate mt-0.5">{p.title}</h4>
-                              <p className="text-[11px] text-slate-400 truncate">
+                              <h4 className="text-sm font-bold text-slate-100 truncate mt-0.5">{p.title}</h4>
+                              <p className="text-xs text-slate-200 font-semibold truncate">
                                 {p.developer || 'No Developer Listed'} • AED {p.price_aed ? p.price_aed.toLocaleString() : 'Price Missing'}
                               </p>
                             </div>
@@ -1018,12 +1108,12 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
 
                           {/* Completeness Badge */}
                           <div className="flex-shrink-0 text-right">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black ${
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black ${
                               audit.completenessScore >= 85
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                ? 'bg-emerald-100 text-emerald-950 border border-emerald-400'
                                 : audit.completenessScore >= 65
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                ? 'bg-amber-100 text-amber-950 border border-amber-400'
+                                : 'bg-rose-100 text-red-950 border border-rose-400'
                             }`}>
                               {audit.completenessScore}% Complete
                             </span>
@@ -1031,85 +1121,129 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                         </div>
 
                         {/* Completeness progress bar */}
-                        <div className="w-full bg-slate-950 h-1.5 rounded-full mt-3 overflow-hidden">
+                        <div className="w-full bg-slate-200 h-2 rounded-full mt-3 overflow-hidden border border-slate-300/60">
                           <div
                             className={`h-full transition-all duration-500 rounded-full ${
                               audit.completenessScore >= 85
-                                ? 'bg-emerald-500'
+                                ? 'bg-emerald-600'
                                 : audit.completenessScore >= 65
                                 ? 'bg-amber-500'
-                                : 'bg-rose-500'
+                                : 'bg-red-500'
                             }`}
                             style={{ width: `${audit.completenessScore}%` }}
                           />
                         </div>
 
-                        {/* Missing tags chips */}
-                        <div className="mt-3.5 space-y-1.5">
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            {totalMissing === 0 ? 'Requirements Status' : `Missing Requirements (${totalMissing})`}:
+                        {/* What Needs To Be Filled Section */}
+                        <div className="mt-4 pt-3 border-t border-slate-700/80 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase tracking-wider text-slate-100 flex items-center space-x-1.5">
+                              <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>What Needs To Be Filled</span>
+                            </span>
+                            <span className="text-xs text-slate-200 font-semibold">
+                              {totalMissing === 0 ? '0 fields missing' : `${totalMissing} item(s) required`}
+                            </span>
                           </div>
 
                           {totalMissing === 0 ? (
-                            <div className="flex items-center space-x-1.5 text-xs text-emerald-300 font-semibold py-1">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                              <span>100% Sales Ready — All mandatory & recommended fields populated.</span>
+                            <div className="flex items-center space-x-2 text-xs font-bold text-slate-100 bg-emerald-50 border-2 border-emerald-300 rounded-xl p-3 shadow-xs">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
+                              <span className="text-slate-100">100% Sales Ready — All mandatory Dubai legal and presentation requirements are complete!</span>
                             </div>
                           ) : (
-                            <div className="flex flex-wrap gap-1.5">
-                              {/* Critical Issues */}
-                              {audit.criticalIssues.map((issue) => (
-                                <span
-                                  key={issue.field}
-                                  className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-950/60 text-rose-200 border border-rose-500/50"
-                                  title={issue.description}
-                                >
-                                  <X className="w-3 h-3 text-rose-400" />
-                                  <span>Missing {issue.label}</span>
-                                </span>
-                              ))}
+                            <div className="space-y-2.5">
+                              {/* 1. Critical Issues Checklist */}
+                              {audit.criticalIssues.length > 0 && (
+                                <div className="bg-rose-50/95 border-2 border-rose-300 rounded-xl p-3 space-y-2 shadow-xs">
+                                  <div className="text-[11px] font-black uppercase tracking-wider text-red-800 flex items-center space-x-1.5">
+                                    <ShieldAlert className="w-4 h-4 text-red-700 flex-shrink-0" />
+                                    <span>Critical / Dubai Law Mandatory:</span>
+                                  </div>
+                                  <ul className="space-y-1.5 pl-0.5">
+                                    {audit.criticalIssues.map((issue) => (
+                                      <li key={issue.field} className="text-xs text-slate-100 flex items-start space-x-2 leading-relaxed">
+                                        <X className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5 font-bold" />
+                                        <span className="text-slate-100">
+                                          <strong className="text-slate-100 font-bold">{issue.label}:</strong>{' '}
+                                          <span className="text-slate-200 font-medium">{issue.description}</span>
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
 
-                              {/* Warning Issues */}
-                              {audit.warningIssues.map((issue) => (
-                                <span
-                                  key={issue.field}
-                                  className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-950/50 text-amber-200 border border-amber-500/40"
-                                  title={issue.description}
-                                >
-                                  <AlertTriangle className="w-3 h-3 text-amber-400" />
-                                  <span>Missing {issue.label}</span>
-                                </span>
-                              ))}
+                              {/* 2. Warning Issues Checklist */}
+                              {audit.warningIssues.length > 0 && (
+                                <div className="bg-amber-50/95 border-2 border-amber-300 rounded-xl p-3 space-y-2 shadow-xs">
+                                  <div className="text-[11px] font-black uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
+                                    <AlertTriangle className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                                    <span>Important Sales Information:</span>
+                                  </div>
+                                  <ul className="space-y-1.5 pl-0.5">
+                                    {audit.warningIssues.map((issue) => (
+                                      <li key={issue.field} className="text-xs text-slate-100 flex items-start space-x-2 leading-relaxed">
+                                        <span className="w-2 h-2 rounded-full bg-amber-700 flex-shrink-0 mt-1.5" />
+                                        <span className="text-slate-100">
+                                          <strong className="text-slate-100 font-bold">{issue.label}:</strong>{' '}
+                                          <span className="text-slate-200 font-medium">{issue.description}</span>
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
 
-                              {/* Info Issues */}
-                              {audit.infoIssues.map((issue) => (
-                                <span
-                                  key={issue.field}
-                                  className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700"
-                                  title={issue.description}
-                                >
-                                  <Info className="w-3 h-3 text-slate-400" />
-                                  <span>{issue.label}</span>
-                                </span>
-                              ))}
+                              {/* 3. Info Issues Checklist */}
+                              {audit.infoIssues.length > 0 && (
+                                <div className="bg-slate-100/90 border-2 border-slate-300 rounded-xl p-3 space-y-2 shadow-xs">
+                                  <div className="text-[11px] font-black uppercase tracking-wider text-slate-800 flex items-center space-x-1.5">
+                                    <Info className="w-4 h-4 text-slate-700 flex-shrink-0" />
+                                    <span>Recommended Marketing Details:</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                    {audit.infoIssues.map((issue) => (
+                                      <span
+                                        key={issue.field}
+                                        className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-100 border border-slate-300 shadow-xs"
+                                        title={issue.description}
+                                      >
+                                        <span>• Fill <strong className="text-slate-100 font-bold">{issue.label}</strong></span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {/* Card bottom action */}
-                      <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                        <span className="text-[10px] text-slate-400">
-                          {p.status || 'Ready'} • {p.property_type}
+                      {/* Card bottom action (NO EDIT OPTION for Sales Manager) */}
+                      <div className="mt-4 pt-3 border-t border-slate-700/80 flex items-center justify-between text-xs">
+                        <span className="text-xs text-slate-200 font-semibold">
+                          {p.status || 'Ready'} • {p.property_type} • {p.bedrooms} BR
                         </span>
 
-                        <button
-                          onClick={() => handleOpenQuickFix(p)}
-                          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>Quick Fix / Fill Data</span>
-                        </button>
+                        <div>
+                          {audit.status === 'sales_ready' ? (
+                            <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-950 border border-emerald-400">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                              <span>Sales Ready</span>
+                            </span>
+                          ) : audit.status === 'action_required' ? (
+                            <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-100 text-red-950 border border-rose-400" title="Missing critical requirements. Must be updated in Property Management.">
+                              <ShieldAlert className="w-3.5 h-3.5 text-red-700" />
+                              <span>Action Required ({audit.criticalIssues.length} Critical)</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-950 border border-amber-400" title="Missing recommended fields. Must be updated in Property Management.">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Incomplete ({totalMissing} Items)</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1119,214 +1253,6 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
           </div>
         )}
       </div>
-
-      {/* ═════════════════════════════════════════════════════════════════════════ */}
-      {/* QUICK FIX MODAL FOR SALES MANAGER */}
-      {/* ═════════════════════════════════════════════════════════════════════════ */}
-      {editingAuditProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-                  <Edit3 className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Fill Missing Requirements</h3>
-                  <p className="text-[11px] text-slate-400">{editingAuditProperty.title} ({editingAuditProperty.id})</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setEditingAuditProperty(null)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Form */}
-            <form onSubmit={handleSaveQuickFix} className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-800/40 text-[11px] text-emerald-200 leading-relaxed">
-                Enter the missing details below. Saving will update both local cache and Firestore database, updating the property completeness score immediately.
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* RERA Permit */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between mb-1">
-                    <span>RERA Permit ID</span>
-                    <span className="text-[10px] text-rose-400 font-bold uppercase">*Dubai Law</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={quickFixForm.rera_id || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, rera_id: e.target.value })}
-                    placeholder="e.g. RERA-78921-DXB"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Asking Price */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between mb-1">
-                    <span>Price (AED)</span>
-                    <span className="text-[10px] text-rose-400 font-bold uppercase">*Mandatory</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={quickFixForm.price_aed || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, price_aed: Number(e.target.value) })}
-                    placeholder="e.g. 1850000"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Size Sqft */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 flex items-center justify-between mb-1">
-                    <span>Size (Sq.Ft)</span>
-                    <span className="text-[10px] text-rose-400 font-bold uppercase">*Mandatory</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={quickFixForm.size_sqft || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, size_sqft: Number(e.target.value) })}
-                    placeholder="e.g. 1240"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Developer */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Developer Name</label>
-                  <input
-                    type="text"
-                    value={quickFixForm.developer || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, developer: e.target.value })}
-                    placeholder="e.g. Emaar, Damac, Sobha"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Handover Date */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Handover Date / Completion</label>
-                  <input
-                    type="text"
-                    value={quickFixForm.handover_date || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, handover_date: e.target.value })}
-                    placeholder="e.g. Ready, or Q4 2026"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Payment Plan */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Payment Plan</label>
-                  <input
-                    type="text"
-                    value={quickFixForm.payment_plan || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, payment_plan: e.target.value })}
-                    placeholder="e.g. 60/40 on handover, 20% down payment"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Expected ROI */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Expected Net ROI</label>
-                  <input
-                    type="text"
-                    value={quickFixForm.expected_roi || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, expected_roi: e.target.value })}
-                    placeholder="e.g. 7.8% net ROI"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Bathrooms */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Bathrooms</label>
-                  <input
-                    type="text"
-                    value={quickFixForm.bathrooms || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, bathrooms: e.target.value })}
-                    placeholder="e.g. 2 or 3"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              {/* Photo Image URL */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 block">Property Image URL</label>
-                <input
-                  type="url"
-                  value={quickFixForm.image_url || ''}
-                  onChange={(e) => setQuickFixForm({ ...quickFixForm, image_url: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1 block">Property Description</label>
-                <textarea
-                  rows={3}
-                  value={quickFixForm.description || ''}
-                  onChange={(e) => setQuickFixForm({ ...quickFixForm, description: e.target.value })}
-                  placeholder="Write an appealing overview with amenities and luxury finishes..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Contact Agent Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Assigned Agent Name</label>
-                  <input
-                    type="text"
-                    value={quickFixForm.contact_name || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, contact_name: e.target.value })}
-                    placeholder="e.g. Tariq Mansoor"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1 block">Agent Mobile Phone</label>
-                  <input
-                    type="tel"
-                    value={quickFixForm.contact_mobile || ''}
-                    onChange={(e) => setQuickFixForm({ ...quickFixForm, contact_mobile: e.target.value })}
-                    placeholder="+971 50 123 4567"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              {/* Modal Buttons */}
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingAuditProperty(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center space-x-1.5 px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-md shadow-emerald-600/30"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Save & Complete Requirements</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

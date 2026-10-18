@@ -1705,28 +1705,60 @@ app.delete('/api/properties/:id', async (req: Request, res: Response) => {
 app.post('/api/properties/book', async (req: Request, res: Response) => {
   try {
     const propertyId = req.body.propertyId;
-    const customerName = (req.body.customerName || req.body.assigned_to || '').trim();
-    const customerPhone = (req.body.customerPhone || req.body.assigned_phone || '').trim();
-    const customerEmail = (req.body.customerEmail || req.body.assigned_email || '').trim();
-    const bookingAmount = Number(req.body.bookingAmount ?? req.body.booking_amount_aed) || 0;
-    const notes = (req.body.notes || req.body.booking_notes || '').trim();
-
-    if (!propertyId || !customerName) {
-      return res.status(400).json({ success: false, error: 'propertyId and customerName (or assigned_to) are required' });
+    if (!propertyId) {
+      return res.status(400).json({ success: false, error: 'propertyId is required' });
     }
 
-    const bookingId = 'BK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    const bookedAt = new Date().toISOString();
+    const target = (ALL_VERIFIED_PROPERTIES as any[]).find(p => p.id === propertyId);
+
+    const customerPhone = (req.body.customerPhone || req.body.assigned_phone || req.body.phone || '').trim();
+    let customerName = (req.body.customerName || req.body.assigned_to || req.body.name || '').trim();
+    if (!customerName) {
+      customerName = customerPhone ? `Client (${customerPhone.slice(-4)})` : 'Valued Client';
+    }
+
+    const propertyTitle = req.body.property_title || target?.title || propertyId;
+    const community = req.body.community || target?.community || 'Dubai';
+    const city = req.body.city || target?.city || req.body.target_city || 'Dubai';
+    const bedrooms = String(req.body.bedrooms || target?.bedrooms || '2');
+    const priceAed = Number(req.body.price_aed ?? target?.price_aed) || 0;
+    const propertyType = req.body.property_type || target?.property_type || 'Apartment';
+
+    // 10% token deposit if booking amount is 0 or not provided
+    let bookingAmount = Number(req.body.bookingAmount ?? req.body.booking_amount_aed);
+    if (!bookingAmount || bookingAmount <= 0) {
+      bookingAmount = priceAed > 0 ? Math.round(priceAed * 0.10) : 50000;
+    }
+
+    // Customer email fallback if missing
+    let customerEmail = (req.body.customerEmail || req.body.assigned_email || req.body.email || '').trim();
+    if (!customerEmail) {
+      const cleanDigits = customerPhone.replace(/[^0-9]/g, '');
+      customerEmail = cleanDigits ? `client_${cleanDigits}@customer.lykarealty.ae` : 'client@lykarealty.ae';
+    }
+
+    // Rich notes from chat answers and booking context
+    let notes = (req.body.notes || req.body.booking_notes || '').trim();
+    if (!notes) {
+      const intentStr = req.body.intent ? `Intent: ${req.body.intent}. ` : '';
+      const budgetStr = req.body.budget_max_aed ? `Budget: AED ${Number(req.body.budget_max_aed).toLocaleString()}. ` : '';
+      const timelineStr = req.body.move_in_timeline ? `Timeline: ${req.body.move_in_timeline}. ` : '';
+      const viewingStr = req.body.viewing_preference ? `Viewing: ${req.body.viewing_preference}. ` : '';
+      notes = `Confirmed booking for ${propertyTitle} in ${community} (${bedrooms} BR, AED ${priceAed.toLocaleString()}). ${intentStr}${budgetStr}${timelineStr}${viewingStr}Client: ${customerName} (${customerPhone}).`;
+    }
+
+    const bookingId = req.body.booking_id || req.body.id || ('BK-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+    const bookedAt = req.body.booked_at || new Date().toISOString();
 
     const bookingUpdate = {
       status: 'Booked',
       is_booked: true,
-      assigned_to: customerName.trim(),
-      assigned_phone: (customerPhone || '').trim(),
-      assigned_email: (customerEmail || '').trim(),
+      assigned_to: customerName,
+      assigned_phone: customerPhone,
+      assigned_email: customerEmail,
       booking_id: bookingId,
-      booking_amount_aed: Number(bookingAmount) || 0,
-      booking_notes: notes || '',
+      booking_amount_aed: bookingAmount,
+      booking_notes: notes,
       booked_at: bookedAt,
       updatedAt: bookedAt
     };
@@ -1734,13 +1766,27 @@ app.post('/api/properties/book', async (req: Request, res: Response) => {
     const bookingRecord = {
       id: bookingId,
       property_id: propertyId,
-      customer_name: customerName.trim(),
-      customer_phone: (customerPhone || '').trim(),
-      customer_email: (customerEmail || '').trim(),
-      booking_amount_aed: Number(bookingAmount) || 0,
-      notes: notes || '',
+      property_title: propertyTitle,
+      community: community,
+      city: city,
+      bedrooms: bedrooms,
+      price_aed: priceAed,
+      property_type: propertyType,
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_email: customerEmail,
+      booking_amount_aed: bookingAmount,
+      notes: notes,
       booked_at: bookedAt,
-      status: 'Booked'
+      status: 'Booked',
+      lead_id: req.body.lead_id || req.body.leadId || '',
+      intent: req.body.intent || 'Buy',
+      target_city: city,
+      budget_max_aed: Number(req.body.budget_max_aed) || priceAed,
+      move_in_timeline: req.body.move_in_timeline || 'Immediate',
+      assigned_agent: req.body.assigned_agent || target?.agent_name || 'Zaid Al-Sayed',
+      booking_type: req.body.booking_type || 'Direct Booking',
+      updatedAt: bookedAt
     };
 
     // 1. Update in Firestore
@@ -1755,7 +1801,6 @@ app.post('/api/properties/book', async (req: Request, res: Response) => {
     }
 
     // 2. Update in-memory
-    const target = (ALL_VERIFIED_PROPERTIES as any[]).find(p => p.id === propertyId);
     if (target) {
       Object.assign(target, bookingUpdate);
     }
@@ -1793,6 +1838,17 @@ app.post('/api/properties/unbook', async (req: Request, res: Response) => {
     if (firestoreDb) {
       try {
         await fsSetDoc(fsDoc(firestoreDb, 'properties', propertyId), releaseUpdate, { merge: true });
+
+        // Update any matching bookings in booked_properties collection to Cancelled
+        const q = fsQuery(fsCollection(firestoreDb, 'booked_properties'), fsWhere('property_id', '==', propertyId));
+        const snap = await fsGetDocs(q);
+        for (const d of snap.docs) {
+          await fsSetDoc(fsDoc(firestoreDb, 'booked_properties', d.id), {
+            status: 'Cancelled',
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+
         console.log(`[Properties API] Property ${propertyId} unbooked in Firestore`);
       } catch (fsErr: any) {
         console.warn(`[Properties API] Firestore unbook error:`, fsErr.message);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PropertyListing } from '../types/crm';
+import { PropertyListing, LeadProfile } from '../types/crm';
 import { 
   Building2, 
   CheckCircle2, 
@@ -25,11 +25,13 @@ import {
   Bed,
   Maximize2,
   TrendingUp,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Users
 } from 'lucide-react';
 
 interface AssignedPropertiesViewProps {
   properties: PropertyListing[];
+  leads?: LeadProfile[];
   canManageBookings?: boolean;
   onBookProperty: (propertyId: string, details: {
     customerName: string;
@@ -43,6 +45,7 @@ interface AssignedPropertiesViewProps {
 
 export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
   properties,
+  leads = [],
   canManageBookings = true,
   onBookProperty,
   onUnbookProperty,
@@ -132,6 +135,38 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
     setShowAssignModal(true);
   };
 
+  const handleSelectProperty = (propId: string) => {
+    setSelectedPropId(propId);
+    const target = properties.find(p => p.id === propId);
+    if (target) {
+      if (!bookingAmount || bookingAmount === '0') {
+        const defaultAdvance = target.price_aed ? Math.round(Number(target.price_aed) * 0.10) : 50000;
+        setBookingAmount(String(defaultAdvance));
+      }
+      if (!bookingNotes) {
+        setBookingNotes(`10% Token booking deposit for ${target.title} (${target.community}). Purchase contract and client verification in progress.`);
+      }
+    }
+  };
+
+  const handleSelectLead = (leadId: string) => {
+    if (!leadId) return;
+    const target = leads.find(l => l.id === leadId);
+    if (target) {
+      setClientName(target.full_name || (target.phone ? `Client (${target.phone.slice(-4)})` : 'Valued Client'));
+      setClientPhone(target.phone || '');
+      setClientEmail(target.email || (target.phone ? `client_${target.phone.replace(/[^0-9]/g, '')}@customer.lykarealty.ae` : ''));
+      const details = [];
+      if (target.intent) details.push(`Intent: ${target.intent}`);
+      if (target.target_city) details.push(`City: ${target.target_city}`);
+      if (target.budget_max_aed) details.push(`Budget: AED ${Number(target.budget_max_aed).toLocaleString()}`);
+      if (target.move_in_timeline) details.push(`Timeline: ${target.move_in_timeline}`);
+      const leadContext = details.length > 0 ? ` [Client Requirements: ${details.join(', ')}]` : '';
+      const chosenProp = properties.find(p => p.id === selectedPropId);
+      setBookingNotes(`Booking for ${chosenProp?.title || 'property'}.${leadContext}`);
+    }
+  };
+
   const handleApplyBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageBookings) {
@@ -142,29 +177,37 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
       setErrorBanner('Please select a property to assign.');
       return;
     }
-    if (!clientName.trim()) {
-      setErrorBanner('Please enter the client / customer name.');
-      return;
-    }
-    if (!clientPhone.trim()) {
+    if (!clientPhone.trim() && !clientName.trim()) {
       setErrorBanner('Please enter the customer mobile number.');
       return;
     }
+
+    const cleanPhone = clientPhone.trim();
+    const cleanName = (clientName.trim() || (cleanPhone ? `Client (${cleanPhone.slice(-4)})` : 'Valued Client'));
+    const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+    const cleanEmail = clientEmail.trim() || (cleanDigits ? `client_${cleanDigits}@customer.lykarealty.ae` : 'client@lykarealty.ae');
+
+    const bookedTarget = properties.find(p => p.id === selectedPropId);
+    const propPrice = Number(bookedTarget?.price_aed) || 0;
+    const finalTokenAmount = Number(bookingAmount) > 0 
+      ? Number(bookingAmount) 
+      : (propPrice > 0 ? Math.round(propPrice * 0.10) : 50000);
+
+    const finalNotes = bookingNotes.trim() || `Confirmed booking for ${bookedTarget?.title || selectedPropId} in ${bookedTarget?.community || 'Dubai'}. Assigned to ${cleanName} (${cleanPhone}).`;
 
     setActionLoading(true);
     setErrorBanner(null);
     try {
       await onBookProperty(selectedPropId, {
-        customerName: clientName.trim(),
-        customerPhone: clientPhone.trim(),
-        customerEmail: clientEmail.trim(),
-        bookingAmount: Number(bookingAmount) || 0,
-        notes: bookingNotes.trim()
+        customerName: cleanName,
+        customerPhone: cleanPhone,
+        customerEmail: cleanEmail,
+        bookingAmount: finalTokenAmount,
+        notes: finalNotes
       });
 
-      const bookedTarget = properties.find(p => p.id === selectedPropId);
       setSuccessBanner(
-        `Property "${bookedTarget?.title || selectedPropId}" successfully BOOKED & assigned to ${clientName}! It will NO LONGER be recommended by the AI Chatbot.`
+        `Property "${bookedTarget?.title || selectedPropId}" successfully BOOKED & assigned to ${cleanName}! It will NO LONGER be recommended by the AI Chatbot.`
       );
       setShowAssignModal(false);
       // Switch to booked tab to see the confirmed booking
@@ -820,7 +863,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                                 key={p.id}
                                 type="button"
                                 onClick={() => {
-                                  setSelectedPropId(p.id);
+                                  handleSelectProperty(p.id);
                                   setPickerOpen(false);
                                   setPickerSearch('');
                                 }}
@@ -829,7 +872,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                                     ? 'bg-emerald-500/15 border-emerald-500 text-slate-300 font-bold'
                                     : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800/80 hover:border-slate-700'
                                 }`}
-                                style={{ color: '#463726' }}
+                                style={{ color: '#1c1611' }}
                               >
                                 <div className="min-w-0 flex-1 pr-2">
                                   <p className="font-bold text-slate-300 truncate">{p.title}</p>
@@ -861,11 +904,11 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 <select
                   required
                   value={selectedPropId}
-                  onChange={(e) => setSelectedPropId(e.target.value)}
+                  onChange={(e) => handleSelectProperty(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-semibold focus:outline-none focus:border-emerald-500 mt-1 cursor-pointer"
-                  style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
+                  style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                 >
-                  <option value="" style={{ backgroundColor: '#ffffff', color: '#463726' }}>
+                  <option value="" style={{ backgroundColor: '#ffffff', color: '#1c1611' }}>
                     -- Or Select from Standard Dropdown --
                   </option>
                   {availableProperties.map(p => (
@@ -881,18 +924,45 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 </select>
               </div>
 
+              {/* Quick Select from CRM Leads */}
+              {leads && leads.length > 0 && (
+                <div className="space-y-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                  <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
+                    <span className="flex items-center space-x-1.5 text-amber-600 font-bold">
+                      <Users className="w-3.5 h-3.5" />
+                      <span>Quick-Fill from CRM Lead</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold">{leads.length} leads in pipeline</span>
+                  </label>
+                  <select
+                    onChange={(e) => handleSelectLead(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
+                    defaultValue=""
+                  >
+                    <option value="" style={{ backgroundColor: '#ffffff', color: '#1c1611' }}>
+                      -- Select an Active Lead to Auto-Fill Information --
+                    </option>
+                    {leads.map(l => (
+                      <option key={l.id} value={l.id} style={{ backgroundColor: '#ffffff', color: '#1c1611' }}>
+                        {l.full_name || ('Client ' + (l.phone || l.id))} • {l.phone || 'No phone'} ({l.target_city || 'Dubai'} - {l.intent || 'Buy'} - AED {l.budget_max_aed ? Number(l.budget_max_aed).toLocaleString() : 'Open'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Client Name & Mobile */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Client / Buyer Full Name *</label>
+                  <label className="text-xs font-semibold text-slate-400">Client / Buyer Full Name (Optional)</label>
                   <input
                     type="text"
-                    required
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="e.g. Rahul Sharma"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                    style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
 
@@ -905,7 +975,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     onChange={(e) => setClientPhone(e.target.value)}
                     placeholder="e.g. +971 50 123 4567"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                    style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
               </div>
@@ -920,7 +990,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     onChange={(e) => setClientEmail(e.target.value)}
                     placeholder="e.g. client@domain.com"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                    style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
 
@@ -932,7 +1002,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     onChange={(e) => setBookingAmount(e.target.value)}
                     placeholder="e.g. 50000"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
-                    style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
               </div>
@@ -946,7 +1016,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   onChange={(e) => setBookingNotes(e.target.value)}
                   placeholder="e.g. 10% token deposit received. Sale deed agreement scheduled for next Monday."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none font-medium"
-                  style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
+                  style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                 />
               </div>
 

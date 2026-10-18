@@ -6,7 +6,8 @@ import {
   FollowUpTask, 
   LeadStatus,
   AgenticDecision,
-  PortalCredential
+  PortalCredential,
+  BookedPropertyRecord
 } from './types/crm';
 import { 
   createInitialLeadProfile, 
@@ -44,6 +45,8 @@ import {
   savePropertyToFirestore,
   getPropertiesFromFirestore,
   deletePropertyFromFirestore,
+  saveBookedPropertyToFirestore,
+  cancelBookedPropertyInFirestore,
   auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
@@ -91,15 +94,16 @@ export default function App() {
   const [followUpsList, setFollowUpsList] = useState<FollowUpTask[]>([]);
   const [propertiesList, setPropertiesList] = useState<PropertyListing[]>(() => {
     try {
+      const savedDeleted = localStorage.getItem('deletedPropertyIds');
+      const deletedSet = new Set<string>(savedDeleted ? JSON.parse(savedDeleted) : []);
       const saved = localStorage.getItem('localProperties');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(ALL_VERIFIED_PROPERTIES.map(p => p.id));
-          const customOnly = parsed.filter((p: any) => !existingIds.has(p.id));
-          return [...customOnly, ...ALL_VERIFIED_PROPERTIES];
+          return parsed.filter((p: any) => p && p.id && !deletedSet.has(p.id));
         }
       }
+      return ALL_VERIFIED_PROPERTIES.filter(p => !deletedSet.has(p.id));
     } catch (e) {
       console.warn('Error reading localProperties from localStorage:', e);
     }
@@ -574,10 +578,12 @@ export default function App() {
             const apiData = await apiRes.json();
             if (apiData.properties && Array.isArray(apiData.properties) && apiData.properties.length > 0) {
               setPropertiesList(prev => {
+                const savedDeleted = localStorage.getItem('deletedPropertyIds');
+                const deletedSet = new Set<string>(savedDeleted ? JSON.parse(savedDeleted) : []);
                 const apiMap = new Map(apiData.properties.map((p: any) => [p.id, p]));
-                const merged = prev.map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
-                const existingIds = new Set(prev.map(p => p.id));
-                const newFromApi = apiData.properties.filter((p: any) => !existingIds.has(p.id));
+                const merged = prev.filter(p => !deletedSet.has(p.id)).map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
+                const existingIds = new Set(merged.map(p => p.id));
+                const newFromApi = apiData.properties.filter((p: any) => !existingIds.has(p.id) && !deletedSet.has(p.id));
                 const combined = [...newFromApi, ...merged];
                 try { localStorage.setItem('localProperties', JSON.stringify(combined)); } catch (_) {}
                 return combined;
@@ -592,10 +598,12 @@ export default function App() {
         const firestoreProps = await getPropertiesFromFirestore();
         if (firestoreProps.length > 0) {
           setPropertiesList(prev => {
+            const savedDeleted = localStorage.getItem('deletedPropertyIds');
+            const deletedSet = new Set<string>(savedDeleted ? JSON.parse(savedDeleted) : []);
             const fsMap = new Map(firestoreProps.map(p => [p.id, p]));
-            const merged = prev.map(p => fsMap.has(p.id) ? { ...p, ...fsMap.get(p.id) } : p);
-            const existingIds = new Set(prev.map(p => p.id));
-            const newFromFirestore = firestoreProps.filter(p => !existingIds.has(p.id));
+            const merged = prev.filter(p => !deletedSet.has(p.id)).map(p => fsMap.has(p.id) ? { ...p, ...fsMap.get(p.id) } : p);
+            const existingIds = new Set(merged.map(p => p.id));
+            const newFromFirestore = firestoreProps.filter(p => !existingIds.has(p.id) && !deletedSet.has(p.id));
             const combined = [...newFromFirestore, ...merged];
             try {
               localStorage.setItem('localProperties', JSON.stringify(combined));
@@ -1263,6 +1271,59 @@ export default function App() {
       body: JSON.stringify(newTask)
     }).catch(() => {});
 
+    // Save full booking record in booked_properties collection in Firestore
+    const viewBookingId = 'BK-VIEW-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const bookedAt = new Date().toISOString();
+    const customerPhone = (currentLead.phone || '').trim();
+    const customerName = (currentLead.full_name || (customerPhone ? `Client (${customerPhone.slice(-4)})` : 'Valued Client')).trim();
+    const cleanDigits = customerPhone.replace(/[^0-9]/g, '');
+    const customerEmail = (currentLead.email || (cleanDigits ? `client_${cleanDigits}@customer.lykarealty.ae` : 'client@lykarealty.ae')).trim();
+    const tokenAmount = viewingModalProperty.price_aed ? Math.round(viewingModalProperty.price_aed * 0.10) : 50000;
+    const viewNotes = `Viewing scheduled for ${viewingDate} at ${viewingTime} (${viewingMode}). Client answers: Country/City=${currentLead.target_city || 'Dubai'}, Intent=${currentLead.intent || 'Buy'}, Preferred Location=${currentLead.preferred_community || viewingModalProperty.community}, Budget=AED ${currentLead.budget_max_aed ? Number(currentLead.budget_max_aed).toLocaleString() : viewingModalProperty.price_aed.toLocaleString()}, Move-in=${currentLead.move_in_timeline || 'Immediate'}. Assigned Agent: ${currentLead.assigned_agent}.`;
+
+    const viewBookingRecord: BookedPropertyRecord = {
+      id: viewBookingId,
+      property_id: viewingModalProperty.id,
+      property_title: viewingModalProperty.title,
+      community: viewingModalProperty.community,
+      city: viewingModalProperty.city || currentLead.target_city || 'Dubai',
+      bedrooms: String(viewingModalProperty.bedrooms),
+      price_aed: viewingModalProperty.price_aed,
+      property_type: viewingModalProperty.property_type,
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_email: customerEmail,
+      booking_amount_aed: tokenAmount,
+      notes: viewNotes,
+      booked_at: bookedAt,
+      status: 'Booked',
+      lead_id: currentLead.id,
+      intent: currentLead.intent || 'Buy',
+      target_city: currentLead.target_city || 'Dubai',
+      budget_max_aed: currentLead.budget_max_aed || viewingModalProperty.price_aed,
+      move_in_timeline: currentLead.move_in_timeline || 'Immediate',
+      assigned_agent: currentLead.assigned_agent,
+      booking_type: 'Viewing Booked'
+    };
+
+    saveBookedPropertyToFirestore(viewBookingRecord).catch(err => {
+      console.warn('saveBookedPropertyToFirestore viewing error:', err);
+    });
+
+    fetch('/api/properties/book', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...viewBookingRecord,
+        propertyId: viewingModalProperty.id,
+        customerName,
+        customerPhone,
+        customerEmail,
+        bookingAmount: tokenAmount,
+        notes: viewNotes
+      })
+    }).catch(() => {});
+
     // Update lead status to Viewing
     updateActiveLead({
       lead_status: 'Viewing',
@@ -1367,11 +1428,31 @@ export default function App() {
       return;
     }
 
-    const finalCustomerName = (bookingDetails.customerName || bookingDetails.assigned_to || '').trim();
-    const finalCustomerPhone = (bookingDetails.customerPhone || bookingDetails.assigned_phone || '').trim();
-    const finalCustomerEmail = (bookingDetails.customerEmail || bookingDetails.assigned_email || '').trim();
-    const finalBookingAmount = Number(bookingDetails.bookingAmount ?? bookingDetails.booking_amount_aed) || 0;
-    const finalNotes = (bookingDetails.notes || bookingDetails.booking_notes || '').trim();
+    const targetProp = propertiesList.find(p => p.id === propertyId);
+    const finalCustomerPhone = (bookingDetails.customerPhone || bookingDetails.assigned_phone || currentLead.phone || '').trim();
+    let finalCustomerName = (bookingDetails.customerName || bookingDetails.assigned_to || currentLead.full_name || '').trim();
+    if (!finalCustomerName) {
+      finalCustomerName = finalCustomerPhone ? `Client (${finalCustomerPhone.slice(-4)})` : 'Valued Client';
+    }
+
+    const propPrice = Number(targetProp?.price_aed) || 0;
+    const rawAmount = Number(bookingDetails.bookingAmount ?? bookingDetails.booking_amount_aed);
+    const finalBookingAmount = (rawAmount > 0) ? rawAmount : (propPrice > 0 ? Math.round(propPrice * 0.10) : 50000);
+
+    let finalCustomerEmail = (bookingDetails.customerEmail || bookingDetails.assigned_email || currentLead.email || '').trim();
+    if (!finalCustomerEmail) {
+      const cleanDigits = finalCustomerPhone.replace(/[^0-9]/g, '');
+      finalCustomerEmail = cleanDigits ? `client_${cleanDigits}@customer.lykarealty.ae` : 'client@lykarealty.ae';
+    }
+
+    let finalNotes = (bookingDetails.notes || bookingDetails.booking_notes || '').trim();
+    if (!finalNotes) {
+      const intentStr = currentLead.intent ? `Intent: ${currentLead.intent}. ` : '';
+      const budgetStr = currentLead.budget_max_aed ? `Budget: AED ${Number(currentLead.budget_max_aed).toLocaleString()}. ` : '';
+      const timelineStr = currentLead.move_in_timeline ? `Timeline: ${currentLead.move_in_timeline}. ` : '';
+      finalNotes = `Booking confirmed for ${targetProp?.title || propertyId} in ${targetProp?.community || 'Dubai'} (${targetProp?.bedrooms || 2} BR, AED ${propPrice.toLocaleString()}). ${intentStr}${budgetStr}${timelineStr}Assigned to ${finalCustomerName} (${finalCustomerPhone}).`;
+    }
+
     const booked_at = new Date().toISOString();
     const booking_id = 'BK-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
 
@@ -1405,19 +1486,49 @@ export default function App() {
       return updated;
     });
 
-    // 2. Persist to Firestore
+    // 2. Persist to Firestore properties collection
     if (updatedPropertyObj) {
       savePropertyToFirestore(updatedPropertyObj).catch(err => {
         console.warn('savePropertyToFirestore booking error:', err);
       });
     }
 
-    // 3. Sync to backend server endpoint /api/properties/book
+    // 3. Persist to Firestore booked_properties collection
+    const bookedRecord: BookedPropertyRecord = {
+      id: booking_id,
+      property_id: propertyId,
+      property_title: targetProp?.title || propertyId,
+      community: targetProp?.community || 'Dubai',
+      city: targetProp?.city || currentLead.target_city || 'Dubai',
+      bedrooms: String(targetProp?.bedrooms || '2'),
+      price_aed: propPrice,
+      property_type: targetProp?.property_type || 'Apartment',
+      customer_name: finalCustomerName,
+      customer_phone: finalCustomerPhone,
+      customer_email: finalCustomerEmail,
+      booking_amount_aed: finalBookingAmount,
+      notes: finalNotes,
+      booked_at,
+      status: 'Booked',
+      lead_id: currentLead.id,
+      intent: currentLead.intent || 'Buy',
+      target_city: currentLead.target_city || 'Dubai',
+      budget_max_aed: Number(currentLead.budget_max_aed) || propPrice,
+      move_in_timeline: currentLead.move_in_timeline || 'Immediate',
+      assigned_agent: currentLead.assigned_agent || targetProp?.agent_name || 'Senior Property Advisor',
+      booking_type: 'Direct Booking'
+    };
+    saveBookedPropertyToFirestore(bookedRecord).catch(err => {
+      console.warn('saveBookedPropertyToFirestore error:', err);
+    });
+
+    // 4. Sync to backend server endpoint /api/properties/book
     try {
       await fetch('/api/properties/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...bookedRecord,
           propertyId,
           customerName: finalCustomerName,
           customerPhone: finalCustomerPhone,
@@ -1476,6 +1587,10 @@ export default function App() {
         console.warn('savePropertyToFirestore unbook error:', err);
       });
     }
+
+    cancelBookedPropertyInFirestore(propertyId).catch(err => {
+      console.warn('cancelBookedPropertyInFirestore error:', err);
+    });
 
     try {
       await fetch('/api/properties/unbook', {
@@ -1541,6 +1656,15 @@ export default function App() {
   };
 
   const handleDeleteProperty = async (propertyId: string) => {
+    try {
+      const savedDeleted = localStorage.getItem('deletedPropertyIds');
+      const arr = savedDeleted ? JSON.parse(savedDeleted) : [];
+      if (!arr.includes(propertyId)) {
+        arr.push(propertyId);
+        localStorage.setItem('deletedPropertyIds', JSON.stringify(arr));
+      }
+    } catch (_) {}
+
     setPropertiesList(prev => {
       const updated = prev.filter(p => p.id !== propertyId);
       try {
@@ -1577,7 +1701,7 @@ export default function App() {
         const t2 = (list[j].title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
         const r1 = (list[i].rera_id || '').trim().toLowerCase();
         const r2 = (list[j].rera_id || '').trim().toLowerCase();
-        if ((r1 && r2 && r1 === r2) || (t1 && t2 && t1 === t2)) {
+        if ((r1 && r2 && r1 === r2) || (t1 && t2 && (t1 === t2 || t1.includes(t2) || t2.includes(t1)))) {
           dupCount += 1;
           paired.add(list[j].id);
           break;
@@ -1794,6 +1918,7 @@ export default function App() {
             {(adminAuthenticated || propertyManagerAuthenticated) && activeTab === 'assigned_properties' && (
               <AssignedPropertiesView
                 properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
+                leads={leadsList}
                 onBookProperty={handleBookProperty}
                 onUnbookProperty={handleUnbookProperty}
                 canManageBookings={adminTargetPortal === 'property_manager'}
