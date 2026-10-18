@@ -26,7 +26,9 @@ import {
   Maximize2,
   TrendingUp,
   SlidersHorizontal,
-  Users
+  Users,
+  CreditCard,
+  ShieldCheck
 } from 'lucide-react';
 
 interface AssignedPropertiesViewProps {
@@ -39,6 +41,10 @@ interface AssignedPropertiesViewProps {
     customerEmail?: string;
     bookingAmount?: number;
     notes?: string;
+    assigned_id_card?: string;
+    assigned_id_type?: string;
+    customer_id_card?: string;
+    customer_id_type?: string;
   }) => Promise<void> | void;
   onUnbookProperty: (propertyId: string) => Promise<void> | void;
 }
@@ -59,6 +65,8 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [clientIdType, setClientIdType] = useState('Emirates ID');
+  const [clientIdCard, setClientIdCard] = useState('');
   const [bookingAmount, setBookingAmount] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -132,6 +140,40 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
     setErrorBanner(null);
     setPickerOpen(false);
     setPickerSearch('');
+
+    const target = properties.find(p => p.id === propId);
+    if (target) {
+      const isBooked = Boolean(
+        target.is_booked ||
+        (target.status || '').toLowerCase() === 'booked' ||
+        target.booked_by_phone ||
+        target.assigned_phone
+      );
+
+      if (isBooked) {
+        // Pre-fill booker's details for easy verification
+        setClientName(target.booked_by_name || target.assigned_to || '');
+        setClientPhone(target.booked_by_phone || target.assigned_phone || '');
+        setClientEmail(target.assigned_email || '');
+        setClientIdCard(target.assigned_id_card || target.booked_by_id_card || '');
+        setClientIdType(target.assigned_id_type || 'Emirates ID');
+        if (target.booking_amount_aed) {
+          setBookingAmount(String(target.booking_amount_aed));
+        }
+        if (target.booking_notes) {
+          setBookingNotes(target.booking_notes);
+        }
+      } else {
+        setClientName('');
+        setClientPhone('');
+        setClientEmail('');
+        setClientIdCard('');
+        setClientIdType('Emirates ID');
+        const defaultAdvance = target.price_aed ? Math.round(Number(target.price_aed) * 0.10) : 50000;
+        setBookingAmount(String(defaultAdvance));
+        setBookingNotes(`10% Token booking deposit for ${target.title} (${target.community}). Purchase contract and client verification in progress.`);
+      }
+    }
     setShowAssignModal(true);
   };
 
@@ -139,14 +181,144 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
     setSelectedPropId(propId);
     const target = properties.find(p => p.id === propId);
     if (target) {
-      if (!bookingAmount || bookingAmount === '0') {
-        const defaultAdvance = target.price_aed ? Math.round(Number(target.price_aed) * 0.10) : 50000;
-        setBookingAmount(String(defaultAdvance));
-      }
-      if (!bookingNotes) {
-        setBookingNotes(`10% Token booking deposit for ${target.title} (${target.community}). Purchase contract and client verification in progress.`);
+      const isBooked = Boolean(
+        target.is_booked ||
+        (target.status || '').toLowerCase() === 'booked' ||
+        target.booked_by_phone ||
+        target.assigned_phone
+      );
+
+      if (isBooked) {
+        setClientName(target.booked_by_name || target.assigned_to || '');
+        setClientPhone(target.booked_by_phone || target.assigned_phone || '');
+        setClientEmail(target.assigned_email || '');
+        setClientIdCard(target.assigned_id_card || target.booked_by_id_card || '');
+        setClientIdType(target.assigned_id_type || 'Emirates ID');
+        if (target.booking_amount_aed) {
+          setBookingAmount(String(target.booking_amount_aed));
+        }
+      } else {
+        if (!bookingAmount || bookingAmount === '0') {
+          const defaultAdvance = target.price_aed ? Math.round(Number(target.price_aed) * 0.10) : 50000;
+          setBookingAmount(String(defaultAdvance));
+        }
+        if (!bookingNotes) {
+          setBookingNotes(`10% Token booking deposit for ${target.title} (${target.community}). Purchase contract and client verification in progress.`);
+        }
       }
     }
+  };
+
+  const handleFillBookerInfo = () => {
+    if (!selectedPropertyObj) return;
+    const bName = selectedPropertyObj.booked_by_name || selectedPropertyObj.assigned_to || '';
+    const bPhone = selectedPropertyObj.booked_by_phone || selectedPropertyObj.assigned_phone || '';
+    const bId = selectedPropertyObj.booked_by_id_card || selectedPropertyObj.assigned_id_card || '';
+    const bIdType = selectedPropertyObj.assigned_id_type || 'Emirates ID';
+    const bEmail = selectedPropertyObj.assigned_email || '';
+    if (bName) setClientName(bName);
+    if (bPhone) setClientPhone(bPhone);
+    if (bId) setClientIdCard(bId);
+    if (bIdType) setClientIdType(bIdType);
+    if (bEmail) setClientEmail(bEmail);
+    setErrorBanner(null);
+  };
+
+  // Helper to check strict identification match between booker and assignee
+  const checkIdentificationMatch = (
+    property: PropertyListing | undefined,
+    name: string,
+    phone: string,
+    idCard: string
+  ) => {
+    if (!property) {
+      return {
+        isBooked: false,
+        matches: true,
+        reason: '',
+        registeredName: '',
+        registeredPhone: '',
+        registeredIdCard: '',
+        registeredIdType: 'Emirates ID'
+      };
+    }
+
+    const isBooked = Boolean(
+      property.is_booked ||
+      (property.status || '').toLowerCase() === 'booked' ||
+      property.booked_by_phone ||
+      property.assigned_phone ||
+      property.booked_by_name ||
+      property.assigned_to
+    );
+
+    const registeredName = (property.booked_by_name || property.assigned_to || '').trim();
+    const registeredPhone = (property.booked_by_phone || property.assigned_phone || '').trim();
+    const registeredIdCard = (property.booked_by_id_card || property.assigned_id_card || '').trim();
+    const registeredIdType = (property.assigned_id_type || 'Emirates ID').trim();
+
+    // If unit is completely open / unbooked or has no booker info recorded
+    if (!isBooked || (!registeredPhone && !registeredName && !registeredIdCard)) {
+      return {
+        isBooked,
+        matches: true,
+        reason: 'Open Unit: Identity will be recorded and verified for assigned ownership.',
+        registeredName,
+        registeredPhone,
+        registeredIdCard,
+        registeredIdType
+      };
+    }
+
+    const cleanPhoneDigits = phone.replace(/[^0-9]/g, '');
+    const cleanRegPhoneDigits = registeredPhone.replace(/[^0-9]/g, '');
+
+    // Compare phone digits (match if last 7+ digits equal)
+    const phoneMatched = Boolean(
+      cleanPhoneDigits.length >= 7 &&
+      cleanRegPhoneDigits.length >= 7 &&
+      (cleanPhoneDigits === cleanRegPhoneDigits ||
+       cleanPhoneDigits.endsWith(cleanRegPhoneDigits.slice(-7)) ||
+       cleanRegPhoneDigits.endsWith(cleanPhoneDigits.slice(-7)))
+    );
+
+    // Compare ID card if both present
+    const cleanId = idCard.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const cleanRegId = registeredIdCard.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const idMatched = Boolean(cleanId && cleanRegId && cleanId === cleanRegId);
+
+    // Compare Name
+    const cleanNameInput = name.trim().toLowerCase();
+    const cleanRegName = registeredName.toLowerCase();
+    const nameMatched = Boolean(
+      cleanNameInput &&
+      cleanRegName &&
+      (cleanNameInput === cleanRegName ||
+       cleanNameInput.includes(cleanRegName) ||
+       cleanRegName.includes(cleanNameInput))
+    );
+
+    if (phoneMatched || idMatched || (nameMatched && cleanPhoneDigits.length >= 4)) {
+      return {
+        isBooked: true,
+        matches: true,
+        reason: `Identification Verified: Matches registered booker (${registeredName || registeredPhone}).`,
+        registeredName,
+        registeredPhone,
+        registeredIdCard,
+        registeredIdType
+      };
+    }
+
+    return {
+      isBooked: true,
+      matches: false,
+      reason: `Identification Mismatch: This unit was booked by ${registeredName || 'another customer'} (${registeredPhone || 'Phone on file'}). Only the same person who booked this property can be assigned.`,
+      registeredName,
+      registeredPhone,
+      registeredIdCard,
+      registeredIdType
+    };
   };
 
   const handleSelectLead = (leadId: string) => {
@@ -177,23 +349,40 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
       setErrorBanner('Please select a property to assign.');
       return;
     }
-    if (!clientPhone.trim() && !clientName.trim()) {
+
+    const cleanPhone = clientPhone.trim();
+    const cleanName = (clientName.trim() || (cleanPhone ? `Client (${cleanPhone.slice(-4)})` : 'Valued Client'));
+    const cleanIdCard = clientIdCard.trim();
+
+    if (!cleanPhone && !cleanName) {
       setErrorBanner('Please enter the customer mobile number.');
       return;
     }
 
-    const cleanPhone = clientPhone.trim();
-    const cleanName = (clientName.trim() || (cleanPhone ? `Client (${cleanPhone.slice(-4)})` : 'Valued Client'));
-    const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
-    const cleanEmail = clientEmail.trim() || (cleanDigits ? `client_${cleanDigits}@customer.lykarealty.ae` : 'client@lykarealty.ae');
+    if (!cleanIdCard) {
+      setErrorBanner('Please enter the client Government ID card number (e.g., Emirates ID, Aadhaar Card, or Passport) for verified assignment.');
+      return;
+    }
 
     const bookedTarget = properties.find(p => p.id === selectedPropId);
+
+    // Strict identification verification check:
+    const matchCheck = checkIdentificationMatch(bookedTarget, cleanName, cleanPhone, cleanIdCard);
+    if (matchCheck.isBooked && !matchCheck.matches) {
+      setErrorBanner(
+        `Identification Mismatch Error: Property "${bookedTarget?.title || selectedPropId}" was booked by ${matchCheck.registeredName || 'another customer'} (${matchCheck.registeredPhone}). Only the same person who booked this property can be assigned.`
+      );
+      return;
+    }
+
+    const cleanDigits = cleanPhone.replace(/[^0-9]/g, '');
+    const cleanEmail = clientEmail.trim() || (cleanDigits ? `client_${cleanDigits}@customer.lykarealty.ae` : 'client@lykarealty.ae');
     const propPrice = Number(bookedTarget?.price_aed) || 0;
     const finalTokenAmount = Number(bookingAmount) > 0 
       ? Number(bookingAmount) 
       : (propPrice > 0 ? Math.round(propPrice * 0.10) : 50000);
 
-    const finalNotes = bookingNotes.trim() || `Confirmed booking for ${bookedTarget?.title || selectedPropId} in ${bookedTarget?.community || 'Dubai'}. Assigned to ${cleanName} (${cleanPhone}).`;
+    const finalNotes = bookingNotes.trim() || `Confirmed booking & verified assignment for ${bookedTarget?.title || selectedPropId} in ${bookedTarget?.community || 'Dubai'}. Assigned to ${cleanName} (${cleanPhone}), ID: [${clientIdType}: ${cleanIdCard}].`;
 
     setActionLoading(true);
     setErrorBanner(null);
@@ -203,11 +392,15 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
         customerPhone: cleanPhone,
         customerEmail: cleanEmail,
         bookingAmount: finalTokenAmount,
-        notes: finalNotes
+        notes: finalNotes,
+        assigned_id_card: cleanIdCard,
+        assigned_id_type: clientIdType,
+        customer_id_card: cleanIdCard,
+        customer_id_type: clientIdType
       });
 
       setSuccessBanner(
-        `Property "${bookedTarget?.title || selectedPropId}" successfully BOOKED & assigned to ${cleanName}! It will NO LONGER be recommended by the AI Chatbot.`
+        `Property "${bookedTarget?.title || selectedPropId}" successfully VERIFIED & assigned to ${cleanName} (${clientIdType}: ${cleanIdCard})! Identification verified.`
       );
       setShowAssignModal(false);
       // Switch to booked tab to see the confirmed booking
@@ -217,6 +410,8 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
       setClientName('');
       setClientPhone('');
       setClientEmail('');
+      setClientIdCard('');
+      setClientIdType('Emirates ID');
       setBookingAmount('');
       setBookingNotes('');
       setPickerOpen(false);
@@ -602,25 +797,31 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                             <User className="w-3 h-3" />
                             <span>Assigned Client</span>
                           </span>
-                          {prop.booked_at && (
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              {new Date(prop.booked_at).toLocaleDateString()}
+                          {prop.assignment_verified ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center space-x-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              <span>ID Verified (Matches Booker)</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center space-x-1">
+                              <ShieldCheck className="w-3 h-3 text-amber-400" />
+                              <span>Reserved (Pending ID)</span>
                             </span>
                           )}
                         </div>
 
                         <p className="text-sm font-bold text-slate-300">
-                          {prop.assigned_to || 'Confidential Client'}
+                          {prop.assigned_to || prop.booked_by_name || 'Confidential Client'}
                         </p>
 
                         <div className="flex items-center space-x-3 text-xs text-slate-400">
-                          {prop.assigned_phone && (
+                          {(prop.assigned_phone || prop.booked_by_phone) && (
                             <a 
-                              href={`tel:${prop.assigned_phone}`}
+                              href={`tel:${prop.assigned_phone || prop.booked_by_phone}`}
                               className="flex items-center space-x-1 text-slate-400 hover:text-emerald-600 transition-colors"
                             >
                               <Phone className="w-3 h-3 text-emerald-600" />
-                              <span>{prop.assigned_phone}</span>
+                              <span>{prop.assigned_phone || prop.booked_by_phone}</span>
                             </a>
                           )}
                           {prop.assigned_email && (
@@ -632,6 +833,15 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                               <span className="truncate">{prop.assigned_email}</span>
                             </a>
                           )}
+                        </div>
+
+                        {/* Identification Details */}
+                        <div className="flex items-center space-x-1.5 text-xs text-slate-300 font-semibold bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                          <CreditCard className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span className="truncate">
+                            <span className="text-slate-400 font-normal">{prop.assigned_id_type || 'Govt ID'}:</span>{' '}
+                            <span className="font-mono text-emerald-400 font-bold">{prop.assigned_id_card || prop.booked_by_id_card || 'Verified on file'}</span>
+                          </span>
                         </div>
 
                         {prop.booking_amount_aed ? (
@@ -650,10 +860,17 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     </div>
 
                     {/* Card Actions */}
-                    <div className="pt-2 flex items-center justify-between">
-                      <span className="text-[10px] text-amber-700 flex items-center space-x-1 font-semibold">
-                        <span>🔒 Excluded from Chatbot</span>
-                      </span>
+                    <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-800">
+                      {canManageBookings && (
+                        <button
+                          onClick={() => handleOpenBookingForProperty(prop.id)}
+                          className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition-all flex items-center space-x-1 cursor-pointer shadow-sm active:scale-95"
+                          title="Verify client identification and assign property"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Assign (Verify ID)</span>
+                        </button>
+                      )}
 
                       {canManageBookings && (
                         <button
@@ -799,11 +1016,91 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   <p className="text-[10px] text-slate-500">{selectedPropertyObj.community} • {selectedPropertyObj.bedrooms} BR {selectedPropertyObj.property_type}</p>
                   <p className="text-xs font-extrabold text-amber-700 mt-0.5">AED {Number(selectedPropertyObj.price_aed).toLocaleString()}</p>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 border border-emerald-500/30 flex-shrink-0">
-                  Ready to Book
-                </span>
+                {selectedPropertyObj.is_booked || (selectedPropertyObj.status || '').toLowerCase() === 'booked' ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 flex-shrink-0">
+                    Booked / Reserved
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 border border-emerald-500/30 flex-shrink-0">
+                    Ready to Book
+                  </span>
+                )}
               </div>
             )}
+
+            {/* Live Identification Match Feedback Banner */}
+            {selectedPropertyObj && (() => {
+              const matchCheck = checkIdentificationMatch(selectedPropertyObj, clientName, clientPhone, clientIdCard);
+              if (matchCheck.isBooked) {
+                return (
+                  <div className={`rounded-xl p-3 border text-xs space-y-2 ${
+                    matchCheck.matches 
+                      ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300' 
+                      : 'bg-rose-950/40 border-rose-500/60 text-rose-300'
+                  }`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2 font-bold">
+                        {matchCheck.matches ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span className="text-emerald-300 font-bold">✅ Identification Verified: Assignee matches Booker</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                            <span className="text-rose-300 font-bold">❌ Identification Mismatch: Booker Required</span>
+                          </>
+                        )}
+                      </div>
+                      {(matchCheck.registeredName || matchCheck.registeredPhone) && (
+                        <button
+                          type="button"
+                          onClick={handleFillBookerInfo}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-amber-950 text-[10px] font-bold rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Copy booker's registered identification into form fields"
+                        >
+                          Use Booker Info
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] pt-1.5 border-t border-slate-700/60">
+                      <div>
+                        <span className="text-slate-400">Booked By:</span>{' '}
+                        <strong className="text-white font-semibold">{matchCheck.registeredName || 'On Record'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Booker Mobile:</span>{' '}
+                        <strong className="text-white font-semibold">{matchCheck.registeredPhone || 'On Record'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Booker ID:</span>{' '}
+                        <strong className="text-white font-semibold">{matchCheck.registeredIdCard || 'Verified on file'}</strong>
+                      </div>
+                    </div>
+                    
+                    {!matchCheck.matches ? (
+                      <p className="text-[11px] text-rose-300 font-medium leading-relaxed">
+                        ⚠️ Only the person who originally booked/reserved this property can be assigned. Please enter their matching identification or click <strong>"Use Booker Info"</strong>.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-emerald-400 font-medium leading-relaxed">
+                        Identity match confirmed. Property will be officially assigned to the verified booker.
+                      </p>
+                    )}
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-400 flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>
+                      <strong className="text-slate-200">Open Available Unit:</strong> Enter client identification (Name, Mobile & Govt ID Card) to verify and lock their assignment.
+                    </span>
+                  </div>
+                );
+              }
+            })()}
 
             <form onSubmit={handleApplyBooking} className="space-y-4">
               {/* Select Property with Interactive Picker */}
@@ -911,16 +1208,32 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   <option value="" style={{ backgroundColor: '#ffffff', color: '#1c1611' }}>
                     -- Or Select from Standard Dropdown --
                   </option>
-                  {availableProperties.map(p => (
-                    <option 
-                      key={p.id} 
-                      value={p.id} 
-                      style={{ backgroundColor: '#ffffff', color: '#463726' }}
-                      className="bg-white text-slate-900 py-1 font-semibold"
-                    >
-                      {p.title} • {p.community} ({p.bedrooms} BR) — AED {Number(p.price_aed).toLocaleString()}
-                    </option>
-                  ))}
+                  <optgroup label="Available Properties">
+                    {availableProperties.map(p => (
+                      <option 
+                        key={p.id} 
+                        value={p.id} 
+                        style={{ backgroundColor: '#ffffff', color: '#463726' }}
+                        className="bg-white text-slate-900 py-1 font-semibold"
+                      >
+                        🟢 {p.title} • {p.community} ({p.bedrooms} BR) — AED {Number(p.price_aed).toLocaleString()}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {bookedProperties.length > 0 && (
+                    <optgroup label="Booked Units (Assign / Verify ID)">
+                      {bookedProperties.map(p => (
+                        <option 
+                          key={p.id} 
+                          value={p.id} 
+                          style={{ backgroundColor: '#ffffff', color: '#463726' }}
+                          className="bg-white text-slate-900 py-1 font-semibold"
+                        >
+                          🔒 {p.title} • Booked by {p.booked_by_name || p.assigned_to || 'Client'} ({p.assigned_phone || p.booked_by_phone || 'Phone on file'})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
@@ -955,9 +1268,10 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               {/* Client Name & Mobile */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Client / Buyer Full Name (Optional)</label>
+                  <label className="text-xs font-semibold text-slate-400">Client / Buyer Full Name *</label>
                   <input
                     type="text"
+                    required
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="e.g. Rahul Sharma"
@@ -975,6 +1289,47 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     onChange={(e) => setClientPhone(e.target.value)}
                     placeholder="e.g. +971 50 123 4567"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
+                  />
+                </div>
+              </div>
+
+              {/* Client Identification: ID Card Type & ID Card Number */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-400 flex items-center space-x-1">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Identification ID Type *</span>
+                  </label>
+                  <select
+                    value={clientIdType}
+                    onChange={(e) => setClientIdType(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-semibold focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
+                  >
+                    <option value="Emirates ID">Emirates ID (UAE)</option>
+                    <option value="Aadhaar Card">Aadhaar Card (India)</option>
+                    <option value="Passport / Govt ID">Passport / Foreign Govt ID</option>
+                    <option value="National ID Card">National ID Card</option>
+                    <option value="Driving License">Driving License / State ID</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
+                    <span className="flex items-center space-x-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>ID Card Number *</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-600 font-semibold">Strict Matching Check</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={clientIdCard}
+                    onChange={(e) => setClientIdCard(e.target.value)}
+                    placeholder={clientIdType === 'Emirates ID' ? '784-1990-1234567-1' : clientIdType === 'Aadhaar Card' ? '4832 9182 1029' : 'Passport / ID Number'}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
@@ -1032,20 +1387,35 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center space-x-1.5 cursor-pointer"
-                >
-                  {actionLoading ? (
-                    <span>Applying Booking...</span>
-                  ) : (
-                    <>
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Apply & Book Property</span>
-                    </>
-                  )}
-                </button>
+                {(() => {
+                  const check = checkIdentificationMatch(selectedPropertyObj, clientName, clientPhone, clientIdCard);
+                  const isMismatch = check.isBooked && !check.matches;
+                  return (
+                    <button
+                      type="submit"
+                      disabled={actionLoading || isMismatch}
+                      className={`px-5 py-2 font-bold text-xs rounded-xl transition-all shadow-md flex items-center space-x-1.5 ${
+                        isMismatch 
+                          ? 'bg-rose-900/60 text-rose-300 border border-rose-700/50 cursor-not-allowed opacity-80'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer active:scale-95'
+                      }`}
+                    >
+                      {actionLoading ? (
+                        <span>Applying Booking...</span>
+                      ) : isMismatch ? (
+                        <>
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-300" />
+                          <span>Mismatch: Must Match Booker</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Verify ID & Assign Property</span>
+                        </>
+                      )}
+                    </button>
+                  );
+                })()}
               </div>
             </form>
           </div>

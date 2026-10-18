@@ -180,10 +180,24 @@ export interface PropertyListing {
   assigned_to?: string;
   assigned_phone?: string;
   assigned_email?: string;
+  assigned_id_card?: string;
+  assigned_id_type?: string;
+  assignment_verified?: boolean;
+  assigned_at?: string;
+  booked_by_name?: string;
+  booked_by_phone?: string;
+  booked_by_id_card?: string;
   booked_at?: string;
   booking_amount_aed?: number;
   booking_notes?: string;
   booking_id?: string;
+  // Admin Verification Details
+  admin_verified?: boolean;
+  admin_verification_name?: string;
+  admin_verification_mobile?: string;
+  admin_verification_id_card?: string;
+  admin_verification_id_type?: 'Emirates ID' | 'Aadhaar Card' | 'Passport / Govt ID' | 'Corporate Admin ID' | string;
+  admin_verification_date?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -200,6 +214,12 @@ export interface BookedPropertyRecord {
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
+  customer_id_card?: string;
+  customer_id_type?: string;
+  assigned_to?: string;
+  assigned_phone?: string;
+  assigned_id_card?: string;
+  assignment_verified?: boolean;
   booking_amount_aed?: number;
   booked_at: string;
   notes?: string;

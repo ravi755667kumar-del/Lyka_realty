@@ -1320,6 +1320,32 @@ export default function App() {
       console.warn('saveBookedPropertyToFirestore viewing error:', err);
     });
 
+    // Update property listing state so Property Admin immediately tracks the booker
+    setPropertiesList(prev => {
+      const updated = prev.map(p => {
+        if (p.id === viewingModalProperty.id) {
+          const item: PropertyListing = {
+            ...p,
+            is_booked: true,
+            status: 'Booked' as const,
+            booking_id: viewBookingId,
+            booked_by_name: customerName,
+            booked_by_phone: customerPhone,
+            assigned_to: customerName,
+            assigned_phone: customerPhone,
+            booked_at: bookedAt,
+            booking_notes: viewNotes,
+            booking_amount_aed: tokenAmount
+          };
+          savePropertyToFirestore(item).catch(() => {});
+          return item;
+        }
+        return p;
+      });
+      try { localStorage.setItem('localProperties', JSON.stringify(updated)); } catch (_) {}
+      return updated;
+    });
+
     fetch('/api/properties/book', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1428,6 +1454,10 @@ export default function App() {
       assigned_to?: string;
       assigned_phone?: string;
       assigned_email?: string;
+      assigned_id_card?: string;
+      assigned_id_type?: string;
+      customer_id_card?: string;
+      customer_id_type?: string;
       booking_amount_aed?: number;
       booking_notes?: string;
     }
@@ -1445,6 +1475,45 @@ export default function App() {
       finalCustomerName = finalCustomerPhone ? `Client (${finalCustomerPhone.slice(-4)})` : 'Valued Client';
     }
 
+    const finalIdCard = (bookingDetails.assigned_id_card || bookingDetails.customer_id_card || '').trim();
+    const finalIdType = (bookingDetails.assigned_id_type || bookingDetails.customer_id_type || 'Emirates ID').trim();
+
+    // Strict identification verification check:
+    // If the unit was already booked by someone, only the matching person can be assigned.
+    if (targetProp && (targetProp.is_booked || (targetProp.status || '').toLowerCase() === 'booked')) {
+      const regPhoneDigits = (targetProp.booked_by_phone || targetProp.assigned_phone || '').replace(/[^0-9]/g, '');
+      const newPhoneDigits = finalCustomerPhone.replace(/[^0-9]/g, '');
+      const regIdCard = (targetProp.booked_by_id_card || targetProp.assigned_id_card || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const newIdCard = finalIdCard.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const regName = (targetProp.booked_by_name || targetProp.assigned_to || '').trim().toLowerCase();
+      const newName = finalCustomerName.trim().toLowerCase();
+
+      const hasPriorBooker = Boolean(regPhoneDigits || regIdCard || regName);
+      if (hasPriorBooker) {
+        const phoneMatch = Boolean(
+          regPhoneDigits.length >= 7 &&
+          newPhoneDigits.length >= 7 &&
+          (regPhoneDigits === newPhoneDigits ||
+           regPhoneDigits.endsWith(newPhoneDigits.slice(-7)) ||
+           newPhoneDigits.endsWith(regPhoneDigits.slice(-7)))
+        );
+        const idMatch = Boolean(regIdCard && newIdCard && regIdCard === newIdCard);
+        const nameMatch = Boolean(
+          regName && newName &&
+          (regName === newName || regName.includes(newName) || newName.includes(regName))
+        );
+
+        if (!phoneMatch && !idMatch && !(nameMatch && newPhoneDigits.length >= 4)) {
+          const bookerDesc = targetProp.booked_by_name || targetProp.assigned_to || 'another customer';
+          const bookerPhone = targetProp.booked_by_phone || targetProp.assigned_phone || 'Phone on file';
+          alert(
+            `❌ Identification Mismatch Error: Property "${targetProp.title}" was booked by ${bookerDesc} (${bookerPhone}). Only the person who booked this property can be assigned.`
+          );
+          throw new Error(`Identification Mismatch: Cannot assign to a different client than the registered booker.`);
+        }
+      }
+    }
+
     const propPrice = Number(targetProp?.price_aed) || 0;
     const rawAmount = Number(bookingDetails.bookingAmount ?? bookingDetails.booking_amount_aed);
     const finalBookingAmount = (rawAmount > 0) ? rawAmount : (propPrice > 0 ? Math.round(propPrice * 0.10) : 50000);
@@ -1460,11 +1529,11 @@ export default function App() {
       const intentStr = currentLead.intent ? `Intent: ${currentLead.intent}. ` : '';
       const budgetStr = currentLead.budget_max_aed ? `Budget: AED ${Number(currentLead.budget_max_aed).toLocaleString()}. ` : '';
       const timelineStr = currentLead.move_in_timeline ? `Timeline: ${currentLead.move_in_timeline}. ` : '';
-      finalNotes = `Booking confirmed for ${targetProp?.title || propertyId} in ${targetProp?.community || 'Dubai'} (${targetProp?.bedrooms || 2} BR, AED ${propPrice.toLocaleString()}). ${intentStr}${budgetStr}${timelineStr}Assigned to ${finalCustomerName} (${finalCustomerPhone}).`;
+      finalNotes = `Booking confirmed & verified for ${targetProp?.title || propertyId} in ${targetProp?.community || 'Dubai'} (${targetProp?.bedrooms || 2} BR, AED ${propPrice.toLocaleString()}). ${intentStr}${budgetStr}${timelineStr}Assigned to ${finalCustomerName} (${finalCustomerPhone}), ID: [${finalIdType}: ${finalIdCard}].`;
     }
 
     const booked_at = new Date().toISOString();
-    const booking_id = 'BK-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const booking_id = targetProp?.booking_id || ('BK-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase());
 
     // 1. Update local properties state & localStorage
     let updatedPropertyObj: PropertyListing | null = null;
@@ -1479,9 +1548,16 @@ export default function App() {
             assigned_to: finalCustomerName,
             assigned_phone: finalCustomerPhone,
             assigned_email: finalCustomerEmail,
+            assigned_id_card: finalIdCard || p.assigned_id_card || p.booked_by_id_card,
+            assigned_id_type: finalIdType || p.assigned_id_type || 'Emirates ID',
+            assignment_verified: true,
+            assigned_at: booked_at,
+            booked_by_name: p.booked_by_name || finalCustomerName,
+            booked_by_phone: p.booked_by_phone || finalCustomerPhone,
+            booked_by_id_card: p.booked_by_id_card || finalIdCard,
             booking_amount_aed: finalBookingAmount,
             booking_notes: finalNotes,
-            booked_at
+            booked_at: p.booked_at || booked_at
           };
           updatedPropertyObj = item;
           return item;
@@ -1516,6 +1592,12 @@ export default function App() {
       customer_name: finalCustomerName,
       customer_phone: finalCustomerPhone,
       customer_email: finalCustomerEmail,
+      customer_id_card: finalIdCard,
+      customer_id_type: finalIdType,
+      assigned_to: finalCustomerName,
+      assigned_phone: finalCustomerPhone,
+      assigned_id_card: finalIdCard,
+      assignment_verified: true,
       booking_amount_aed: finalBookingAmount,
       notes: finalNotes,
       booked_at,
@@ -1526,7 +1608,7 @@ export default function App() {
       budget_max_aed: Number(currentLead.budget_max_aed) || propPrice,
       move_in_timeline: currentLead.move_in_timeline || 'Immediate',
       assigned_agent: currentLead.assigned_agent || targetProp?.agent_name || 'Senior Property Advisor',
-      booking_type: 'Direct Booking'
+      booking_type: 'Verified Assignment'
     };
     saveBookedPropertyToFirestore(bookedRecord).catch(err => {
       console.warn('saveBookedPropertyToFirestore error:', err);
@@ -1548,6 +1630,9 @@ export default function App() {
           assigned_to: finalCustomerName,
           assigned_phone: finalCustomerPhone,
           assigned_email: finalCustomerEmail,
+          assigned_id_card: finalIdCard,
+          assigned_id_type: finalIdType,
+          assignment_verified: true,
           booking_amount_aed: finalBookingAmount,
           booking_notes: finalNotes
         })
@@ -1950,7 +2035,7 @@ export default function App() {
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
-                canAddProperty={adminTargetPortal === 'property_manager'}
+                canAddProperty={adminTargetPortal === 'property_manager' || adminAuthenticated}
                 onBookViewing={(prop) => setViewingModalProperty(prop)}
                 onAddProperty={handleAddProperty}
                 onUpdateProperty={handleUpdateProperty}

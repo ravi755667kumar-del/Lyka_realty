@@ -122,6 +122,27 @@ const REQUIREMENT_RULES: RequirementRule[] = [
     severity: 'info',
     description: 'Direct phone number for instant dispatch and viewings.',
     checkValid: (p) => Boolean(p.contact_mobile && p.contact_mobile.trim().length >= 7)
+  },
+  {
+    field: 'admin_verification_name',
+    label: 'Admin Verifier Name',
+    severity: 'warning',
+    description: 'Authorized Admin name responsible for property listing verification.',
+    checkValid: (p) => Boolean((p.admin_verification_name && p.admin_verification_name.trim().length > 2) || (p.contact_name && p.contact_name.trim().length > 2))
+  },
+  {
+    field: 'admin_verification_id_card',
+    label: 'Admin ID Card / Govt ID',
+    severity: 'critical',
+    description: 'Mandatory Government or Corporate ID card for audit and legal compliance.',
+    checkValid: (p) => Boolean(p.admin_verification_id_card && p.admin_verification_id_card.trim().length > 3)
+  },
+  {
+    field: 'admin_verification_mobile',
+    label: 'Admin Mobile Contact',
+    severity: 'warning',
+    description: 'Direct phone number of the verifying admin for quality escalation.',
+    checkValid: (p) => Boolean((p.admin_verification_mobile && p.admin_verification_mobile.trim().length >= 7) || (p.contact_mobile && p.contact_mobile.trim().length >= 7))
   }
 ];
 

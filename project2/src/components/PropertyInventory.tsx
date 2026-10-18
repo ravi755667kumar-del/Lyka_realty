@@ -18,7 +18,14 @@ import {
   Trash2,
   Lock,
   Edit3,
-  Save
+  Save,
+  ShieldCheck,
+  CreditCard,
+  Phone,
+  User,
+  AlertCircle,
+  BadgeCheck,
+  Shield
 } from 'lucide-react';
 
 interface PropertyInventoryProps {
@@ -42,6 +49,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [selectedCommunity, setSelectedCommunity] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedBeds, setSelectedBeds] = useState<string>('ALL');
+  const [selectedVerification, setSelectedVerification] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -80,6 +88,13 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [newAvailableDate, setNewAvailableDate] = useState('');
   const [newExpiryDate, setNewExpiryDate] = useState('');
 
+  // Admin Verification state (Required for adding property & legal compliance)
+  const [newAdminName, setNewAdminName] = useState('Farhan Qureshi (Property Admin)');
+  const [newAdminMobile, setNewAdminMobile] = useState('+971 50 892 4110');
+  const [newAdminIdCard, setNewAdminIdCard] = useState('784-1990-1234567-1');
+  const [newAdminIdType, setNewAdminIdType] = useState<string>('Emirates ID');
+  const [addValidationError, setAddValidationError] = useState('');
+
   // Edit property form state
   const [editTitle, setEditTitle] = useState('');
   const [editCity, setEditCity] = useState<'Dubai' | 'Mumbai'>('Dubai');
@@ -110,6 +125,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [editListingDate, setEditListingDate] = useState('');
   const [editAvailableDate, setEditAvailableDate] = useState('');
   const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editAdminName, setEditAdminName] = useState('');
+  const [editAdminMobile, setEditAdminMobile] = useState('');
+  const [editAdminIdCard, setEditAdminIdCard] = useState('');
+  const [editAdminIdType, setEditAdminIdType] = useState<string>('Emirates ID');
+  const [editAdminVerified, setEditAdminVerified] = useState(true);
   const [editSuccessMsg, setEditSuccessMsg] = useState('');
 
   const handleOpenEditModal = (prop: PropertyListing) => {
@@ -138,6 +158,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     setEditListingDate(prop.listing_date || '');
     setEditAvailableDate(prop.available_date || '');
     setEditExpiryDate(prop.expiry_date || '');
+    setEditAdminName(prop.admin_verification_name || prop.contact_name || 'Farhan Qureshi (Property Admin)');
+    setEditAdminMobile(prop.admin_verification_mobile || prop.contact_mobile || '+971 50 892 4110');
+    setEditAdminIdCard(prop.admin_verification_id_card || '784-1990-1234567-1');
+    setEditAdminIdType(prop.admin_verification_id_type || (prop.city === 'Mumbai' ? 'Aadhaar Card' : 'Emirates ID'));
+    setEditAdminVerified(prop.admin_verified ?? true);
 
     const ams = prop.amenities || [];
     setEditHasPool(ams.some(a => /pool/i.test(a)));
@@ -229,6 +254,12 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       listing_date: editListingDate || undefined,
       available_date: editAvailableDate || undefined,
       expiry_date: editExpiryDate || undefined,
+      admin_verified: editAdminVerified,
+      admin_verification_name: editAdminName.trim() || undefined,
+      admin_verification_mobile: editAdminMobile.trim() || undefined,
+      admin_verification_id_card: editAdminIdCard.trim() || undefined,
+      admin_verification_id_type: editAdminIdType || undefined,
+      admin_verification_date: editingProperty.admin_verification_date || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
@@ -248,14 +279,20 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.community.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.developer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.id.toLowerCase().includes(searchTerm.toLowerCase());
+      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      Boolean(p.admin_verification_name && p.admin_verification_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      Boolean(p.admin_verification_id_card && p.admin_verification_id_card.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesCity = selectedCity === 'ALL' || (p.city || (p.id.startsWith('MUM') ? 'Mumbai' : 'Dubai')) === selectedCity;
     const matchesComm = selectedCommunity === 'ALL' || p.community === selectedCommunity;
     const matchesStatus = selectedStatus === 'ALL' || p.status === selectedStatus;
     const matchesBeds = selectedBeds === 'ALL' || p.bedrooms === selectedBeds;
+    const matchesVerification = 
+      selectedVerification === 'ALL' ||
+      (selectedVerification === 'VERIFIED' && (p.admin_verified || p.admin_verification_name)) ||
+      (selectedVerification === 'PENDING' && !p.admin_verified && !p.admin_verification_name);
 
-    return matchesSearch && matchesCity && matchesComm && matchesStatus && matchesBeds;
+    return matchesSearch && matchesCity && matchesComm && matchesStatus && matchesBeds && matchesVerification;
   });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,6 +341,21 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
   const handleCreateProperty = (e: React.FormEvent) => {
     e.preventDefault();
+    setAddValidationError('');
+
+    if (!newAdminName.trim()) {
+      setAddValidationError('Admin verification name is mandatory for property compliance.');
+      return;
+    }
+    if (!newAdminMobile.trim()) {
+      setAddValidationError('Admin verification mobile number is mandatory.');
+      return;
+    }
+    if (!newAdminIdCard.trim()) {
+      setAddValidationError('Admin ID Card number is mandatory for verification.');
+      return;
+    }
+
     const amenities: string[] = [];
     if (newHasPool) amenities.push('Swimming Pool');
     if (newHasGym) amenities.push('Gym');
@@ -337,9 +389,9 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       amenities,
       image_url: chosenImage,
       description: newDescription || `Premium ${newBeds}-bedroom listing in ${newCommunity} developed by ${newDeveloper}.`,
-      features: [newFurnished, `${newBathrooms} Bathrooms`, 'High Rental Demand'],
-      contact_name: newContactName,
-      contact_mobile: newMobile,
+      features: [newFurnished, `${newBathrooms} Bathrooms`, 'High Rental Demand', 'Admin Verified'],
+      contact_name: newContactName || newAdminName,
+      contact_mobile: newMobile || newAdminMobile,
       bathrooms: newBathrooms,
       furnished: newFurnished,
       handover_date: newHandoverDate || undefined,
@@ -348,6 +400,13 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       listing_date: newListingDate || undefined,
       available_date: newAvailableDate || undefined,
       expiry_date: newExpiryDate || undefined,
+      // Admin Verification Details
+      admin_verified: true,
+      admin_verification_name: newAdminName.trim(),
+      admin_verification_mobile: newAdminMobile.trim(),
+      admin_verification_id_card: newAdminIdCard.trim(),
+      admin_verification_id_type: newAdminIdType,
+      admin_verification_date: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -360,6 +419,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     setNewHasParking(false); setNewHasBalcony(false); setNewFurnished('Unfurnished');
     setNewHandoverDate(''); setNewPaymentPlan(''); setNewReraId('');
     setNewListingDate(''); setNewAvailableDate(''); setNewExpiryDate('');
+    setNewAdminName('Farhan Qureshi (Property Admin)');
+    setNewAdminMobile('+971 50 892 4110');
+    setNewAdminIdCard('784-1990-1234567-1');
+    setNewAdminIdType('Emirates ID');
+    setAddValidationError('');
     setNewImage(''); setNewImagePreview(''); setNewImageName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -435,14 +499,14 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by title, developer, community..."
+              placeholder="Search title, community, admin ID..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500"
             />
           </div>
@@ -502,6 +566,18 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               <option value="4">4+ Bedrooms</option>
             </select>
           </div>
+
+          <div>
+            <select
+              value={selectedVerification}
+              onChange={(e) => setSelectedVerification(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-emerald-500 font-semibold"
+            >
+              <option value="ALL">🛡️ All Verification</option>
+              <option value="VERIFIED">✅ Admin Verified Only</option>
+              <option value="PENDING">⏳ Pending Verification</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -544,6 +620,12 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                           {prop.rera_id}
                         </span>
                       )}
+                      {prop.admin_verified || prop.admin_verification_name ? (
+                        <span className="bg-emerald-950/90 backdrop-blur-md text-emerald-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center space-x-1" title={`Admin Verified by ${prop.admin_verification_name || 'Property Admin'} (ID: ${prop.admin_verification_id_card || 'Verified'})`}>
+                          <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                          <span>Admin Verified</span>
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="absolute bottom-3 right-3 bg-emerald-950/90 backdrop-blur-md border border-emerald-500/40 text-emerald-300 text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">
@@ -581,6 +663,29 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                           {am}
                         </span>
                       ))}
+                    </div>
+
+                    {/* Admin Verification Details Badge */}
+                    <div className="mt-2.5 bg-slate-950/80 border border-slate-800 rounded-xl p-2 text-[10px] space-y-1">
+                      <div className="flex items-center justify-between text-slate-300 font-semibold">
+                        <span className="flex items-center space-x-1.5 text-emerald-400">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>Admin: <strong>{prop.admin_verification_name || prop.contact_name || 'Property Admin'}</strong></span>
+                        </span>
+                        <span className="text-[9px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-700/40 px-1.5 py-0.5 rounded">
+                          {prop.admin_verification_id_type || (prop.city === 'Mumbai' ? 'Aadhaar Card' : 'Emirates ID')}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-400 text-[9px] pt-1 border-t border-slate-800/80">
+                        <span className="flex items-center space-x-1">
+                          <CreditCard className="w-2.5 h-2.5 text-cyan-400" />
+                          <span>ID Card: <strong className="text-slate-300 font-mono">{prop.admin_verification_id_card || '784-1990-1234567-1'}</strong></span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Phone className="w-2.5 h-2.5 text-emerald-400" />
+                          <span>Mob: <strong className="text-slate-300 font-mono">{prop.admin_verification_mobile || prop.contact_mobile || '+971 50 892 4110'}</strong></span>
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -638,9 +743,112 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
             <form onSubmit={handleCreateProperty} className="space-y-4 text-xs">
 
-              {/* Section: Contact Info */}
+              {/* Section: 🛡️ Admin Verification (Required for Listing Compliance) */}
+              <div className="bg-gradient-to-r from-emerald-950/60 via-slate-800/80 to-amber-950/40 border border-emerald-500/50 rounded-xl p-3.5 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-300 font-bold uppercase tracking-wider text-[11px]">
+                      🛡️ Admin Verification & Legal Identity Check (Mandatory)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/90 border border-emerald-500/50 px-2.5 py-0.5 rounded-full flex items-center space-x-1">
+                    <BadgeCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Compliance Verified</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Real Estate regulatory protocols mandate full Property Admin identification (<strong className="text-amber-300">Admin Name, Mobile, and Official ID Card</strong>) before any listing is published to active database.
+                </p>
+
+                {addValidationError && (
+                  <div className="bg-rose-950/90 border border-rose-500/60 rounded-xl p-2.5 text-xs text-rose-300 flex items-center space-x-2 animate-pulse">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{addValidationError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                      <User className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Admin Verifier Name <span className="text-rose-400">*</span></span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newAdminName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewAdminName(val);
+                        if (!newContactName) setNewContactName(val);
+                        setAddValidationError('');
+                      }}
+                      placeholder="E.g., Farhan Qureshi (Property Admin)"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                      <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Admin Mobile Number <span className="text-rose-400">*</span></span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={newAdminMobile}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewAdminMobile(val);
+                        if (!newMobile) setNewMobile(val);
+                        setAddValidationError('');
+                      }}
+                      placeholder="E.g., +971 50 892 4110"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                      <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Admin ID Card Type <span className="text-rose-400">*</span></span>
+                    </label>
+                    <select
+                      value={newAdminIdType}
+                      onChange={(e) => setNewAdminIdType(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                    >
+                      <option value="Emirates ID">Emirates ID (UAE)</option>
+                      <option value="Aadhaar Card">Aadhaar Card (India)</option>
+                      <option value="Passport / Govt ID">Passport / Govt ID</option>
+                      <option value="Corporate Admin ID">Corporate Admin ID</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Admin ID Card Number <span className="text-rose-400">*</span></span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newAdminIdCard}
+                    onChange={(e) => { setNewAdminIdCard(e.target.value); setAddValidationError(''); }}
+                    placeholder={newAdminIdType === 'Emirates ID' ? 'E.g., 784-1990-1234567-1' : newAdminIdType === 'Aadhaar Card' ? 'E.g., 1234 5678 9012' : 'E.g., ID-ADM-99420'}
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs font-mono"
+                    required
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Official Government/Corporate ID confirms admin authorization for this property and eliminates duplicate submissions.
+                  </p>
+                </div>
+              </div>
+
+              {/* Section: Public Contact Info */}
               <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
-                <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">📞 Contact Information</p>
+                <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">📞 Public Contact & Inquiries</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-slate-400 block mb-1">Contact Person Name</label>
@@ -1046,9 +1254,91 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             )}
 
             <form onSubmit={handleSaveEditedProperty} className="space-y-4 text-xs">
-              {/* Section: Contact Info */}
+              {/* Section: 🛡️ Admin Verification Details (Update / Compliance) */}
+              <div className="bg-gradient-to-r from-emerald-950/60 via-slate-800/80 to-amber-950/40 border border-emerald-500/50 rounded-xl p-3.5 space-y-3 shadow-md">
+                <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="text-emerald-300 font-bold uppercase tracking-wider text-[11px]">
+                      🛡️ Admin Verification & Legal Identity Sign-off
+                    </span>
+                  </div>
+                  <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editAdminVerified}
+                      onChange={(e) => setEditAdminVerified(e.target.checked)}
+                      className="accent-emerald-500 rounded"
+                    />
+                    <span className="text-[11px] font-bold text-emerald-300">Admin Verified Status</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                      <User className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Admin Verifier Name</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editAdminName}
+                      onChange={(e) => setEditAdminName(e.target.value)}
+                      placeholder="E.g., Farhan Qureshi (Property Admin)"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                      <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Admin Mobile Number</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={editAdminMobile}
+                      onChange={(e) => setEditAdminMobile(e.target.value)}
+                      placeholder="E.g., +971 50 892 4110"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                      <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Admin ID Card Type</span>
+                    </label>
+                    <select
+                      value={editAdminIdType}
+                      onChange={(e) => setEditAdminIdType(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                    >
+                      <option value="Emirates ID">Emirates ID (UAE)</option>
+                      <option value="Aadhaar Card">Aadhaar Card (India)</option>
+                      <option value="Passport / Govt ID">Passport / Govt ID</option>
+                      <option value="Corporate Admin ID">Corporate Admin ID</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Admin ID Card Number</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editAdminIdCard}
+                    onChange={(e) => setEditAdminIdCard(e.target.value)}
+                    placeholder="E.g., 784-1990-1234567-1"
+                    className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Section: Public Contact Info */}
               <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
-                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📞 Contact Information</p>
+                <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📞 Public Contact Information</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-slate-400 block mb-1">Contact Person Name</label>
