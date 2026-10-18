@@ -83,7 +83,9 @@ import {
   Check,
   Mail,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export default function App() {
@@ -152,6 +154,10 @@ export default function App() {
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showConfigSalesPassword, setShowConfigSalesPassword] = useState(false);
+  const [showConfigPmPassword, setShowConfigPmPassword] = useState(false);
+  const [showConfigAdminPassword, setShowConfigAdminPassword] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState('');
   const [adminLoginLoading, setAdminLoginLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -296,6 +302,10 @@ export default function App() {
     setOtpTimeRemaining(180);
     setConfigSuccessMsg('');
     setConfigErrorMsg('');
+    setShowAdminPassword(false);
+    setShowConfigSalesPassword(false);
+    setShowConfigPmPassword(false);
+    setShowConfigAdminPassword(false);
   };
 
   const handleSelectPortalTab = (portal: 'admin' | 'property_manager' | 'sales_manager') => {
@@ -2424,14 +2434,25 @@ export default function App() {
                           <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
                             Sales Admin Password
                           </label>
-                          <input
-                            type="text"
-                            value={configSalesPassword}
-                            onChange={(e) => { setConfigSalesPassword(e.target.value); setConfigErrorMsg(''); }}
-                            placeholder="Enter sales password"
-                            required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showConfigSalesPassword ? "text" : "password"}
+                              value={configSalesPassword}
+                              onChange={(e) => { setConfigSalesPassword(e.target.value); setConfigErrorMsg(''); }}
+                              placeholder="Enter sales password"
+                              required
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg pl-3 pr-9 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfigSalesPassword(!showConfigSalesPassword)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-0.5"
+                              title={showConfigSalesPassword ? "Hide password" : "Show password"}
+                              aria-label={showConfigSalesPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfigSalesPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -2494,14 +2515,25 @@ export default function App() {
                           <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
                             Property Admin Password
                           </label>
-                          <input
-                            type="text"
-                            value={configPmPassword}
-                            onChange={(e) => { setConfigPmPassword(e.target.value); setConfigErrorMsg(''); }}
-                            placeholder="Enter property password"
-                            required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showConfigPmPassword ? "text" : "password"}
+                              value={configPmPassword}
+                              onChange={(e) => { setConfigPmPassword(e.target.value); setConfigErrorMsg(''); }}
+                              placeholder="Enter property password"
+                              required
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg pl-3 pr-9 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfigPmPassword(!showConfigPmPassword)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-0.5"
+                              title={showConfigPmPassword ? "Hide password" : "Show password"}
+                              aria-label={showConfigPmPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfigPmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -2564,14 +2596,25 @@ export default function App() {
                           <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
                             Super Admin Password
                           </label>
-                          <input
-                            type="text"
-                            value={configAdminPassword}
-                            onChange={(e) => { setConfigAdminPassword(e.target.value); setConfigErrorMsg(''); }}
-                            placeholder="Enter admin password"
-                            required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
-                          />
+                          <div className="relative">
+                            <input
+                              type={showConfigAdminPassword ? "text" : "password"}
+                              value={configAdminPassword}
+                              onChange={(e) => { setConfigAdminPassword(e.target.value); setConfigErrorMsg(''); }}
+                              placeholder="Enter admin password"
+                              required
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg pl-3 pr-9 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfigAdminPassword(!showConfigAdminPassword)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-0.5"
+                              title={showConfigAdminPassword ? "Hide password" : "Show password"}
+                              aria-label={showConfigAdminPassword ? "Hide password" : "Show password"}
+                            >
+                              {showConfigAdminPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -2716,6 +2759,7 @@ export default function App() {
                         // Record super admin access
                         recordSalesManagerLoginInFirestore(adminEmailInput.trim(), 'Lyka Super Admin', 'Master_Admin_Login').catch(() => {});
 
+                        resetAdminModalState();
                         setShowAdminLoginModal(false);
                         setAdminPanelOpen(true);
                         setActiveTab('crm');
@@ -2725,6 +2769,7 @@ export default function App() {
                           localStorage.setItem('lyka_pm_authenticated', 'true');
                           localStorage.setItem('lyka_admin_target_portal', 'property_manager');
                         } catch (e) {}
+                        resetAdminModalState();
                         setShowAdminLoginModal(false);
                         setAdminPanelOpen(true);
                         setActiveTab('properties');
@@ -2742,6 +2787,7 @@ export default function App() {
                           'Sales_Portal_Login'
                         );
 
+                        resetAdminModalState();
                         setShowAdminLoginModal(false);
                         setAdminPanelOpen(true);
                         setActiveTab('sales_duplicates');
@@ -2876,18 +2922,27 @@ export default function App() {
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                         <Lock className="w-4 h-4 text-slate-500" />
                       </span>
                       <input
                         id="admin-password-input"
-                        type="password"
+                        type={showAdminPassword ? "text" : "password"}
                         value={adminPasswordInput}
                         onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminLoginError(''); }}
                         placeholder="Enter password"
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#1c1611] font-semibold placeholder-slate-500 outline-none transition-colors"
+                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-10 py-2.5 text-sm text-[#1c1611] font-semibold placeholder-slate-500 outline-none transition-colors"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-1 focus:outline-none"
+                        title={showAdminPassword ? "Hide password" : "Show password"}
+                        aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                      >
+                        {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
                   </div>
 
