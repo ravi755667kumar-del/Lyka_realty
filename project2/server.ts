@@ -369,7 +369,8 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
       storage: firestoreDb ? 'Firebase' : 'LocalStore',
     };
 
-    if (firestoreDb) {
+    const authUid = req.body.user_id || req.body.userId || metadata?.user_id || metadata?.userId;
+    if (firestoreDb && authUid) {
       try {
         await fsSetDoc(fsDoc(firestoreDb, 'customer_embeddings', docId), record, { merge: true });
         record.storage = 'Firebase';
@@ -380,6 +381,7 @@ app.post('/api/embeddings/store', async (req: Request, res: Response) => {
       }
     } else {
       localEmbeddingsStore.unshift(record);
+      record.storage = 'LocalStore';
     }
 
     res.json({
@@ -755,7 +757,15 @@ app.post('/api/leads/sync', async (req: Request, res: Response) => {
       updatedAt: new Date().toISOString(),
     };
 
-    res.json({ success: true, storage: 'LocalStore', leadId: lead.id });
+    if (firestoreDb && (lead.user_id || lead.userId)) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'leads', lead.id), lead, { merge: true });
+      } catch (fsErr: any) {
+        console.warn('[Leads API] Firestore lead sync notice:', fsErr.message);
+      }
+    }
+
+    res.json({ success: true, storage: firestoreDb ? 'Firebase' : 'LocalStore', leadId: lead.id });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to sync lead' });
   }

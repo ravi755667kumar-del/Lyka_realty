@@ -591,7 +591,7 @@ export default function App() {
                 const savedDeleted = localStorage.getItem('deletedPropertyIds');
                 const deletedSet = new Set<string>(savedDeleted ? JSON.parse(savedDeleted) : []);
                 const apiMap = new Map(apiData.properties.map((p: any) => [p.id, p]));
-                const merged = prev.filter(p => !deletedSet.has(p.id)).map(p => apiMap.has(p.id) ? { ...p, ...apiMap.get(p.id) } : p);
+                const merged = prev.filter(p => !deletedSet.has(p.id)).map(p => apiMap.has(p.id) ? { ...p, ...(apiMap.get(p.id) || {}) } : p);
                 const existingIds = new Set(merged.map(p => p.id));
                 const newFromApi = apiData.properties.filter((p: any) => !existingIds.has(p.id) && !deletedSet.has(p.id));
                 const combined = [...newFromApi, ...merged];
@@ -755,8 +755,11 @@ export default function App() {
       localStorage.setItem('localLeads', JSON.stringify(localLeads));
     } catch (e) { console.warn(e); }
 
+    // ONLY persist to Firestore database collection 'leads' if user is authenticated (logged in)
     if (currentUserId) {
-      saveLeadToFirestore(lead);
+      saveLeadToFirestore(lead).catch(err => {
+        console.warn('saveLeadToFirestore notice:', err);
+      });
     }
   };
 
@@ -773,14 +776,16 @@ export default function App() {
         }
         return [merged, ...list];
       });
-      // Sync to firestore or local
+      // Sync to firestore (if logged in) or local
       saveLeadData(merged);
-      // Sync to local store backup
-      fetch('/api/leads/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(merged)
-      }).catch(() => {});
+      // Sync to backend store ONLY if user is authenticated (logged in)
+      if (currentUserId) {
+        fetch('/api/leads/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged)
+        }).catch(() => {});
+      }
       return merged;
     });
   };
@@ -964,6 +969,23 @@ export default function App() {
 
   // User sends message
   const handleSendMessage = async (userText: string, options?: { groqApiKey?: string; groqModel?: string }) => {
+    // Check guest 2-conversation limit
+    const previousUserMsgCount = messages.filter(m => m.role === 'user').length;
+    const isGuest = !currentUserId && !auth.currentUser;
+
+    if (isGuest && previousUserMsgCount >= 2) {
+      const limitNoticeMsg: ChatMessage = {
+        id: 'MSG-A-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+        lead_id: currentLead.id,
+        role: 'assistant',
+        content: `🔒 **Sign In / Sign Up Required**\n\nYou have completed your **2 free preview conversations** with Lyka Realty AI.\n\nPlease **Sign In** or **Sign Up** using the account button at the top to continue chatting, booking viewings, and connecting directly with our property advisors!`,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, limitNoticeMsg]);
+      setIsLoading(false);
+      return;
+    }
+
     const userMsg: ChatMessage = {
       id: 'MSG-U-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       lead_id: currentLead.id,
@@ -1205,11 +1227,16 @@ export default function App() {
         ? unbookedServerProps.slice(0, 3)
         : unbookedMatchingProps.length > 0 ? unbookedMatchingProps.slice(0, 3) : undefined;
 
+      let finalContent = assistantReply;
+      if (isGuest && previousUserMsgCount === 1) {
+        finalContent += "\n\n---\n🔔 **Guest Limit Notice:** *You have completed your 2 free preview conversations. To continue chatting, booking viewings, or talking to our team, please **Sign In** or **Sign Up** using the Account button!*";
+      }
+
       const assistantMsg: ChatMessage = {
         id: 'MSG-A-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
         lead_id: mergedLead.id,
         role: 'assistant',
-        content: assistantReply,
+        content: finalContent,
         timestamp: new Date().toISOString(),
         provider: assistantProvider,
         agentic_decision: agenticDecision,
@@ -1232,21 +1259,25 @@ export default function App() {
         syncSessionToUserProfile(currentUserEmail || mergedLead.email || null, currentUserId, mergedLead, updatedMessages).catch(() => {});
       }
 
-      // Asynchronously generate numerical vector embedding and store into Firebase Firestore
-      fetch('/api/embeddings/store', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead_id: mergedLead.id,
-          text_content: `${mergedLead.full_name || 'Customer'} inquiry: ${userText}. Extracted: ${mergedLead.intent} ${mergedLead.property_type || ''} in ${(mergedLead.preferred_communities || []).join(', ')} budget AED ${mergedLead.budget_max || ''}`,
-          metadata: {
-            customer_name: mergedLead.full_name || 'Prospect',
-            intent: mergedLead.intent,
-            budget_max: mergedLead.budget_max,
-            communities: mergedLead.preferred_communities
-          }
-        })
-      }).catch(e => console.warn('Vector store background sync:', e));
+      // Asynchronously generate numerical vector embedding and store into Firebase Firestore ONLY if logged in
+      if (currentUserId) {
+        fetch('/api/embeddings/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lead_id: mergedLead.id,
+            user_id: currentUserId,
+            text_content: `${mergedLead.full_name || 'Customer'} inquiry: ${userText}. Extracted: ${mergedLead.intent} ${mergedLead.property_type || ''} in ${(mergedLead.preferred_communities || []).join(', ')} budget AED ${mergedLead.budget_max || ''}`,
+            metadata: {
+              user_id: currentUserId,
+              customer_name: mergedLead.full_name || 'Prospect',
+              intent: mergedLead.intent,
+              budget_max: mergedLead.budget_max,
+              communities: mergedLead.preferred_communities
+            }
+          })
+        }).catch(e => console.warn('Vector store background sync:', e));
+      }
 
     } catch (err) {
       console.error('Agentic execution error:', err);
@@ -1935,6 +1966,10 @@ export default function App() {
             isLoading={isLoading}
             onBookViewing={(prop) => setViewingModalProperty(prop)}
             onOpenAgentHandoff={() => {
+              if (!currentUserId && !auth.currentUser) {
+                alert('Sign In / Sign Up Required: Please Sign In or Sign Up first to connect and talk directly with our senior property advisor.');
+                return;
+              }
               const initialDigits = (currentLead.phone || '').replace(/\D/g, '').slice(0, 10);
               setHandoffPhone(initialDigits);
               setHandoffError('');
@@ -1953,6 +1988,10 @@ export default function App() {
               lead={currentLead}
               onUpdateLead={updateActiveLead}
               onTriggerHandoff={() => {
+                if (!currentUserId && !auth.currentUser) {
+                  alert('Sign In / Sign Up Required: Please Sign In or Sign Up first to connect and talk directly with our senior property advisor.');
+                  return;
+                }
                 const initialDigits = (currentLead.phone || '').replace(/\D/g, '').slice(0, 10);
                 setHandoffPhone(initialDigits);
                 setHandoffError('');

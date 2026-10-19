@@ -400,13 +400,13 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
   }
 
   // Timeline & Move-in date
-  const daysMatch = latestUserMessage.match(/\b(\d+)\s*days?\b/i);
-  const weeksMatch = latestUserMessage.match(/\b(\d+)\s*weeks?\b/i);
+  const daysMatch = text.match(/\b(\d+)\s*days?\b/i);
+  const weeksMatch = text.match(/\b(\d+)\s*weeks?\b/i);
   if (
     fuzzyIncludes(['immediately', 'asap', 'this month', 'urgent', 'right now', 'few days', 'soon', 'this week', 'next week']) ||
     daysMatch ||
     weeksMatch ||
-    /\bmove\s*in\b/i.test(latestUserMessage)
+    /\bmove\s*in\b/i.test(text)
   ) {
     if (daysMatch) {
       extracted.timeline = `Within ${daysMatch[1]} days`;

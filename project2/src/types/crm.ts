@@ -24,7 +24,7 @@ export type PropertyType =
   | 'Penthouse'
   | 'Commercial / Office';
 
-export type PropertyStatus = 'Ready' | 'Off-plan' | 'Both';
+export type PropertyStatus = 'Ready' | 'Off-plan' | 'Both' | 'Available' | 'Booked';
 
 export type LeadStatus = 
   | 'New'
@@ -53,13 +53,16 @@ export interface LeadProfile {
   is_nri?: boolean;
   budget_currency?: 'AED' | 'INR' | 'USD';
   preferred_communities: string[];
+  preferred_community?: string;
   budget_min: number | null;
   budget_max: number | null;
+  budget_max_aed?: number | null;
   property_type: PropertyType | string;
   bedrooms: string | null;
   ready_or_offplan: PropertyStatus | string;
   purpose: string;
   timeline: string;
+  move_in_timeline?: string;
   must_have_features: string[];
   exclusions: string[];
   financing: string;
@@ -173,6 +176,7 @@ export interface PropertyListing {
   features: string[];
   coordinates?: { lat: number; lng: number };
   contact_name?: string;
+  agent_name?: string;
   contact_mobile?: string;
   bathrooms?: string;
   furnished?: string;

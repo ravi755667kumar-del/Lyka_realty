@@ -51,7 +51,8 @@ import {
   Bath,
   Maximize2,
   ShieldCheck,
-  KeyRound
+  KeyRound,
+  Bell
 } from 'lucide-react';
 import { 
   auth, 
@@ -139,6 +140,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileTooltip, setShowProfileTooltip] = useState(false);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
+  const [authNotification, setAuthNotification] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userFullName, setUserFullName] = useState('');
@@ -444,9 +446,35 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setActiveSessionId(currentLead.id);
   }, [currentLead.id]);
 
+  const userMessageCount = messages.filter(m => m.role === 'user').length;
+  const isGuestLimitReached = !userLoggedIn && userMessageCount >= 2;
+
+  const handleTalkToAgentClick = () => {
+    if (!userLoggedIn) {
+      setAuthNotification('Please Sign In or Sign Up first to connect and talk directly with our senior property advisor.');
+      setShowAuthModal(true);
+      return;
+    }
+    onOpenAgentHandoff();
+  };
+
+  const handleOpenSettingsClick = () => {
+    if (!userLoggedIn) {
+      setAuthNotification('Please Sign In or Sign Up first to access AI engine and model settings.');
+      setShowAuthModal(true);
+      return;
+    }
+    setShowSettingsModal(true);
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || isLoading) return;
+    if (isGuestLimitReached) {
+      setAuthNotification('Free preview limit reached (2 conversations). Please Sign In or Sign Up to continue chatting with Lyka Realty AI!');
+      setShowAuthModal(true);
+      return;
+    }
     onSendMessage(inputText.trim(), {
       groqApiKey: groqKeyInput.trim() || undefined,
       groqModel: activeModel
@@ -489,6 +517,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   };
 
   const toggleSpeechRecognition = () => {
+    if (isGuestLimitReached) {
+      setAuthNotification('Free preview limit reached (2 conversations). Please Sign In or Sign Up to continue chatting with Lyka Realty AI!');
+      setShowAuthModal(true);
+      return;
+    }
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
       alert('Speech recognition is not supported in this browser.');
       return;
@@ -1906,7 +1939,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               <div className="flex items-center space-x-2">
                 <span className="text-sm font-semibold text-slate-300">Lyka Realty AI</span>
                 <button
-                  onClick={() => setShowSettingsModal(true)}
+                  onClick={handleOpenSettingsClick}
                   className="flex items-center space-x-1 text-[10px] bg-[#f7f2e6] hover:bg-[#eee6d3] text-amber-700 border border-[#d6cbb4] px-2 py-0.5 rounded-full font-mono transition-colors"
                   title="Configure AI Engine"
                 >
@@ -1920,14 +1953,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => setShowSettingsModal(true)}
+              onClick={handleOpenSettingsClick}
               className="p-1.5 rounded-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#6b5843] hover:text-slate-300 border border-[#d6cbb4] transition-colors"
               title="AI Settings"
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={onOpenAgentHandoff}
+              onClick={handleTalkToAgentClick}
               className={`flex items-center space-x-1.5 text-xs px-2.5 sm:px-3 py-1.5 rounded-full transition-all font-medium shadow-xs ${
                 currentLead.human_handoff_required
                   ? 'bg-amber-500 text-amber-950 font-bold border border-amber-400 ring-2 ring-amber-400/50 animate-pulse'
@@ -1979,7 +2012,14 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   {promptCards.map((card, i) => (
                     <div
                       key={i}
-                      onClick={() => onSendMessage(card.prompt, { groqApiKey: groqKeyInput.trim() || undefined, groqModel: activeModel })}
+                      onClick={() => {
+                        if (isGuestLimitReached) {
+                          setAuthNotification('Free preview limit reached (2 conversations). Please Sign In or Sign Up to continue chatting with Lyka Realty AI!');
+                          setShowAuthModal(true);
+                          return;
+                        }
+                        onSendMessage(card.prompt, { groqApiKey: groqKeyInput.trim() || undefined, groqModel: activeModel });
+                      }}
                       className="bg-[#f7f2e6] hover:bg-[#eee6d3] border border-[#d6cbb4] hover:border-amber-400/60 p-3.5 sm:p-4 rounded-xl cursor-pointer transition-all duration-200 flex flex-col justify-between space-y-2 group shadow-xs hover:shadow-md"
                     >
                       <div className="flex items-start justify-between">
@@ -2105,7 +2145,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <div className="pt-2 pb-1">
                           <button
                             type="button"
-                            onClick={onOpenAgentHandoff}
+                            onClick={handleTalkToAgentClick}
                             className="inline-flex items-center space-x-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs sm:text-sm shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0"
                           >
                             <PhoneCall className="w-4 h-4 text-amber-950 shrink-0" />
@@ -2125,7 +2165,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         <button onClick={() => setLikedMap(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))} className={`p-1.5 rounded-lg hover:bg-[#f7f2e6] transition-colors ${likedMap[msg.id] ? 'text-amber-600' : 'hover:text-slate-300'}`} title="Good response">
                           <ThumbsUp className="w-4 h-4" />
                         </button>
-                        <button onClick={onOpenAgentHandoff} className="p-1.5 hover:text-amber-600 rounded-lg hover:bg-[#f7f2e6] transition-colors" title="Escalate to Agent">
+                        <button onClick={handleTalkToAgentClick} className="p-1.5 hover:text-amber-600 rounded-lg hover:bg-[#f7f2e6] transition-colors" title="Escalate to Agent">
                           <PhoneCall className="w-4 h-4" />
                         </button>
                       </div>
@@ -2162,6 +2202,32 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         {/* ─── Input Bar ─── */}
         <div className="p-4 sm:p-6 bg-gradient-to-t from-[#ffffff] via-[#ffffff]/95 to-transparent shrink-0">
           <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto">
+            {/* Free Guest Preview Limit Notification Banner */}
+            {isGuestLimitReached && (
+              <div className="mb-3 p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-amber-600/15 border border-amber-500/40 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-xs">
+                    <Lock className="w-4 h-4 text-amber-800" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm font-bold text-[#1e1610]">Free Guest Preview Limit Reached (2/2 Conversations)</p>
+                    <p className="text-[11px] text-[#6b5843] leading-snug">Please sign in or sign up to continue chatting with Lyka Realty AI, access settings, and talk with our advisors.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthNotification('Please Sign In or Sign Up to continue chatting with Lyka Realty AI!');
+                    setShowAuthModal(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-bold rounded-xl text-xs shadow-md transition-all whitespace-nowrap shrink-0 flex items-center space-x-1.5 transform hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In / Sign Up</span>
+                </button>
+              </div>
+            )}
+
             <form
               onSubmit={handleSubmit}
               className="bg-[#f7f2e6] border border-[#d6cbb4] focus-within:border-amber-400/70 rounded-3xl p-2.5 sm:p-3 flex items-end space-x-2.5 shadow-2xl transition-all duration-200"
@@ -2172,9 +2238,15 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about Dubai properties, investment yields, communities..."
-                disabled={isLoading}
-                className="flex-1 bg-transparent border-0 px-4 py-2 text-base sm:text-lg text-slate-300 placeholder-[#6b5843] outline-none resize-none leading-relaxed min-h-[44px] max-h-[160px]"
+                onClick={() => {
+                  if (isGuestLimitReached) {
+                    setAuthNotification('You have completed your 2 free preview conversations. Please Sign In or Sign Up to continue chatting with Lyka Realty AI!');
+                    setShowAuthModal(true);
+                  }
+                }}
+                placeholder={isGuestLimitReached ? "🔒 Free guest limit reached (2/2). Click here to Sign In or Sign Up..." : "Ask about Dubai properties, investment yields, communities..."}
+                disabled={isLoading || isGuestLimitReached}
+                className={`flex-1 bg-transparent border-0 px-4 py-2 text-base sm:text-lg text-slate-300 placeholder-[#6b5843] outline-none resize-none leading-relaxed min-h-[44px] max-h-[160px] ${isGuestLimitReached ? 'cursor-pointer select-none' : ''}`}
               />
               <button
                 type="button"
@@ -2188,10 +2260,22 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               </button>
               <button
                 type="submit"
-                disabled={!inputText.trim() || isLoading}
-                className="p-2.5 sm:p-3 rounded-full bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-amber-950 transition-all shrink-0 font-bold"
+                disabled={(!inputText.trim() && !isGuestLimitReached) || isLoading}
+                onClick={(e) => {
+                  if (isGuestLimitReached) {
+                    e.preventDefault();
+                    setAuthNotification('You have completed your 2 free preview conversations. Please Sign In or Sign Up to continue chatting with Lyka Realty AI!');
+                    setShowAuthModal(true);
+                  }
+                }}
+                className={`p-2.5 sm:p-3 rounded-full transition-all shrink-0 font-bold ${
+                  isGuestLimitReached 
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-md cursor-pointer' 
+                    : 'bg-amber-500 hover:bg-amber-400 disabled:opacity-30 text-amber-950'
+                }`}
+                title={isGuestLimitReached ? "Sign In / Sign Up to continue" : "Send message"}
               >
-                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+                {isGuestLimitReached ? <Lock className="w-4 h-4 sm:w-5 sm:h-5" /> : <Send className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
             </form>
           </div>
@@ -2282,12 +2366,26 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           <div className="bg-[#ffffff] rounded-2xl w-full max-w-sm shadow-2xl border border-[#e2d9c6] overflow-hidden flex flex-col relative">
             <div className="flex justify-between items-center p-4 border-b border-[#f3ede0] bg-[#f7f2e6]">
               <h3 className="font-bold text-base text-neutral-800">Account</h3>
-              <button onClick={() => setShowAuthModal(false)} className="text-slate-500 hover:text-slate-700 p-1 bg-white rounded-md border border-[#e2d9c6]">
+              <button 
+                onClick={() => { setShowAuthModal(false); setAuthNotification(null); }} 
+                className="text-slate-500 hover:text-slate-700 p-1 bg-white rounded-md border border-[#e2d9c6]"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
             {/* ─── USER AUTH SECTION ─── */}
             <div className="p-4">
+              {/* Contextual Auth Notification Banner */}
+              {authNotification && (
+                <div className="mb-3.5 p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl flex items-start space-x-2.5 shadow-xs">
+                  <Bell className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-950">
+                    <p className="font-bold text-amber-950">Sign In or Sign Up Required</p>
+                    <p className="text-[11px] text-amber-900 leading-snug mt-0.5">{authNotification}</p>
+                  </div>
+                </div>
+              )}
+
               {!userLoggedIn ? (
                 authMode === 'google_signup' && pendingGoogleUser ? (
                   /* ─── GOOGLE SIGN UP COMPLETION (NEW USER) ─── */
