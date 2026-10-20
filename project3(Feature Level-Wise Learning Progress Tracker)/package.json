@@ -1,0 +1,18 @@
+{
+  "name": "ai-study-mentor-tracker",
+  "version": "1.0.0",
+  "description": "AI Study Mentor & Level-Wise Learning Progress Tracker with 3D Cosmos, RAG, Live Search, and Natural Human TTS",
+  "type": "module",
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js",
+    "app": "node backend/server.js",
+    "backend": "node backend/server.js",
+    "frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test": "npm --prefix backend test"
+  },
+  "keywords": ["ai", "mentor", "learning-tracker", "rag", "serpapi", "tts", "3d-cosmos"],
+  "author": "",
+  "license": "ISC"
+}

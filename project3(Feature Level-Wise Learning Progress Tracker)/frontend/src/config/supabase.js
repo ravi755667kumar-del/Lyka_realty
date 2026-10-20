@@ -1,0 +1,17 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const isPlaceholder = !supabaseUrl ||
+  supabaseUrl.includes('your-project-id') ||
+  supabaseUrl.includes('placeholder') ||
+  !supabaseAnonKey ||
+  supabaseAnonKey.includes('your-supabase') ||
+  supabaseAnonKey.includes('placeholder');
+
+export const isSupabaseConfigured = !isPlaceholder;
+
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
