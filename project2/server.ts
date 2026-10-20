@@ -1620,20 +1620,23 @@ app.get('/api/auth/all-users', async (_req: Request, res: Response) => {
 // GET /api/properties — fetch all properties (merging Firestore & in-memory)
 app.get('/api/properties', async (_req: Request, res: Response) => {
   try {
-    let list: any[] = [];
+    const propMap = new Map<string, any>();
+    // 1. Populate baseline verified listings
+    for (const p of (ALL_VERIFIED_PROPERTIES as any[])) {
+      propMap.set(p.id, p);
+    }
+    // 2. Overlay live properties from Firestore 'properties' collection
     if (firestoreDb) {
       try {
         const snap = await fsGetDocs(fsCollection(firestoreDb, 'properties'));
         snap.forEach(d => {
-          list.push({ ...d.data(), id: d.id });
+          propMap.set(d.id, { ...d.data(), id: d.id });
         });
       } catch (err: any) {
         console.warn('[Properties API] Firestore fetch warning:', err.message);
       }
     }
-    if (list.length === 0) {
-      list = [...(ALL_VERIFIED_PROPERTIES as any[])];
-    }
+    const list = Array.from(propMap.values());
     return res.json({ success: true, properties: list });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -1648,7 +1651,7 @@ app.post('/api/properties', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Property data and ID required' });
     }
 
-    const cleanProp = {
+    const cleanProp: Record<string, any> = {
       ...prop,
       price_aed: Number(prop.price_aed) || 0,
       price_inr: Number(prop.price_inr) || Math.round((Number(prop.price_aed) || 0) * 22.8),
@@ -1659,11 +1662,48 @@ app.post('/api/properties', async (req: Request, res: Response) => {
       createdAt: prop.createdAt || new Date().toISOString()
     };
 
-    // 1. Persist to Firestore
+    // Clean undefined properties so Firestore never throws
+    for (const k of Object.keys(cleanProp)) {
+      if (cleanProp[k] === undefined) {
+        delete cleanProp[k];
+      }
+    }
+
+    // 1. Persist to Firestore collection 'properties'
     if (firestoreDb) {
       try {
         await fsSetDoc(fsDoc(firestoreDb, 'properties', cleanProp.id), cleanProp, { merge: true });
         console.log(`[Properties API] Saved property ${cleanProp.id} to Firestore collection 'properties'`);
+
+        // Generate and persist numerical vector embedding to Firestore 'property_embeddings'
+        try {
+          const textContent = `${cleanProp.title}. ${cleanProp.property_type || 'Apartment'} in ${cleanProp.community}, ${cleanProp.city || 'Dubai'}. ${cleanProp.bedrooms || '2'} Bedrooms. Price: AED ${cleanProp.price_aed}. Status: ${cleanProp.status}. Developer: ${cleanProp.developer || 'Lyka Reality'}. Amenities: ${(cleanProp.amenities || []).join(', ')}. ${cleanProp.description || ''}`;
+          const { vector, model, dimensions } = await getEmbeddingVector(textContent);
+          const vector_sum = parseFloat(vector.reduce((a, b) => a + b, 0).toFixed(6));
+          const docId = `PROP-${cleanProp.id}`;
+          const propEmbedDoc = {
+            _id: docId,
+            id: docId,
+            property_id: cleanProp.id,
+            title: cleanProp.title,
+            community: cleanProp.community,
+            city: cleanProp.city || 'Dubai',
+            price_aed: cleanProp.price_aed,
+            text_content: textContent,
+            vector,
+            dimensions,
+            vector_sum,
+            model,
+            status: cleanProp.status,
+            is_booked: cleanProp.is_booked,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await safeFirestoreSetDoc(fsDoc(firestoreDb, 'property_embeddings', docId), propEmbedDoc, { merge: true }, 2500);
+          console.log(`[Properties API] Saved vector embedding for ${cleanProp.id} to Firestore collection 'property_embeddings'`);
+        } catch (embedErr: any) {
+          console.warn('[Properties API] Embedding generation notice:', embedErr.message);
+        }
       } catch (fsErr: any) {
         console.warn(`[Properties API] Firestore write warning:`, fsErr.message);
       }
@@ -1757,6 +1797,9 @@ app.post('/api/properties/book', async (req: Request, res: Response) => {
       notes = `Confirmed booking for ${propertyTitle} in ${community} (${bedrooms} BR, AED ${priceAed.toLocaleString()}). ${intentStr}${budgetStr}${timelineStr}${viewingStr}Client: ${customerName} (${customerPhone}).`;
     }
 
+    const customerIdCard = (req.body.assigned_id_card || req.body.customer_id_card || req.body.id_card || '').trim();
+    const customerIdType = (req.body.assigned_id_type || req.body.customer_id_type || 'Emirates ID').trim();
+
     const bookingId = req.body.booking_id || req.body.id || ('BK-' + Math.random().toString(36).substring(2, 8).toUpperCase());
     const bookedAt = req.body.booked_at || new Date().toISOString();
 
@@ -1766,6 +1809,9 @@ app.post('/api/properties/book', async (req: Request, res: Response) => {
       assigned_to: customerName,
       assigned_phone: customerPhone,
       assigned_email: customerEmail,
+      assigned_id_card: customerIdCard,
+      assigned_id_type: customerIdType,
+      assignment_verified: true,
       booking_id: bookingId,
       booking_amount_aed: bookingAmount,
       booking_notes: notes,
@@ -1785,6 +1831,13 @@ app.post('/api/properties/book', async (req: Request, res: Response) => {
       customer_name: customerName,
       customer_phone: customerPhone,
       customer_email: customerEmail,
+      customer_id_card: customerIdCard,
+      customer_id_type: customerIdType,
+      assigned_to: customerName,
+      assigned_phone: customerPhone,
+      assigned_id_card: customerIdCard,
+      assigned_id_type: customerIdType,
+      assignment_verified: true,
       booking_amount_aed: bookingAmount,
       notes: notes,
       booked_at: bookedAt,
@@ -1838,6 +1891,10 @@ app.post('/api/properties/unbook', async (req: Request, res: Response) => {
       assigned_to: null,
       assigned_phone: null,
       assigned_email: null,
+      assigned_id_card: null,
+      assigned_id_type: null,
+      assignment_verified: false,
+      assigned_at: null,
       booking_id: null,
       booked_at: null,
       booking_amount_aed: null,
@@ -1871,6 +1928,10 @@ app.post('/api/properties/unbook', async (req: Request, res: Response) => {
       target.is_booked = false;
       delete target.assigned_to;
       delete target.assigned_phone;
+      delete target.assigned_email;
+      delete target.assigned_id_card;
+      delete target.assigned_id_type;
+      delete target.assignment_verified;
       delete target.booking_id;
     }
 

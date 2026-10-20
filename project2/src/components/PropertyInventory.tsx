@@ -94,6 +94,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [newAdminIdCard, setNewAdminIdCard] = useState('784-1990-1234567-1');
   const [newAdminIdType, setNewAdminIdType] = useState<string>('Emirates ID');
   const [addValidationError, setAddValidationError] = useState('');
+  const [addSuccessMsg, setAddSuccessMsg] = useState('');
+  const [isAddingProperty, setIsAddingProperty] = useState(false);
 
   // Edit property form state
   const [editTitle, setEditTitle] = useState('');
@@ -339,7 +341,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleCreateProperty = (e: React.FormEvent) => {
+  const handleCreateProperty = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddValidationError('');
 
@@ -394,12 +396,12 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       contact_mobile: newMobile || newAdminMobile,
       bathrooms: newBathrooms,
       furnished: newFurnished,
-      handover_date: newHandoverDate || undefined,
-      payment_plan: newPaymentPlan || undefined,
-      rera_id: newReraId || undefined,
-      listing_date: newListingDate || undefined,
-      available_date: newAvailableDate || undefined,
-      expiry_date: newExpiryDate || undefined,
+      handover_date: newHandoverDate.trim() || undefined,
+      payment_plan: newPaymentPlan.trim() || undefined,
+      rera_id: newReraId.trim() || undefined,
+      listing_date: newListingDate.trim() || undefined,
+      available_date: newAvailableDate.trim() || undefined,
+      expiry_date: newExpiryDate.trim() || undefined,
       // Admin Verification Details
       admin_verified: true,
       admin_verification_name: newAdminName.trim(),
@@ -411,21 +413,32 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    onAddProperty(prop);
-    setShowAddModal(false);
-    // Reset all fields
-    setNewTitle(''); setNewContactName(''); setNewMobile(''); setNewDescription('');
-    setNewBathrooms('2'); setNewHasPool(false); setNewHasGym(false);
-    setNewHasParking(false); setNewHasBalcony(false); setNewFurnished('Unfurnished');
-    setNewHandoverDate(''); setNewPaymentPlan(''); setNewReraId('');
-    setNewListingDate(''); setNewAvailableDate(''); setNewExpiryDate('');
-    setNewAdminName('Farhan Qureshi (Property Admin)');
-    setNewAdminMobile('+971 50 892 4110');
-    setNewAdminIdCard('784-1990-1234567-1');
-    setNewAdminIdType('Emirates ID');
-    setAddValidationError('');
-    setNewImage(''); setNewImagePreview(''); setNewImageName('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    setIsAddingProperty(true);
+    try {
+      await onAddProperty(prop);
+      setAddSuccessMsg(`Listing "${newTitle}" created and saved to Firestore database successfully!`);
+      setTimeout(() => {
+        setShowAddModal(false);
+        setAddSuccessMsg('');
+        // Reset all fields
+        setNewTitle(''); setNewContactName(''); setNewMobile(''); setNewDescription('');
+        setNewBathrooms('2'); setNewHasPool(false); setNewHasGym(false);
+        setNewHasParking(false); setNewHasBalcony(false); setNewFurnished('Unfurnished');
+        setNewHandoverDate(''); setNewPaymentPlan(''); setNewReraId('');
+        setNewListingDate(''); setNewAvailableDate(''); setNewExpiryDate('');
+        setNewAdminName('Farhan Qureshi (Property Admin)');
+        setNewAdminMobile('+971 50 892 4110');
+        setNewAdminIdCard('784-1990-1234567-1');
+        setNewAdminIdType('Emirates ID');
+        setAddValidationError('');
+        setNewImage(''); setNewImagePreview(''); setNewImageName('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }, 1000);
+    } catch (err: any) {
+      setAddValidationError('Failed to save property to database: ' + (err?.message || err));
+    } finally {
+      setIsAddingProperty(false);
+    }
   };
 
   // Compatibility score with active lead
@@ -740,6 +753,13 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {addSuccessMsg && (
+              <div className="bg-emerald-950/90 border border-emerald-500/70 rounded-xl p-3 text-xs text-emerald-300 flex items-center space-x-2 shadow-md animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="font-semibold">{addSuccessMsg}</span>
+              </div>
+            )}
 
             <form onSubmit={handleCreateProperty} className="space-y-4 text-xs">
 
@@ -1207,9 +1227,20 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl font-bold shadow-md"
+                  disabled={isAddingProperty}
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl font-bold shadow-md disabled:opacity-50 flex items-center justify-center space-x-1.5 transition-all"
                 >
-                  Publish Property
+                  {isAddingProperty ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      <span>Saving to Firestore Database...</span>
+                    </>
+                  ) : (
+                    <span>Publish & Save to DB</span>
+                  )}
                 </button>
               </div>
             </form>

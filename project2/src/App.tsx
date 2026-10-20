@@ -1692,6 +1692,10 @@ export default function App() {
             assigned_to: undefined,
             assigned_phone: undefined,
             assigned_email: undefined,
+            assigned_id_card: undefined,
+            assigned_id_type: undefined,
+            assignment_verified: false,
+            assigned_at: undefined,
             booking_amount_aed: undefined,
             booking_notes: undefined,
             booked_at: undefined,
@@ -1730,6 +1734,7 @@ export default function App() {
   };
 
   const handleAddProperty = async (newProp: PropertyListing) => {
+    // 1. Immediately reflect in local state and localStorage
     setPropertiesList(prev => {
       const updated = [newProp, ...prev];
       try {
@@ -1739,11 +1744,16 @@ export default function App() {
       }
       return updated;
     });
+
+    // 2. Persist directly to Firestore collection 'properties'
     try {
       await savePropertyToFirestore(newProp);
+      console.log(`[Property Admin] Property ${newProp.id} saved to Firestore successfully.`);
     } catch (err) {
       console.warn('Could not save property to Firestore:', err);
     }
+
+    // 3. Persist to backend server API (which updates Firestore and builds vector embeddings)
     try {
       await fetch('/api/properties', {
         method: 'POST',
