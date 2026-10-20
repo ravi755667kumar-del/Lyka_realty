@@ -37,6 +37,15 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
+// Set Cross-Origin-Opener-Policy to allow Google Auth popups without browser warnings
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
+// Serve public static assets (including /favicon.ico and logos)
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Vector Embedding Interface
 interface StoredVector {
   _id: string;
