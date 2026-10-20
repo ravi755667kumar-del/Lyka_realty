@@ -128,7 +128,7 @@ export function injectDependencies(opts: {
   geminiClient = opts.gemini || null;
   if (opts.groqModel) groqModelName = opts.groqModel;
   pdfKnowledgeChunks = opts.pdfChunks;
-  allProperties = opts.properties;
+  allProperties = opts.properties.filter(p => !(p as any).is_booked && !['booked', 'sold', 'rented', 'unavailable'].includes(p.status.toLowerCase()));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -512,7 +512,7 @@ async function callLLM(systemPrompt: string, userMessage: string, history: { rol
     try {
       const histText = history.slice(-6).map(h => `${h.role === 'user' ? 'Customer' : 'Assistant'}: ${h.content}`).join('\n\n');
       const res = await geminiClient.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
         contents: [
           { role: 'user', parts: [{ text: systemPrompt + (histText ? `\n\nRecent conversation:\n${histText}` : '') + `\n\nCustomer message: ${userMessage}` }] }
         ]

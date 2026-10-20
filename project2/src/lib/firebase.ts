@@ -992,7 +992,7 @@ export async function cancelBookedPropertyInFirestore(propertyId: string): Promi
 const DEFAULT_ADMIN_CREDENTIAL: PortalCredential = {
   id: 'admin',
   email: 'admin@lykarealty.ae',
-  password: 'LykaAdmin2024',
+  password: '',
   role: 'admin',
   name: 'Lyka Super Admin'
 };
@@ -1000,7 +1000,7 @@ const DEFAULT_ADMIN_CREDENTIAL: PortalCredential = {
 const DEFAULT_PM_CREDENTIAL: PortalCredential = {
   id: 'property_manager',
   email: 'manager@lykarealty.ae',
-  password: 'LykaManager2024',
+  password: '',
   role: 'property_manager',
   name: 'Lyka Property Manager'
 };
@@ -1008,7 +1008,7 @@ const DEFAULT_PM_CREDENTIAL: PortalCredential = {
 const DEFAULT_SM_CREDENTIAL: PortalCredential = {
   id: 'sales_manager',
   email: 'sales@lykarealty.ae',
-  password: 'LykaSales2024',
+  password: '',
   role: 'sales_manager',
   name: 'Lyka Sales Manager'
 };

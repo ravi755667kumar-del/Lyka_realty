@@ -1,76 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User login/profile - public read and write (supports Brevo email OTP passwordless flow)
-    match /User_login/{docId} {
-      allow read, write: if true;
-    }
-
-    // Standard users collection
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // User chat history - allow read and write
-    match /user_chat/{docId} {
-      allow read, write: if true;
-    }
-
-    // Interactions (individual messages) - allow read and write
-    match /interactions/{docId} {
-      allow read, write: if true;
-    }
-
-    // Leads - allow read and write
-    match /leads/{docId} {
-      allow read, write: if true;
-    }
-
-    // Follow-ups - authenticated users only
-    match /followups/{docId} {
-      allow read, write: if request.auth != null;
-    }
-
-    // Properties - public read, allow write for property management
-    match /properties/{docId} {
-      allow read, write: if true;
-    }
-
-    // Booked properties / assignments
-    match /booked_properties/{docId} {
-      allow read, write: if true;
-    }
-
-    // Login events tracking
-    match /login_events/{docId} {
-      allow read, write: if true;
-    }
-
-    // Admin & Property Manager login credentials
-    match /Admin_login/{docId} {
-      allow read, write: if true;
-    }
-    match /Property_login/{docId} {
-      allow read, write: if true;
-    }
-
-    // PDF Knowledge and Vector Embeddings
-    match /pdf_knowledge_embeddings/{docId} {
-      allow read, write: if true;
-    }
-    match /customer_embeddings/{docId} {
-      allow read, write: if true;
-    }
-    match /property_embeddings/{docId} {
-      allow read, write: if true;
-    }
-    match /vector_embeddings/{docId} {
-      allow read, write: if true;
-    }
-
-    // Fallback for authenticated users
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }
