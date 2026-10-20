@@ -60,14 +60,43 @@ export async function testConnection(): Promise<boolean> {
   }
 }
 
+/**
+ * Recursively removes all undefined values from an object or array.
+ * Firestore setDoc() throws an error if any field (even deeply nested or inside an array) is undefined.
+ */
+export function cleanFirestoreData<T>(input: T): T {
+  if (input === undefined) {
+    return null as any;
+  }
+  if (input === null || typeof input !== 'object') {
+    return input;
+  }
+  if (input instanceof Date) {
+    return input.toISOString() as any;
+  }
+  if (Array.isArray(input)) {
+    return input
+      .filter((item) => item !== undefined)
+      .map((item) => cleanFirestoreData(item)) as any;
+  }
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(input as Record<string, any>)) {
+    if (value !== undefined) {
+      result[key] = cleanFirestoreData(value);
+    }
+  }
+  return result as T;
+}
+
 // Leads collection helpers
 export async function saveLeadToFirestore(lead: LeadProfile): Promise<void> {
   const path = `leads/${lead.id}`;
   try {
-    await setDoc(doc(db, 'leads', lead.id), {
+    const cleanedLead = cleanFirestoreData({
       ...lead,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
+    await setDoc(doc(db, 'leads', lead.id), cleanedLead, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -532,11 +561,11 @@ export async function syncSessionToUserProfile(
   if (userId && userId.trim()) targets.add(userId.trim());
   if (targets.size === 0) return;
 
-  const sessionData = {
+  const sessionData = cleanFirestoreData({
     leadProfile: lead,
     messages: msgs,
     updatedAt: new Date().toISOString()
-  };
+  });
 
   for (const docId of targets) {
     try {
@@ -813,7 +842,8 @@ export async function deleteMessagesForLead(leadId: string): Promise<void> {
 export async function saveInteractionToFirestore(msg: ChatMessage): Promise<void> {
   const path = `interactions/${msg.id}`;
   try {
-    await setDoc(doc(db, 'interactions', msg.id), msg, { merge: true });
+    const cleanedMsg = cleanFirestoreData(msg);
+    await setDoc(doc(db, 'interactions', msg.id), cleanedMsg, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -828,12 +858,13 @@ export async function saveUserChatToFirestore(
   const docId = `${userId}_${leadId}`;
   const path = `user_chat/${docId}`;
   try {
-    await setDoc(doc(db, 'user_chat', docId), {
+    const cleanedPayload = cleanFirestoreData({
       userId,
       leadId,
       messages,
       updatedAt: new Date().toISOString(),
-    }, { merge: true });
+    });
+    await setDoc(doc(db, 'user_chat', docId), cleanedPayload, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -895,17 +926,7 @@ export async function getFollowUpsFromFirestore(): Promise<FollowUpTask[]> {
 
 // Recursive helper to clean undefined values so Firestore setDoc never throws
 function cleanFirestoreObject<T extends Record<string, any>>(obj: T): Record<string, any> {
-  const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined) {
-      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-        result[key] = cleanFirestoreObject(value);
-      } else {
-        result[key] = value;
-      }
-    }
-  }
-  return result;
+  return cleanFirestoreData(obj);
 }
 
 // Properties helpers
@@ -966,10 +987,11 @@ export async function deletePropertyFromFirestore(propertyId: string): Promise<v
 export async function saveBookedPropertyToFirestore(booking: BookedPropertyRecord): Promise<void> {
   const path = `booked_properties/${booking.id}`;
   try {
-    await setDoc(doc(db, 'booked_properties', booking.id), {
+    const cleanedBooking = cleanFirestoreData({
       ...booking,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
+    await setDoc(doc(db, 'booked_properties', booking.id), cleanedBooking, { merge: true });
     console.log(`[Firestore] Booked property saved to booked_properties: ${booking.id}`);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

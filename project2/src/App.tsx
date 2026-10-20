@@ -663,7 +663,7 @@ export default function App() {
   useEffect(() => {
     if (currentUserId && currentLead.id) {
       // Sync the full JSON of this chat into the user's profile
-      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages);
+      syncSessionToUserProfile(currentUserEmail || currentLead.email || null, currentUserId, currentLead, messages).catch(() => {});
     }
   }, [currentUserId, currentUserEmail, currentLead, messages]);
 
