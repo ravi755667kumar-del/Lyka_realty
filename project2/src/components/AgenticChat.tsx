@@ -435,8 +435,19 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         console.warn('Failed to parse local sessions', e);
       }
 
-      sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setSavedSessions(sessions);
+      // Preserve stable list order: keep existing items in their established positions
+      setSavedSessions(prev => {
+        if (!prev || prev.length === 0) {
+          return sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        }
+        // Map new session details into existing list without changing positions
+        const sessionMap = new Map(sessions.map(s => [s.id, s]));
+        const updated = prev.map(old => sessionMap.get(old.id) || old);
+        // Append any brand-new sessions at the top
+        const existingIds = new Set(prev.map(p => p.id));
+        const brandNew = sessions.filter(s => !existingIds.has(s.id));
+        return [...brandNew, ...updated];
+      });
     }
     loadSessions();
   }, [userLoggedIn, userId, userEmail, messages.length]);

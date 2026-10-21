@@ -283,6 +283,10 @@ export function extractEntitiesFromText(text: string, currentLead: LeadProfile):
     if (!hasDubai) hasMumbai = true;
   }
 
+  if (/\b(dubai|uae|united arab emirates)\b/i.test(lower)) {
+    hasDubai = true;
+  }
+
   if (hasMumbai && hasDubai) extracted.target_city = 'Both';
   else if (hasMumbai) extracted.target_city = 'Mumbai';
   else if (hasDubai) extracted.target_city = 'Dubai';

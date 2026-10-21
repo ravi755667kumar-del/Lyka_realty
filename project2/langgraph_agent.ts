@@ -591,6 +591,7 @@ const CONTACT_QUESTIONS: Record<'name' | 'mobile' | 'email', (recheck: boolean) 
 // missing. Only EMPTY slots are ever filled, and every value is validated.
 
 const ENUM_FIELDS: Record<string, string[]> = {
+  target_city: ['Dubai', 'Mumbai', 'Both'],
   intent: ['Buy', 'Rent', 'Invest', 'Sell'],
   property_type: ['Apartment', 'Villa', 'Townhouse', 'Penthouse'],
   bedrooms: ['1', '2', '3', '4', '5', 'Studio'],
@@ -666,6 +667,7 @@ Never guess, never infer, never invent a budget or a name.
 
 JSON shape:
 {
+  "target_city": "Dubai"|"Mumbai"|"Both"|null,
   "intent": "Buy"|"Rent"|"Invest"|"Sell"|null,
   "budget_max": number|null,
   "rental_budget": number|null,
@@ -1458,7 +1460,7 @@ Follow these rules exactly (Instructions & Operating Guide v2.0, Section 7.3):
 ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory)
-    || `Thanks for sharing that. I'm sorry, we don't have an exact active match for those criteria on our website right now. Would you like me to connect you with a Lyka Realty Senior Advisor? They have access to private, off-market and secondary-market listings that aren't shown online.`;
+    || `Thanks for sharing those preferences! We don't have an exact active match with those specific filters right now, but we have fantastic verified options in nearby communities. Would you like me to suggest alternatives in a similar price range, or would you like to adjust your preferred area or budget?`;
 
   return {
     reply,
@@ -1523,15 +1525,16 @@ ${props.length > 0
 
 ${ragCtx ? `KNOWLEDGE BASE:\n${ragCtx}\n` : ''}
 CRITICAL INSTRUCTIONS:
-1. ${askMobile ? 'Before confirming these recommendations for the client, politely ask for their mobile number (with country code).' : 'Acknowledge their registered mobile number.'}
-2. Always conclude clearly with: "To get more information, arrange an exclusive viewing, or speak with an expert, please click the **'Talk to Agent'** button!"
-Be warm, professional, concise. Max 200 words.`;
+1. Present the matching properties clearly with tailored suggestions highlighting why each fits the client's criteria (e.g. location, price, lifestyle benefits).
+2. If there are close alternatives, mention them helpfully as options.
+3. Conclude by asking if they would like more details, floor plans, or to adjust their budget or location preferences. Do NOT force a redirect or demand they click 'Talk to Agent'; simply keep the conversation helpful and engaging.
+Be warm, consultative, and concise. Max 220 words.`;
 
   const fallback = props.length > 0
     ? `Great news! Based on your preference for ${p.bedrooms ? `${p.bedrooms} bedroom ` : ''}${p.target_city || 'our'} properties, here are matching verified listings from Lyka Realty's portfolio:\n\n` +
       props.map((prop, i) => `${i + 1}. **${prop.title}** (${prop.community}) — ${prop.bedrooms} Bed • AED ${prop.price_aed.toLocaleString()}${prop.price_inr ? ` / INR ${(prop.price_inr/10000000).toFixed(1)} Cr` : ''}${prop.expected_roi ? ` • ROI: ${prop.expected_roi}` : ''}`).join('\n') +
-      `\n\n${askMobile ? 'Before we confirm these options for you, could you please share your **mobile number** (with country code)?\n\n' : ''}To get more information, arrange a viewing, or speak directly with our senior advisor, please click the **'Talk to Agent'** button!`
-    : `We don't have an exact active match on our website right now, but our senior advisors have access to exclusive off-market listings. To get more information, please click the **'Talk to Agent'** button!`;
+      `\n\nWould you like me to share more details, payment plans, or photos for any of these options? You can also adjust your preferred area or budget anytime!`
+    : `We don't have an exact match with those precise criteria right now, but I can suggest similar options in neighboring communities or with slightly different layouts. Would you like me to show those, or would you prefer to adjust your budget or location?`;
 
   const reply = await callLLM(systemPrompt, state.userMessage, state.chatHistory) || fallback;
 
