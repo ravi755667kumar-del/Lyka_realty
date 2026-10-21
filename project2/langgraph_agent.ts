@@ -857,6 +857,24 @@ async function nodeClassifyIntent(state: AgentState): Promise<Partial<AgentState
       return { reply, provider: 'LangGraph → Property DB & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
     }
 
+    // Dynamic RAG context takes priority to eliminate hardcoded answers
+    if (ragCtx) {
+      const systemPrompt = `You are Lyka, a warm, professional Lyka Realty AI concierge for Dubai & Mumbai properties.
+The customer sent: "${state.userMessage}"
+
+Answer their question helpfully and concisely using the KNOWLEDGE BASE CONTEXT below.
+Then ask whether they are looking for properties in **Dubai (UAE)** or **India (Mumbai)**, and whether they want to **buy**, **rent**, or **invest**.
+
+NEVER ignore the question. Keep answer under 100 words.
+
+KNOWLEDGE BASE CONTEXT:
+${ragCtx}`;
+      const dynamicReply = await callLLM(systemPrompt, state.userMessage, state.chatHistory);
+      if (dynamicReply) {
+        return { reply: dynamicReply, provider: 'LangGraph → Context-Based Knowledge & Intent', profile: updatedProfile, currentNode: 'classify_intent', ragContext: ragCtx };
+      }
+    }
+
     const generalAnswer = queryGeneralKnowledge(state.userMessage);
     if (generalAnswer) {
       const reply = `${generalAnswer}\n\nWhich country are you interested in — **Dubai (UAE)** or **India (Mumbai)**? And are you looking to **buy**, **rent**, or **invest**?`;
