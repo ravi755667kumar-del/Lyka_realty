@@ -211,8 +211,8 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
         </div>
 
         {/* Filter Controls */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div className="relative">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="relative col-span-2 sm:col-span-1">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="text"
@@ -251,7 +251,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-400 bg-white px-3 py-2 rounded-xl border border-slate-700">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-between text-xs text-slate-400 bg-white px-3 py-2 rounded-xl border border-slate-700">
             <span>Filtered Leads:</span>
             <span className="font-bold text-amber-600">
               {filteredLeads.length} of{" "}

@@ -5,6 +5,8 @@ import {
   LeadStatus 
 } from '../types/crm';
 import { 
+  X,
+  SlidersHorizontal,
   User, 
   Phone, 
   Mail, 
@@ -68,7 +70,36 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
   };
 
   return (
-    <div className="w-full sm:w-96 fixed sm:static inset-y-0 right-0 z-40 bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-y-auto p-4 space-y-4 shadow-2xl sm:shadow-none">
+    <>
+      {/* Mobile & Tablet Backdrop (< xl screens) */}
+      <div 
+        className="fixed inset-0 bg-black/60 z-40 xl:hidden backdrop-blur-xs"
+        onClick={onClose}
+      />
+      <div className="w-full sm:w-96 fixed xl:static inset-y-0 right-0 z-50 bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-y-auto p-4 space-y-4 shadow-2xl xl:shadow-none animate-in slide-in-from-right duration-200">
+      {/* Top Header Bar with Prominent Close Button */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div className="flex items-center space-x-2">
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
+            <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-100">CRM Lead Profile</h2>
+            <p className="text-[10px] text-slate-400">Qualify: {lead.requirement_completeness}% complete</p>
+          </div>
+        </div>
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 hover:border-rose-400 text-xs font-bold transition-all shadow-sm"
+            title="Close CRM profile"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Close</span>
+          </button>
+        )}
+      </div>
+
       {/* Header Profile Title */}
       <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/60 shadow-sm">
         <div className="flex items-center justify-between mb-2">
@@ -274,6 +305,18 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
         </div>
         <span className="w-2 h-2 rounded-full bg-emerald-400" title="Active on CRM"></span>
       </div>
+
+      {/* Bottom Close Button */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition-colors flex items-center justify-center space-x-2 shadow-sm"
+        >
+          <X className="w-4 h-4 text-rose-400" />
+          <span>Close CRM Profile</span>
+        </button>
+      )}
     </div>
+    </>
   );
 };

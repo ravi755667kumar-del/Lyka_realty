@@ -109,7 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }}
             title="Lyka Realty"
           >
-            <img src="/logo.png" alt="Lyka Realty" className="h-12 w-auto object-contain rounded-lg" />
+            <img src="/logo.png" alt="Lyka Realty" className="h-9 sm:h-12 w-auto object-contain rounded-lg" />
           </div>
 
           {/* Center: AI Chat tab — ABSOLUTELY CENTERED */}
@@ -123,7 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              <span>Agentic AI Chat</span>
+              <span><span className="hidden sm:inline">Agentic </span>AI Chat</span>
               {activeTab === 'chat' && (
                 <span className="text-[9px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-espresso-800/70 text-amber-950">
                   LIVE
@@ -140,7 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Learn about Lyka Realty"
             >
               <Info className="w-4 h-4 text-amber-400" />
-              <span>About</span>
+              <span className="hidden sm:inline">About</span>
             </button>
 
             {/* Triple Tab / Dot Button — Click to open Admin Panel */}
@@ -557,8 +557,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-      {/* Mobile nav */}
-      <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
+      {/* Mobile nav — only when NOT in Admin Sub-nav */}
+      {!((adminPanelOpen || isAdminTab) && isPortalAuthed) && isAnyAuthed && (
+        <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
         <button
           onClick={() => setActiveTab('chat')}
           className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium ${
@@ -634,6 +635,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </>
         ) : null}
       </div>
+      )}
     </header>
   );
 };

@@ -512,8 +512,8 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-          <div className="relative">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
+          <div className="relative col-span-2 sm:col-span-1">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
               type="text"

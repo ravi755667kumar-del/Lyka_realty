@@ -1861,7 +1861,7 @@ export default function App() {
   const lockoutMinutesRemaining = Math.max(1, Math.ceil(adminOtpLockoutRemaining / 60));
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 font-sans text-slate-300 overflow-hidden">
+    <div className="flex flex-col h-screen h-[100dvh] w-screen max-w-full bg-slate-950 font-sans text-slate-300 overflow-hidden">
       {/* Navigation Header */}
       <Navbar
         activeTab={activeTab}

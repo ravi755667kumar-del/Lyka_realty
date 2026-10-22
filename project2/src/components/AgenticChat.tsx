@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { 
   ChatMessage, 
   LeadProfile, 
@@ -137,6 +137,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
   // Left sidebar: user login & chat history
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  // Mobile sidebar drawer: toggles left panel as an overlay on small screens
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileTooltip, setShowProfileTooltip] = useState(false);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
@@ -1299,14 +1301,23 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   );
 
   return (
-    <div className="flex-1 flex h-full overflow-hidden bg-[#ffffff] font-sans">
+    <div className="flex-1 flex h-full overflow-hidden bg-[#ffffff] font-sans relative">
 
       {/* ═══════════════════════════════════════════════════
           LEFT PANEL — User Auth + Chat History
       ═══════════════════════════════════════════════════ */}
-      <div className={`flex flex-col border-r border-[#f3ede0] bg-[#ffffff] transition-all duration-300 ${
-        leftPanelCollapsed ? 'w-14' : 'w-80'
-      } shrink-0 h-full overflow-hidden`}>
+      {/* ─── Mobile overlay backdrop (dismiss on tap outside) ─── */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+      {/* Left Panel: hidden on mobile (shown as overlay drawer), visible on md+ */}
+      <div className={`flex flex-col border-r border-[#f3ede0] bg-[#ffffff] transition-all duration-300 h-full overflow-hidden shrink-0
+        ${mobileSidebarOpen ? 'fixed inset-y-0 left-0 z-50 w-72 shadow-2xl md:relative md:shadow-none' : 'hidden md:flex'}
+        ${!mobileSidebarOpen && (leftPanelCollapsed ? 'md:w-14' : 'md:w-80')}
+      `}>
 
         {/* Panel Header */}
         <div className="h-14 border-b border-[#f3ede0] flex items-center justify-between px-3 shrink-0">
@@ -1315,12 +1326,21 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Menu</span>
             </div>
           )}
+          {/* Desktop collapse button */}
           <button
             onClick={() => setLeftPanelCollapsed(prev => !prev)}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-[#f3ede0] transition-colors ml-auto"
+            className="hidden md:flex p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-[#f3ede0] transition-colors ml-auto"
             title={leftPanelCollapsed ? 'Expand panel' : 'Collapse panel'}
           >
             {leftPanelCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+          {/* Mobile close button */}
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-[#f3ede0] transition-colors ml-auto"
+            title="Close menu"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -1362,7 +1382,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
             {/* ─── NEW CHAT BUTTON ─── */}
             <div className="p-3 shrink-0">
               <button
-                onClick={onStartNewChat}
+                onClick={() => { onStartNewChat(); setMobileSidebarOpen(false); }}
                 className="w-full flex items-center justify-center space-x-2 bg-[#f3ede0] hover:bg-[#eee6d3] border border-[#e2d9c6] hover:border-amber-500/40 text-slate-300 hover:text-slate-300 py-2 rounded-xl text-xs font-semibold transition-all"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1394,7 +1414,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 {/* Current active chat if user has queried and not yet in saved sessions list */}
                 {messages.some(m => m.role === 'user') && !savedSessions.some(s => s.id === currentLead.id) && (
                   <button
-                    onClick={() => setActiveSessionId(currentLead.id)}
+                    onClick={() => { setActiveSessionId(currentLead.id); setMobileSidebarOpen(false); }}
                     className={`w-full text-left p-2.5 rounded-xl border transition-all group ${
                       activeSessionId === currentLead.id || activeSessionId === 'current'
                         ? 'bg-amber-500/10 border-amber-500/40 text-slate-300'
@@ -1431,9 +1451,13 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div key={session.id} className="relative group">
                       <button
                         onClick={() => {
-                          if (currentLead.id === session.id) return;
+                          if (currentLead.id === session.id) {
+                            setMobileSidebarOpen(false);
+                            return;
+                          }
                           setActiveSessionId(session.id);
                           if (onLoadChat) onLoadChat(session.leadProfile, session.messages);
+                          setMobileSidebarOpen(false);
                         }}
                         className={`w-full text-left p-2.5 rounded-xl border transition-all ${
                           isActive
@@ -1941,38 +1965,47 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#ffffff] text-[#3a2e20]">
 
         {/* Chat Header */}
-        <div className="h-14 border-b border-[#f3ede0] px-4 sm:px-5 flex items-center justify-between bg-[#ffffff]/95 backdrop-blur-md shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 shadow-sm shadow-amber-500/20">
+        <div className="h-14 border-b border-[#f3ede0] px-3 sm:px-5 flex items-center justify-between bg-[#ffffff]/95 backdrop-blur-md shrink-0 gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            {/* Mobile Hamburger / Menu toggle to open left panel drawer */}
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="md:hidden p-1.5 rounded-xl bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#6b5843] border border-[#d6cbb4] transition-colors shrink-0"
+              title="Chat History & Menu"
+            >
+              <MessageSquare className="w-4 h-4 text-amber-700" />
+            </button>
+
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-400 via-amber-500 to-yellow-300 flex items-center justify-center text-amber-950 shadow-sm shadow-amber-500/20 shrink-0">
               <Sparkles className="w-4 h-4 fill-slate-950" />
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-semibold text-slate-300">Lyka Realty AI</span>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <span className="text-xs sm:text-sm font-bold text-[#2d2216] truncate">Lyka Realty AI</span>
                 <button
                   onClick={handleOpenSettingsClick}
-                  className="flex items-center space-x-1 text-[10px] bg-[#f7f2e6] hover:bg-[#eee6d3] text-amber-700 border border-[#d6cbb4] px-2 py-0.5 rounded-full font-mono transition-colors"
+                  className="hidden xs:flex items-center space-x-1 text-[9px] sm:text-[10px] bg-[#f7f2e6] hover:bg-[#eee6d3] text-amber-700 border border-[#d6cbb4] px-1.5 sm:px-2 py-0.5 rounded-full font-mono transition-colors shrink-0"
                   title="Configure AI Engine"
                 >
-                  <Zap className="w-3 h-3 text-amber-600" />
+                  <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-600" />
                   <span>{engineProvider === 'groq' ? `Groq · ${activeModel.split('-').slice(0,2).join('-')}` : 'Gemini 2.5'}</span>
                 </button>
               </div>
-              <p className="text-[10px] text-slate-500">Dubai Property Intelligence Engine</p>
+              <p className="text-[9px] sm:text-[10px] text-slate-500 truncate hidden xs:block">Dubai Property Intelligence Engine</p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             <button
               onClick={handleOpenSettingsClick}
-              className="p-1.5 rounded-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#6b5843] hover:text-slate-300 border border-[#d6cbb4] transition-colors"
+              className="p-1.5 rounded-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#6b5843] hover:text-slate-800 border border-[#d6cbb4] transition-colors"
               title="AI Settings"
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={handleTalkToAgentClick}
-              className={`flex items-center space-x-1.5 text-xs px-2.5 sm:px-3 py-1.5 rounded-full transition-all font-medium shadow-xs ${
+              className={`flex items-center space-x-1 sm:space-x-1.5 text-xs px-2.5 sm:px-3 py-1.5 rounded-full transition-all font-medium shadow-xs ${
                 currentLead.human_handoff_required
                   ? 'bg-amber-500 text-amber-950 font-bold border border-amber-400 ring-2 ring-amber-400/50 animate-pulse'
                   : 'bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#3a2e20] border border-[#d6cbb4]'
@@ -1980,19 +2013,25 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               title="Talk to Human Agent"
             >
               <PhoneCall className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-              <span className="inline">Talk to Agent</span>
+              <span className="hidden sm:inline">Talk to Agent</span>
             </button>
             <button
               onClick={onToggleSidebar}
-              className={`flex items-center space-x-1.5 text-xs px-3 py-1.5 rounded-full border transition-all ${
+              className={`flex items-center space-x-1 sm:space-x-1.5 text-xs px-2.5 sm:px-3 py-1.5 rounded-full border transition-all ${
                 sidebarOpen
-                  ? 'bg-amber-500 text-amber-950 border-amber-400 font-bold'
+                  ? 'bg-rose-500 hover:bg-rose-600 text-white border-rose-400 font-bold shadow-sm'
                   : 'bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#3a2e20] border-[#d6cbb4] font-medium'
               }`}
-              title="CRM Lead Profile"
+              title={sidebarOpen ? "Close CRM Lead Profile" : "Open CRM Lead Profile"}
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">CRM ({currentLead.requirement_completeness}%)</span>
+              {sidebarOpen ? (
+                <X className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span className="hidden sm:inline">
+                {sidebarOpen ? 'Close CRM' : `CRM (${currentLead.requirement_completeness}%)`}
+              </span>
             </button>
           </div>
         </div>
@@ -2211,7 +2250,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         </div>
 
         {/* ─── Input Bar ─── */}
-        <div className="p-4 sm:p-6 bg-gradient-to-t from-[#ffffff] via-[#ffffff]/95 to-transparent shrink-0">
+        <div className="p-2 sm:p-4 lg:p-6 bg-gradient-to-t from-[#ffffff] via-[#ffffff]/95 to-transparent shrink-0">
           <div className="w-full max-w-5xl 2xl:max-w-6xl mx-auto">
             {/* Free Guest Preview Limit Notification Banner */}
             {isGuestLimitReached && (
@@ -2241,7 +2280,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
             <form
               onSubmit={handleSubmit}
-              className="bg-[#f7f2e6] border border-[#d6cbb4] focus-within:border-amber-400/70 rounded-3xl p-2.5 sm:p-3 flex items-end space-x-2.5 shadow-2xl transition-all duration-200"
+              className="bg-[#f7f2e6] border border-[#d6cbb4] focus-within:border-amber-400/70 rounded-2xl sm:rounded-3xl p-1.5 sm:p-2.5 flex items-end space-x-1.5 sm:space-x-2.5 shadow-xl sm:shadow-2xl transition-all duration-200"
             >
               <textarea
                 ref={textareaRef}
@@ -2979,7 +3018,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           LEFT-SIDE SQUARE PROPERTY DETAILS MODAL
       ═══════════════════════════════════════════════════ */}
       {selectedDetailProperty && (
-        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-start p-3 sm:p-5 md:p-8">
+        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center md:justify-start p-3 sm:p-5 md:p-8">
           {/* Subtle click-away backdrop */}
           <div 
             className="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] pointer-events-auto transition-opacity cursor-pointer"
@@ -2988,7 +3027,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           />
 
           {/* Square Container on the Left Side */}
-          <div className="relative pointer-events-auto w-[490px] max-w-[calc(100vw-2rem)] h-[490px] max-h-[calc(100vh-3rem)] aspect-square bg-[#ffffff] border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10 animate-in fade-in slide-in-from-left-6 duration-200">
+          <div className="relative pointer-events-auto w-full max-w-[490px] h-full max-h-[calc(100vh-3rem)] sm:max-h-[520px] bg-[#ffffff] border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10 animate-in fade-in slide-in-from-bottom-4 md:slide-in-from-left-6 duration-200">
             {/* 1. Header */}
             <div className="px-4 py-3 border-b border-[#f3ede0] bg-[#faf7f0] flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2.5 min-w-0">
