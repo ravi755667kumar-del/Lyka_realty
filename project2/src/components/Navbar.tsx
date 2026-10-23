@@ -72,7 +72,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<any>(null);
 
-  const handleTripleTap = () => {
+  const handleTripleTap = (e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     tapCountRef.current += 1;
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
@@ -83,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     } else {
       tapTimerRef.current = setTimeout(() => {
         tapCountRef.current = 0;
-      }, 700);
+      }, 1000);
     }
   };
 
@@ -131,6 +134,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
           </nav>
+
+          {/* Secret Triple-Click Admin Trigger Area (between Agentic AI Chat and About) */}
+          <div
+            onClick={(e) => handleTripleTap(e)}
+            className="absolute inset-y-0 left-[calc(50%+50px)] right-16 sm:left-[calc(50%+90px)] sm:right-36 cursor-default select-none z-10 touch-manipulation"
+            title=""
+            aria-label="Secret Admin Trigger"
+          />
 
           {/* Right: About + Triple Tab / Dot (Admin) in right corner */}
           <div className="flex items-center space-x-2 ml-auto z-10">
@@ -568,13 +579,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           AI Chat
         </button>
-        <button
-          onClick={onOpenAbout}
-          className="flex items-center space-x-1 px-3 py-1.5 rounded-md whitespace-nowrap font-medium text-amber-400 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20"
-        >
-          <Info className="w-3.5 h-3.5" />
-          <span>About</span>
-        </button>
+        {/* Duplicate About button removed - already visible in top header bar */}
         {isAnyAuthed ? (
           <>
             <button
@@ -628,9 +633,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={onAdminLogout}
-              className="px-2.5 py-1.5 rounded-md whitespace-nowrap font-medium border border-red-500/40 text-red-300 ml-auto"
+              className="px-2.5 py-1.5 rounded-md whitespace-nowrap font-medium border border-red-500/40 text-red-300"
             >
               Logout
+            </button>
+            {/* Cut / Close button in upside mobile sub-nav */}
+            <button
+              onClick={() => onToggleAdminPanel()}
+              className="px-2.5 py-1.5 rounded-md whitespace-nowrap font-bold border border-espresso-600 text-espresso-300 hover:text-white hover:bg-espresso-800 ml-auto flex items-center space-x-1"
+              title="Close admin menu"
+            >
+              <span>✕</span>
+              <span>Cut</span>
             </button>
           </>
         ) : null}

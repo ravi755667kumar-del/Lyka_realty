@@ -2029,8 +2029,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               ) : (
                 <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
               )}
-              <span className="hidden sm:inline">
-                {sidebarOpen ? 'Close CRM' : `CRM (${currentLead.requirement_completeness}%)`}
+              <span className={sidebarOpen ? "inline text-xs font-bold" : "hidden sm:inline"}>
+                {sidebarOpen ? 'Cut CRM ✕' : `CRM (${currentLead.requirement_completeness}%)`}
               </span>
             </button>
           </div>

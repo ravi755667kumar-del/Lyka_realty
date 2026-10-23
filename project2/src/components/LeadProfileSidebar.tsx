@@ -77,8 +77,8 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
         onClick={onClose}
       />
       <div className="w-full sm:w-96 fixed xl:static inset-y-0 right-0 z-50 bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-y-auto p-4 space-y-4 shadow-2xl xl:shadow-none animate-in slide-in-from-right duration-200">
-      {/* Top Header Bar with Prominent Close Button */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+      {/* Top Header Bar with Prominent Sticky Upside Cut / Close Button */}
+      <div className="sticky top-0 bg-slate-900/95 backdrop-blur-md z-30 pt-3 sm:pt-1 pb-3 -mt-4 -mx-4 px-4 border-b border-slate-800 shadow-md flex items-center justify-between shrink-0">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
             <SlidersHorizontal className="w-4 h-4 text-amber-400" />
@@ -91,11 +91,11 @@ export const LeadProfileSidebar: React.FC<LeadProfileSidebarProps> = ({
         {onClose && (
           <button 
             onClick={onClose}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 hover:border-rose-400 text-xs font-bold transition-all shadow-sm"
-            title="Close CRM profile"
+            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all shadow-md active:scale-95 border border-rose-400 cursor-pointer"
+            title="Cut / Close CRM profile"
           >
-            <X className="w-3.5 h-3.5" />
-            <span>Close</span>
+            <X className="w-4 h-4 stroke-[2.5]" />
+            <span>Cut / Close</span>
           </button>
         )}
       </div>
