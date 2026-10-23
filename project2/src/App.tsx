@@ -62,8 +62,6 @@ import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
 import { AdminCopilotChat } from './components/AdminCopilotChat';
-import { MouseTrail } from './components/MouseTrail';
-import { ClickFlowerBurst } from './components/ClickFlowerBurst';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
@@ -1864,11 +1862,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen h-[100dvh] w-screen max-w-full bg-slate-950 font-sans text-slate-300 overflow-hidden">
-      {/* Interactive Golden Star Mouse Trail */}
-      <MouseTrail />
 
-      {/* Interactive Rose Flower Click Spread Effect */}
-      <ClickFlowerBurst />
 
       {/* Navigation Header */}
       <Navbar
