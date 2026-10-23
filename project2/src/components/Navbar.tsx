@@ -1,3 +1,4 @@
+import { RollingText } from './RollingText';
 import React, { useState, useRef } from 'react';
 import { 
   Building2, 
@@ -126,7 +127,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              <span><span className="hidden sm:inline">Agentic </span>AI Chat</span>
+              <span className="hidden sm:inline">
+                <RollingText text="Agentic AI Chat" />
+              </span>
+              <span className="inline sm:hidden">
+                <RollingText text="AI Chat" />
+              </span>
               {activeTab === 'chat' && (
                 <span className="text-[9px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-espresso-800/70 text-amber-950">
                   LIVE
@@ -151,7 +157,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Learn about Lyka Realty"
             >
               <Info className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">About</span>
+              <span className="hidden sm:inline">
+                <RollingText text="About" />
+              </span>
             </button>
 
             {/* Triple Tab / Dot Button — Click to open Admin Panel */}
