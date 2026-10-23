@@ -2441,115 +2441,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
               )}
 
               {!userLoggedIn ? (
-                authMode === 'google_signup' && pendingGoogleUser ? (
-                  /* ─── GOOGLE SIGN UP COMPLETION (NEW USER) ─── */
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2.5 p-2.5 bg-amber-50 rounded-xl border border-amber-200">
-                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5 shrink-0" alt="Google" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-extrabold text-black">New User Registration</p>
-                        <p className="text-[11px] text-neutral-700 font-semibold truncate">{pendingGoogleUser.email}</p>
-                      </div>
-                      <span className="text-[10px] bg-emerald-100 text-emerald-900 font-bold px-1.5 py-0.5 rounded">Verified</span>
-                    </div>
-
-                    <div className="text-xs bg-amber-50/80 p-2.5 rounded-xl border border-amber-300 text-amber-950 space-y-0.5">
-                      <p className="font-extrabold text-[12px] text-black">First-time User: Sign Up Required</p>
-                      <p className="text-[11px] text-neutral-800 font-medium">
-                        You do not have an account yet. Please provide your Name and Age first to complete registration before continuing with Google.
-                      </p>
-                    </div>
-
-                    <form onSubmit={handleCompleteGoogleSignUp} className="space-y-2.5">
-                      <div>
-                        <label className="text-[11px] font-bold text-black block mb-1">Full Name</label>
-                        <div className="relative">
-                          <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
-                          <input
-                            type="text"
-                            value={userFullName}
-                            onChange={e => { setUserFullName(e.target.value); setAuthError(''); }}
-                            placeholder="Your full name"
-                            required
-                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-bold text-black block mb-1">Age (Required)</label>
-                        <div className="relative">
-                          <UserCircle className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
-                          <input
-                            type="number"
-                            min={18}
-                            max={120}
-                            inputMode="numeric"
-                            value={userAge}
-                            onChange={e => { setUserAge(e.target.value); setAuthError(''); }}
-                            placeholder="Enter your age (e.g. 28)"
-                            required
-                            className="w-full bg-white border border-[#d6c7ab] focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black placeholder:text-neutral-400 outline-none transition-colors"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-bold text-black block mb-1">Email ID</label>
-                        <div className="relative">
-                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
-                          <input
-                            type="email"
-                            value={pendingGoogleUser.email}
-                            disabled
-                            readOnly
-                            className="w-full bg-slate-100 border border-[#d6c7ab] rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-black outline-none cursor-not-allowed"
-                          />
-                        </div>
-                      </div>
-
-                      {authError && (
-                        <p className="text-xs text-red-900 bg-red-50 border border-red-300 rounded-xl px-3 py-2 font-bold">
-                          {authError}
-                        </p>
-                      )}
-
-                      <button
-                        type="submit"
-                        disabled={authLoading}
-                        className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5 shadow-xs"
-                      >
-                        {authLoading ? (
-                          <svg className="w-4 h-4 animate-spin text-black" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4 text-black" />
-                        )}
-                        <span>{authLoading ? 'Completing Sign Up...' : 'Complete Sign Up'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={authLoading}
-                        onClick={async () => {
-                          try {
-                            await signOut(auth);
-                          } catch (e) {
-                            // ignore
-                          }
-                          setPendingGoogleUser(null);
-                          setAuthMode('login');
-                          setAuthError('');
-                        }}
-                        className="w-full bg-slate-100 hover:bg-slate-200 text-black font-bold py-2 rounded-xl text-xs transition-colors border border-slate-300"
-                      >
-                        Cancel / Switch Account
-                      </button>
-                    </form>
-                  </div>
-                ) : (
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2.5 mb-2">
                     <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center">
@@ -2771,33 +2662,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     )
                   )}
 
-                  <div className="flex items-center my-3">
-                    <div className="flex-grow border-t border-[#d6c7ab]"></div>
-                    <span className="mx-2 text-xs font-extrabold text-black">OR</span>
-                    <div className="flex-grow border-t border-[#d6c7ab]"></div>
-                  </div>
 
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={authLoading}
-                    className="w-full bg-[#1e1610] hover:bg-[#2e2019] text-white font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 border border-[#3d2b21] shadow-xs"
-                  >
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-4 h-4" alt="Google" />
-                    <span>{authMode === 'signup' ? 'Sign Up with Google' : 'Continue with Google'}</span>
-                  </button>
-
-                  {authMode === 'signup' && (
-                    <p className="text-[11px] text-amber-950 bg-amber-50/90 border border-amber-300 rounded-lg p-2 text-center font-bold leading-tight">
-                      * You must write your <strong>Name</strong> and <strong>Age</strong> above first before using Google Sign Up.
-                    </p>
-                  )}
 
                   <p className="text-xs font-semibold text-neutral-700 text-center mt-3">
                     Chat continues as guest without sign-in
                   </p>
                 </div>
-                )
               ) : (
                 /* Logged-in User Profile Card & Controls */
                 <div className="space-y-4">
