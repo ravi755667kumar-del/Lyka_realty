@@ -856,11 +856,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     }
 
     try {
-      // Check if user is already registered in Firestore User_login
+      // Enforce strictly one single account per email ID
       const existingProfile = await getUserProfileFromFirestore(cleanEmail);
-      const existingEmail = (existingProfile?.Email_id || '').trim().toLowerCase();
-      if (existingProfile && existingEmail && existingEmail === cleanEmail) {
-        setAuthError('An account with this email already exists. Please switch to Sign In.');
+      const existingEmail = (existingProfile?.Email_id || existingProfile?.email || '').trim().toLowerCase();
+      if (existingProfile && (existingEmail === cleanEmail || existingProfile.Age)) {
+        setAuthError('An account with this email address already exists. Only one account can be created per email. Please switch to Sign In.');
         setSignupOtpLoading(false);
         return;
       }
@@ -916,10 +916,18 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         return;
       }
 
-      // OTP Verified successfully! Create user profile in Firestore
+      // Enforce strictly one single account per email ID
+      const existingProfile = await getUserProfileFromFirestore(cleanEmail);
+      if (existingProfile && ((existingProfile.Email_id || '').trim().toLowerCase() === cleanEmail || existingProfile.Age)) {
+        setAuthError('An account with this email address already exists. Only one account can be created per email. Please switch to Sign In.');
+        setAuthLoading(false);
+        return;
+      }
+
+      // OTP Verified successfully! Create unique single user profile in Firestore
       const cleanName = userFullName.trim();
       const ageNum = Number(userAge);
-      const newUid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const newUid = `user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
       await saveUserLoginToFirestore(
         newUid,
@@ -2106,11 +2114,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                     <div className="flex-1 space-y-3 min-w-0">
                       <div className="flex items-center space-x-2.5">
                         <span className="text-sm sm:text-base font-bold text-slate-300">Lyka Realty AI</span>
-                        {msg.provider && (
-                          <span className="text-xs bg-[#f7f2e6] text-amber-700 border border-[#d6cbb4] px-2.5 py-0.5 rounded-full font-mono">
-                            {msg.provider}
-                          </span>
-                        )}
+                        {/* Internal technical provider badge hidden per user request */}
                         <span className="text-xs text-[#6b5843]">
                           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>

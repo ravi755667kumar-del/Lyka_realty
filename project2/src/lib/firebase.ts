@@ -254,12 +254,8 @@ export async function saveUserLoginToFirestore(
 
   // 2. Direct client-side write (if client has permission, merges seamlessly; non-fatal if client rules restrict)
   try {
+    // Save strictly to single email docId to prevent duplicate accounts
     await setDoc(doc(db, 'User_login', docId), data, { merge: true });
-    if (userId && userId.toLowerCase() !== docId) {
-      try {
-        await setDoc(doc(db, 'User_login', userId), data, { merge: true });
-      } catch (_) {}
-    }
 
     // Record login event for time/date/month/year statistics
     try {

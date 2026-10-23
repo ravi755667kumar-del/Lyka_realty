@@ -1322,9 +1322,9 @@ app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
     if (firestoreDb) {
       try {
         if (cleanEmail) {
+          // Strictly single account per email ID in User_login
           await fsSetDoc(fsDoc(firestoreDb, 'User_login', cleanEmail), userData, { merge: true });
-        }
-        if (cleanUid && cleanUid.toLowerCase() !== cleanEmail) {
+        } else if (cleanUid) {
           await fsSetDoc(fsDoc(firestoreDb, 'User_login', cleanUid), userData, { merge: true });
         }
 
