@@ -345,7 +345,7 @@ export interface LoginEvent {
 export interface PortalCredential {
   id: string;
   email: string;
-  password: string;
+  password?: string;
   role: 'admin' | 'property_manager' | 'sales_manager';
   name?: string;
   phone?: string;

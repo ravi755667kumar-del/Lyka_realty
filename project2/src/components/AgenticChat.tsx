@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ChatMessage, 
   LeadProfile, 
@@ -103,6 +103,7 @@ interface AgenticChatProps {
   onAuthChange?: (userId: string | null, email?: string) => void;
   onLoadChat?: (lead: LeadProfile, msgs: ChatMessage[]) => void;
   onDeleteChat?: (leadId: string) => void;
+  onOpenSettings?: () => void;
 }
 
 export const AgenticChat: React.FC<AgenticChatProps> = ({
@@ -118,7 +119,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   onStartNewChat,
   onAuthChange,
   onLoadChat,
-  onDeleteChat
+  onDeleteChat,
+  onOpenSettings
 }) => {
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -476,6 +478,10 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   };
 
   const handleOpenSettingsClick = () => {
+    if (onOpenSettings) {
+      onOpenSettings();
+      return;
+    }
     if (!userLoggedIn) {
       setAuthNotification('Please Sign In or Sign Up first to access AI engine and model settings.');
       setShowAuthModal(true);
@@ -1313,7 +1319,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   );
 
   return (
-    <div className="flex-1 flex h-full overflow-hidden bg-[#ffffff] font-sans relative">
+    <div className="flex-1 flex h-full overflow-hidden bg-transparent font-sans relative">
 
       {/* ═══════════════════════════════════════════════════
           LEFT PANEL — User Auth + Chat History
@@ -1974,7 +1980,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
       {/* ═══════════════════════════════════════════════════
           RIGHT PANEL — Main Chat Area
       ═══════════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#ffffff] text-[#3a2e20]">
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent text-[#3a2e20]">
 
         {/* Chat Header */}
         <div className="h-14 border-b border-[#f3ede0] px-3 sm:px-5 flex items-center justify-between bg-[#ffffff]/95 backdrop-blur-md shrink-0 gap-2">

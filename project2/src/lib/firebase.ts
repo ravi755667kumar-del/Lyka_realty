@@ -1040,7 +1040,6 @@ export async function cancelBookedPropertyInFirestore(propertyId: string): Promi
 const DEFAULT_ADMIN_CREDENTIAL: PortalCredential = {
   id: 'admin',
   email: 'admin@lykarealty.ae',
-  password: 'LykaAdmin2024',
   role: 'admin',
   name: 'Lyka Super Admin'
 };
@@ -1048,7 +1047,6 @@ const DEFAULT_ADMIN_CREDENTIAL: PortalCredential = {
 const DEFAULT_PM_CREDENTIAL: PortalCredential = {
   id: 'property_manager',
   email: 'manager@lykarealty.ae',
-  password: 'LykaManager2024',
   role: 'property_manager',
   name: 'Lyka Property Manager'
 };
@@ -1056,7 +1054,6 @@ const DEFAULT_PM_CREDENTIAL: PortalCredential = {
 const DEFAULT_SM_CREDENTIAL: PortalCredential = {
   id: 'sales_manager',
   email: 'sales@lykarealty.ae',
-  password: 'LykaSales2024',
   role: 'sales_manager',
   name: 'Lyka Sales Manager'
 };
@@ -1064,8 +1061,7 @@ const DEFAULT_SM_CREDENTIAL: PortalCredential = {
 function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'property_manager' | 'sales_manager'): PortalCredential | null {
   if (!raw) return null;
   const email = String(raw.email || raw.Email_id || raw.username || raw.user_login || raw.login || '').trim();
-  const password = String(raw.password || raw.Password || '').trim();
-  if (!email || !password) return null;
+  if (!email) return null;
 
   const rawRole = String(raw.role || '').toLowerCase();
   const role: 'admin' | 'property_manager' | 'sales_manager' =
@@ -1080,7 +1076,6 @@ function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'p
   return {
     id,
     email,
-    password,
     role,
     name: raw.name || raw.Name || (role === 'sales_manager' ? 'Sales Manager' : role === 'admin' ? 'Admin' : 'Property Manager'),
     phone: raw.phone || raw.Phone_number || undefined,
@@ -1091,257 +1086,101 @@ function normalizeCredentialDoc(id: string, raw: any, fallbackRole: 'admin' | 'p
 }
 
 /**
- * Ensures default Admin, Property Manager, and Sales Manager login credentials exist in Firestore
- * under `Admin_login`, `Property_login`, and `Sales_login` collections so they can be managed in DB.
+ * Ensures Admin, Property Manager, and Sales Manager portal metadata is loaded
+ * securely from the server persistent store without exposing passwords in the client.
  */
 export async function ensurePortalCredentialsInFirestore(): Promise<{
   adminCredentials: PortalCredential[];
   pmCredentials: PortalCredential[];
   smCredentials: PortalCredential[];
 }> {
+  // Purge any legacy unencrypted password storage from localStorage
   try {
-    const [adminSnap, propSnap, salesSnap] = await Promise.all([
-      getDocs(collection(db, 'Admin_login')).catch(() => ({ forEach: () => {} } as any)),
-      getDocs(collection(db, 'Property_login')).catch(() => ({ forEach: () => {} } as any)),
-      getDocs(collection(db, 'Sales_login')).catch(() => ({ forEach: () => {} } as any))
-    ]);
+    localStorage.removeItem('portal_admin_credentials');
+    localStorage.removeItem('portal_pm_credentials');
+    localStorage.removeItem('portal_sm_credentials');
+  } catch (_) {}
 
-    const adminList: PortalCredential[] = [];
-    const pmList: PortalCredential[] = [];
-    const smList: PortalCredential[] = [];
+  try {
+    const srvRes = await fetch('/api/auth/portal-credentials');
+    if (srvRes.ok) {
+      const srvData = await srvRes.json();
+      const adminCred = srvData?.credentials?.admin || DEFAULT_ADMIN_CREDENTIAL;
+      const pmCred = srvData?.credentials?.property_manager || DEFAULT_PM_CREDENTIAL;
+      const smCred = srvData?.credentials?.sales_manager || DEFAULT_SM_CREDENTIAL;
 
-    adminSnap.forEach((d: any) => {
-      const parsed = normalizeCredentialDoc(d.id, d.data(), 'admin');
-      if (parsed && (d.id === 'admin' || parsed.role === 'admin')) {
-        adminList.push(parsed);
-      }
-    });
-
-    propSnap.forEach((d: any) => {
-      const parsed = normalizeCredentialDoc(d.id, d.data(), 'property_manager');
-      if (parsed && (d.id === 'property_manager' || parsed.role === 'property_manager')) {
-        pmList.push(parsed);
-      }
-    });
-
-    salesSnap.forEach((d: any) => {
-      const parsed = normalizeCredentialDoc(d.id, d.data(), 'sales_manager');
-      if (parsed && (d.id === 'sales_manager' || parsed.role === 'sales_manager')) {
-        smList.push(parsed);
-      }
-    });
-
-    // Check server persistent store before seeding defaults
-    try {
-      const srvRes = await fetch('/api/auth/portal-credentials');
-      if (srvRes.ok) {
-        const srvData = await srvRes.json();
-        if (adminList.length === 0 && srvData?.credentials?.admin) {
-          adminList.push(srvData.credentials.admin);
-        }
-        if (pmList.length === 0 && srvData?.credentials?.property_manager) {
-          pmList.push(srvData.credentials.property_manager);
-        }
-        if (smList.length === 0 && srvData?.credentials?.sales_manager) {
-          smList.push(srvData.credentials.sales_manager);
-        }
-      }
-    } catch (_) {}
-
-    // Seed default Admin in Admin_login if none exists
-    if (adminList.length === 0) {
-      // Use server-side endpoint to bypass Firestore client permission restrictions
-      try {
-        await fetch('/api/auth/save-portal-credential', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            portal: 'admin',
-            email: DEFAULT_ADMIN_CREDENTIAL.email,
-            password: DEFAULT_ADMIN_CREDENTIAL.password,
-            name: DEFAULT_ADMIN_CREDENTIAL.name,
-            docId: 'admin'
-          })
-        });
-      } catch (e) {
-        console.warn('Could not seed Admin_login/admin via server:', e);
-      }
-      adminList.push(DEFAULT_ADMIN_CREDENTIAL);
+      return {
+        adminCredentials: [adminCred],
+        pmCredentials: [pmCred],
+        smCredentials: [smCred]
+      };
     }
-
-    // Seed default Property Manager in Property_login if none exists
-    if (pmList.length === 0) {
-      // Use server-side endpoint — writes ONLY to Property_login, not to Admin_login
-      try {
-        await fetch('/api/auth/save-portal-credential', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            portal: 'property_manager',
-            email: DEFAULT_PM_CREDENTIAL.email,
-            password: DEFAULT_PM_CREDENTIAL.password,
-            name: DEFAULT_PM_CREDENTIAL.name,
-            docId: 'property_manager'
-          })
-        });
-      } catch (e) {
-        console.warn('Could not seed Property_login/property_manager via server:', e);
-      }
-      pmList.push(DEFAULT_PM_CREDENTIAL);
-    }
-
-    // Seed default Sales Manager in Sales_login if none exists
-    if (smList.length === 0) {
-      // Use server-side endpoint — writes ONLY to Sales_login, not to Admin_login
-      try {
-        await fetch('/api/auth/save-portal-credential', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            portal: 'sales_manager',
-            email: DEFAULT_SM_CREDENTIAL.email,
-            password: DEFAULT_SM_CREDENTIAL.password,
-            name: DEFAULT_SM_CREDENTIAL.name,
-            docId: 'sales_manager'
-          })
-        });
-      } catch (e) {
-        console.warn('Could not seed Sales_login/sales_manager via server:', e);
-      }
-      smList.push(DEFAULT_SM_CREDENTIAL);
-    }
-
-    // Cache locally for fast fallback
-    try {
-      localStorage.setItem('portal_admin_credentials', JSON.stringify(adminList));
-      localStorage.setItem('portal_pm_credentials', JSON.stringify(pmList));
-      localStorage.setItem('portal_sm_credentials', JSON.stringify(smList));
-    } catch (_) {}
-
-    return { adminCredentials: adminList, pmCredentials: pmList, smCredentials: smList };
   } catch (error) {
-    console.warn('Could not fetch portal credentials from Firestore, using cached/default:', error);
-    let cachedAdmin: PortalCredential[] = [DEFAULT_ADMIN_CREDENTIAL];
-    let cachedPm: PortalCredential[] = [DEFAULT_PM_CREDENTIAL];
-    let cachedSm: PortalCredential[] = [DEFAULT_SM_CREDENTIAL];
-    try {
-      const aStr = localStorage.getItem('portal_admin_credentials');
-      const pStr = localStorage.getItem('portal_pm_credentials');
-      const sStr = localStorage.getItem('portal_sm_credentials');
-      if (aStr) cachedAdmin = JSON.parse(aStr);
-      if (pStr) cachedPm = JSON.parse(pStr);
-      if (sStr) cachedSm = JSON.parse(sStr);
-    } catch (_) {}
-    return { adminCredentials: cachedAdmin, pmCredentials: cachedPm, smCredentials: cachedSm };
+    console.warn('Could not fetch portal metadata from server, using fallback defaults:', error);
   }
+
+  return {
+    adminCredentials: [DEFAULT_ADMIN_CREDENTIAL],
+    pmCredentials: [DEFAULT_PM_CREDENTIAL],
+    smCredentials: [DEFAULT_SM_CREDENTIAL]
+  };
 }
 
 /**
- * Verifies Admin, Property Manager, or Sales Manager login against Firestore (`Admin_login`, `Property_login`, `Sales_login`).
- * Always reads directly from Firestore (bypasses localStorage cache) so credential changes
- * made in the admin panel take effect on the very next login attempt.
+ * Securely verifies Admin, Property Manager, or Sales Manager login against the server-side
+ * authentication endpoint. Passwords are validated server-side using constant-time comparison
+ * and are never exposed or verified in client-side code.
  */
 export async function verifyPortalLoginFromFirestore(
   portal: 'admin' | 'property_manager' | 'sales_manager',
   inputEmailOrUser: string,
   inputPassword: string
-): Promise<{ valid: boolean; matchedCredential?: PortalCredential }> {
+): Promise<{ valid: boolean; matchedCredential?: PortalCredential; error?: string }> {
   const cleanLogin = inputEmailOrUser.trim().toLowerCase();
   const cleanPassword = inputPassword;
 
   if (!cleanLogin || !cleanPassword) {
-    return { valid: false };
+    return { valid: false, error: 'Email and password are required.' };
   }
 
   try {
-    // Always read fresh from Firestore — never use the localStorage cache for login verification
-    const [adminSnap, propSnap, salesSnap] = await Promise.all([
-      getDocs(collection(db, 'Admin_login')).catch(() => ({ forEach: () => {} } as any)),
-      getDocs(collection(db, 'Property_login')).catch(() => ({ forEach: () => {} } as any)),
-      getDocs(collection(db, 'Sales_login')).catch(() => ({ forEach: () => {} } as any))
-    ]);
-
-    const adminList: PortalCredential[] = [];
-    const pmList: PortalCredential[] = [];
-    const smList: PortalCredential[] = [];
-
-    adminSnap.forEach((d: any) => {
-      const parsed = normalizeCredentialDoc(d.id, d.data(), 'admin');
-      if (parsed && (d.id === 'admin' || parsed.role === 'admin')) adminList.push(parsed);
+    const res = await fetch('/api/auth/verify-portal-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        portal,
+        email: cleanLogin,
+        password: cleanPassword
+      })
     });
 
-    propSnap.forEach((d: any) => {
-      const parsed = normalizeCredentialDoc(d.id, d.data(), 'property_manager');
-      if (parsed && (d.id === 'property_manager' || parsed.role === 'property_manager')) pmList.push(parsed);
-    });
-
-    salesSnap.forEach((d: any) => {
-      const parsed = normalizeCredentialDoc(d.id, d.data(), 'sales_manager');
-      if (parsed && (d.id === 'sales_manager' || parsed.role === 'sales_manager')) smList.push(parsed);
-    });
-
-    const targetList = portal === 'admin' 
-      ? adminList 
-      : portal === 'property_manager' 
-      ? pmList 
-      : smList;
-
-    const matched = targetList.find(
-      (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
-    );
-
-    if (matched) {
-      return { valid: true, matchedCredential: matched };
+    const data = await res.json();
+    if (res.ok && data.valid && data.token) {
+      try {
+        sessionStorage.setItem('lyka_admin_token', data.token);
+      } catch (_) {}
+      return {
+        valid: true,
+        matchedCredential: data.user
+      };
     }
 
-    // Secondary check: verify against server persistent credentials store
-    try {
-      const srvRes = await fetch('/api/auth/portal-credentials');
-      if (srvRes.ok) {
-        const srvData = await srvRes.json();
-        const srvRoleCred = srvData?.credentials?.[portal];
-        if (
-          srvRoleCred &&
-          srvRoleCred.email?.trim().toLowerCase() === cleanLogin &&
-          srvRoleCred.password === cleanPassword
-        ) {
-          return { valid: true, matchedCredential: srvRoleCred };
-        }
-      }
-    } catch (_) {}
-
-    // Tertiary check: verify against cached localStorage
-    try {
-      const storageKey = portal === 'admin' ? 'portal_admin_credentials' : portal === 'property_manager' ? 'portal_pm_credentials' : 'portal_sm_credentials';
-      const cachedStr = localStorage.getItem(storageKey);
-      if (cachedStr) {
-        const cachedList: PortalCredential[] = JSON.parse(cachedStr);
-        const cachedMatched = cachedList.find(
-          (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
-        );
-        if (cachedMatched) return { valid: true, matchedCredential: cachedMatched };
-      }
-    } catch (_) {}
-
-    return { valid: false };
-  } catch (error) {
-    // Fallback to ensurePortalCredentials (uses cache) if Firestore read fails
-    console.warn('Direct Firestore login check failed, falling back to cached credentials:', error);
-    const { adminCredentials, pmCredentials, smCredentials } = await ensurePortalCredentialsInFirestore();
-    const targetList = portal === 'admin' 
-      ? adminCredentials 
-      : portal === 'property_manager' 
-      ? pmCredentials 
-      : smCredentials;
-    const matched = targetList.find(
-      (c) => c.email.trim().toLowerCase() === cleanLogin && c.password === cleanPassword
-    );
-    return matched ? { valid: true, matchedCredential: matched } : { valid: false };
+    return {
+      valid: false,
+      error: data.error || 'Invalid credentials in database.'
+    };
+  } catch (err: any) {
+    console.error('Error verifying portal login:', err);
+    return {
+      valid: false,
+      error: 'Network error connecting to verification service. Please try again.'
+    };
   }
 }
 
 /**
- * Updates or creates Admin, Property Manager, or Sales Manager login credentials in Firestore.
+ * Updates Admin, Property Manager, or Sales Manager login credentials securely via the server
+ * API using the authenticated session token. Never saves plaintext passwords in browser storage.
  */
 export async function savePortalCredentialToFirestore(
   portal: 'admin' | 'property_manager' | 'sales_manager',
@@ -1357,40 +1196,20 @@ export async function savePortalCredentialToFirestore(
   const record: PortalCredential = {
     id: targetDocId,
     email: cleanEmail,
-    password,
     role: portal,
     name: name?.trim() || (portal === 'admin' ? 'Lyka Super Admin' : portal === 'property_manager' ? 'Lyka Property Manager' : 'Lyka Sales Manager'),
     updatedAt: now
   };
 
-  const firestorePayload = {
-    ...record,
-    Email_id: cleanEmail
-  };
-
-  // Update local storage cache immediately
+  // Securely call server-side endpoint with active admin session token
   try {
-    const storageKey = portal === 'admin' 
-      ? 'portal_admin_credentials' 
-      : portal === 'property_manager' 
-      ? 'portal_pm_credentials' 
-      : 'portal_sm_credentials';
-    const existingStr = localStorage.getItem(storageKey);
-    let list: PortalCredential[] = existingStr ? JSON.parse(existingStr) : [];
-    const idx = list.findIndex(item => item.id === targetDocId || item.email.toLowerCase() === cleanEmail.toLowerCase());
-    if (idx >= 0) {
-      list[idx] = { ...list[idx], ...record };
-    } else {
-      list.push(record);
-    }
-    localStorage.setItem(storageKey, JSON.stringify(list));
-  } catch (_) {}
-
-  // 1. Primary: Server-side save (guarantees write succeeds without client permission errors)
-  try {
-    await fetch('/api/auth/save-portal-credential', {
+    const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('lyka_admin_token') : null;
+    const res = await fetch('/api/auth/save-portal-credential', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({
         portal,
         email: cleanEmail,
@@ -1399,8 +1218,13 @@ export async function savePortalCredentialToFirestore(
         docId: targetDocId
       })
     });
-  } catch (srvErr) {
-    console.warn('[Auth] Server save-portal-credential notice:', srvErr);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Server responded with status ${res.status}`);
+    }
+  } catch (srvErr: any) {
+    console.warn('[Auth] Server save-portal-credential error:', srvErr.message);
+    throw srvErr;
   }
 
   return record;

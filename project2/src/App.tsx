@@ -62,6 +62,7 @@ import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
 import { AdminCopilotChat } from './components/AdminCopilotChat';
+import { SettingsModal, AppTheme } from './components/SettingsModal';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
@@ -117,6 +118,30 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    try {
+      const saved = localStorage.getItem('lyka_realty_theme') as AppTheme;
+      if (saved && ['ivory', 'dark', 'navy'].includes(saved)) {
+        return saved;
+      }
+    } catch (_) {}
+    return 'ivory';
+  });
+  const [engineProvider, setEngineProvider] = useState<'groq' | 'gemini'>('groq');
+  const [activeModel, setActiveModel] = useState<string>('llama-3.3-70b-versatile');
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.className = 'theme-' + theme;
+      document.body.setAttribute('data-theme', theme);
+      document.body.className = 'theme-' + theme;
+      try {
+        localStorage.setItem('lyka_realty_theme', theme);
+      } catch (_) {}
+    }
+  }, [theme]);
   const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager' | 'sales_manager'>(() => {
     try {
       const saved = localStorage.getItem('lyka_admin_target_portal');
@@ -163,15 +188,15 @@ export default function App() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
-  // Database-backed Admin, Property Manager, & Sales Manager credentials (from Firestore Admin_login, Property_login, Sales_login)
+  // Database-backed Admin, Property Manager, & Sales Manager profile metadata (Passwords are never loaded client-side)
   const [adminDbCredentials, setAdminDbCredentials] = useState<PortalCredential[]>([
-    { id: 'admin', email: 'admin@lykarealty.ae', password: 'LykaAdmin2024', role: 'admin', name: 'Lyka Super Admin' }
+    { id: 'admin', email: 'admin@lykarealty.ae', role: 'admin', name: 'Lyka Super Admin' }
   ]);
   const [pmDbCredentials, setPmDbCredentials] = useState<PortalCredential[]>([
-    { id: 'property_manager', email: 'manager@lykarealty.ae', password: 'LykaManager2024', role: 'property_manager', name: 'Lyka Property Manager' }
+    { id: 'property_manager', email: 'manager@lykarealty.ae', role: 'property_manager', name: 'Lyka Property Manager' }
   ]);
   const [salesDbCredentials, setSalesDbCredentials] = useState<PortalCredential[]>([
-    { id: 'sales_manager', email: 'sales@lykarealty.ae', password: 'LykaSales2024', role: 'sales_manager', name: 'Lyka Sales Manager' }
+    { id: 'sales_manager', email: 'sales@lykarealty.ae', role: 'sales_manager', name: 'Lyka Sales Manager' }
   ]);
   const [showCredentialConfig, setShowCredentialConfig] = useState(false);
   const [configAdminEmail, setConfigAdminEmail] = useState('');
@@ -1861,7 +1886,16 @@ export default function App() {
   const lockoutMinutesRemaining = Math.max(1, Math.ceil(adminOtpLockoutRemaining / 60));
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] w-screen max-w-full bg-slate-950 font-sans text-slate-300 overflow-hidden">
+    <div 
+      data-theme={theme}
+      className={`flex flex-col h-screen h-[100dvh] w-screen max-w-full font-sans overflow-hidden transition-colors duration-300 ${
+        theme === 'dark' 
+          ? 'bg-[#0b0f17] text-slate-100 theme-dark' 
+          : theme === 'navy' 
+          ? 'bg-[#070d1e] text-blue-50 theme-navy' 
+          : 'bg-slate-950 text-slate-300 theme-ivory'
+      }`}
+    >
 
 
       {/* Navigation Header */}
@@ -1962,6 +1996,7 @@ export default function App() {
           }
         }}
         onOpenAbout={() => setAboutOpen(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
       />
 
       {/* Main Body */}
@@ -1994,6 +2029,7 @@ export default function App() {
             onAuthChange={handleAuthChange}
             onLoadChat={handleLoadChat}
             onDeleteChat={handleDeleteChat}
+            onOpenSettings={() => setShowSettingsModal(true)}
           />
           {sidebarOpen && (
             <LeadProfileSidebar
@@ -2444,28 +2480,30 @@ export default function App() {
                     </code>
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nextShow = !showCredentialConfig;
-                    setShowCredentialConfig(nextShow);
-                    setConfigErrorMsg('');
-                    setConfigSuccessMsg('');
-                    if (nextShow) {
-                      setConfigPortalTab(adminTargetPortal);
-                      setConfigAdminEmail(adminDbCredentials[0]?.email || 'admin@lykarealty.ae');
-                      setConfigAdminPassword(adminDbCredentials[0]?.password || 'LykaAdmin2024');
-                      setConfigPmEmail(pmDbCredentials[0]?.email || 'manager@lykarealty.ae');
-                      setConfigPmPassword(pmDbCredentials[0]?.password || 'LykaManager2024');
-                      setConfigSalesEmail(salesDbCredentials[0]?.email || 'sales@lykarealty.ae');
-                      setConfigSalesPassword(salesDbCredentials[0]?.password || 'LykaSales2024');
-                    }
-                  }}
-                  className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 flex items-center space-x-1 underline"
-                >
-                  <Settings className="w-3 h-3" />
-                  <span>{showCredentialConfig ? 'Back to Login' : 'Set in DB'}</span>
-                </button>
+                {adminAuthenticated && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextShow = !showCredentialConfig;
+                      setShowCredentialConfig(nextShow);
+                      setConfigErrorMsg('');
+                      setConfigSuccessMsg('');
+                      if (nextShow) {
+                        setConfigPortalTab(adminTargetPortal);
+                        setConfigAdminEmail(adminDbCredentials[0]?.email || 'admin@lykarealty.ae');
+                        setConfigAdminPassword('');
+                        setConfigPmEmail(pmDbCredentials[0]?.email || 'manager@lykarealty.ae');
+                        setConfigPmPassword('');
+                        setConfigSalesEmail(salesDbCredentials[0]?.email || 'sales@lykarealty.ae');
+                        setConfigSalesPassword('');
+                      }
+                    }}
+                    className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 flex items-center space-x-1 underline"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>{showCredentialConfig ? 'Back to Login' : 'Set in DB'}</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2867,8 +2905,8 @@ export default function App() {
                       return;
                     }
 
-                    // 6. Verify credentials against Firestore (Admin_login, Property_login, or Sales_login)
-                    const { valid } = await verifyPortalLoginFromFirestore(
+                    // 6. Verify credentials securely via server endpoint
+                    const { valid, error: loginErr } = await verifyPortalLoginFromFirestore(
                       adminTargetPortal,
                       adminEmailInput,
                       adminPasswordInput
@@ -2930,7 +2968,7 @@ export default function App() {
                       }
                     } else {
                       setAdminLoginError(
-                        `Invalid login or password in ${adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'} database.`
+                        loginErr || `Invalid login or password for ${adminTargetPortal === 'property_manager' ? 'Property Manager' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'} portal.`
                       );
                     }
                     setAdminLoginLoading(false);
@@ -3026,31 +3064,6 @@ export default function App() {
                       <p className="text-[11px] text-rose-300/90 leading-relaxed">
                         For security reasons, you can generate only 5 OTPs within 1 hour. It will automatically regenerate and unlock once the 1-hour cooldown completes.
                       </p>
-                      <div className="pt-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const email = adminEmailInput.trim().toLowerCase();
-                            try {
-                              await fetch('/api/auth/reset-otp-rate-limit', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email })
-                              });
-                            } catch (_) {}
-                            try {
-                              localStorage.removeItem(`lyka_admin_otp_limit_${email}`);
-                            } catch (_) {}
-                            setAdminOtpLockedUntil(null);
-                            setAdminOtpAttemptsUsed(0);
-                            setAdminOtpLockoutRemaining(0);
-                            setAdminLoginError('');
-                          }}
-                          className="text-[11px] font-semibold text-rose-300 hover:text-white underline cursor-pointer transition-colors"
-                        >
-                          Reset Lockout (Dev / Admin)
-                        </button>
-                      </div>
                     </div>
                   )}
 
@@ -3224,6 +3237,82 @@ export default function App() {
       <AboutProjectModal
         isOpen={aboutOpen}
         onClose={() => setAboutOpen(false)}
+      />
+
+      {/* Central Unified Settings & Appearance Modal */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        currentTheme={theme}
+        onSelectTheme={setTheme}
+        adminAuthenticated={adminAuthenticated}
+        propertyManagerAuthenticated={propertyManagerAuthenticated}
+        salesManagerAuthenticated={salesManagerAuthenticated}
+        adminTargetPortal={adminTargetPortal}
+        onSelectPortal={(portal) => {
+          setAdminTargetPortal(portal);
+          try {
+            localStorage.setItem('lyka_admin_target_portal', portal);
+          } catch (e) {}
+          handleSelectPortalTab(portal);
+        }}
+        onOpenAdminPanel={() => {
+          const isAuthed = adminTargetPortal === 'admin' 
+            ? adminAuthenticated 
+            : adminTargetPortal === 'property_manager'
+            ? (propertyManagerAuthenticated || adminAuthenticated)
+            : (salesManagerAuthenticated || adminAuthenticated);
+          if (!isAuthed) {
+            handleSelectPortalTab(adminTargetPortal);
+            setShowAdminLoginModal(true);
+          } else {
+            setAdminPanelOpen(true);
+            if (adminTargetPortal === 'property_manager') {
+              setActiveTab('properties');
+            } else if (adminTargetPortal === 'sales_manager') {
+              setActiveTab('sales_duplicates');
+            } else {
+              setActiveTab('crm');
+            }
+          }
+        }}
+        onOpenCredentialsConfig={() => {
+          setShowCredentialConfig(true);
+          setConfigPortalTab(adminTargetPortal);
+          setAdminPanelOpen(true);
+          setShowAdminLoginModal(true);
+        }}
+        onAdminLogout={async () => {
+          setAdminAuthenticated(false);
+          setPropertyManagerAuthenticated(false);
+          setSalesManagerAuthenticated(false);
+          try {
+            localStorage.removeItem('lyka_admin_authenticated');
+            localStorage.removeItem('lyka_pm_authenticated');
+            localStorage.removeItem('lyka_sm_authenticated');
+            localStorage.removeItem('lyka_admin_target_portal');
+          } catch (e) {}
+          setAdminPanelOpen(false);
+          setActiveTab('chat');
+        }}
+        engineProvider={engineProvider}
+        onSelectEngineProvider={setEngineProvider}
+        activeModel={activeModel}
+        onSelectModel={setActiveModel}
+        userLoggedIn={Boolean(currentUserId || auth.currentUser)}
+        userName={currentLead?.full_name}
+        userEmail={currentLead?.email}
+        userAge={currentLead?.age ? String(currentLead.age) : undefined}
+        onOpenAuthModal={() => {
+          setActiveTab('chat');
+        }}
+        onUserLogout={async () => {
+          try {
+            await signOut(auth);
+          } catch (_) {}
+          localStorage.removeItem('lyka_client_user');
+          setCurrentUserId(null);
+        }}
       />
     </div>
   );

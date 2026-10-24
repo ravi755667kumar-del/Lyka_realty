@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import Groq from 'groq-sdk';
 import fs from 'fs';
@@ -35,13 +36,64 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json());
+// ── Security Hardening: Disable information-leak headers ──
+app.disable('x-powered-by');
 
-// Set Cross-Origin-Opener-Policy to allow Google Auth popups without browser warnings
-app.use((_req: Request, res: Response, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+// ── Security Hardening: Strict request body size limit (prevent DoS) ──
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// ── Security Hardening: Prototype Pollution Mitigation ──
+app.use((req: Request, _res: Response, next) => {
+  if (req.body && typeof req.body === 'object') {
+    delete (req.body as any)['__proto__'];
+    delete (req.body as any)['constructor'];
+    delete (req.body as any)['prototype'];
+  }
   next();
 });
+
+// ── Security Hardening: Comprehensive HTTP Headers & CSP ──
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.firebaseapp.com https://*.googleapis.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com data:; " +
+    "img-src 'self' https: data: blob:; " +
+    "connect-src 'self' https: wss: http://localhost:* ws://localhost:*;"
+  );
+  next();
+});
+
+// ── Security Hardening: General API rate limiting (prevents DDoS/Scraping) ──
+const apiRateLimits: Record<string, { count: number; resetTime: number }> = {};
+const API_WINDOW_MS = 60 * 1000;
+const MAX_API_CALLS_PER_MIN = 300;
+
+app.use('/api', (req: Request, res: Response, next) => {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = apiRateLimits[clientIp];
+  if (!record || now > record.resetTime) {
+    apiRateLimits[clientIp] = { count: 1, resetTime: now + API_WINDOW_MS };
+    return next();
+  }
+  record.count++;
+  if (record.count > MAX_API_CALLS_PER_MIN) {
+    return res.status(429).json({ success: false, error: 'Too many requests. Please slow down.' });
+  }
+  next();
+});
+
+
 
 // Serve public static assets (including /favicon.ico and logos)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -749,6 +801,47 @@ app.get('/api/embeddings/list', async (_req: Request, res: Response) => {
   }
 });
 
+
+
+// ── Administrative Sessions & Role-Based Access Control (RBAC) ──
+interface AdminSession {
+  portal: 'admin' | 'property_manager' | 'sales_manager';
+  role: 'admin' | 'property_manager' | 'sales_manager';
+  email: string;
+  createdAt: number;
+  expiresAt: number;
+}
+const activeAdminSessions: Record<string, AdminSession> = {};
+
+// Rate limiter for portal logins (Max 5 failed attempts per 15-minute window)
+const loginAttemptLimits: Record<string, { count: number; lockedUntil: number; firstAttempt: number }> = {};
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+
+function requireAdminAuth(req: Request, res: Response, next: Function) {
+  const authHeader = req.headers.authorization;
+  const token = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.slice(7).trim()
+    : String(req.headers['x-admin-token'] || req.query.admin_token || '').trim();
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Admin authentication token required.' });
+  }
+
+  const session = activeAdminSessions[token];
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Unauthorized: Invalid or expired admin session. Please log in again.' });
+  }
+
+  if (Date.now() > session.expiresAt) {
+    delete activeAdminSessions[token];
+    return res.status(401).json({ success: false, error: 'Unauthorized: Admin session expired. Please log in again.' });
+  }
+
+  (req as any).adminSession = session;
+  next();
+}
+
 // In-memory fallback for leads and follow-ups
 const localLeadsStore: Record<string, any> = {};
 const localFollowupsStore: Record<string, any> = {};
@@ -780,8 +873,8 @@ app.post('/api/leads/sync', async (req: Request, res: Response) => {
   }
 });
 
-// Retrieve Leads
-app.get('/api/leads', async (_req: Request, res: Response) => {
+// Retrieve Leads (Admin / Manager Protected)
+app.get('/api/leads', requireAdminAuth, async (_req: Request, res: Response) => {
   try {
     res.json({ leads: Object.values(localLeadsStore), storage: 'LocalStore' });
   } catch (err: any) {
@@ -805,8 +898,8 @@ app.post('/api/followups/sync', async (req: Request, res: Response) => {
   }
 });
 
-// Retrieve Follow-Ups
-app.get('/api/followups', async (_req: Request, res: Response) => {
+// Retrieve Follow-Ups (Admin / Manager Protected)
+app.get('/api/followups', requireAdminAuth, async (_req: Request, res: Response) => {
   try {
     res.json({ tasks: Object.values(localFollowupsStore), storage: 'LocalStore' });
   } catch (err: any) {
@@ -951,6 +1044,8 @@ function mapStageFromAction(nextAction: string, intent: string): string {
 
 
 
+
+
 // In-memory store for OTPs (with 3-minute expiration)
 interface OtpRecord {
   code: string;
@@ -1009,8 +1104,8 @@ app.get('/api/auth/otp-status', (req: Request, res: Response) => {
   }
 });
 
-// Reset OTP Rate Limit (For testing/recovery)
-app.post('/api/auth/reset-otp-rate-limit', (req: Request, res: Response) => {
+// Reset OTP Rate Limit (Strictly restricted to authenticated Super Admin)
+app.post('/api/auth/reset-otp-rate-limit', requireAdminAuth, (req: Request, res: Response) => {
   try {
     const { email } = req.body || {};
     if (email) {
@@ -1351,14 +1446,20 @@ app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/auth/portal-credentials — retrieves current credentials from persistent store & Firestore
+function sanitizeCredential(cred: any) {
+  if (!cred) return null;
+  const { password, Password, ...safe } = cred;
+  return safe;
+}
+
+// GET /api/auth/portal-credentials — retrieves current metadata from persistent store & Firestore (Passwords are NEVER exposed)
 app.get('/api/auth/portal-credentials', async (_req: Request, res: Response) => {
   try {
     const diskCreds = loadStoredPortalCredentials();
     const result: any = {
-      admin: { ...diskCreds.admin },
-      property_manager: { ...diskCreds.property_manager },
-      sales_manager: { ...diskCreds.sales_manager }
+      admin: sanitizeCredential(diskCreds.admin),
+      property_manager: sanitizeCredential(diskCreds.property_manager),
+      sales_manager: sanitizeCredential(diskCreds.sales_manager)
     };
 
     // Fast-query Firestore if connected and responsive
@@ -1370,16 +1471,16 @@ app.get('/api/auth/portal-credentials', async (_req: Request, res: Response) => 
           safeFirestoreGetDoc(fsDoc(firestoreDb, 'Sales_login', 'sales_manager'), 2500)
         ]);
         if (aSnap && aSnap.exists()) {
-          const d = aSnap.data();
-          if (d.email && d.password) result.admin = { ...result.admin, ...d, email: d.email || d.Email_id };
+          const d = sanitizeCredential(aSnap.data());
+          if (d && (d.email || d.Email_id)) result.admin = { ...result.admin, ...d, email: d.email || d.Email_id };
         }
         if (pSnap && pSnap.exists()) {
-          const d = pSnap.data();
-          if (d.email && d.password) result.property_manager = { ...result.property_manager, ...d, email: d.email || d.Email_id };
+          const d = sanitizeCredential(pSnap.data());
+          if (d && (d.email || d.Email_id)) result.property_manager = { ...result.property_manager, ...d, email: d.email || d.Email_id };
         }
         if (sSnap && sSnap.exists()) {
-          const d = sSnap.data();
-          if (d.email && d.password) result.sales_manager = { ...result.sales_manager, ...d, email: d.email || d.Email_id };
+          const d = sanitizeCredential(sSnap.data());
+          if (d && (d.email || d.Email_id)) result.sales_manager = { ...result.sales_manager, ...d, email: d.email || d.Email_id };
         }
       } catch (err: any) {
         console.warn('[Portal Auth API] Fast Firestore credentials read notice:', err.message);
@@ -1389,6 +1490,117 @@ app.get('/api/auth/portal-credentials', async (_req: Request, res: Response) => 
     return res.json({ success: true, credentials: result });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/verify-portal-login — server-side secure authentication with constant-time verification & anti-brute-force rate limiting
+app.post('/api/auth/verify-portal-login', async (req: Request, res: Response) => {
+  try {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || req.socket.remoteAddress || 'unknown';
+    const { portal, email, password } = req.body || {};
+
+    if (!portal || !email || !password) {
+      return res.status(400).json({ valid: false, error: 'Portal, email, and password are required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPassword = String(password).trim();
+    const portalKey: 'admin' | 'property_manager' | 'sales_manager' =
+      portal === 'sales_manager' ? 'sales_manager' : portal === 'property_manager' ? 'property_manager' : 'admin';
+
+    // 1. IP & Email brute-force rate-limiting
+    const rateKey = `${clientIp}_${portalKey}_${cleanEmail}`;
+    const now = Date.now();
+    const rateRecord = loginAttemptLimits[rateKey];
+    if (rateRecord && rateRecord.lockedUntil && now < rateRecord.lockedUntil) {
+      const waitMinutes = Math.max(1, Math.ceil((rateRecord.lockedUntil - now) / 60000));
+      return res.status(429).json({
+        valid: false,
+        error: `Too many failed login attempts (5/5). Account temporarily locked for security. Please try again in ${waitMinutes} minute(s).`
+      });
+    }
+
+    // 2. Load stored credentials server-side
+    const diskCreds = loadStoredPortalCredentials();
+    let targetCred: any = diskCreds[portalKey];
+
+    if (firestoreDb) {
+      try {
+        const colName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
+        const docRef = fsDoc(firestoreDb, colName, portalKey);
+        const snap = await safeFirestoreGetDoc(docRef, 3000);
+        if (snap && snap.exists()) {
+          const d = snap.data();
+          if (d.password) {
+            targetCred = {
+              ...targetCred,
+              ...d,
+              email: d.email || d.Email_id || targetCred.email,
+              password: d.password
+            };
+          }
+        }
+      } catch (fsErr: any) {
+        console.warn('[Verify Login] Firestore check notice:', fsErr.message);
+      }
+    }
+
+    const expectedPassword = String(targetCred?.password || '').trim();
+    const expectedEmail = String(targetCred?.email || '').trim().toLowerCase();
+    const emailMatches = (cleanEmail === expectedEmail);
+
+    // Constant-time comparison using sha256 to defeat timing attacks
+    const hashA = crypto.createHash('sha256').update(cleanPassword).digest();
+    const hashB = crypto.createHash('sha256').update(expectedPassword).digest();
+    const passwordMatches = crypto.timingSafeEqual(hashA, hashB);
+
+    if (!emailMatches || !passwordMatches) {
+      if (!loginAttemptLimits[rateKey] || (now - loginAttemptLimits[rateKey].firstAttempt > LOGIN_LOCKOUT_MS)) {
+        loginAttemptLimits[rateKey] = { count: 1, lockedUntil: 0, firstAttempt: now };
+      } else {
+        loginAttemptLimits[rateKey].count += 1;
+        if (loginAttemptLimits[rateKey].count >= MAX_LOGIN_ATTEMPTS) {
+          loginAttemptLimits[rateKey].lockedUntil = now + LOGIN_LOCKOUT_MS;
+        }
+      }
+      const attemptsUsed = loginAttemptLimits[rateKey]?.count || 1;
+      const remaining = Math.max(0, MAX_LOGIN_ATTEMPTS - attemptsUsed);
+      return res.status(401).json({
+        valid: false,
+        error: remaining > 0
+          ? `Invalid login or password in database. (${remaining} attempt(s) remaining before 15-minute lockout)`
+          : 'Invalid login or password in database. Maximum attempts reached. Account temporarily locked for 15 minutes.'
+      });
+    }
+
+    // Success: clear rate limits
+    delete loginAttemptLimits[rateKey];
+
+    // Generate secure session token (32 random bytes = 64 hex characters)
+    const token = crypto.randomBytes(32).toString('hex');
+    activeAdminSessions[token] = {
+      portal: portalKey,
+      role: portalKey,
+      email: cleanEmail,
+      createdAt: now,
+      expiresAt: now + (8 * 60 * 60 * 1000) // 8-hour session lifetime
+    };
+
+    return res.json({
+      success: true,
+      valid: true,
+      token,
+      user: {
+        id: targetCred.id || portalKey,
+        portal: portalKey,
+        role: portalKey,
+        email: targetCred.email,
+        name: targetCred.name || (portalKey === 'admin' ? 'Lyka Super Admin' : portalKey === 'sales_manager' ? 'Lyka Sales Manager' : 'Lyka Property Manager')
+      }
+    });
+  } catch (err: any) {
+    console.error('[Verify Login] Error:', err);
+    return res.status(500).json({ valid: false, error: 'Internal server error during verification.' });
   }
 });
 
@@ -1439,9 +1651,13 @@ app.post('/api/auth/record-sales-login', async (req: Request, res: Response) => 
   }
 });
 
-// POST /api/auth/save-portal-credential — server-side endpoint to save portal credentials without client rule errors
-app.post('/api/auth/save-portal-credential', async (req: Request, res: Response) => {
+// POST /api/auth/save-portal-credential — server-side endpoint to save portal credentials (Super Admin Only)
+app.post('/api/auth/save-portal-credential', requireAdminAuth, async (req: Request, res: Response) => {
   try {
+    const session = (req as any).adminSession;
+    if (session && session.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden: Super Admin authorization required to update credentials.' });
+    }
     const { portal, email, password, name, docId } = req.body || {};
     if (!portal || !email || !password) {
       return res.status(400).json({ success: false, error: 'portal, email, and password required.' });
@@ -1576,8 +1792,8 @@ app.post('/api/auth/update-user-profile', async (req: Request, res: Response) =>
   }
 });
 
-// POST /api/auth/delete-user-login — deletes user profile from Firestore
-app.post('/api/auth/delete-user-login', async (req: Request, res: Response) => {
+// POST /api/auth/delete-user-login — deletes user profile from Firestore (Admin Only)
+app.post('/api/auth/delete-user-login', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const { userId, email } = req.body || {};
     const cleanEmail = (email || '').trim().toLowerCase();
@@ -1603,8 +1819,8 @@ app.post('/api/auth/delete-user-login', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/auth/all-users — fetches all users from User_login
-app.get('/api/auth/all-users', async (_req: Request, res: Response) => {
+// GET /api/auth/all-users — fetches all users from User_login (Admin Only)
+app.get('/api/auth/all-users', requireAdminAuth, async (_req: Request, res: Response) => {
   try {
     if (firestoreDb) {
       const snap = await fsGetDocs(fsCollection(firestoreDb, 'User_login'));
@@ -1954,7 +2170,7 @@ app.post('/api/properties/unbook', async (req: Request, res: Response) => {
 
 // Mount Vite or static build
 async function startServer() {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV?.trim() === 'production') {
     const staticDir = fs.existsSync(path.join(__dirname, 'dist')) ? path.join(__dirname, 'dist') : __dirname;
     app.use(express.static(staticDir));
     app.get('*', (_req: Request, res: Response) => {

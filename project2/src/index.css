@@ -175,3 +175,289 @@
 .chat-input {display:flex;gap:12px;align-items:flex-end;margin-top:18px;}
 @media(max-width:900px){.property-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.form-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.chat-layout{grid-template-columns:minmax(0,1fr);}.chat-layout aside{display:none;}}
 @media(max-width:560px){.app-header{padding:12px 16px;}.brand span{display:none;}.header-actions{max-width:190px;}.app-nav{padding:10px 12px;gap:6px;}.app-nav button{padding:7px 10px;font-size:12px;}.application main{padding:14px;}.panel{padding:16px;}.property-card{padding:0;}.property-grid,.form-grid,.score-grid{grid-template-columns:minmax(0,1fr);}.modal-backdrop{padding:10px;}.chat-input{flex-direction:column;align-items:stretch;}.application h1{font-size:23px;}}
+
+
+/* ─── THEME STYLES (IVORY, DARK, NAVY) ─── */
+[data-theme="dark"] {
+  --color-slate-950: #0b0f17;
+  --color-slate-900: #111827;
+  --color-slate-800: #1e293b;
+  --color-slate-700: #334155;
+  --color-slate-100: #f8fafc;
+  --color-slate-200: #f1f5f9;
+  --color-slate-300: #e2e8f0;
+  --color-slate-400: #cbd5e1;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #64748b;
+  --color-amber-950: #1a1207;
+  --color-amber-800: #b45309;
+  --color-amber-700: #d97706;
+  --color-amber-600: #f59e0b;
+  --color-amber-500: #fbbf24;
+  --color-amber-400: #fde68a;
+  --color-amber-300: #fef3c7;
+  --color-espresso-900: #0f172a;
+  --color-espresso-800: #1e293b;
+  --color-espresso-700: #334155;
+  --color-espresso-300: #f8fafc;
+  --color-espresso-400: #cbd5e1;
+  --color-espresso-500: #fbbf24;
+}
+
+[data-theme="dark"] body {
+  background-color: #0b0f17 !important;
+  color: #e2e8f0 !important;
+  background-image:
+    radial-gradient(1100px 620px at 18% -8%, rgba(251, 191, 36, 0.08), transparent 62%),
+    radial-gradient(900px 520px at 88% 108%, rgba(251, 191, 36, 0.05), transparent 60%) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color: #f8fafc !important;
+  background-color: #1e293b;
+}
+
+[data-theme="navy"] {
+  --color-slate-950: #070d1e;
+  --color-slate-900: #0c1630;
+  --color-slate-800: #132247;
+  --color-slate-700: #1c3266;
+  --color-slate-100: #f0f6ff;
+  --color-slate-200: #e0edff;
+  --color-slate-300: #cce2ff;
+  --color-slate-400: #99c2ff;
+  --color-slate-500: #70a3f3;
+  --color-slate-600: #4d82db;
+  --color-amber-950: #0b1124;
+  --color-amber-800: #0284c7;
+  --color-amber-700: #0ea5e9;
+  --color-amber-600: #38bdf8;
+  --color-amber-500: #38bdf8;
+  --color-amber-400: #7dd3fc;
+  --color-amber-300: #bae6fd;
+  --color-espresso-900: #070d1e;
+  --color-espresso-800: #0e1935;
+  --color-espresso-700: #182a57;
+  --color-espresso-300: #ffffff;
+  --color-espresso-400: #e0edff;
+  --color-espresso-500: #38bdf8;
+}
+
+[data-theme="navy"] body {
+  background-color: #070d1e !important;
+  color: #cce2ff !important;
+  background-image:
+    radial-gradient(1100px 620px at 18% -8%, rgba(56, 189, 248, 0.10), transparent 62%),
+    radial-gradient(900px 520px at 88% 108%, rgba(99, 102, 241, 0.08), transparent 60%) !important;
+}
+
+[data-theme="navy"] input,
+[data-theme="navy"] textarea,
+[data-theme="navy"] select {
+  color: #f0f6ff !important;
+  background-color: #132247;
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════════
+   COMPREHENSIVE FULL-APP THEME TRANSFORMATION RULES (DARK & NAVY)
+   Ensures the WHOLE website background, headers, panels, cards, and text
+   transform immediately when switching themes in Settings.
+═════════════════════════════════════════════════════════════════════════ */
+
+/* ─── OBSIDIAN MIDNIGHT DARK MODE ─── */
+[data-theme="dark"],
+.theme-dark {
+  --color-slate-950: #0b0f17 !important;
+  --color-slate-900: #111827 !important;
+  --color-slate-800: #1e293b !important;
+  --color-slate-700: #334155 !important;
+  --color-espresso-900: #0b0f17 !important;
+  --color-espresso-800: #1e293b !important;
+  --color-espresso-700: #334155 !important;
+  --color-espresso-300: #f8fafc !important;
+}
+
+[data-theme="dark"] body,
+.theme-dark body {
+  background-color: #0b0f17 !important;
+  color: #e2e8f0 !important;
+  background-image:
+    radial-gradient(1100px 620px at 18% -8%, rgba(251, 191, 36, 0.08), transparent 62%),
+    radial-gradient(900px 520px at 88% 108%, rgba(251, 191, 36, 0.05), transparent 60%) !important;
+}
+
+/* Whole App Main Containers & Backgrounds */
+[data-theme="dark"] .bg-slate-950,
+[data-theme="dark"] .bg-\[\#fdfbf5\],
+[data-theme="dark"] header.bg-espresso-900,
+[data-theme="dark"] main,
+.theme-dark .bg-slate-950 {
+  background-color: #0b0f17 !important;
+}
+
+/* Panels, Sidebars & Chat Container */
+[data-theme="dark"] .bg-\[\#ffffff\],
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .bg-\[\#ffffff\]\/95,
+.theme-dark .bg-\[\#ffffff\] {
+  background-color: #111827 !important;
+}
+
+/* Cards, Inputs, Hero & Form Backings */
+[data-theme="dark"] .bg-\[\#f7f2e6\],
+[data-theme="dark"] .bg-\[\#faf6ec\],
+[data-theme="dark"] .bg-\[\#faf7f0\],
+[data-theme="dark"] .bg-\[\#f4ede0\],
+.theme-dark .bg-\[\#f7f2e6\] {
+  background-color: #1e293b !important;
+}
+
+/* User Chat Message Bubble & Chip Backings */
+[data-theme="dark"] .bg-\[\#eee6d3\],
+[data-theme="dark"] .bg-\[\#eee6d3\]\/60 {
+  background-color: #2e261d !important;
+  border-color: #785721 !important;
+}
+
+/* Borders in Dark Mode */
+[data-theme="dark"] .border-\[\#f3ede0\],
+[data-theme="dark"] .border-\[\#d6cbb4\],
+[data-theme="dark"] .border-\[\#e2d9c6\],
+[data-theme="dark"] .border-\[\#e4d8c1\],
+[data-theme="dark"] .border-\[\#ebdcc4\],
+[data-theme="dark"] .border-\[\#e8dec8\],
+[data-theme="dark"] .border-\[\#d6c7ab\],
+[data-theme="dark"] .border-espresso-700 {
+  border-color: #334155 !important;
+}
+
+/* Primary Headings & Bold Text */
+[data-theme="dark"] .text-\[\#2d2216\],
+[data-theme="dark"] .text-\[\#1c1611\],
+[data-theme="dark"] .text-\[\#3a2e20\],
+[data-theme="dark"] .text-slate-100 {
+  color: #f8fafc !important;
+}
+
+/* Body / Secondary Text */
+[data-theme="dark"] .text-slate-300,
+[data-theme="dark"] .text-\[\#463726\] {
+  color: #e2e8f0 !important;
+}
+
+/* Muted / Caption Text */
+[data-theme="dark"] .text-\[\#6b5843\],
+[data-theme="dark"] .text-\[\#5a4835\],
+[data-theme="dark"] .text-\[\#7d6952\],
+[data-theme="dark"] .text-\[\#726048\],
+[data-theme="dark"] .text-\[\#5c4936\] {
+  color: #94a3b8 !important;
+}
+
+/* Hover States */
+[data-theme="dark"] .hover\:bg-\[\#eee6d3\]:hover,
+[data-theme="dark"] .hover\:bg-\[\#eee4cf\]:hover,
+[data-theme="dark"] .hover\:bg-espresso-800:hover {
+  background-color: #334155 !important;
+}
+
+
+/* ─── ROYAL SAPPHIRE NAVY BLUE ─── */
+[data-theme="navy"],
+.theme-navy {
+  --color-slate-950: #070d1e !important;
+  --color-slate-900: #0c1630 !important;
+  --color-slate-800: #132247 !important;
+  --color-slate-700: #1c3266 !important;
+  --color-espresso-900: #050a18 !important;
+  --color-espresso-800: #0c1630 !important;
+  --color-espresso-700: #1e3a70 !important;
+  --color-espresso-300: #ffffff !important;
+}
+
+[data-theme="navy"] body,
+.theme-navy body {
+  background-color: #070d1e !important;
+  color: #cce2ff !important;
+  background-image:
+    radial-gradient(1100px 620px at 18% -8%, rgba(56, 189, 248, 0.12), transparent 62%),
+    radial-gradient(900px 520px at 88% 108%, rgba(99, 102, 241, 0.09), transparent 60%) !important;
+}
+
+/* Whole App Main Containers & Backgrounds */
+[data-theme="navy"] .bg-slate-950,
+[data-theme="navy"] .bg-\[\#fdfbf5\],
+[data-theme="navy"] header.bg-espresso-900,
+[data-theme="navy"] main,
+.theme-navy .bg-slate-950 {
+  background-color: #070d1e !important;
+}
+
+/* Panels, Sidebars & Chat Container */
+[data-theme="navy"] .bg-\[\#ffffff\],
+[data-theme="navy"] .bg-white,
+[data-theme="navy"] .bg-\[\#ffffff\]\/95,
+.theme-navy .bg-\[\#ffffff\] {
+  background-color: #0c1630 !important;
+}
+
+/* Cards, Inputs, Hero & Form Backings */
+[data-theme="navy"] .bg-\[\#f7f2e6\],
+[data-theme="navy"] .bg-\[\#faf6ec\],
+[data-theme="navy"] .bg-\[\#faf7f0\],
+[data-theme="navy"] .bg-\[\#f4ede0\],
+.theme-navy .bg-\[\#f7f2e6\] {
+  background-color: #132247 !important;
+}
+
+/* User Chat Message Bubble & Chip Backings */
+[data-theme="navy"] .bg-\[\#eee6d3\],
+[data-theme="navy"] .bg-\[\#eee6d3\]\/60 {
+  background-color: #0f2759 !important;
+  border-color: #0284c7 !important;
+}
+
+/* Borders in Navy Mode */
+[data-theme="navy"] .border-\[\#f3ede0\],
+[data-theme="navy"] .border-\[\#d6cbb4\],
+[data-theme="navy"] .border-\[\#e2d9c6\],
+[data-theme="navy"] .border-\[\#e4d8c1\],
+[data-theme="navy"] .border-\[\#ebdcc4\],
+[data-theme="navy"] .border-\[\#e8dec8\],
+[data-theme="navy"] .border-\[\#d6c7ab\],
+[data-theme="navy"] .border-espresso-700 {
+  border-color: #1e3a70 !important;
+}
+
+/* Primary Headings & Bold Text */
+[data-theme="navy"] .text-\[\#2d2216\],
+[data-theme="navy"] .text-\[\#1c1611\],
+[data-theme="navy"] .text-\[\#3a2e20\],
+[data-theme="navy"] .text-slate-100 {
+  color: #f0f6ff !important;
+}
+
+/* Body / Secondary Text */
+[data-theme="navy"] .text-slate-300,
+[data-theme="navy"] .text-\[\#463726\] {
+  color: #cce2ff !important;
+}
+
+/* Muted / Caption Text */
+[data-theme="navy"] .text-\[\#6b5843\],
+[data-theme="navy"] .text-\[\#5a4835\],
+[data-theme="navy"] .text-\[\#7d6952\],
+[data-theme="navy"] .text-\[\#726048\],
+[data-theme="navy"] .text-\[\#5c4936\] {
+  color: #70a3f3 !important;
+}
+
+/* Hover States */
+[data-theme="navy"] .hover\:bg-\[\#eee6d3\]:hover,
+[data-theme="navy"] .hover\:bg-\[\#eee4cf\]:hover,
+[data-theme="navy"] .hover\:bg-espresso-800:hover {
+  background-color: #1c3266 !important;
+}

@@ -1,4 +1,3 @@
-import { RollingText } from './RollingText';
 import React, { useState, useRef } from 'react';
 import { 
   Building2, 
@@ -18,7 +17,8 @@ import {
   Info,
   MoreVertical,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -42,6 +42,7 @@ interface NavbarProps {
   adminTargetPortal: 'admin' | 'property_manager' | 'sales_manager';
   onAdminLogout: () => void;
   onOpenAbout: () => void;
+  onOpenSettings?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -65,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   adminTargetPortal,
   onAdminLogout,
   onOpenAbout,
+  onOpenSettings,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements'].includes(activeTab);
@@ -127,12 +129,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                <RollingText text="Agentic AI Chat" />
-              </span>
-              <span className="inline sm:hidden">
-                <RollingText text="AI Chat" />
-              </span>
+              <span className="hidden sm:inline">Agentic AI Chat</span>
+              <span className="inline sm:hidden">AI Chat</span>
               {activeTab === 'chat' && (
                 <span className="text-[9px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-espresso-800/70 text-amber-950">
                   LIVE
@@ -151,15 +149,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right: About + Triple Tab / Dot (Admin) in right corner */}
           <div className="flex items-center space-x-2 ml-auto z-10">
+            {/* Settings (⚙️) Button */}
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
+              title="Settings & Preferences (Background, Admin, AI Engine)"
+              aria-label="Settings"
+            >
+              <Settings className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
             <button
               onClick={onOpenAbout}
               className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
               title="Learn about Lyka Realty"
             >
               <Info className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">
-                <RollingText text="About" />
-              </span>
+              <span className="hidden sm:inline">About</span>
             </button>
 
             {/* Triple Tab / Dot Button — Click to open Admin Panel */}
