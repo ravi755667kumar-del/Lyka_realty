@@ -78,6 +78,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { Capacitor } from '@capacitor/core';
+import { TermsAndPolicyModal } from './TermsAndPolicyModal';
 
 interface SavedSession {
   id: string;
@@ -148,6 +149,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   const [showProfileTooltip, setShowProfileTooltip] = useState(false);
   const [userLoggedIn, setUserLoggedIn] = useState(false);
   const [authNotification, setAuthNotification] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsModalTab, setTermsModalTab] = useState<'terms' | 'privacy'>('terms');
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userFullName, setUserFullName] = useState('');
@@ -576,8 +580,13 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setAuthLoading(true);
     setAuthError('');
 
-    // If user is on the Sign Up tab (first-time user), they MUST write Name and Age first!
+    // If user is on the Sign Up tab (first-time user), they MUST accept Terms and write Name & Age first!
     if (authMode === 'signup') {
+      if (!termsAccepted) {
+        setAuthError('Please agree to the Terms of Service and Privacy Policy before continuing with Google.');
+        setAuthLoading(false);
+        return;
+      }
       if (!userFullName.trim() || userFullName.trim().length < 2) {
         setAuthError('Please write your Full Name first before continuing with Google.');
         setAuthLoading(false);
@@ -714,6 +723,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setAuthLoading(true);
     setAuthError('');
 
+    if (!termsAccepted) {
+      setAuthError('Please agree to the Terms of Service and Privacy Policy to complete registration.');
+      setAuthLoading(false);
+      return;
+    }
+
     const finalName = userFullName.trim() || pendingGoogleUser.displayName || 'Customer';
     const ageNum = Number(userAge);
     if (!userAge.trim() || !Number.isInteger(ageNum) || ageNum < 18 || ageNum > 120) {
@@ -734,7 +749,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         pendingGoogleUser.email,
         finalName,
         'Google',
-        ageNum
+        ageNum,
+        true
       );
 
       setUserName(finalName);
@@ -846,6 +862,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setAuthError('');
     setSignupOtpSuccessMsg('');
 
+    if (!termsAccepted) {
+      setAuthError('Please agree to the Terms of Service and Privacy Policy to continue with Sign Up.');
+      setSignupOtpLoading(false);
+      return;
+    }
+
     const cleanName = userFullName.trim();
     if (cleanName.length < 2) {
       setAuthError('Please enter your full name (at least 2 characters).');
@@ -905,6 +927,12 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
     setAuthLoading(true);
     setAuthError('');
 
+    if (!termsAccepted) {
+      setAuthError('Please agree to the Terms of Service and Privacy Policy to create your account.');
+      setAuthLoading(false);
+      return;
+    }
+
     const cleanEmail = userEmail.trim().toLowerCase();
     const cleanOtp = signupOtpInput.trim();
 
@@ -946,7 +974,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
         cleanEmail,
         cleanName,
         'Email',
-        ageNum
+        ageNum,
+        true
       );
 
       // Save persistent session in localStorage
@@ -2521,6 +2550,52 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                         </div>
                       </div>
 
+                      {/* Terms & Privacy Policy Checkbox */}
+                      <label className={`flex items-start space-x-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                        !termsAccepted && authError && authError.toLowerCase().includes('terms')
+                          ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800'
+                          : 'bg-[#faf6ec] dark:bg-slate-800/60 border-[#ebdcc4] dark:border-slate-700 hover:border-amber-500/50'
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={termsAccepted}
+                          onChange={(e) => {
+                            setTermsAccepted(e.target.checked);
+                            if (e.target.checked) setAuthError('');
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-[#d6c7ab] dark:border-slate-600 shrink-0 cursor-pointer accent-amber-600"
+                        />
+                        <span className="text-[11px] text-neutral-800 dark:text-slate-300 leading-snug">
+                          I have read and agree to the{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setTermsModalTab('terms');
+                              setShowTermsModal(true);
+                            }}
+                            className="font-bold text-amber-700 dark:text-amber-400 hover:underline inline cursor-pointer"
+                          >
+                            Terms of Service
+                          </button>{' '}
+                          and{' '}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setTermsModalTab('privacy');
+                              setShowTermsModal(true);
+                            }}
+                            className="font-bold text-amber-700 dark:text-amber-400 hover:underline inline cursor-pointer"
+                          >
+                            Privacy Policy
+                          </button>
+                          . <span className="text-rose-600 dark:text-rose-400 font-bold">*</span>
+                        </span>
+                      </label>
+
                       {authError && (
                         <p className="text-xs text-red-900 dark:text-red-200 bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-900 rounded-xl px-3 py-2 font-bold">
                           {authError}
@@ -2585,6 +2660,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                           setSignupOtpSent(false);
                           setSignupOtpInput('');
                           setSignupOtpSuccessMsg('');
+                          setTermsAccepted(false);
                         }}
                         className={`flex-1 text-xs font-bold py-1.5 rounded-lg transition-all capitalize ${
                           authMode === mode
@@ -2676,6 +2752,52 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                           />
                         </div>
 
+                        {/* Mandatory Terms & Policy Checkbox */}
+                        <label className={`flex items-start space-x-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                          !termsAccepted && authError && authError.toLowerCase().includes('terms')
+                            ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 ring-1 ring-red-400'
+                            : 'bg-[#faf6ec] dark:bg-slate-800/60 border-[#ebdcc4] dark:border-slate-700 hover:border-amber-500/50'
+                        }`}>
+                          <input
+                            type="checkbox"
+                            checked={termsAccepted}
+                            onChange={(e) => {
+                              setTermsAccepted(e.target.checked);
+                              if (e.target.checked) setAuthError('');
+                            }}
+                            className="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-[#d6c7ab] dark:border-slate-600 shrink-0 cursor-pointer accent-amber-600"
+                          />
+                          <span className="text-[11px] text-neutral-800 dark:text-slate-300 leading-snug">
+                            I have read and agree to the{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTermsModalTab('terms');
+                                setShowTermsModal(true);
+                              }}
+                              className="font-bold text-amber-700 dark:text-amber-400 hover:underline inline cursor-pointer"
+                            >
+                              Terms of Service
+                            </button>{' '}
+                            and{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTermsModalTab('privacy');
+                                setShowTermsModal(true);
+                              }}
+                              className="font-bold text-amber-700 dark:text-amber-400 hover:underline inline cursor-pointer"
+                            >
+                              Privacy Policy
+                            </button>
+                            . <span className="text-rose-600 dark:text-rose-400 font-bold">*</span>
+                          </span>
+                        </label>
+
                         {authError && (
                           <p className="text-xs text-red-900 dark:text-red-200 bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-900 rounded-xl px-3 py-2 font-bold leading-relaxed">
                             {authError}
@@ -2740,6 +2862,11 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                             required
                             className="w-full text-center tracking-widest font-mono text-base bg-white dark:bg-slate-800 border border-[#d6c7ab] dark:border-slate-700 focus:border-amber-600 rounded-xl pl-9 pr-3 py-2 font-bold text-black dark:text-white outline-none transition-colors"
                           />
+                        </div>
+
+                        <div className="flex items-center space-x-1.5 text-[11px] text-emerald-800 dark:text-emerald-300 px-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span>Terms of Service & Privacy Policy accepted</span>
                         </div>
 
                         <div className="flex justify-between items-center text-[11px] px-1">
@@ -3229,6 +3356,17 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
           </div>
         </div>
       )}
+      {/* Legal & Privacy Center Modal */}
+      <TermsAndPolicyModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        initialTab={termsModalTab}
+        showAcceptButton={authMode === 'signup' && !termsAccepted}
+        onAccept={() => {
+          setTermsAccepted(true);
+          setAuthError('');
+        }}
+      />
     </div>
   );
 };

@@ -328,7 +328,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
                               propertyCityFilter === 'all'
                                 ? 'bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20'
-                                : 'bg-slate-900/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                                : 'bg-slate-900/60 text-slate-300 hover:text-slate-100 dark:hover:text-white hover:bg-slate-800'
                             }`}
                           >
                             All ({properties.length})
@@ -339,7 +339,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
                               propertyCityFilter === 'Dubai'
                                 ? 'bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20'
-                                : 'bg-slate-900/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                                : 'bg-slate-900/60 text-slate-300 hover:text-slate-100 dark:hover:text-white hover:bg-slate-800'
                             }`}
                           >
                             <span>🏙️</span> Dubai ({dubaiProperties.length})
@@ -350,7 +350,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
                               propertyCityFilter === 'Mumbai'
                                 ? 'bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20'
-                                : 'bg-slate-900/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                                : 'bg-slate-900/60 text-slate-300 hover:text-slate-100 dark:hover:text-white hover:bg-slate-800'
                             }`}
                           >
                             <span>🌆</span> Mumbai ({mumbaiProperties.length})
@@ -360,13 +360,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                       {/* City context banner */}
                       {propertyCityFilter === 'Mumbai' && (
-                        <div className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 flex items-center justify-between">
+                        <div className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-800 dark:text-amber-300 flex items-center justify-between">
                           <span>Showing Mumbai residences</span>
                           <span className="font-bold text-[10px] text-amber-400">Worli · Bandra · Juhu</span>
                         </div>
                       )}
                       {propertyCityFilter === 'Dubai' && (
-                        <div className="px-2.5 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-300 flex items-center justify-between">
+                        <div className="px-2.5 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-800 dark:text-sky-300 flex items-center justify-between">
                           <span>Showing Dubai residences</span>
                           <span className="font-bold text-[10px] text-sky-400">Marina · Downtown · Hills</span>
                         </div>
@@ -379,7 +379,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setPropertyDropdownOpen(false);
                             if (onSelectProperty) onSelectProperty(null);
                           }}
-                          className="w-full text-left p-2 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 hover:bg-slate-800/60 transition-all flex items-center justify-between cursor-pointer"
+                          className="w-full text-left p-2 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:text-slate-100 dark:hover:text-white hover:border-slate-600 hover:bg-slate-800/60 transition-all flex items-center justify-between cursor-pointer"
                         >
                           <span className="text-xs font-semibold flex items-center gap-1.5">
                             <X className="w-3.5 h-3.5" />
@@ -415,8 +415,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 }}
                                 className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 cursor-pointer ${
                                   isActive
-                                    ? 'bg-amber-500/25 border-amber-500 text-white shadow-sm ring-1 ring-amber-500/40'
-                                    : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-700'
+                                    ? 'bg-amber-500/25 border-amber-500 text-amber-950 dark:text-white shadow-sm ring-1 ring-amber-500/40'
+                                    : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white hover:border-slate-700'
                                 }`}
                               >
                                 <img
@@ -427,7 +427,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="text-xs font-bold text-white truncate">{prop.title}</span>
+                                    <span className="text-xs font-bold text-slate-100 dark:text-white truncate">{prop.title}</span>
                                     {isActive && (
                                       <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/30 text-amber-200 flex-shrink-0">
                                         Selected
@@ -435,11 +435,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2 mt-0.5">
-                                    <p className="text-[11px] text-amber-400 font-bold font-mono">
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold font-mono">
                                       {priceDisplay}
                                     </p>
                                     <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
-                                      isMumbai ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40' : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                      isMumbai ? 'bg-orange-500/15 text-orange-800 dark:text-orange-300 border border-orange-500/30' : 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border border-sky-500/30'
                                     }`}>
                                       {prop.city || 'Dubai'}
                                     </span>
@@ -522,7 +522,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             setFavoritesDropdownOpen(false);
                             if (onToggleFavorite) onToggleFavorite(prop.id);
                           }}
-                          className="w-full text-left p-2.5 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white transition-all flex items-start space-x-2.5 cursor-pointer"
+                          className="w-full text-left p-2.5 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white transition-all flex items-start space-x-2.5 cursor-pointer"
                         >
                           <img
                             src={prop.image_url}
@@ -531,8 +531,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                             onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
                           />
                           <div className="flex-1 min-w-0">
-                            <span className="text-xs font-bold text-white truncate block">{prop.title}</span>
-                            <p className="text-[10px] text-amber-400 font-semibold mt-0.5">
+                            <span className="text-xs font-bold text-slate-100 dark:text-white truncate block">{prop.title}</span>
+                            <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold mt-0.5">
                               AED {Number(prop.price_aed || 0).toLocaleString()}
                             </p>
                             <p className="text-[10px] text-slate-400 truncate mt-0.5">
@@ -667,14 +667,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
                         adminTargetPortal === 'admin'
-                          ? 'bg-violet-600/25 border-violet-500 text-white shadow-sm'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-violet-600/25 border-violet-500 text-violet-900 dark:text-white shadow-sm'
+                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white'
                       }`}
                     >
                       <ShieldCheck className="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">Admin</span>
+                          <span className="text-xs font-bold text-slate-100 dark:text-white">Admin</span>
                           {adminTargetPortal === 'admin' && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-violet-500/30 text-violet-200">
                               Active
@@ -694,14 +694,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
                         adminTargetPortal === 'property_manager'
-                          ? 'bg-amber-500/25 border-amber-500 text-white shadow-sm'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-amber-500/25 border-amber-500 text-amber-950 dark:text-white shadow-sm'
+                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white'
                       }`}
                     >
                       <Building2 className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">Property Admin</span>
+                          <span className="text-xs font-bold text-slate-100 dark:text-white">Property Admin</span>
                           {adminTargetPortal === 'property_manager' && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/30 text-amber-200">
                               Active
@@ -721,14 +721,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
                         adminTargetPortal === 'sales_manager'
-                          ? 'bg-emerald-600/25 border-emerald-500 text-white shadow-sm'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-emerald-600/25 border-emerald-500 text-emerald-900 dark:text-white shadow-sm'
+                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white'
                       }`}
                     >
                       <Copy className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">Sales Manager</span>
+                          <span className="text-xs font-bold text-slate-100 dark:text-white">Sales Manager</span>
                           {adminTargetPortal === 'sales_manager' && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/30 text-emerald-200">
                               Active

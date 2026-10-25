@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, [data-theme="navy"], [data-theme="navy"] *, .theme-dark, .theme-dark *, .theme-navy, .theme-navy *, .dark, .dark *));
+
 @theme {
   /* ── IVORY + CHAMPAGNE GOLD ──────────────────────────────────────────────
      Light theme. The numbering is intentionally INVERTED relative to a stock
@@ -284,6 +286,149 @@
    Ensures the WHOLE website background, headers, panels, cards, and text
    transform immediately when switching themes in Settings.
 ═════════════════════════════════════════════════════════════════════════ */
+
+
+/* ─── WARM IVORY ELEGANCE LIGHT MODE ─── */
+[data-theme="ivory"],
+.theme-ivory {
+  --color-slate-950: #fdfbf5 !important;
+  --color-slate-900: #ffffff !important;
+  --color-slate-800: #f7f2e6 !important;
+  --color-slate-700: #eee6d3 !important;
+  --color-slate-100: #1c1611 !important;
+  --color-slate-200: #2d241d !important;
+  --color-slate-300: #463726 !important;
+  --color-slate-400: #5a4835 !important;
+  --color-slate-500: #6b5843 !important;
+  --color-slate-600: #726048 !important;
+  --color-espresso-900: #2e2019 !important;
+  --color-espresso-800: #3d2b21 !important;
+  --color-espresso-700: #513a2c !important;
+  --color-espresso-300: #f2e6d2 !important;
+  --color-espresso-400: #dcc9a8 !important;
+  --color-espresso-500: #c9ae7e !important;
+}
+
+[data-theme="ivory"] body,
+.theme-ivory body {
+  background-color: #fdfbf5 !important;
+  color: #463726 !important;
+  background-image:
+    radial-gradient(1100px 620px at 18% -8%, rgba(196, 164, 104, 0.10), transparent 62%),
+    radial-gradient(900px 520px at 88% 108%, rgba(196, 164, 104, 0.07), transparent 60%) !important;
+}
+
+/* Inputs & Textareas in Ivory Mode */
+[data-theme="ivory"] input,
+[data-theme="ivory"] textarea,
+[data-theme="ivory"] select,
+.theme-ivory input,
+.theme-ivory textarea,
+.theme-ivory select {
+  color: #1c1611 !important;
+  -webkit-text-fill-color: #1c1611 !important;
+}
+
+[data-theme="ivory"] input::placeholder,
+[data-theme="ivory"] textarea::placeholder,
+.theme-ivory input::placeholder,
+.theme-ivory textarea::placeholder {
+  color: #726048 !important;
+  -webkit-text-fill-color: #726048 !important;
+  opacity: 0.8 !important;
+}
+
+/* User Message Bubble in Ivory Mode */
+[data-theme="ivory"] .bg-\[\#eee6d3\],
+[data-theme="ivory"] .bg-\[\#eee6d3\]\/60,
+.theme-ivory .bg-\[\#eee6d3\],
+.theme-ivory .bg-\[\#eee6d3\]\/60 {
+  background-color: #eee6d3 !important;
+  border-color: #d6c7ab !important;
+  color: #1c1611 !important;
+}
+[data-theme="ivory"] .bg-\[\#eee6d3\] *,
+.theme-ivory .bg-\[\#eee6d3\] * {
+  color: #1c1611 !important;
+}
+
+/* Floating Dropdowns & Panels in Ivory Mode */
+[data-theme="ivory"] .bg-slate-900.backdrop-blur-xl,
+.theme-ivory .bg-slate-900.backdrop-blur-xl {
+  background-color: #ffffff !important;
+  border-color: #e2d9c6 !important;
+  color: #1c1611 !important;
+}
+
+/* Primary text & headings in Ivory Mode — deep charcoal/dark brown with maximum contrast */
+[data-theme="ivory"] .text-\[\#1c1611\],
+[data-theme="ivory"] .text-\[\#2d2216\],
+[data-theme="ivory"] .text-\[\#1e1610\],
+[data-theme="ivory"] .text-\[\#3a2e20\],
+[data-theme="ivory"] .text-neutral-900,
+[data-theme="ivory"] .text-neutral-800,
+[data-theme="ivory"] .text-slate-100,
+.theme-ivory .text-\[\#1c1611\],
+.theme-ivory .text-\[\#2d2216\],
+.theme-ivory .text-\[\#1e1610\],
+.theme-ivory .text-\[\#3a2e20\],
+.theme-ivory .text-neutral-900,
+.theme-ivory .text-neutral-800,
+.theme-ivory .text-slate-100 {
+  color: #1c1611 !important;
+}
+
+[data-theme="ivory"] .text-slate-200,
+.theme-ivory .text-slate-200 {
+  color: #2d241d !important;
+}
+
+[data-theme="ivory"] .text-slate-300,
+[data-theme="ivory"] .text-\[\#463726\],
+[data-theme="ivory"] .text-neutral-700,
+.theme-ivory .text-slate-300,
+.theme-ivory .text-\[\#463726\],
+.theme-ivory .text-neutral-700 {
+  color: #463726 !important;
+}
+
+[data-theme="ivory"] .text-slate-400,
+[data-theme="ivory"] .text-\[\#5a4835\],
+[data-theme="ivory"] .text-neutral-600,
+.theme-ivory .text-slate-400,
+.theme-ivory .text-\[\#5a4835\],
+.theme-ivory .text-neutral-600 {
+  color: #5a4835 !important;
+}
+
+[data-theme="ivory"] .text-slate-500,
+[data-theme="ivory"] .text-\[\#6b5843\],
+[data-theme="ivory"] .text-neutral-500,
+.theme-ivory .text-slate-500,
+.theme-ivory .text-\[\#6b5843\],
+.theme-ivory .text-neutral-500 {
+  color: #6b5843 !important;
+}
+
+/* Gold / Amber text in Ivory Mode — deep readable bronze */
+[data-theme="ivory"] .text-amber-700,
+[data-theme="ivory"] .text-amber-800,
+.theme-ivory .text-amber-700,
+.theme-ivory .text-amber-800 {
+  color: #6f5524 !important;
+}
+
+/* Amber button content maintains dark crisp text */
+[data-theme="ivory"] .bg-amber-500,
+[data-theme="ivory"] button.bg-amber-500,
+[data-theme="ivory"] .bg-amber-500 *,
+[data-theme="ivory"] button.bg-amber-500 *,
+.theme-ivory .bg-amber-500,
+.theme-ivory button.bg-amber-500,
+.theme-ivory .bg-amber-500 *,
+.theme-ivory button.bg-amber-500 * {
+  color: #3f2f1c !important;
+}
 
 /* ─── OBSIDIAN MIDNIGHT DARK MODE ─── */
 /* Inputs & Textareas in Dark Mode */

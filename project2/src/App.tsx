@@ -161,6 +161,13 @@ export default function App() {
       document.documentElement.className = 'theme-' + effectiveTheme;
       document.body.setAttribute('data-theme', effectiveTheme);
       document.body.className = 'theme-' + effectiveTheme;
+      if (effectiveTheme === 'dark' || effectiveTheme === 'navy') {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+      }
 
       // Apply CSS variable and inline style across whole window
       document.documentElement.style.setProperty('--lyka-bg', activeBg);
@@ -1982,9 +1989,9 @@ export default function App() {
       style={{ backgroundColor: customBgColor || undefined }}
       className={`flex flex-col h-screen h-[100dvh] w-screen max-w-full font-sans overflow-hidden transition-colors duration-300 ${
         theme === 'dark' 
-          ? 'bg-[#0b0f17] text-slate-100 theme-dark' 
+          ? 'bg-[#0b0f17] text-slate-100 theme-dark dark' 
           : theme === 'navy' 
-          ? 'bg-[#070d1e] text-blue-50 theme-navy' 
+          ? 'bg-[#070d1e] text-blue-50 theme-navy dark' 
           : 'bg-slate-950 text-slate-300 theme-ivory'
       }`}
     >
@@ -2546,18 +2553,18 @@ export default function App() {
                   ) : adminTargetPortal === 'sales_manager' ? (
                     <Copy className="w-5 h-5 text-emerald-100" />
                   ) : (
-                    <ShieldCheck className="w-5 h-5 text-slate-300" />
+                    <ShieldCheck className="w-5 h-5 text-violet-100" />
                   )}
                 </div>
                 <div>
-                  <h2 className="text-slate-800 font-bold text-base">
+                  <h2 className="text-white font-bold text-base">
                     {adminTargetPortal === 'property_manager' 
                       ? 'Property Admin Portal' 
                       : adminTargetPortal === 'sales_manager'
                       ? 'Sales Manager Portal'
                       : 'Admin Portal Access'}
                   </h2>
-                  <p className="text-slate-700 text-xs mt-0.5">
+                  <p className="text-white/80 text-xs mt-0.5">
                     {adminTargetPortal === 'property_manager'
                       ? 'Lyka Realty Property Inventory & Statistics'
                       : adminTargetPortal === 'sales_manager'

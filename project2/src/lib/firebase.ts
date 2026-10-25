@@ -212,7 +212,8 @@ export async function saveUserLoginToFirestore(
   email: string, 
   fullName: string, 
   authProvider: string,
-  age?: number
+  age?: number,
+  termsAccepted?: boolean
 ): Promise<void> {
   const docId = (email || userId || '').trim().toLowerCase();
   const now = new Date().toISOString();
@@ -227,6 +228,11 @@ export async function saveUserLoginToFirestore(
   };
   if (age !== undefined && age !== null) {
     data.Age = Number(age);
+  }
+  if (termsAccepted) {
+    data.terms_accepted = true;
+    data.terms_accepted_at = now;
+    data.terms_version = 'v2.4';
   }
 
   // Cache locally immediately so Name and Age are never lost
@@ -245,7 +251,8 @@ export async function saveUserLoginToFirestore(
         email: email.trim(),
         fullName: fullName.trim(),
         authProvider,
-        age
+        age,
+        termsAccepted
       })
     });
   } catch (srvErr) {

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { PropertyListing } from '../types/crm';
+import { TermsAndPolicyModal } from './TermsAndPolicyModal';
 import {
   Sparkles,
   Send,
@@ -166,6 +167,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
   onSelectCity: propOnSelectCity,
 }) => {
   const [askText, setAskText] = useState('');
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsModalTab, setTermsModalTab] = useState<'terms' | 'privacy'>('terms');
   const [internalCityFilter, setInternalCityFilter] = useState<CityFilter>('all');
   const cityFilter = propCityFilter !== undefined ? propCityFilter : internalCityFilter;
   const [typeFilter, setTypeFilter] = useState<string>('All');
@@ -393,7 +396,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   onChange={(e) => setAskText(e.target.value)}
                   placeholder="e.g. 2BR in Dubai Marina under AED 2M with sea view"
                   className="flex-1 bg-transparent text-[15px] text-[#1c1611] dark:text-white placeholder-[#8c765c] dark:placeholder-slate-400 outline-none py-2.5 min-w-0"
-                  style={{ backgroundColor: 'transparent', color: 'inherit' }}
+                  style={{ backgroundColor: 'transparent' }}
                   aria-label="Ask Lyka AI about properties"
                 />
               </div>

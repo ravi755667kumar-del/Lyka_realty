@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TermsAndPolicyModal } from './TermsAndPolicyModal';
 import {
   Settings,
   X,
@@ -136,6 +137,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUserLogout
 }) => {
   const [activeTab, setActiveTab] = useState<'appearance' | 'admin' | 'engine' | 'account'>('appearance');
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const activeBgHex = customBgColor || (currentTheme === 'dark' ? '#0b0f17' : currentTheme === 'navy' ? '#070d1e' : '#fdfbf5');
 
@@ -662,10 +664,20 @@ return (
                       onClose();
                       onOpenAuthModal();
                     }}
-                    className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-xs"
+                    className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-xs cursor-pointer"
                   >
                     Sign In or Create Account
                   </button>
+                  <p className="text-[11px] text-[#6b5843] dark:text-slate-400 text-center mt-2">
+                    Protected by Lyka Realty's{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTermsModal(true)}
+                      className="font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                    >
+                      Terms of Service & Privacy Policy
+                    </button>
+                  </p>
                 </div>
               )}
             </div>
@@ -686,6 +698,13 @@ return (
         </div>
 
       </div>
+
+      {/* Legal & Privacy Center Modal */}
+      <TermsAndPolicyModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        initialTab="terms"
+      />
     </div>
   );
 };

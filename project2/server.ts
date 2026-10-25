@@ -1393,7 +1393,7 @@ app.post('/api/auth/clear-email-otp', async (req: Request, res: Response) => {
 // POST /api/auth/save-user-login — persists user profile & login event via server Firebase session
 app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
   try {
-    const { userId, email, fullName, authProvider, age } = req.body || {};
+    const { userId, email, fullName, authProvider, age, termsAccepted } = req.body || {};
     if (!email && !userId) {
       return res.status(400).json({ success: false, error: 'Email or userId is required.' });
     }
@@ -1412,6 +1412,11 @@ app.post('/api/auth/save-user-login', async (req: Request, res: Response) => {
     };
     if (age !== undefined && age !== null && age !== '') {
       userData.Age = Number(age);
+    }
+    if (termsAccepted) {
+      userData.terms_accepted = true;
+      userData.terms_accepted_at = now;
+      userData.terms_version = 'v2.4';
     }
 
     if (firestoreDb) {
