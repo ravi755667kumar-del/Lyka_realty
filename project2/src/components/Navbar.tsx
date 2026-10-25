@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Building2, 
   MessageSquare, 
@@ -18,12 +18,16 @@ import {
   MoreVertical,
   Copy,
   AlertTriangle,
-  Settings
+  Settings,
+  Home,
+  X,
+  Heart
 } from 'lucide-react';
+import type { PropertyListing } from '../types/crm';
 
 interface NavbarProps {
-  activeTab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements';
-  setActiveTab: (tab: 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements') => void;
+  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements';
+  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements') => void;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
@@ -43,6 +47,15 @@ interface NavbarProps {
   onAdminLogout: () => void;
   onOpenAbout: () => void;
   onOpenSettings?: () => void;
+  properties?: PropertyListing[];
+  selectedProperty?: PropertyListing | null;
+  onSelectProperty?: (prop: PropertyListing | null) => void;
+  favorites?: string[];
+  onToggleFavorite?: (propertyId: string) => void;
+  showFavoritesOnly?: boolean;
+  onToggleFavoritesFilter?: () => void;
+  selectedCity?: 'all' | 'Dubai' | 'Mumbai';
+  onSelectCity?: (city: 'all' | 'Dubai' | 'Mumbai') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -67,8 +80,87 @@ export const Navbar: React.FC<NavbarProps> = ({
   onAdminLogout,
   onOpenAbout,
   onOpenSettings,
+  properties,
+  selectedProperty,
+  onSelectProperty,
+  favorites,
+  onToggleFavorite,
+  showFavoritesOnly,
+  onToggleFavoritesFilter,
+  selectedCity = 'all',
+  onSelectCity,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
+  const [favoritesDropdownOpen, setFavoritesDropdownOpen] = useState(false);
+  const [propertyCityFilter, setPropertyCityFilter] = useState<'all' | 'Dubai' | 'Mumbai'>(selectedCity || 'all');
+
+  const propertyDropdownRef = useRef<HTMLDivElement>(null);
+  const favoritesDropdownRef = useRef<HTMLDivElement>(null);
+  const roleDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when clicking anywhere outside or pressing Escape
+  useEffect(() => {
+    if (!propertyDropdownOpen && !favoritesDropdownOpen && !roleDropdownOpen) return;
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (propertyDropdownOpen && propertyDropdownRef.current && !propertyDropdownRef.current.contains(target)) {
+        setPropertyDropdownOpen(false);
+      }
+      if (favoritesDropdownOpen && favoritesDropdownRef.current && !favoritesDropdownRef.current.contains(target)) {
+        setFavoritesDropdownOpen(false);
+      }
+      if (roleDropdownOpen && roleDropdownRef.current && !roleDropdownRef.current.contains(target)) {
+        setRoleDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPropertyDropdownOpen(false);
+        setFavoritesDropdownOpen(false);
+        setRoleDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown, true);
+    document.addEventListener('touchstart', handlePointerDown, true);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown, true);
+      document.removeEventListener('touchstart', handlePointerDown, true);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [propertyDropdownOpen, favoritesDropdownOpen, roleDropdownOpen]);
+
+  useEffect(() => {
+    if (selectedCity) {
+      setPropertyCityFilter(selectedCity);
+    }
+  }, [selectedCity]);
+
+  const handleCityChange = (city: 'all' | 'Dubai' | 'Mumbai') => {
+    setPropertyCityFilter(city);
+    if (onSelectCity) {
+      onSelectCity(city);
+    }
+  };
+
+  const dubaiProperties = useMemo(() => {
+    return (properties || []).filter(p => (p.city || 'Dubai') === 'Dubai');
+  }, [properties]);
+
+  const mumbaiProperties = useMemo(() => {
+    return (properties || []).filter(p => (p.city || '').toLowerCase() === 'mumbai');
+  }, [properties]);
+
+  const filteredProperties = useMemo(() => {
+    if (propertyCityFilter === 'Dubai') return dubaiProperties;
+    if (propertyCityFilter === 'Mumbai') return mumbaiProperties;
+    return properties || [];
+  }, [properties, propertyCityFilter, dubaiProperties, mumbaiProperties]);
   const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements'].includes(activeTab);
 
   // Triple-tap / triple-click counter to open Admin Panel
@@ -103,77 +195,393 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isAnyAuthed = adminAuthenticated || propertyManagerAuthenticated || Boolean(salesManagerAuthenticated);
 
   return (
-    <header className="bg-espresso-900 border-b border-espresso-700 text-espresso-300 sticky top-0 z-50 select-none">
-      <div className="px-4 sm:px-6">
-        <div className="relative flex items-center h-16">
+    <header className="bg-espresso-900/95 backdrop-blur-xl border-b border-amber-500/20 text-espresso-300 sticky top-0 z-50 select-none shadow-[0_4px_25px_rgba(0,0,0,0.3)]">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-16 gap-1.5 sm:gap-4 w-full">
           {/* Logo & Brand — Left (Supports triple-tap to open Admin) */}
           <div
-            className="flex items-center cursor-pointer flex-shrink-0 absolute left-0"
+            className="flex items-center cursor-pointer shrink-0"
             onClick={() => {
               handleTripleTap();
-              setActiveTab('chat');
+              setActiveTab('home');
             }}
-            title="Lyka Realty"
+            title="Lyka Realty — Home (Triple-tap to open Admin)"
           >
-            <img src="/logo.png" alt="Lyka Realty" className="h-9 sm:h-12 w-auto object-contain rounded-lg" />
+            <img src="/logo.png" alt="Lyka Realty" className="h-8 sm:h-11 w-auto object-contain drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]" />
           </div>
 
-          {/* Center: AI Chat tab — ABSOLUTELY CENTERED */}
-          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center space-x-2 z-10">
+          {/* Center: Home + AI Chat tab — Luxury Floating Capsule Navigation */}
+          <nav className="flex items-center p-1 rounded-2xl bg-espresso-800/80 backdrop-blur-md border border-espresso-700/80 shadow-lg shrink-0 gap-1 sm:gap-1.5">
             <button
-              onClick={() => { setActiveTab('chat'); }}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
-                activeTab === 'chat'
-                  ? 'bg-amber-500 text-amber-950 shadow-md font-bold border-amber-400'
-                  : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800 border-espresso-700/60'
+              onClick={() => { setActiveTab('home'); }}
+              className={`flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                activeTab === 'home'
+                  ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-amber-950 font-bold shadow-[0_2px_12px_rgba(245,158,11,0.35)]'
+                  : 'text-espresso-300 hover:text-white hover:bg-espresso-700/60'
               }`}
             >
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Agentic AI Chat</span>
-              <span className="inline sm:hidden">AI Chat</span>
-              {activeTab === 'chat' && (
-                <span className="text-[9px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-espresso-800/70 text-amber-950">
-                  LIVE
-                </span>
-              )}
+              <Home className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Home</span>
+            </button>
+            <button
+              onClick={() => { setActiveTab('chat'); }}
+              className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                activeTab === 'chat'
+                  ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-amber-950 font-bold shadow-[0_2px_12px_rgba(245,158,11,0.35)]'
+                  : 'text-espresso-300 hover:text-white hover:bg-espresso-700/60'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span className="hidden md:inline font-bold">Agentic AI Chat</span>
+              <span className="inline md:hidden font-bold">AI Chat</span>
+              <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="hidden sm:inline">LIVE</span>
+              </span>
             </button>
           </nav>
 
-          {/* Secret Triple-Click Admin Trigger Area (between Agentic AI Chat and About) */}
-          <div
-            onClick={(e) => handleTripleTap(e)}
-            className="absolute inset-y-0 left-[calc(50%+50px)] right-16 sm:left-[calc(50%+90px)] sm:right-36 cursor-default select-none z-10 touch-manipulation"
-            title=""
-            aria-label="Secret Admin Trigger"
-          />
+          {/* Right: Property Selector, Settings, About, and Admin Panel */}
+          <div className="flex items-center space-x-1 sm:space-x-1.5 shrink-0">
+            {/* Property Selector Dropdown — Choose a property from the inventory */}
+            {properties && properties.length > 0 && (
+              <div ref={propertyDropdownRef} className="relative flex-shrink-0">
+                <button
+                  onClick={() => setPropertyDropdownOpen(prev => !prev)}
+                  className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
+                    selectedProperty
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
+                      : propertyCityFilter !== 'all'
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                      : 'bg-espresso-800/60 border-espresso-700/60 text-espresso-300 hover:text-white hover:bg-espresso-800 hover:border-amber-400/50'
+                  }`}
+                  title="Choose a property from inventory (Dubai or Mumbai)"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="hidden md:inline max-w-[150px] lg:max-w-[185px] truncate">
+                    {selectedProperty ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-[10px] uppercase font-black px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
+                          {selectedProperty.city || 'Dubai'}
+                        </span>
+                        <span className="truncate">{selectedProperty.title}</span>
+                      </span>
+                    ) : propertyCityFilter === 'Mumbai' ? (
+                      <span className="flex items-center gap-1">
+                        <span>🌆</span> Mumbai
+                      </span>
+                    ) : propertyCityFilter === 'Dubai' ? (
+                      <span className="flex items-center gap-1">
+                        <span>🏙️</span> Dubai
+                      </span>
+                    ) : (
+                      'Choose Property'
+                    )}
+                  </span>
+                  {/* Compact badge on mobile/tablet */}
+                  <span className="inline md:hidden text-[10px] font-bold text-amber-300 font-mono">
+                    {selectedProperty
+                      ? (selectedProperty.city === 'Mumbai' ? 'MUM' : 'DXB')
+                      : propertyCityFilter === 'Mumbai' ? 'MUM' : propertyCityFilter === 'Dubai' ? 'DXB' : 'Units'}
+                  </span>
+                  <span className="hidden lg:inline text-[9px] opacity-75 font-mono">
+                    {selectedProperty
+                      ? `${selectedProperty.bedrooms ?? '?'} BR`
+                      : propertyCityFilter !== 'all'
+                      ? `${filteredProperties.length} units`
+                      : 'Select'}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 shrink-0 ${propertyDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-          {/* Right: About + Triple Tab / Dot (Admin) in right corner */}
-          <div className="flex items-center space-x-2 ml-auto z-10">
+                {/* Property Dropdown Menu */}
+                {propertyDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs sm:bg-transparent" 
+                      onClick={() => setPropertyDropdownOpen(false)} 
+                    />
+                    <div className="fixed sm:absolute top-16 sm:top-full left-2 right-2 sm:left-auto sm:right-0 sm:w-92 max-w-sm mx-auto sm:mx-0 max-h-[82vh] sm:max-h-[30rem] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2.5 space-y-2 text-slate-100 backdrop-blur-xl">
+                      {/* Dropdown Header */}
+                      <div className="px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-200">
+                          <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Choose Property</span>
+                        </span>
+                        <span className="text-[9px] normal-case font-medium text-slate-400">
+                          {filteredProperties.length} of {properties.length} available
+                        </span>
+                      </div>
+
+                      {/* City Selector: Dubai or Mumbai or All */}
+                      <div className="bg-slate-950/80 p-1.5 rounded-xl border border-slate-800">
+                        <div className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-1 pb-1 flex items-center justify-between">
+                          <span>Filter City:</span>
+                          <span className="text-amber-400 font-semibold">
+                            {propertyCityFilter === 'all' ? 'All Cities' : propertyCityFilter}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleCityChange('all')}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                              propertyCityFilter === 'all'
+                                ? 'bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20'
+                                : 'bg-slate-900/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            All ({properties.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCityChange('Dubai')}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                              propertyCityFilter === 'Dubai'
+                                ? 'bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20'
+                                : 'bg-slate-900/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            <span>🏙️</span> Dubai ({dubaiProperties.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCityChange('Mumbai')}
+                            className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1 cursor-pointer ${
+                              propertyCityFilter === 'Mumbai'
+                                ? 'bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20'
+                                : 'bg-slate-900/60 text-slate-300 hover:text-white hover:bg-slate-800'
+                            }`}
+                          >
+                            <span>🌆</span> Mumbai ({mumbaiProperties.length})
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* City context banner */}
+                      {propertyCityFilter === 'Mumbai' && (
+                        <div className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 flex items-center justify-between">
+                          <span>Showing Mumbai residences</span>
+                          <span className="font-bold text-[10px] text-amber-400">Worli · Bandra · Juhu</span>
+                        </div>
+                      )}
+                      {propertyCityFilter === 'Dubai' && (
+                        <div className="px-2.5 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-[11px] text-sky-300 flex items-center justify-between">
+                          <span>Showing Dubai residences</span>
+                          <span className="font-bold text-[10px] text-sky-400">Marina · Downtown · Hills</span>
+                        </div>
+                      )}
+
+                      {/* Clear selection option if a property is selected */}
+                      {selectedProperty && (
+                        <button
+                          onClick={() => {
+                            setPropertyDropdownOpen(false);
+                            if (onSelectProperty) onSelectProperty(null);
+                          }}
+                          className="w-full text-left p-2 rounded-xl border border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 hover:bg-slate-800/60 transition-all flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="text-xs font-semibold flex items-center gap-1.5">
+                            <X className="w-3.5 h-3.5" />
+                            Clear selected property
+                          </span>
+                          <span className="text-[10px] text-slate-400 truncate max-w-[140px]">
+                            {selectedProperty.title}
+                          </span>
+                        </button>
+                      )}
+
+                      {/* Property List */}
+                      <div className="max-h-64 overflow-y-auto pr-0.5 space-y-1.5">
+                        {filteredProperties.length === 0 ? (
+                          <div className="text-center py-6 text-slate-400 text-xs">
+                            No properties found for {propertyCityFilter}.
+                          </div>
+                        ) : (
+                          filteredProperties.map((prop: PropertyListing) => {
+                            const isActive = selectedProperty?.id === prop.id;
+                            const isBooked = prop.is_booked || (prop.status || '').toLowerCase() === 'booked';
+                            const isMumbai = (prop.city || '').toLowerCase() === 'mumbai';
+                            const priceDisplay = isMumbai && prop.price_inr
+                              ? `₹ ${(prop.price_inr / 10000000).toFixed(1)} Cr`
+                              : `AED ${Number(prop.price_aed || 0).toLocaleString()}`;
+
+                            return (
+                              <button
+                                key={prop.id}
+                                onClick={() => {
+                                  setPropertyDropdownOpen(false);
+                                  if (onSelectProperty) onSelectProperty(prop);
+                                }}
+                                className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 cursor-pointer ${
+                                  isActive
+                                    ? 'bg-amber-500/25 border-amber-500 text-white shadow-sm ring-1 ring-amber-500/40'
+                                    : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white hover:border-slate-700'
+                                }`}
+                              >
+                                <img
+                                  src={prop.image_url}
+                                  alt={prop.title}
+                                  className="w-12 h-10 rounded-lg object-cover flex-shrink-0 border border-slate-700"
+                                  onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="text-xs font-bold text-white truncate">{prop.title}</span>
+                                    {isActive && (
+                                      <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/30 text-amber-200 flex-shrink-0">
+                                        Selected
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <p className="text-[11px] text-amber-400 font-bold font-mono">
+                                      {priceDisplay}
+                                    </p>
+                                    <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                                      isMumbai ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40' : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                    }`}>
+                                      {prop.city || 'Dubai'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                    {prop.community || 'Prime'} • {prop.bedrooms ?? '?'} BR • {prop.property_type || 'Residence'}
+                                  </p>
+                                </div>
+                                {isBooked && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 self-center flex-shrink-0">
+                                    Booked
+                                  </span>
+                                )}
+                                <Heart
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onToggleFavorite) onToggleFavorite(prop.id);
+                                  }}
+                                  className={`w-4 h-4 self-center mt-0.5 cursor-pointer flex-shrink-0 ${favorites?.includes(prop.id) ? 'text-red-400 fill-red-400' : 'text-slate-500 hover:text-white'}`}
+                                />
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Favorites Button & Dropdown */}
+            <div ref={favoritesDropdownRef} className="relative flex-shrink-0">
+              <button
+                onClick={() => {
+                  if (onToggleFavoritesFilter) {
+                    onToggleFavoritesFilter();
+                  } else {
+                    setFavoritesDropdownOpen(prev => !prev);
+                  }
+                }}
+                className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
+                  showFavoritesOnly
+                    ? 'bg-red-500/25 border-red-500/80 text-red-400 ring-2 ring-red-500/40 shadow-md shadow-red-500/20'
+                    : favorites && favorites.length > 0
+                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
+                    : 'bg-espresso-800/60 border-espresso-700/60 text-espresso-300 hover:text-white hover:bg-espresso-800 hover:border-amber-400/50'
+                }`}
+                title={`Favorites (${favorites?.length || 0}) — Click to view your saved residences`}
+                aria-label="Favorites"
+              >
+                <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'text-red-400 fill-red-400' : favorites && favorites.length > 0 ? 'text-red-400 fill-red-400' : 'text-espresso-300'}`} />
+                <span className="hidden sm:inline">Favorites</span>
+                {favorites && favorites.length > 0 && (
+                  <span className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-black shadow-xs ${
+                    showFavoritesOnly ? 'bg-red-500 text-white' : 'bg-red-500/25 text-red-400 border border-red-500/40'
+                  }`}>
+                    {favorites.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Favorites Dropdown */}
+              {favoritesDropdownOpen && favorites && favorites.length > 0 && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs sm:bg-transparent" 
+                    onClick={() => setFavoritesDropdownOpen(false)} 
+                  />
+                  <div className="fixed sm:absolute top-16 sm:top-full left-2 right-2 sm:left-auto sm:right-0 sm:w-80 max-w-sm mx-auto sm:mx-0 max-h-[82vh] sm:max-h-96 overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-1.5 text-slate-100 backdrop-blur-xl">
+                    <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                      Favorite Properties
+                    </div>
+                    <div className="max-h-72 overflow-y-auto pr-0.5 space-y-1.5">
+                      {properties?.filter((p: PropertyListing) => (favorites || []).includes(p.id)).map((prop: PropertyListing) => (
+                        <button
+                          key={prop.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFavoritesDropdownOpen(false);
+                            if (onToggleFavorite) onToggleFavorite(prop.id);
+                          }}
+                          className="w-full text-left p-2.5 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white transition-all flex items-start space-x-2.5 cursor-pointer"
+                        >
+                          <img
+                            src={prop.image_url}
+                            alt={prop.title}
+                            className="w-11 h-9 rounded-lg object-cover flex-shrink-0 border border-slate-700"
+                            onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold text-white truncate block">{prop.title}</span>
+                            <p className="text-[10px] text-amber-400 font-semibold mt-0.5">
+                              AED {Number(prop.price_aed || 0).toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                              {prop.community || 'Dubai'} • {prop.bedrooms ?? '?'} BR
+                            </p>
+                          </div>
+                          <Heart
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onToggleFavorite) onToggleFavorite(prop.id);
+                            }}
+                            className="w-4 h-4 text-amber-400 fill-amber-400 flex-shrink-0 mt-0.5 cursor-pointer"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              {favoritesDropdownOpen && favorites && favorites.length === 0 && (
+                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setFavoritesDropdownOpen(false)} />
+              )}
+            </div>
+
             {/* Settings (⚙️) Button */}
             <button
               onClick={onOpenSettings}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
+              className="group flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-espresso-200 hover:text-amber-300 hover:bg-espresso-800/90 border border-espresso-700/70 hover:border-amber-400/50 transition-all duration-200 shadow-sm cursor-pointer"
               title="Settings & Preferences (Background, Admin, AI Engine)"
               aria-label="Settings"
             >
-              <Settings className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Settings</span>
+              <Settings className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform duration-300 shrink-0" />
+              <span className="hidden md:inline">Settings</span>
             </button>
             <button
               onClick={onOpenAbout}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-espresso-300 hover:text-amber-400 hover:bg-espresso-800 border border-espresso-700/60 transition-all shadow-sm"
+              className="hidden sm:flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-espresso-200 hover:text-amber-300 hover:bg-espresso-800/90 border border-espresso-700/70 hover:border-amber-400/50 transition-all duration-200 shadow-sm cursor-pointer"
               title="Learn about Lyka Realty"
             >
-              <Info className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">About</span>
+              <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden md:inline">About</span>
             </button>
 
             {/* Triple Tab / Dot Button — Click to open Admin Panel */}
             <button
               onClick={() => onToggleAdminPanel()}
-              className={`p-2 rounded-xl text-xs transition-all border shadow-sm ${
+              className={`p-2 rounded-xl text-xs transition-all duration-200 border shadow-sm cursor-pointer ${
                 adminPanelOpen || isAdminTab
-                  ? 'bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-500/20'
+                  ? 'bg-violet-600 text-white border-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.35)]'
                   : isAnyAuthed
                   ? 'text-violet-300 hover:text-violet-100 hover:bg-espresso-800 border-violet-500/40 bg-espresso-800/60'
                   : 'text-espresso-400 hover:text-espresso-200 hover:bg-espresso-800 border-espresso-700/60'
@@ -192,7 +600,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
           <div className="px-4 sm:px-6 flex items-center space-x-3 overflow-x-auto py-2">
             {/* Downside Role Dropdown Selector — Kept inside admin */}
-            <div className="relative flex-shrink-0 mr-1">
+            <div ref={roleDropdownRef} className="relative flex-shrink-0 mr-1">
               <button
                 onClick={() => setRoleDropdownOpen(prev => !prev)}
                 className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${

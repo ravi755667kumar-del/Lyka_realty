@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { 
-  Settings, 
-  X, 
+import {
+  Settings,
+  X,
   Palette, 
   ShieldCheck, 
   Cpu, 
@@ -29,6 +29,9 @@ interface SettingsModalProps {
   // Appearance / Background
   currentTheme: AppTheme;
   onSelectTheme: (theme: AppTheme) => void;
+  customBgColor?: string;
+  onSelectCustomBg?: (color: string) => void;
+  onResetCustomBg?: () => void;
   // Admin & Management
   adminAuthenticated: boolean;
   propertyManagerAuthenticated: boolean;
@@ -52,11 +55,67 @@ interface SettingsModalProps {
   onUserLogout: () => void;
 }
 
+
+export interface ColorBoxOption {
+  name: string;
+  hex: string;
+  border?: string;
+  isDark: boolean;
+  themeMatch: AppTheme;
+  description: string;
+}
+
+export function isDarkHex(hex: string): boolean {
+  if (!hex) return false;
+  const clean = hex.replace('#', '').trim();
+  let r = 255, g = 255, b = 255;
+  if (clean.length === 3) {
+    r = parseInt(clean[0] + clean[0], 16);
+    g = parseInt(clean[1] + clean[1], 16);
+    b = parseInt(clean[2] + clean[2], 16);
+  } else if (clean.length === 6) {
+    r = parseInt(clean.substring(0, 2), 16);
+    g = parseInt(clean.substring(2, 4), 16);
+    b = parseInt(clean.substring(4, 6), 16);
+  }
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 145;
+}
+
+export const PRESET_COLOR_BOXES: ColorBoxOption[] = [
+  { 
+    name: 'Warm Ivory', 
+    hex: '#fdfbf5', 
+    border: '#d6cbb4', 
+    isDark: false, 
+    themeMatch: 'ivory',
+    description: 'Signature Dubai luxury champagne gold tones on warm ivory'
+  },
+  { 
+    name: 'Obsidian Midnight Dark', 
+    hex: '#0b0f17', 
+    border: '#334155', 
+    isDark: true, 
+    themeMatch: 'dark',
+    description: 'Sleek dark mode with warm gold accents for low-light comfort'
+  },
+  { 
+    name: 'Royal Sapphire Navy', 
+    hex: '#070d1e', 
+    border: '#1e3a8a', 
+    isDark: true, 
+    themeMatch: 'navy',
+    description: 'Executive deep celestial blue with bright azure luxury accents'
+  },
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   currentTheme,
   onSelectTheme,
+  customBgColor,
+  onSelectCustomBg,
+  onResetCustomBg,
   adminAuthenticated,
   propertyManagerAuthenticated,
   salesManagerAuthenticated,
@@ -78,53 +137,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'appearance' | 'admin' | 'engine' | 'account'>('appearance');
 
+  const activeBgHex = customBgColor || (currentTheme === 'dark' ? '#0b0f17' : currentTheme === 'navy' ? '#070d1e' : '#fdfbf5');
+
+  const handlePickPreset = (opt: ColorBoxOption) => {
+    onSelectCustomBg?.(opt.hex);
+    onSelectTheme(opt.themeMatch);
+  };
+
+
   if (!isOpen) return null;
 
   const isAnyAdminAuthed = adminAuthenticated || propertyManagerAuthenticated || Boolean(salesManagerAuthenticated);
-
-  const themeOptions: Array<{
-    id: AppTheme;
-    name: string;
-    subtitle: string;
-    previewBg: string;
-    previewBorder: string;
-    previewAccent: string;
-    badgeText: string;
-    icon: React.ReactNode;
-  }> = [
-    {
-      id: 'ivory',
-      name: 'Luxury Warm Ivory',
-      subtitle: 'Signature Dubai real estate aesthetic with warm champagne gold tones',
-      previewBg: 'bg-[#fdfbf5]',
-      previewBorder: 'border-[#c4a468]',
-      previewAccent: 'bg-[#c4a468]',
-      badgeText: 'Default Elegance',
-      icon: <Sun className="w-4 h-4 text-amber-600" />
-    },
-    {
-      id: 'dark',
-      name: 'Obsidian Midnight Dark',
-      subtitle: 'Sleek dark mode with glowing warm gold accents for low-light comfort',
-      previewBg: 'bg-[#0b0f17]',
-      previewBorder: 'border-[#fbbf24]',
-      previewAccent: 'bg-[#fbbf24]',
-      badgeText: 'Sleek & Focused',
-      icon: <Moon className="w-4 h-4 text-amber-400" />
-    },
-    {
-      id: 'navy',
-      name: 'Royal Sapphire Navy',
-      subtitle: 'High-contrast deep celestial blue with bright azure luxury accents',
-      previewBg: 'bg-[#070d1e]',
-      previewBorder: 'border-[#38bdf8]',
-      previewAccent: 'bg-[#38bdf8]',
-      badgeText: 'Modern Executive',
-      icon: <Sparkles className="w-4 h-4 text-cyan-400" />
-    }
-  ];
-
-  return (
+return (
     <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 select-none">
       <div className="bg-[#ffffff] dark:bg-slate-900 border border-[#e2d9c6] dark:border-slate-800 rounded-3xl max-w-2xl w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-[#2d2216] dark:text-slate-100 transition-colors">
         
@@ -213,74 +237,91 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 bg-white dark:bg-slate-900">
 
           {/* ══════════════════════════════════════════════════════════════════════
-              TAB 1: APPEARANCE & BACKGROUND
+              TAB 1: APPEARANCE & BACKGROUND (EXACTLY 3 COLOR BOXES)
           ══════════════════════════════════════════════════════════════════════ */}
           {activeTab === 'appearance' && (
             <div className="space-y-4">
               <div>
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#6b5843] dark:text-slate-400 mb-1">
-                  Website Background & Theme Customization
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#6b5843] dark:text-slate-400 mb-1 flex items-center space-x-1.5">
+                  <Palette className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Website Background Color</span>
                 </h3>
                 <p className="text-xs text-[#5a4835] dark:text-slate-400 leading-relaxed">
-                  Select your preferred background visual theme. Changes take effect instantly across the whole application and are automatically saved on your device.
+                  Select your preferred background color from the three options below. Changes apply instantly across the whole application.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                {themeOptions.map((opt) => {
-                  const isSelected = currentTheme === opt.id;
+              {/* ─── EXACTLY 3 COLOR BOXES ─── */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                {PRESET_COLOR_BOXES.map((box) => {
+                  const isSelected = activeBgHex.toLowerCase() === box.hex.toLowerCase() || 
+                    (!customBgColor && currentTheme === box.themeMatch);
                   return (
-                    <div
-                      key={opt.id}
-                      onClick={() => onSelectTheme(opt.id)}
-                      className={`relative rounded-2xl p-4 cursor-pointer transition-all border-2 flex flex-col justify-between ${
+                    <button
+                      key={box.name}
+                      type="button"
+                      onClick={() => handlePickPreset(box)}
+                      className={`relative rounded-2xl p-4 cursor-pointer transition-all border-2 flex flex-col justify-between text-left group ${
                         isSelected 
                           ? 'border-amber-500 ring-2 ring-amber-500/30 shadow-md bg-amber-500/5 dark:bg-amber-500/10' 
                           : 'border-[#e4d8c1] dark:border-slate-800 hover:border-amber-400/70 hover:shadow-sm bg-[#faf6ec]/50 dark:bg-slate-800/40'
                       }`}
                     >
                       <div>
-                        {/* Mini preview square */}
-                        <div className={`w-full h-16 rounded-xl mb-3 border ${opt.previewBorder} ${opt.previewBg} p-2 flex flex-col justify-between shadow-inner relative overflow-hidden`}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-white/40 dark:bg-black/40 backdrop-blur-xs">
-                              Preview
-                            </span>
-                            <div className={`w-3.5 h-3.5 rounded-full ${opt.previewAccent} shadow-xs`} />
+                        {/* Small Color Box Preview */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div
+                            className={`w-12 h-12 rounded-xl border shadow-inner flex items-center justify-center transition-transform group-hover:scale-105 ${
+                              isSelected ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900' : ''
+                            }`}
+                            style={{
+                              backgroundColor: box.hex,
+                              borderColor: box.border || 'rgba(0,0,0,0.2)',
+                            }}
+                          >
+                            {isSelected && (
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center shadow-xs ${
+                                box.isDark ? 'bg-white text-black' : 'bg-black text-white'
+                              }`}>
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              </div>
+                            )}
                           </div>
-                          <div className="space-y-1">
-                            <div className="h-1.5 w-3/4 rounded bg-amber-600/30" />
-                            <div className="h-1.5 w-1/2 rounded bg-amber-600/20" />
-                          </div>
+
+                          <span className="text-[10px] font-mono font-bold uppercase px-2 py-1 rounded-lg bg-white/70 dark:bg-slate-900/70 border border-[#e4d8c1] dark:border-slate-700 text-[#6b5843] dark:text-slate-300">
+                            {box.hex}
+                          </span>
                         </div>
 
-                        <div className="flex items-center space-x-2 mb-1">
-                          {opt.icon}
-                          <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">
-                            {opt.name}
-                          </h4>
-                        </div>
+                        {/* Title and description */}
+                        <h4 className="text-xs font-bold text-[#1c1611] dark:text-white mb-1 flex items-center space-x-1.5">
+                          {box.themeMatch === 'ivory' && <Sun className="w-3.5 h-3.5 text-amber-600" />}
+                          {box.themeMatch === 'dark' && <Moon className="w-3.5 h-3.5 text-amber-400" />}
+                          {box.themeMatch === 'navy' && <Sparkles className="w-3.5 h-3.5 text-cyan-400" />}
+                          <span>{box.name}</span>
+                        </h4>
                         <p className="text-[11px] text-[#6b5843] dark:text-slate-400 leading-snug">
-                          {opt.subtitle}
+                          {box.description}
                         </p>
                       </div>
 
-                      <div className="mt-3 pt-2 border-t border-[#ebdcc4] dark:border-slate-800 flex items-center justify-between">
+                      {/* Footer: status badge */}
+                      <div className="mt-4 pt-2.5 border-t border-[#ebdcc4] dark:border-slate-800 flex items-center justify-between">
                         <span className="text-[10px] font-semibold text-[#8a6b2f] dark:text-amber-400">
-                          {opt.badgeText}
+                          {box.themeMatch === 'ivory' ? 'Default Elegance' : box.themeMatch === 'dark' ? 'Sleek & Focused' : 'Modern Executive'}
                         </span>
                         {isSelected ? (
                           <div className="flex items-center space-x-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                            <Check className="w-3.5 h-3.5" />
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                             <span>Active</span>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-[#726048] dark:text-slate-500 hover:text-[#1c1611]">
-                            Select
+                          <span className="text-[11px] font-semibold text-[#726048] dark:text-slate-500 group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                            Click to Select
                           </span>
                         )}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -290,10 +331,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold text-[#1c1611] dark:text-white">
-                    Adaptive Contrast & Seamless Viewing
+                    Adaptive Contrast & Instant Application
                   </p>
                   <p className="text-[11px] text-[#6b5843] dark:text-slate-400 mt-0.5">
-                    All themes are styled for WCAG AA contrast. The selected background updates the chat, navigation bar, property listings, and admin views instantly.
+                    Clicking any of the three color boxes updates the chat, navigation bar, property listings, and admin views instantly with WCAG AA verified contrast.
                   </p>
                 </div>
               </div>

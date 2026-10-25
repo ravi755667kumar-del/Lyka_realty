@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { signOut } from 'firebase/auth';
 import { 
   LeadProfile, 
   ChatMessage, 
@@ -52,6 +53,7 @@ import {
 import { Navbar } from './components/Navbar';
 import { AboutProjectModal } from './components/AboutProjectModal';
 import { AgenticChat } from './components/AgenticChat';
+import { HomeLanding } from './components/HomeLanding';
 import { LeadProfileSidebar } from './components/LeadProfileSidebar';
 import { CrmPipeline } from './components/CrmPipeline';
 import { PropertyInventory } from './components/PropertyInventory';
@@ -90,7 +92,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements'>('chat');
+  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements'>('home');
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [currentLead, setCurrentLead] = useState<LeadProfile>(createInitialLeadProfile());
   const [leadsList, setLeadsList] = useState<LeadProfile[]>([]);
@@ -128,20 +130,54 @@ export default function App() {
     } catch (_) {}
     return 'ivory';
   });
+  const [customBgColor, setCustomBgColor] = useState<string>(() => {
+    try {
+      return localStorage.getItem('lyka_realty_custom_bg') || '';
+    } catch (_) {
+      return '';
+    }
+  });
   const [engineProvider, setEngineProvider] = useState<'groq' | 'gemini'>('groq');
   const [activeModel, setActiveModel] = useState<string>('llama-3.3-70b-versatile');
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', theme);
-      document.documentElement.className = 'theme-' + theme;
-      document.body.setAttribute('data-theme', theme);
-      document.body.className = 'theme-' + theme;
+      const activeBg = customBgColor || (theme === 'dark' ? '#0b0f17' : theme === 'navy' ? '#070d1e' : '#fdfbf5');
+      
+      // Determine if dark contrast is needed
+      let isDark = theme === 'dark' || theme === 'navy';
+      if (customBgColor) {
+        const clean = customBgColor.replace('#', '').trim();
+        if (clean.length === 6) {
+          const r = parseInt(clean.substring(0, 2), 16);
+          const g = parseInt(clean.substring(2, 4), 16);
+          const b = parseInt(clean.substring(4, 6), 16);
+          isDark = (0.299 * r + 0.587 * g + 0.114 * b) < 145;
+        }
+      }
+      const effectiveTheme = theme === 'navy' ? 'navy' : (theme === 'dark' ? 'dark' : 'ivory');
+
+      document.documentElement.setAttribute('data-theme', effectiveTheme);
+      document.documentElement.className = 'theme-' + effectiveTheme;
+      document.body.setAttribute('data-theme', effectiveTheme);
+      document.body.className = 'theme-' + effectiveTheme;
+
+      // Apply CSS variable and inline style across whole window
+      document.documentElement.style.setProperty('--lyka-bg', activeBg);
+      document.documentElement.style.setProperty('--color-slate-950', activeBg);
+      document.documentElement.style.backgroundColor = activeBg;
+      document.body.style.backgroundColor = activeBg;
+
       try {
         localStorage.setItem('lyka_realty_theme', theme);
+        if (customBgColor) {
+          localStorage.setItem('lyka_realty_custom_bg', customBgColor);
+        } else {
+          localStorage.removeItem('lyka_realty_custom_bg');
+        }
       } catch (_) {}
     }
-  }, [theme]);
+  }, [theme, customBgColor]);
   const [adminTargetPortal, setAdminTargetPortal] = useState<'admin' | 'property_manager' | 'sales_manager'>(() => {
     try {
       const saved = localStorage.getItem('lyka_admin_target_portal');
@@ -527,6 +563,50 @@ export default function App() {
 
   // Modals
   const [viewingModalProperty, setViewingModalProperty] = useState<PropertyListing | null>(null);
+  // Header property selector — which property the user has chosen from the inventory
+  const [selectedProperty, setSelectedProperty] = useState<PropertyListing | null>(null);
+  // Header property and city selector state
+  const [selectedCityFilter, setSelectedCityFilter] = useState<'all' | 'Dubai' | 'Mumbai'>('all');
+  // Header favorites — property IDs the user has favorited (persisted to localStorage)
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('lyka_favorite_properties');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  
+  const handleToggleFavoritesFilter = () => {
+    setActiveTab('home');
+    setAdminPanelOpen(false);
+    setShowFavoritesOnly(prev => {
+      const next = !prev;
+      if (next && typeof document !== 'undefined') {
+        setTimeout(() => {
+          const el = document.getElementById('portfolio-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      }
+      return next;
+    });
+  };
+
+  const toggleFavorite = (propertyId: string) => {
+    setFavorites(prev => {
+      const updated = prev.includes(propertyId)
+        ? prev.filter(id => id !== propertyId)
+        : [...prev, propertyId];
+      try {
+        localStorage.setItem('lyka_favorite_properties', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
   const [viewingDate, setViewingDate] = useState(new Date().toISOString().split('T')[0]);
   const [viewingTime, setViewingTime] = useState('11:00 AM');
   const [viewingMode, setViewingMode] = useState<'In-person at property' | 'Virtual 3D walkthrough'>('In-person at property');
@@ -1311,6 +1391,17 @@ export default function App() {
     }
   };
 
+  // Ask a question from the landing page — opens the existing chatbot with the question sent.
+  // The chatbot itself (flow, engine, history) stays completely unchanged.
+  const handleAskFromLanding = (question: string) => {
+    setActiveTab('chat');
+    setAdminPanelOpen(false);
+    const q = question.trim();
+    if (q) {
+      handleSendMessage(q);
+    }
+  };
+
   // Schedule viewing submission
   const handleConfirmViewing = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1888,6 +1979,7 @@ export default function App() {
   return (
     <div 
       data-theme={theme}
+      style={{ backgroundColor: customBgColor || undefined }}
       className={`flex flex-col h-screen h-[100dvh] w-screen max-w-full font-sans overflow-hidden transition-colors duration-300 ${
         theme === 'dark' 
           ? 'bg-[#0b0f17] text-slate-100 theme-dark' 
@@ -1997,16 +2089,59 @@ export default function App() {
         }}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
+        properties={propertiesList}
+        selectedProperty={selectedProperty}
+        onSelectProperty={(prop) => {
+          setSelectedProperty(prop);
+          setViewingModalProperty(prop);
+        }}
+        favorites={favorites}
+        onToggleFavorite={toggleFavorite}
+        showFavoritesOnly={showFavoritesOnly}
+        onToggleFavoritesFilter={handleToggleFavoritesFilter}
+        selectedCity={selectedCityFilter}
+        onSelectCity={(city) => {
+          setSelectedCityFilter(city);
+          if (activeTab === 'home') {
+            setTimeout(() => {
+              const el = document.getElementById('portfolio-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+          }
+        }}
       />
 
       {/* Main Body */}
-      {/* Main Body: AI Chat is always the base. Admin pages shown when admin tab is active */}
+      {/* Main Body: Landing page and AI Chat are the customer-facing base. Admin pages shown when admin tab is active */}
       <main className="flex-1 flex overflow-hidden relative">
+        {/* Home Landing — professional property showcase; asking AI hands over to the unchanged chatbot */}
+        {activeTab === 'home' && (
+          <div className="absolute inset-0 z-10 flex w-full h-full overflow-hidden">
+            <HomeLanding
+              customBgColor={customBgColor}
+              properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
+              onAskAI={handleAskFromLanding}
+              onBookViewing={(prop) => setViewingModalProperty(prop)}
+              onOpenChat={() => {
+                setActiveTab('chat');
+                setAdminPanelOpen(false);
+              }}
+              favorites={favorites}
+              onToggleFavorite={toggleFavorite}
+              showFavoritesOnly={showFavoritesOnly}
+              onClearFavoritesFilter={() => setShowFavoritesOnly(false)}
+              cityFilter={selectedCityFilter}
+              onSelectCity={setSelectedCityFilter}
+            />
+          </div>
+        )}
+
         {/* AI Chat — always rendered, hidden behind admin pages when admin active */}
         <div className={`absolute inset-0 flex w-full h-full overflow-hidden transition-opacity duration-200 ${
           activeTab === 'chat' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
         }`}>
           <AgenticChat
+            customBgColor={customBgColor}
             messages={messages}
             currentLead={currentLead}
             onSendMessage={handleSendMessage}
@@ -2054,8 +2189,8 @@ export default function App() {
           )}
         </div>
 
-        {/* Admin Pages — shown when admin tab is active */}
-        {activeTab !== 'chat' && (
+        {/* Admin Pages — shown when an admin tab is active (not on home or chat) */}
+        {activeTab !== 'chat' && activeTab !== 'home' && (
           <div className="flex-1 flex w-full h-full overflow-hidden relative">
             <div className="flex-1 flex h-full overflow-hidden">
               {/* Admin Portal Pages — require adminAuthenticated */}
@@ -2181,8 +2316,8 @@ export default function App() {
 
       {/* Viewing Scheduler Modal */}
       {viewingModalProperty && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4 max-h-[92dvh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Calendar className="w-5 h-5 text-amber-600" />
@@ -2204,7 +2339,11 @@ export default function App() {
               />
               <div className="flex-1 min-w-0">
                 <h4 className="text-xs font-bold text-slate-300 truncate">{viewingModalProperty.title}</h4>
-                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">AED {viewingModalProperty.price_aed.toLocaleString()}</p>
+                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">
+                  {(viewingModalProperty.city || '').toLowerCase() === 'mumbai' && viewingModalProperty.price_inr
+                    ? `₹ ${(viewingModalProperty.price_inr / 10000000).toFixed(1)} Cr (AED ${viewingModalProperty.price_aed.toLocaleString()})`
+                    : `AED ${viewingModalProperty.price_aed.toLocaleString()}`}
+                </p>
                 <p className="text-[10px] text-slate-400">{viewingModalProperty.community} • {viewingModalProperty.bedrooms} BR</p>
               </div>
             </div>
@@ -2272,8 +2411,8 @@ export default function App() {
 
       {/* Human Agent Handoff Modal */}
       {showHandoffModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4 max-h-[92dvh] overflow-y-auto my-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <UserCheck className="w-5 h-5 text-amber-600" />
@@ -2601,7 +2740,7 @@ export default function App() {
                             onChange={(e) => { setConfigSalesEmail(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="sales@lykarealty.ae"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none"
                           />
                         </div>
                         <div>
@@ -2615,7 +2754,7 @@ export default function App() {
                               onChange={(e) => { setConfigSalesPassword(e.target.value); setConfigErrorMsg(''); }}
                               placeholder="Enter sales password"
                               required
-                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg pl-3 pr-9 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg pl-3 pr-9 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none font-mono"
                             />
                             <button
                               type="button"
@@ -2682,7 +2821,7 @@ export default function App() {
                             onChange={(e) => { setConfigPmEmail(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="manager@lykarealty.ae"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none"
                           />
                         </div>
                         <div>
@@ -2696,7 +2835,7 @@ export default function App() {
                               onChange={(e) => { setConfigPmPassword(e.target.value); setConfigErrorMsg(''); }}
                               placeholder="Enter property password"
                               required
-                              className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg pl-3 pr-9 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg pl-3 pr-9 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none font-mono"
                             />
                             <button
                               type="button"
@@ -2763,7 +2902,7 @@ export default function App() {
                             onChange={(e) => { setConfigAdminEmail(e.target.value); setConfigErrorMsg(''); }}
                             placeholder="admin@lykarealty.ae"
                             required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none"
+                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none"
                           />
                         </div>
                         <div>
@@ -2777,7 +2916,7 @@ export default function App() {
                               onChange={(e) => { setConfigAdminPassword(e.target.value); setConfigErrorMsg(''); }}
                               placeholder="Enter admin password"
                               required
-                              className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg pl-3 pr-9 py-2 text-xs text-[#1c1611] font-semibold placeholder-slate-500 outline-none font-mono"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg pl-3 pr-9 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none font-mono"
                             />
                             <button
                               type="button"
@@ -3005,7 +3144,7 @@ export default function App() {
                           placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
                           autoFocus
                           required
-                          className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-[#1c1611] font-semibold placeholder-slate-500 outline-none transition-colors"
+                          className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 font-semibold placeholder-slate-500 outline-none transition-colors"
                         />
                       </div>
                       <button
@@ -3081,7 +3220,7 @@ export default function App() {
                         onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminLoginError(''); }}
                         placeholder="Enter password"
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-10 py-2.5 text-sm text-[#1c1611] font-semibold placeholder-slate-500 outline-none transition-colors"
+                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-100 font-semibold placeholder-slate-500 outline-none transition-colors"
                       />
                       <button
                         type="button"
@@ -3154,7 +3293,7 @@ export default function App() {
                       }}
                       placeholder={adminOtpSent ? "Type 6-digit OTP from email" : "Click 'Get OTP' above first"}
                       required
-                      className={`w-full bg-slate-800 border rounded-xl px-3.5 py-2.5 text-sm text-[#1c1611] font-bold placeholder-slate-500 outline-none transition-colors font-mono tracking-widest ${
+                      className={`w-full bg-slate-800 border rounded-xl px-3.5 py-2.5 text-sm text-slate-100 font-bold placeholder-slate-500 outline-none transition-colors font-mono tracking-widest ${
                         !adminOtpSent
                           ? 'opacity-50 cursor-not-allowed border-slate-700'
                           : 'border-slate-700 focus:border-amber-500'
@@ -3302,7 +3441,7 @@ export default function App() {
         userLoggedIn={Boolean(currentUserId || auth.currentUser)}
         userName={currentLead?.full_name}
         userEmail={currentLead?.email}
-        userAge={currentLead?.age ? String(currentLead.age) : undefined}
+        userAge={(currentLead as any)?.age ? String((currentLead as any).age) : undefined}
         onOpenAuthModal={() => {
           setActiveTab('chat');
         }}

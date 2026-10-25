@@ -127,6 +127,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
     const term = pickerSearch.toLowerCase();
     return (
       (p.title || '').toLowerCase().includes(term) ||
+      (p.city || '').toLowerCase().includes(term) ||
       (p.community || '').toLowerCase().includes(term) ||
       (p.property_type || '').toLowerCase().includes(term) ||
       (p.bedrooms || '').toString().includes(term) ||
@@ -1144,10 +1145,41 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                           autoFocus
                           value={pickerSearch}
                           onChange={(e) => setPickerSearch(e.target.value)}
-                          placeholder="Search property, community, beds..."
+                          placeholder="Search property, city, community..."
                           className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                           style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
                         />
+                      </div>
+
+                      {/* Quick City Filters for Property Picker */}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPickerSearch('')}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                            !pickerSearch ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          All ({availableProperties.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPickerSearch('Dubai')}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            pickerSearch.toLowerCase() === 'dubai' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <span>🏙️</span> Dubai
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPickerSearch('Mumbai')}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            pickerSearch.toLowerCase() === 'mumbai' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <span>🌆</span> Mumbai
+                        </button>
                       </div>
 
                       {/* Property Items List */}

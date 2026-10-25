@@ -23,3 +23,7 @@ data/
 *.sqlite*
 portal-credentials.json
 !.env.example
+
+# Local IDE / Tool configurations
+.kilo/
+

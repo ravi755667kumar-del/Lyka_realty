@@ -51,7 +51,7 @@ const renderFormattedContent = (content: string) => {
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return (
-        <strong key={i} className="font-bold text-black">
+        <strong key={i} className="font-bold text-black dark:text-amber-300">
           {part.slice(2, -2)}
         </strong>
       );
@@ -464,10 +464,10 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                   className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 leading-relaxed space-y-2 shadow-sm ${
                     msg.role === 'user'
                       ? 'bg-violet-600 text-white rounded-br-xs font-medium'
-                      : 'bg-white border border-amber-600/20 text-[#1e2430] rounded-bl-xs shadow-xs'
+                      : 'bg-white dark:bg-slate-800 border border-amber-600/20 text-[#1e2430] dark:text-slate-100 rounded-bl-xs shadow-xs'
                   }`}
                 >
-                  <div className="whitespace-pre-line text-[11.5px] leading-relaxed text-[#1e2430]">
+                  <div className="whitespace-pre-line text-[11.5px] leading-relaxed text-[#1e2430] dark:text-slate-100">
                     {renderFormattedContent(msg.content)}
                   </div>
 
