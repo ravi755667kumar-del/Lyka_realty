@@ -51,6 +51,7 @@ import {
   Bath,
   Maximize2,
   ShieldCheck,
+  Heart,
   KeyRound,
   Bell
 } from 'lucide-react';
@@ -106,6 +107,8 @@ interface AgenticChatProps {
   onLoadChat?: (lead: LeadProfile, msgs: ChatMessage[]) => void;
   onDeleteChat?: (leadId: string) => void;
   onOpenSettings?: () => void;
+  favorites?: string[];
+  onToggleFavorite?: (propertyId: string) => void;
 }
 
 export const AgenticChat: React.FC<AgenticChatProps> = ({
@@ -123,7 +126,9 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
   onAuthChange,
   onLoadChat,
   onDeleteChat,
-  onOpenSettings
+  onOpenSettings,
+  favorites = [],
+  onToggleFavorite
 }) => {
   const [inputText, setInputText] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -2195,6 +2200,22 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                                       {prop.community}
                                     </span>
                                   </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onToggleFavorite?.(prop.id);
+                                    }}
+                                    aria-label={favorites.includes(prop.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                                    title={favorites.includes(prop.id) ? 'Remove from favorites' : 'Save property without logging in'}
+                                    className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 cursor-pointer shadow-md border ${
+                                      favorites.includes(prop.id)
+                                        ? 'bg-red-500 border-red-400 text-white shadow-red-500/30'
+                                        : 'bg-black/60 hover:bg-black/80 border-white/30 text-white/90 hover:text-red-400'
+                                    }`}
+                                  >
+                                    <Heart className={`w-4 h-4 ${favorites.includes(prop.id) ? 'fill-current' : ''}`} />
+                                  </button>
                                 </div>
                                 <div className="p-4 space-y-1.5 flex-1">
                                   <div className="flex items-baseline justify-between">
@@ -3195,13 +3216,28 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedDetailProperty(null)}
-                className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-[#eee6d3] flex items-center justify-center transition-colors shrink-0"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center space-x-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onToggleFavorite?.(selectedDetailProperty.id)}
+                  aria-label={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                  title={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
+                    favorites.includes(selectedDetailProperty.id)
+                      ? 'text-red-500 hover:text-red-600 bg-red-500/15 border border-red-500/30'
+                      : 'text-slate-400 hover:text-red-500 hover:bg-[#eee6d3]'
+                  }`}
+                >
+                  <Heart className={`w-4 h-4 ${favorites.includes(selectedDetailProperty.id) ? 'fill-current text-red-500' : ''}`} />
+                </button>
+                <button
+                  onClick={() => setSelectedDetailProperty(null)}
+                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-[#eee6d3] flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* 2. Scrollable Body */}
@@ -3319,17 +3355,32 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
             {/* 3. Footer Actions */}
             <div className="px-4 py-2.5 border-t border-[#f3ede0] bg-[#faf7f0] flex items-center justify-between gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setInputText(`Tell me more about ${selectedDetailProperty.title} in ${selectedDetailProperty.community}`);
-                  setSelectedDetailProperty(null);
-                }}
-                className="bg-[#ffffff] hover:bg-[#eee6d3] text-[#4a3b2c] border border-[#d6cbb4] text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>Ask AI</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputText(`Tell me more about ${selectedDetailProperty.title} in ${selectedDetailProperty.community}`);
+                    setSelectedDetailProperty(null);
+                  }}
+                  className="bg-[#ffffff] hover:bg-[#eee6d3] text-[#4a3b2c] border border-[#d6cbb4] text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Ask AI</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleFavorite?.(selectedDetailProperty.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 border shadow-2xs cursor-pointer ${
+                    favorites.includes(selectedDetailProperty.id)
+                      ? 'bg-red-500 hover:bg-red-600 text-white border-red-400'
+                      : 'bg-[#ffffff] hover:bg-[#eee6d3] text-[#4a3b2c] border-[#d6cbb4]'
+                  }`}
+                  title={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                >
+                  <Heart className={`w-3.5 h-3.5 ${favorites.includes(selectedDetailProperty.id) ? 'fill-current text-white' : 'text-red-500'}`} />
+                  <span>{favorites.includes(selectedDetailProperty.id) ? 'Saved' : 'Save'}</span>
+                </button>
+              </div>
 
               <div className="flex items-center space-x-2">
                 <button

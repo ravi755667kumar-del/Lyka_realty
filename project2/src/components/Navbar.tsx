@@ -453,13 +453,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     Booked
                                   </span>
                                 )}
-                                <Heart
+                                <span
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (onToggleFavorite) onToggleFavorite(prop.id);
                                   }}
-                                  className={`w-4 h-4 self-center mt-0.5 cursor-pointer flex-shrink-0 ${favorites?.includes(prop.id) ? 'text-red-400 fill-red-400' : 'text-slate-500 hover:text-white'}`}
-                                />
+                                  title={favorites?.includes(prop.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                                  className={`p-1 rounded-full cursor-pointer flex-shrink-0 self-center mt-0.5 transition-transform active:scale-90 ${favorites?.includes(prop.id) ? 'text-red-400' : 'text-slate-500 hover:text-red-400'}`}
+                                >
+                                  <Heart className={`w-4 h-4 ${favorites?.includes(prop.id) ? 'fill-current' : ''}`} />
+                                </span>
                               </button>
                             );
                           })
@@ -488,7 +491,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
                     : 'bg-espresso-800/60 border-espresso-700/60 text-espresso-300 hover:text-white hover:bg-espresso-800 hover:border-amber-400/50'
                 }`}
-                title={`Favorites (${favorites?.length || 0}) — Click to view your saved residences`}
+                title={`Favorites (${favorites?.length || 0}) — Click to view your saved residences (no login required)`}
                 aria-label="Favorites"
               >
                 <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'text-red-400 fill-red-400' : favorites && favorites.length > 0 ? 'text-red-400 fill-red-400' : 'text-espresso-300'}`} />
@@ -520,7 +523,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           onClick={(e) => {
                             e.stopPropagation();
                             setFavoritesDropdownOpen(false);
-                            if (onToggleFavorite) onToggleFavorite(prop.id);
+                            if (onSelectProperty) onSelectProperty(prop);
                           }}
                           className="w-full text-left p-2.5 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white transition-all flex items-start space-x-2.5 cursor-pointer"
                         >
@@ -539,13 +542,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                               {prop.community || 'Dubai'} • {prop.bedrooms ?? '?'} BR
                             </p>
                           </div>
-                          <Heart
+                          <span
                             onClick={(e) => {
                               e.stopPropagation();
                               if (onToggleFavorite) onToggleFavorite(prop.id);
                             }}
-                            className="w-4 h-4 text-amber-400 fill-amber-400 flex-shrink-0 mt-0.5 cursor-pointer"
-                          />
+                            title="Remove from favorites"
+                            className="p-1 rounded-full text-red-400 flex-shrink-0 mt-0.5 cursor-pointer hover:scale-110 transition-transform"
+                          >
+                            <Heart className="w-4 h-4 fill-current" />
+                          </span>
                         </button>
                       ))}
                     </div>

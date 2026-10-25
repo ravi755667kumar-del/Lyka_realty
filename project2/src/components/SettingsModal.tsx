@@ -652,10 +652,10 @@ return (
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">
-                      Guest Session
+                      Guest Session (No Login Required to Save)
                     </h4>
                     <p className="text-[11px] text-[#6b5843] dark:text-slate-400 mt-0.5">
-                      You are currently using Lyka Realty as a guest. Sign in or create an account to save your chat sessions and property bookmarks permanently.
+                      You can explore, search, and save favorite properties directly on this device without logging in. Sign in only if you want to sync your saved favorites across devices or connect directly with an advisor.
                     </p>
                   </div>
                   <button

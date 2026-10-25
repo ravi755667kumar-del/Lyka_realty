@@ -88,7 +88,8 @@ import {
   Clock,
   AlertTriangle,
   Eye,
-  EyeOff
+  EyeOff,
+  Heart
 } from 'lucide-react';
 
 export default function App() {
@@ -578,14 +579,15 @@ export default function App() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem('lyka_favorite_properties');
+      const raw = localStorage.getItem('lyka_favorite_properties') || localStorage.getItem('lyka_saved_properties');
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
       return [];
     }
   });
 
-  
+  const [favoriteToast, setFavoriteToast] = useState<string | null>(null);
+
   const handleToggleFavoritesFilter = () => {
     setActiveTab('home');
     setAdminPanelOpen(false);
@@ -605,12 +607,24 @@ export default function App() {
 
   const toggleFavorite = (propertyId: string) => {
     setFavorites(prev => {
-      const updated = prev.includes(propertyId)
+      const isRemoving = prev.includes(propertyId);
+      const updated = isRemoving
         ? prev.filter(id => id !== propertyId)
         : [...prev, propertyId];
       try {
         localStorage.setItem('lyka_favorite_properties', JSON.stringify(updated));
+        localStorage.setItem('lyka_saved_properties', JSON.stringify(updated));
       } catch (e) {}
+
+      const foundProp = (propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES).find(p => p.id === propertyId);
+      const propTitle = foundProp?.title || 'Residence';
+      if (!isRemoving) {
+        setFavoriteToast(`Saved "${propTitle}" to favorites! (No login required)`);
+      } else {
+        setFavoriteToast(`Removed "${propTitle}" from favorites.`);
+      }
+      setTimeout(() => setFavoriteToast(null), 3200);
+
       return updated;
     });
   };
@@ -2172,6 +2186,8 @@ export default function App() {
             onLoadChat={handleLoadChat}
             onDeleteChat={handleDeleteChat}
             onOpenSettings={() => setShowSettingsModal(true)}
+            favorites={favorites}
+            onToggleFavorite={toggleFavorite}
           />
           {sidebarOpen && (
             <LeadProfileSidebar
@@ -2353,6 +2369,19 @@ export default function App() {
                 </p>
                 <p className="text-[10px] text-slate-400">{viewingModalProperty.community} • {viewingModalProperty.bedrooms} BR</p>
               </div>
+              <button
+                type="button"
+                onClick={() => toggleFavorite(viewingModalProperty.id)}
+                aria-label={favorites.includes(viewingModalProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                title={favorites.includes(viewingModalProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer shrink-0 ${
+                  favorites.includes(viewingModalProperty.id)
+                    ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/50'
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${favorites.includes(viewingModalProperty.id) ? 'fill-current text-red-400' : ''}`} />
+              </button>
             </div>
 
             <form onSubmit={handleConfirmViewing} className="space-y-3 text-xs">
@@ -3460,6 +3489,14 @@ export default function App() {
           setCurrentUserId(null);
         }}
       />
+
+      {/* Visual Toast Notification for Guest Favorite Actions */}
+      {favoriteToast && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center space-x-2.5 bg-espresso-950/95 dark:bg-slate-900/95 text-amber-200 border border-amber-500/50 px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-200 text-xs sm:text-sm font-semibold pointer-events-none">
+          <Heart className="w-4 h-4 text-red-400 fill-red-400 shrink-0" />
+          <span>{favoriteToast}</span>
+        </div>
+      )}
     </div>
   );
 }

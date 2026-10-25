@@ -186,7 +186,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
     }
   });
 
-  const activeFavorites = favorites && favorites.length > 0 ? favorites : localFavorites;
+  const activeFavorites = Array.isArray(favorites) ? favorites : localFavorites;
 
   const toggleLike = (id: string) => {
     if (onToggleFavorite) {
@@ -335,8 +335,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           e.stopPropagation();
           toggleLike(p.id);
         }}
-        aria-label={liked ? 'Remove from favorites' : 'Save to favorites'}
-        title={liked ? 'Remove from favorites' : 'Save to favorites'}
+        aria-label={liked ? 'Remove from favorites' : 'Save to favorites (no login required)'}
+        title={liked ? 'Remove from favorites' : 'Save to favorites (no login required)'}
         className={`flex items-center justify-center rounded-full backdrop-blur-sm border transition-all active:scale-90 cursor-pointer ${
           size === 'md' ? 'w-9 h-9' : 'w-8 h-8'
         } ${
@@ -668,7 +668,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
             <p className="text-sm text-slate-400 mt-3 leading-relaxed">
               {showFavoritesOnly
                 ? 'Your favorited properties from across the portfolio. Click on any card to ask AI or book a viewing.'
-                : 'Every listing is verified by our property team. Tap the heart to save a residence — ask the AI for full details, or book a viewing right away.'}
+                : 'Every listing is verified by our property team. Tap the heart to save any residence to your favorites instantly (no login required) — ask the AI for full details, or book a viewing right away.'}
             </p>
             {showFavoritesOnly && (
               <div className="mt-4">
@@ -815,7 +815,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   <Heart className="w-12 h-12 text-slate-600 mx-auto" />
                   <h3 className="text-slate-200 font-semibold text-lg mt-4">No favorite residences yet</h3>
                   <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-                    Tap the heart icon on any residence to save it to your favorites shortlist, accessible anytime from the header.
+                    Tap the heart icon on any residence to save it to your favorites shortlist (no account or login required), accessible anytime from the header.
                   </p>
                   <button
                     type="button"
