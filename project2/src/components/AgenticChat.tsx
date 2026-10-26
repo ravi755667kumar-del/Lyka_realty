@@ -2051,13 +2051,6 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
 
           <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             <button
-              onClick={handleOpenSettingsClick}
-              className="p-1.5 rounded-full bg-[#f7f2e6] hover:bg-[#eee6d3] text-[#6b5843] hover:text-slate-800 border border-[#d6cbb4] transition-colors"
-              title="AI Settings"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-            <button
               onClick={handleTalkToAgentClick}
               className={`flex items-center space-x-1 sm:space-x-1.5 text-xs px-2.5 sm:px-3 py-1.5 rounded-full transition-all font-medium shadow-xs ${
                 currentLead.human_handoff_required

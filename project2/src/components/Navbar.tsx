@@ -605,29 +605,30 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden md:inline">About</span>
             </button>
 
-            {/* Triple Tab / Dot Button — Click to open Admin Panel */}
-            {!isCustomerLoggedIn && (
+                        {/* Admin Login / Portal Button — Clearly visible for Admin login */}
             <button
               onClick={() => onToggleAdminPanel()}
-              className={`p-2 rounded-xl text-xs transition-all duration-200 border shadow-sm cursor-pointer ${
+              className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 border shadow-sm cursor-pointer ${
                 adminPanelOpen || isAdminTab
-                  ? 'bg-violet-600 text-white border-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.35)]'
+                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white border-violet-400 shadow-[0_2px_12px_rgba(139,92,246,0.35)]'
                   : isAnyAuthed
-                  ? 'text-violet-300 hover:text-violet-100 hover:bg-espresso-800 border-violet-500/40 bg-espresso-800/60'
-                  : 'text-espresso-400 hover:text-espresso-200 hover:bg-espresso-800 border-espresso-700/60'
+                  ? 'bg-violet-600/25 text-violet-200 hover:text-white hover:bg-violet-600/40 border-violet-500/50'
+                  : 'bg-espresso-800/90 text-amber-300 hover:text-white hover:bg-espresso-700 border-amber-500/40 hover:border-amber-400'
               }`}
-              title="Admin Panel"
-              aria-label="Admin Panel"
+              title={isAnyAuthed ? "Admin & Staff Portal" : "Admin & Staff Portal Login"}
+              aria-label="Admin Login"
             >
-              <MoreVertical className="w-4 h-4" />
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="font-bold">
+                {isAnyAuthed ? 'Admin Portal' : 'Admin Login'}
+              </span>
             </button>
-            )}
           </div>
         </div>
       </div>
 
       {/* Admin & Property Manager Sub-nav — permanently visible when authenticated, including on Home */}
-      {isAdminTab && isPortalAuthed && !isCustomerLoggedIn && (
+      {isAdminTab && isPortalAuthed && (
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
           <div className="px-4 sm:px-6 flex items-center space-x-3 overflow-x-auto py-2">
             {/* Downside Role Dropdown Selector — Kept inside admin */}
@@ -1229,7 +1230,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       {/* Mobile nav — only when NOT in Admin Sub-nav */}
-      {!isCustomerLoggedIn && isAdminTab && isAnyAuthed && (
+      {isAdminTab && isAnyAuthed && (
         <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
         <button
           onClick={() => setActiveTab('chat')}

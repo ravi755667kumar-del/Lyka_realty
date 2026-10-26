@@ -4391,7 +4391,7 @@ export default function App() {
         adminAuthenticated={effectiveAdminAuthed}
         propertyManagerAuthenticated={effectivePmAuthed}
         salesManagerAuthenticated={effectiveSmAuthed}
-        hideAdminTab={isCustomerLoggedIn}
+        hideAdminTab={false}
         adminTargetPortal={adminTargetPortal}
         onSelectPortal={(portal) => {
           setAdminTargetPortal(portal);
