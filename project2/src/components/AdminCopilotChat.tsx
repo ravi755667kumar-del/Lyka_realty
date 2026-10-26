@@ -18,7 +18,9 @@ import {
   Minimize2,
   RotateCcw,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Palette,
+  MessageSquare
 } from 'lucide-react';
 
 interface AdminCopilotMessage {
@@ -253,6 +255,44 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
         tab: 'crm'
       };
     }
+    // 5A. USER CHAT HISTORY & CONVERSATIONS
+    else if (
+      lower.includes('chat history') || 
+      lower.includes('user chat') || 
+      lower.includes('user_chats') ||
+      lower.includes('conversation') || 
+      lower.includes('chat log') ||
+      (lower.includes('chat') && (lower.includes('admin') || lower.includes('history') || lower.includes('user') || lower.includes('transcript')))
+    ) {
+      reply = `You can inspect all customer conversations in **User Chat History**. First select any registered customer name from login to view their sequential conversation transcripts (conversation_1, conversation_2...) and Agentic AI Q&A answers with dates and timestamps.`;
+      metrics = [
+        { label: 'Registered Users', value: `${customerCount}`, color: 'text-amber-700' },
+        { label: 'Format', value: 'Sequential Q&A', color: 'text-emerald-700' }
+      ];
+      actionBtn = {
+        label: 'Open User Chat History',
+        tab: 'user_chats',
+        description: 'Select a customer from login to view their sequential chat Q&A transcripts'
+      };
+    }
+    // 5B. APPEARANCE / BACKGROUND COLOR / THEME
+    else if (
+      lower.includes('background') || 
+      lower.includes('color') || 
+      lower.includes('colour') || 
+      lower.includes('appearance') || 
+      lower.includes('theme') || 
+      lower.includes('dark mode') || 
+      lower.includes('light mode') || 
+      lower.includes('navy')
+    ) {
+      reply = `You can customize the background color and theme appearance anytime! You can choose from **Warm Ivory**, **Obsidian Midnight Dark**, **Royal Sapphire Navy**, or set any custom HEX color code using the Appearance palette or Settings.`;
+      actionBtn = {
+        label: 'Open Appearance & Color Settings',
+        tab: 'appearance',
+        description: 'Opens theme and background color customization controls'
+      };
+    }
     // 5. CUSTOMER PROFILES / LOGINS
     else if (
       lower.includes('customer') || 
@@ -306,6 +346,14 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
         reply = 'Switching your view to **Property Stats** now...';
         actionBtn = { label: 'Go to Property Stats', tab: 'stats' };
         onNavigateTab('stats');
+      } else if (lower.includes('chat') || lower.includes('conversation')) {
+        reply = 'Switching your view to **User Chat History** now...';
+        actionBtn = { label: 'Go to User Chat History', tab: 'user_chats' };
+        onNavigateTab('user_chats');
+      } else if (lower.includes('color') || lower.includes('colour') || lower.includes('background') || lower.includes('theme') || lower.includes('appearance')) {
+        reply = 'Opening **Appearance & Background Color Settings** now...';
+        actionBtn = { label: 'Open Appearance Settings', tab: 'appearance' };
+        onNavigateTab('appearance');
       } else if (lower.includes('customer')) {
         reply = 'Switching your view to **Customer Profiles** now...';
         actionBtn = { label: 'Go to Customer Profiles', tab: 'customers' };
@@ -416,6 +464,20 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
 
             {/* Quick Suggestion Chips */}
             <div className="flex items-center space-x-1.5 overflow-x-auto pt-2.5 pb-0.5 scrollbar-none text-[10px]">
+              <button
+                type="button"
+                onClick={() => handleQuickPrompt("Show user chat history")}
+                className="bg-violet-500/20 hover:bg-violet-500/30 text-violet-900 dark:text-violet-200 border border-violet-600/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
+              >
+                <span>💬 User Chats</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickPrompt("How to change background color?")}
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-600/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
+              >
+                <span>🎨 Background Color</span>
+              </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("What is today's sales?")}

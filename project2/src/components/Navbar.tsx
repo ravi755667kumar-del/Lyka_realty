@@ -21,13 +21,14 @@ import {
   Settings,
   Home,
   X,
-  Heart
+  Heart,
+  Palette
 } from 'lucide-react';
 import type { PropertyListing } from '../types/crm';
 
 interface NavbarProps {
-  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites';
-  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites') => void;
+  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites';
+  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites') => void;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
@@ -57,6 +58,11 @@ interface NavbarProps {
   onToggleFavoritesFilter?: () => void;
   selectedCity?: 'all' | 'Dubai' | 'Mumbai';
   onSelectCity?: (city: 'all' | 'Dubai' | 'Mumbai') => void;
+  customBgColor?: string;
+  onSelectCustomBg?: (color: string) => void;
+  onResetCustomBg?: () => void;
+  currentTheme?: 'ivory' | 'dark' | 'navy';
+  onSelectTheme?: (theme: 'ivory' | 'dark' | 'navy') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -91,10 +97,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleFavoritesFilter,
   selectedCity = 'all',
   onSelectCity,
+  customBgColor,
+  onSelectCustomBg,
+  onResetCustomBg,
+  currentTheme = 'ivory',
+  onSelectTheme,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
   const [favoritesDropdownOpen, setFavoritesDropdownOpen] = useState(false);
+  const [appearanceDropdownOpen, setAppearanceDropdownOpen] = useState(false);
   const [propertyCityFilter, setPropertyCityFilter] = useState<'all' | 'Dubai' | 'Mumbai'>(selectedCity || 'all');
 
   const propertyDropdownRef = useRef<HTMLDivElement>(null);
@@ -163,7 +175,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (propertyCityFilter === 'Mumbai') return mumbaiProperties;
     return properties || [];
   }, [properties, propertyCityFilter, dubaiProperties, mumbaiProperties]);
-  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites'].includes(activeTab);
 
   // Triple-tap / triple-click counter to open Admin Panel
   const tapCountRef = useRef(0);
@@ -603,8 +615,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Admin & Property Manager Sub-nav — visible when Admin Panel is open */}
-      {(adminPanelOpen || isAdminTab) && isPortalAuthed && (
+      {/* Admin & Property Manager Sub-nav — permanently visible when authenticated, including on Home */}
+      {isPortalAuthed && (
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
           <div className="px-4 sm:px-6 flex items-center space-x-3 overflow-x-auto py-2">
             {/* Downside Role Dropdown Selector — Kept inside admin */}
@@ -807,6 +819,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('user_chats')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'user_chats'
+                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>User Chats</span>
+                </button>
+
+                <button
                   onClick={() => setActiveTab('login_stats')}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'login_stats'
@@ -879,6 +903,138 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </span>
                   )}
                 </button>
+
+                {/* Admin Appearance / Background Color Changer */}
+                <div className="relative">
+                  <button
+                    onClick={() => setAppearanceDropdownOpen(prev => !prev)}
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border ${
+                      appearanceDropdownOpen
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-bold'
+                        : 'text-espresso-300 hover:text-white hover:bg-espresso-800 border-espresso-700/60'
+                    }`}
+                    title="Change Background Color & Theme"
+                  >
+                    <Palette className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Appearance</span>
+                    <div 
+                      className="w-2.5 h-2.5 rounded-full border border-white/40 ml-0.5 shadow-xs shrink-0"
+                      style={{ backgroundColor: customBgColor || (currentTheme === 'dark' ? '#0b0f17' : currentTheme === 'navy' ? '#070d1e' : '#fdfbf5') }}
+                    />
+                  </button>
+
+                  {appearanceDropdownOpen && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40 bg-transparent" 
+                        onClick={() => setAppearanceDropdownOpen(false)} 
+                      />
+                      <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-3.5 space-y-3 text-slate-100 backdrop-blur-xl">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <div className="flex items-center space-x-1.5">
+                            <Palette className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-bold text-white">Admin Appearance</span>
+                          </div>
+                          {onResetCustomBg && (
+                            <button
+                              onClick={() => {
+                                onResetCustomBg();
+                                if (onSelectTheme) onSelectTheme('ivory');
+                              }}
+                              className="text-[10px] text-amber-400 hover:text-amber-300 font-medium"
+                            >
+                              Reset Default
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Presets */}
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                            Luxury Presets
+                          </span>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onSelectTheme) onSelectTheme('ivory');
+                                if (onSelectCustomBg) onSelectCustomBg('#fdfbf5');
+                              }}
+                              className="p-2 rounded-xl border border-slate-700 hover:border-amber-400 bg-[#fdfbf5] text-slate-900 text-center transition-all group shadow-xs cursor-pointer"
+                            >
+                              <div className="w-4 h-4 rounded-full bg-[#fdfbf5] border border-slate-300 mx-auto mb-1" />
+                              <span className="text-[10px] font-bold block leading-tight">Warm Ivory</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onSelectTheme) onSelectTheme('dark');
+                                if (onSelectCustomBg) onSelectCustomBg('#0b0f17');
+                              }}
+                              className="p-2 rounded-xl border border-slate-700 hover:border-amber-400 bg-[#0b0f17] text-white text-center transition-all group shadow-xs cursor-pointer"
+                            >
+                              <div className="w-4 h-4 rounded-full bg-[#0b0f17] border border-slate-600 mx-auto mb-1" />
+                              <span className="text-[10px] font-bold block leading-tight">Obsidian Dark</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onSelectTheme) onSelectTheme('navy');
+                                if (onSelectCustomBg) onSelectCustomBg('#070d1e');
+                              }}
+                              className="p-2 rounded-xl border border-slate-700 hover:border-amber-400 bg-[#070d1e] text-white text-center transition-all group shadow-xs cursor-pointer"
+                            >
+                              <div className="w-4 h-4 rounded-full bg-[#070d1e] border border-blue-800 mx-auto mb-1" />
+                              <span className="text-[10px] font-bold block leading-tight">Sapphire Navy</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Custom Color Input */}
+                        <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                            Custom Background Color
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="color"
+                              value={customBgColor || '#fdfbf5'}
+                              onChange={(e) => {
+                                if (onSelectCustomBg) onSelectCustomBg(e.target.value);
+                              }}
+                              className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 p-0 shrink-0"
+                              title="Pick a color"
+                            />
+                            <input
+                              type="text"
+                              value={customBgColor || ''}
+                              placeholder="#0b0f17 or #fdfbf5"
+                              onChange={(e) => {
+                                if (onSelectCustomBg) onSelectCustomBg(e.target.value);
+                              }}
+                              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                            />
+                          </div>
+                        </div>
+
+                        {onOpenSettings && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAppearanceDropdownOpen(false);
+                              onOpenSettings();
+                            }}
+                            className="w-full text-center py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-semibold transition-colors border border-slate-700 cursor-pointer"
+                          >
+                            All Theme & AI Settings →
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1018,7 +1174,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       {/* Mobile nav — only when NOT in Admin Sub-nav */}
-      {!((adminPanelOpen || isAdminTab) && isPortalAuthed) && isAnyAuthed && (
+      {!isPortalAuthed && isAnyAuthed && (
         <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
         <button
           onClick={() => setActiveTab('chat')}

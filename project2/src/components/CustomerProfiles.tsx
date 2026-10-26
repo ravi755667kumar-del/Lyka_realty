@@ -24,13 +24,15 @@ import {
   AlertCircle,
   Phone,
   PhoneCall,
-  MessageCircle
+  MessageCircle,
+  MessageSquare
 } from 'lucide-react';
 import { UserProfileData, LoginEvent } from '../types/crm';
 import { getAllUsersFromFirestore, getLoginEventsFromFirestore } from '../lib/firebase';
 
 interface CustomerProfilesProps {
   onNavigateToTrends?: () => void;
+  onSelectUserChat?: (user: UserProfileData) => void;
 }
 
 type ActivityFilter = 'all' | 'today' | 'week' | 'month' | 'agent_requested' | 'inactive';
@@ -52,7 +54,7 @@ interface CustomerStatItem {
   dayOfWeekCounts: number[]; // Mon(0) to Sun(6)
 }
 
-export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateToTrends }) => {
+export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateToTrends, onSelectUserChat }) => {
   const [users, setUsers] = useState<UserProfileData[]>([]);
   const [loginEvents, setLoginEvents] = useState<LoginEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -970,14 +972,29 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                   </div>
                 </div>
 
-                {/* Action button */}
-                <button
-                  onClick={() => setSelectedCustomer(item)}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-amber-500 text-slate-300 hover:text-amber-950 border border-slate-700 hover:border-amber-400 transition-all flex items-center justify-center space-x-1.5"
-                >
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  <span>View Customer Statistics & Timeline</span>
-                </button>
+                {/* Action buttons */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setSelectedCustomer(item)}
+                    className="flex-1 py-2 px-3 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center justify-center space-x-1.5"
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" />
+                    <span>Stats & Timeline</span>
+                  </button>
+                  {onSelectUserChat && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectUserChat(item.user);
+                      }}
+                      className="py-2 px-3 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 transition-all flex items-center justify-center space-x-1"
+                      title="View sequential chat history"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Chats</span>
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1136,12 +1153,27 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
                 </div>
               </div>
 
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                className="text-slate-500 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center space-x-2">
+                {onSelectUserChat && (
+                  <button
+                    onClick={() => {
+                      const u = selectedCustomer.user;
+                      setSelectedCustomer(null);
+                      onSelectUserChat(u);
+                    }}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold shadow-sm transition-all"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>View Chat History</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedCustomer(null)}
+                  className="text-slate-500 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Agent Escalation Alert Banner */}

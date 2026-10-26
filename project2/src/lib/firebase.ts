@@ -18,7 +18,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, BookedPropertyRecord, FavoritePropertyRecord } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, BookedPropertyRecord, FavoritePropertyRecord, QaChatItem, SequentialConversation } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
 export const db = (firebaseConfig as any).firestoreDatabaseId
@@ -368,7 +368,9 @@ export async function getAllUsersFromFirestore(): Promise<UserProfileData[]> {
           talk_to_agent_phone: data.talk_to_agent_phone || data.phone || data.Phone_number || existing.talk_to_agent_phone || existing.phone,
           last_login: data.last_login || existing.last_login,
           createdAt: existing.createdAt || data.createdAt || existing.last_login,
-          login_history: Array.from(new Set([...(existing.login_history || []), ...(data.login_history || [])]))
+          login_history: Array.from(new Set([...(existing.login_history || []), ...(data.login_history || [])])),
+          conversations: data.conversations || existing.conversations,
+          User_chat: data.User_chat || existing.User_chat
         });
       }
     });
@@ -551,6 +553,46 @@ export interface UserChatSession {
   messages: ChatMessage[];
 }
 
+export function buildSequentialQaChats(messages: ChatMessage[]): QaChatItem[] {
+  const qaList: QaChatItem[] = [];
+  let seq = 1;
+
+  for (let i = 0; i < messages.length; i++) {
+    const current = messages[i];
+    if (current.role === 'user') {
+      const userQuestion = current.content || '';
+      let aiAnswer = '';
+      let replyTimestamp = current.timestamp;
+
+      // Find the subsequent assistant reply
+      for (let j = i + 1; j < messages.length; j++) {
+        if (messages[j].role === 'assistant') {
+          aiAnswer = messages[j].content || '';
+          replyTimestamp = messages[j].timestamp || replyTimestamp;
+          break;
+        } else if (messages[j].role === 'user') {
+          break;
+        }
+      }
+
+      const msgDate = new Date(current.timestamp || Date.now());
+      const dateStr = !isNaN(msgDate.getTime()) ? msgDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      const timeStr = !isNaN(msgDate.getTime()) ? msgDate.toLocaleTimeString('en-US', { hour12: true }) : new Date().toLocaleTimeString('en-US', { hour12: true });
+
+      qaList.push({
+        sequence: seq++,
+        user_question: userQuestion,
+        ai_answer: aiAnswer,
+        date: dateStr,
+        time: timeStr,
+        timestamp: current.timestamp || new Date().toISOString()
+      });
+    }
+  }
+
+  return qaList;
+}
+
 export async function syncSessionToUserProfile(
   email: string | null, 
   userId: string, 
@@ -564,15 +606,74 @@ export async function syncSessionToUserProfile(
   if (userId && userId.trim()) targets.add(userId.trim());
   if (targets.size === 0) return;
 
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const timeStr = now.toLocaleTimeString('en-US', { hour12: true });
+
+  // 1. Build clean sequential Q&A pairs (sequence: 1, 2, 3...)
+  const qaChats = buildSequentialQaChats(msgs);
+
+  // Determine conversation title
+  const firstUserQuery = msgs.find(m => m.role === 'user')?.content;
+  const title = firstUserQuery
+    ? (firstUserQuery.length > 50 ? firstUserQuery.slice(0, 50) + '...' : firstUserQuery)
+    : (lead.summary || 'Conversation');
+
   const sessionData = cleanFirestoreData({
     leadProfile: lead,
     messages: msgs,
-    updatedAt: new Date().toISOString()
+    updatedAt: now.toISOString()
   });
 
   for (const docId of targets) {
     try {
-      await setDoc(doc(db, 'User_login', docId), {
+      const userDocRef = doc(db, 'User_login', docId);
+      const userSnap = await getDoc(userDocRef);
+      let convNumber = 1;
+      let convKey = 'conversation_1';
+
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const existingConversations = userData?.conversations || {};
+
+        let foundKey: string | null = null;
+        let maxNumber = 0;
+
+        for (const [key, conv] of Object.entries<any>(existingConversations)) {
+          const numMatch = key.match(/conversation_(\d+)/);
+          const num = numMatch ? parseInt(numMatch[1], 10) : 0;
+          if (num > maxNumber) maxNumber = num;
+
+          if (conv?.lead_id === lead.id || conv?.id === lead.id) {
+            foundKey = key;
+            convNumber = conv.conversation_number || num;
+            break;
+          }
+        }
+
+        if (foundKey) {
+          convKey = foundKey;
+        } else {
+          convNumber = maxNumber + 1;
+          convKey = `conversation_${convNumber}`;
+        }
+      }
+
+      const conversationRecord: SequentialConversation = cleanFirestoreData({
+        conversation_number: convNumber,
+        conversation_key: convKey,
+        lead_id: lead.id,
+        title,
+        date: dateStr,
+        started_at: timeStr,
+        updated_at: now.toISOString(),
+        chats: qaChats
+      });
+
+      await setDoc(userDocRef, {
+        conversations: {
+          [convKey]: conversationRecord
+        },
         User_chat: {
           [lead.id]: sessionData
         }
@@ -606,23 +707,45 @@ export async function deleteSessionFromUserProfile(
   // 1. Delete from targeted User_login docs
   for (const docId of targets) {
     try {
-      await updateDoc(doc(db, 'User_login', docId), {
-        [`User_chat.${leadId}`]: deleteField()
-      });
+      const docRef = doc(db, 'User_login', docId);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const convUpdates: Record<string, any> = {
+          [`User_chat.${leadId}`]: deleteField()
+        };
+        if (data?.conversations && typeof data.conversations === 'object') {
+          for (const [key, conv] of Object.entries<any>(data.conversations)) {
+            if (conv?.lead_id === leadId || conv?.id === leadId) {
+              convUpdates[`conversations.${key}`] = deleteField();
+            }
+          }
+        }
+        await updateDoc(docRef, convUpdates);
+      }
     } catch (error) {
       console.warn(`Failed to delete session from User_login/${docId}:`, error);
     }
   }
 
-  // 2. Scan User_login collection to remove this leadId from any other User_chat map
+  // 2. Scan User_login collection to remove this leadId from any other User_chat & conversations map
   try {
     const userLoginSnap = await getDocs(collection(db, 'User_login'));
     userLoginSnap.forEach(d => {
       const data = d.data();
+      const updates: Record<string, any> = {};
       if (data?.User_chat && data.User_chat[leadId]) {
-        updateDoc(d.ref, {
-          [`User_chat.${leadId}`]: deleteField()
-        }).catch(() => {});
+        updates[`User_chat.${leadId}`] = deleteField();
+      }
+      if (data?.conversations && typeof data.conversations === 'object') {
+        for (const [key, conv] of Object.entries<any>(data.conversations)) {
+          if (conv?.lead_id === leadId || conv?.id === leadId) {
+            updates[`conversations.${key}`] = deleteField();
+          }
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        updateDoc(d.ref, updates).catch(() => {});
       }
     });
   } catch (_) {}
@@ -744,6 +867,117 @@ export async function getUserChatSessionsFromFirestore(
   return sessions;
 }
 
+export async function getUserConversationsFromFirestore(
+  email?: string | null,
+  userId?: string | null
+): Promise<SequentialConversation[]> {
+  const convMap = new Map<string, SequentialConversation>();
+  const targets = new Set<string>();
+
+  if (email && email.trim()) {
+    targets.add(email.trim().toLowerCase());
+    targets.add(email.trim());
+  }
+  if (userId && userId.trim()) {
+    targets.add(userId.trim());
+  }
+
+  // 1. Fetch from targeted User_login docs
+  for (const docId of targets) {
+    try {
+      const snap = await getDoc(doc(db, 'User_login', docId));
+      if (snap.exists()) {
+        const data = snap.data();
+        // Check conversations map
+        if (data?.conversations && typeof data.conversations === 'object') {
+          for (const [key, conv] of Object.entries<any>(data.conversations)) {
+            if (conv && Array.isArray(conv.chats) && conv.chats.length > 0) {
+              const leadKey = conv.lead_id || conv.id || key;
+              if (!convMap.has(leadKey)) {
+                convMap.set(leadKey, {
+                  conversation_number: conv.conversation_number || (convMap.size + 1),
+                  conversation_key: conv.conversation_key || key,
+                  lead_id: leadKey,
+                  title: conv.title || (conv.chats[0]?.user_question?.slice(0, 50) + '...') || 'Conversation',
+                  date: conv.date || (conv.chats[0]?.date) || new Date().toISOString().split('T')[0],
+                  started_at: conv.started_at || (conv.chats[0]?.time) || '',
+                  updated_at: conv.updated_at || new Date().toISOString(),
+                  chats: conv.chats
+                });
+              }
+            }
+          }
+        }
+
+        // Also check User_chat map for any sessions not yet in convMap
+        if (data?.User_chat && typeof data.User_chat === 'object') {
+          for (const [leadId, session] of Object.entries<any>(data.User_chat)) {
+            if (!convMap.has(leadId) && session && Array.isArray(session.messages)) {
+              const qaChats = buildSequentialQaChats(session.messages);
+              if (qaChats.length > 0) {
+                const firstUser = session.messages.find((m: any) => m.role === 'user');
+                const title = firstUser?.content ? (firstUser.content.slice(0, 50) + (firstUser.content.length > 50 ? '...' : '')) : (session.leadProfile?.summary || 'Conversation');
+                const convNum = convMap.size + 1;
+                convMap.set(leadId, {
+                  conversation_number: convNum,
+                  conversation_key: `conversation_${convNum}`,
+                  lead_id: leadId,
+                  title,
+                  date: qaChats[0]?.date || new Date().toISOString().split('T')[0],
+                  started_at: qaChats[0]?.time || '',
+                  updated_at: session.updatedAt || new Date().toISOString(),
+                  chats: qaChats
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`Error fetching User_login for ${docId}:`, e);
+    }
+  }
+
+  // 2. Also check user_chat collection for any sessions matching userId
+  if (userId) {
+    try {
+      const snap = await getDocs(collection(db, 'user_chat'));
+      snap.forEach(d => {
+        const data = d.data();
+        if (data.userId === userId && data.leadId && !convMap.has(data.leadId) && Array.isArray(data.messages)) {
+          const qaChats = buildSequentialQaChats(data.messages);
+          if (qaChats.length > 0) {
+            const firstUser = data.messages.find((m: any) => m.role === 'user');
+            const title = firstUser?.content ? (firstUser.content.slice(0, 50) + (firstUser.content.length > 50 ? '...' : '')) : 'Conversation';
+            const convNum = convMap.size + 1;
+            convMap.set(data.leadId, {
+              conversation_number: convNum,
+              conversation_key: `conversation_${convNum}`,
+              lead_id: data.leadId,
+              title,
+              date: qaChats[0]?.date || new Date().toISOString().split('T')[0],
+              started_at: qaChats[0]?.time || '',
+              updated_at: data.updatedAt || new Date().toISOString(),
+              chats: qaChats
+            });
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
+  const result = Array.from(convMap.values());
+  // Sort by conversation_number ascending: conversation_1, conversation_2...
+  result.sort((a, b) => (a.conversation_number || 0) - (b.conversation_number || 0));
+  // Re-number sequentially to guarantee 1, 2, 3...
+  result.forEach((c, idx) => {
+    c.conversation_number = idx + 1;
+    c.conversation_key = `conversation_${idx + 1}`;
+  });
+
+  return result;
+}
+
 export async function getLeadsFromFirestore(): Promise<LeadProfile[]> {
   const path = 'leads';
   try {
@@ -861,10 +1095,12 @@ export async function saveUserChatToFirestore(
   const docId = `${userId}_${leadId}`;
   const path = `user_chat/${docId}`;
   try {
+    const qaChats = buildSequentialQaChats(messages);
     const cleanedPayload = cleanFirestoreData({
       userId,
       leadId,
       messages,
+      chats: qaChats,
       updatedAt: new Date().toISOString(),
     });
     await setDoc(doc(db, 'user_chat', docId), cleanedPayload, { merge: true });

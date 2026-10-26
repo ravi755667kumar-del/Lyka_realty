@@ -9,7 +9,8 @@ import {
   AgenticDecision,
   PortalCredential,
   BookedPropertyRecord,
-  FavoritePropertyRecord
+  FavoritePropertyRecord,
+  UserProfileData
 } from './types/crm';
 import { 
   createInitialLeadProfile, 
@@ -68,6 +69,7 @@ import { KnowledgeBaseView } from './components/KnowledgeBaseView';
 import { AdminStats } from './components/AdminStats';
 import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
+import { AdminUserChatHistory } from './components/AdminUserChatHistory';
 import { AdminCopilotChat } from './components/AdminCopilotChat';
 import { SettingsModal, AppTheme } from './components/SettingsModal';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
@@ -103,7 +105,8 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites'>('home');
+  const [chatHistoryTargetUser, setChatHistoryTargetUser] = useState<UserProfileData | null>(null);
   const [dbFavoritesList, setDbFavoritesList] = useState<FavoritePropertyRecord[]>([]);
 
   function getGuestSessionId(): string {
@@ -2456,6 +2459,17 @@ export default function App() {
         }}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
+        customBgColor={customBgColor}
+        onSelectCustomBg={(c) => {
+          setCustomBgColor(c);
+          try { localStorage.setItem('lyka_realty_custom_bg', c); } catch (_) {}
+        }}
+        onResetCustomBg={() => {
+          setCustomBgColor('');
+          try { localStorage.removeItem('lyka_realty_custom_bg'); } catch (_) {}
+        }}
+        currentTheme={theme}
+        onSelectTheme={setTheme}
         properties={propertiesList}
         selectedProperty={selectedProperty}
         onSelectProperty={(prop) => {
@@ -2613,7 +2627,33 @@ export default function App() {
 
             {/* Customer Profiles & Activity (Which Customer Logged In) — Admin only */}
             {adminAuthenticated && activeTab === 'customers' && (
-              <CustomerProfiles onNavigateToTrends={() => setActiveTab('login_stats')} />
+              <CustomerProfiles 
+                onNavigateToTrends={() => setActiveTab('login_stats')} 
+                onSelectUserChat={(user) => {
+                  setChatHistoryTargetUser(user);
+                  setActiveTab('user_chats');
+                }}
+              />
+            )}
+
+            {/* User Chat History (Select User Name from Login, then view Sequential Q&A Chats) — Admin only */}
+            {adminAuthenticated && activeTab === 'user_chats' && (
+              <AdminUserChatHistory
+                initialSelectedUser={chatHistoryTargetUser}
+                onNavigateToProfiles={() => setActiveTab('customers')}
+                customBgColor={customBgColor}
+                onSelectCustomBg={(c) => {
+                  setCustomBgColor(c);
+                  try { localStorage.setItem('lyka_realty_custom_bg', c); } catch (_) {}
+                }}
+                onResetCustomBg={() => {
+                  setCustomBgColor('');
+                  try { localStorage.removeItem('lyka_realty_custom_bg'); } catch (_) {}
+                }}
+                currentTheme={theme}
+                onSelectTheme={setTheme}
+                onOpenSettings={() => setShowSettingsModal(true)}
+              />
             )}
 
             {/* Login Trends & Aggregates (Date/Day/Month/Year) — Admin only */}
@@ -2678,20 +2718,25 @@ export default function App() {
             )}
             </div>
 
-            {/* Admin Copilot Chatbot — ONLY rendered for Super Admin, NOT in Property Admin */}
-            {adminAuthenticated && adminTargetPortal === 'admin' && (
-              <AdminCopilotChat
-                properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
-                leads={leadsList}
-                customerCount={customerCount}
-                followUps={followUpsList}
-                activeTab={activeTab}
-                onNavigateTab={(tab) => {
-                  setActiveTab(tab as any);
-                }}
-              />
-            )}
           </div>
+        )}
+
+        {/* Admin Copilot Chatbot — Available across all views (including Home & Admin pages) for Super Admin */}
+        {adminAuthenticated && adminTargetPortal === 'admin' && (
+          <AdminCopilotChat
+            properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
+            leads={leadsList}
+            customerCount={customerCount}
+            followUps={followUpsList}
+            activeTab={activeTab}
+            onNavigateTab={(tab) => {
+              if (tab === 'appearance' || tab === 'settings') {
+                setShowSettingsModal(true);
+              } else {
+                setActiveTab(tab as any);
+              }
+            }}
+          />
         )}
       </main>
 
@@ -4244,6 +4289,15 @@ export default function App() {
         onClose={() => setShowSettingsModal(false)}
         currentTheme={theme}
         onSelectTheme={setTheme}
+        customBgColor={customBgColor}
+        onSelectCustomBg={(c) => {
+          setCustomBgColor(c);
+          try { localStorage.setItem('lyka_realty_custom_bg', c); } catch (_) {}
+        }}
+        onResetCustomBg={() => {
+          setCustomBgColor('');
+          try { localStorage.removeItem('lyka_realty_custom_bg'); } catch (_) {}
+        }}
         adminAuthenticated={adminAuthenticated}
         propertyManagerAuthenticated={propertyManagerAuthenticated}
         salesManagerAuthenticated={salesManagerAuthenticated}

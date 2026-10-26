@@ -330,6 +330,7 @@ export interface UserProfileData {
   last_login?: string;
   login_history?: string[];
   User_chat?: Record<string, any>;
+  conversations?: Record<string, SequentialConversation>;
 }
 
 export interface LoginEvent {
@@ -399,4 +400,24 @@ export interface FavoritePropertyRecord {
   saved_at: string;
   status: 'active' | 'removed';
   updatedAt?: string;
+}
+
+export interface QaChatItem {
+  sequence: number;
+  user_question: string;
+  ai_answer: string;
+  date: string;
+  time: string;
+  timestamp: string;
+}
+
+export interface SequentialConversation {
+  conversation_number: number;
+  conversation_key: string;
+  lead_id: string;
+  title: string;
+  date: string;
+  started_at: string;
+  updated_at: string;
+  chats: QaChatItem[];
 }
