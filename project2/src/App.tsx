@@ -75,6 +75,7 @@ import { AdminUserChatHistory } from './components/AdminUserChatHistory';
 import { AdminCopilotChat } from './components/AdminCopilotChat';
 import { AdminStaffManagement } from './components/AdminStaffManagement';
 import { SettingsModal, AppTheme } from './components/SettingsModal';
+import { DeviceDimensionPreview } from './components/DeviceDimensionPreview';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
@@ -181,6 +182,7 @@ export default function App() {
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [isDevicePreviewOpen, setIsDevicePreviewOpen] = useState(false);
   const [theme, setTheme] = useState<AppTheme>(() => {
     try {
       const saved = localStorage.getItem('lyka_realty_theme') as AppTheme;
@@ -2523,6 +2525,7 @@ export default function App() {
         }}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
+        onOpenDevicePreview={() => setIsDevicePreviewOpen(true)}
         customBgColor={customBgColor}
         onSelectCustomBg={(c) => {
           setCustomBgColor(c);
@@ -4364,6 +4367,12 @@ export default function App() {
         onClose={() => setAboutOpen(false)}
       />
 
+      {/* In-App Responsive Device & Dimension Simulator */}
+      <DeviceDimensionPreview
+        isOpen={isDevicePreviewOpen}
+        onClose={() => setIsDevicePreviewOpen(false)}
+      />
+
       {/* Central Unified Settings & Appearance Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
@@ -4415,6 +4424,7 @@ export default function App() {
           setAdminPanelOpen(true);
           setActiveTab('staff_access');
         }}
+        onOpenDevicePreview={() => setIsDevicePreviewOpen(true)}
         onOpenCredentialsConfig={() => {
           setShowCredentialConfig(true);
           setConfigPortalTab(adminTargetPortal);

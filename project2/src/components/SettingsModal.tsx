@@ -20,7 +20,8 @@ import {
   Moon,
   Sun,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Smartphone
 } from 'lucide-react';
 
 export type AppTheme = 'ivory' | 'dark' | 'navy';
@@ -42,6 +43,7 @@ interface SettingsModalProps {
   onSelectPortal: (portal: 'admin' | 'property_manager' | 'sales_manager') => void;
   onOpenAdminPanel: () => void;
   onOpenStaffAccess?: () => void;
+  onOpenDevicePreview?: () => void;
   onOpenCredentialsConfig: () => void;
   onAdminLogout: () => void;
   hideAdminTab?: boolean;
@@ -127,6 +129,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSelectPortal,
   onOpenAdminPanel,
   onOpenStaffAccess,
+  onOpenDevicePreview,
   onOpenCredentialsConfig,
   onAdminLogout,
   hideAdminTab = false,
@@ -488,6 +491,17 @@ return (
                       >
                         <KeyRound className="w-3.5 h-3.5 text-amber-600" />
                         <span>Database Credentials</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          if (onOpenDevicePreview) onOpenDevicePreview();
+                        }}
+                        className="w-full bg-[#f4ede0] hover:bg-[#ebdcc4] dark:bg-slate-800 dark:hover:bg-slate-700 text-[#2d2216] dark:text-slate-200 font-semibold py-2 px-3 rounded-xl text-xs transition-colors border border-[#d6c7ab] dark:border-slate-700 flex items-center justify-center space-x-1.5 cursor-pointer sm:col-span-2"
+                      >
+                        <Smartphone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Device & Dimension Simulator (iPhone, iPad, Galaxy)</span>
                       </button>
                     </>
                   )}

@@ -23,7 +23,8 @@ import {
   X,
   Heart,
   Palette,
-  UserPlus
+  UserPlus,
+  Smartphone
 } from 'lucide-react';
 import type { PropertyListing } from '../types/crm';
 
@@ -66,6 +67,7 @@ interface NavbarProps {
   onResetCustomBg?: () => void;
   currentTheme?: 'ivory' | 'dark' | 'navy';
   onSelectTheme?: (theme: 'ivory' | 'dark' | 'navy') => void;
+  onOpenDevicePreview?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -107,6 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetCustomBg,
   currentTheme = 'ivory',
   onSelectTheme,
+  onOpenDevicePreview,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
@@ -766,6 +769,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <p className="text-[10px] text-slate-400 truncate mt-0.5">Duplicate Control & Quality Audit</p>
                       </div>
                     </button>
+                    {typeof window !== 'undefined' && window.self === window.top && onOpenDevicePreview && (
+                      <div className="pt-1 border-t border-slate-800">
+                        <button
+                          onClick={() => {
+                            setRoleDropdownOpen(false);
+                            onOpenDevicePreview();
+                          }}
+                          className="w-full text-left p-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-all flex items-center space-x-2 text-xs font-semibold cursor-pointer"
+                        >
+                          <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Device Dimensions Simulator</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -1178,6 +1195,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Downside Right Actions: Logout and Back to Chat */}
             <div className="ml-auto flex items-center space-x-2 flex-shrink-0 pl-3">
+              {typeof window !== 'undefined' && window.self === window.top && onOpenDevicePreview && (
+                <button
+                  onClick={onOpenDevicePreview}
+                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-slate-950 shadow-xs cursor-pointer"
+                  title="Simulate Mobile & Tablet Screen Dimensions (iPhone, iPad, Galaxy)"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Device Preview</span>
+                </button>
+              )}
               <button
                 onClick={onAdminLogout}
                 className="flex items-center space-x-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-500/40 bg-red-950/30 hover:bg-red-900/50 text-red-300 hover:border-red-400 transition-all"
