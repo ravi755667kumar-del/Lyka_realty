@@ -214,7 +214,7 @@ interface StoredPortalCredentials {
 const DEFAULT_SERVER_CREDENTIALS: StoredPortalCredentials = {
   admin: {
     id: 'admin',
-    email: 'admin@lykarealty.ae',
+    email: 'raviku6678@gmail.com',
     password: 'LykaAdmin2024',
     role: 'admin',
     name: 'Lyka Super Admin',
@@ -222,7 +222,7 @@ const DEFAULT_SERVER_CREDENTIALS: StoredPortalCredentials = {
   },
   property_manager: {
     id: 'property_manager',
-    email: 'manager@lykarealty.ae',
+    email: 'ravikumar755667@gmail.com',
     password: 'LykaManager2024',
     role: 'property_manager',
     name: 'Lyka Property Manager',
@@ -230,7 +230,7 @@ const DEFAULT_SERVER_CREDENTIALS: StoredPortalCredentials = {
   },
   sales_manager: {
     id: 'sales_manager',
-    email: 'sales@lykarealty.ae',
+    email: 'raviku6678@gmail.com',
     password: 'LykaSales2024',
     role: 'sales_manager',
     name: 'Lyka Sales Manager',
@@ -2059,20 +2059,37 @@ app.post('/api/auth/save-portal-credential', requireAdminAuth, async (req: Reque
       return res.status(403).json({ success: false, error: 'Forbidden: Super Admin authorization required to update credentials.' });
     }
     const { portal, email, password, name, docId } = req.body || {};
-    if (!portal || !email || !password) {
-      return res.status(400).json({ success: false, error: 'portal, email, and password required.' });
+    if (!portal || !password) {
+      return res.status(400).json({ success: false, error: 'portal and password required.' });
     }
-    const cleanEmail = String(email).trim();
     const cleanPassword = String(password).trim();
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
+
     const portalKey: 'admin' | 'property_manager' | 'sales_manager' =
       portal === 'sales_manager' ? 'sales_manager' : portal === 'property_manager' ? 'property_manager' : 'admin';
     const targetDocId = docId || portalKey;
     const now = new Date().toISOString();
 
+    // ── Enforce Immutable Admin Email Policy ──
+    // Admin emails are permanent and cannot be changed by any admin.
+    const allCreds = loadStoredPortalCredentials();
+    const existingCred = allCreds[portalKey] || DEFAULT_SERVER_CREDENTIALS[portalKey];
+    const permanentEmail = existingCred?.email || (portalKey === 'property_manager' ? 'ravikumar755667@gmail.com' : 'raviku6678@gmail.com');
+
+    // If an incoming request attempts to change the email, reject immediately
+    if (email && String(email).trim().toLowerCase() !== permanentEmail.toLowerCase()) {
+      return res.status(400).json({
+        success: false,
+        error: `Admin email address is permanently locked and cannot be changed by any admin. Registered email for ${portalKey} is locked to ${permanentEmail}.`
+      });
+    }
+
     const payload: any = {
       id: targetDocId,
-      email: cleanEmail,
-      Email_id: cleanEmail,
+      email: permanentEmail,
+      Email_id: permanentEmail,
       password: cleanPassword,
       role: portalKey,
       name: name || (portalKey === 'sales_manager' ? 'Lyka Sales Manager' : portalKey === 'admin' ? 'Lyka Super Admin' : 'Lyka Property Manager'),
@@ -2080,7 +2097,6 @@ app.post('/api/auth/save-portal-credential', requireAdminAuth, async (req: Reque
     };
 
     // 1. Immediately persist to server disk & memory
-    const allCreds = loadStoredPortalCredentials();
     allCreds[portalKey] = payload;
     saveStoredPortalCredentials(allCreds);
 
@@ -2091,7 +2107,7 @@ app.post('/api/auth/save-portal-credential', requireAdminAuth, async (req: Reque
       safeFirestoreSetDoc(docRef, payload, { merge: true }, 4000).catch((e) => {
         console.warn(`[Portal Auth API] Background Firestore write warning for ${collectionName}:`, e.message);
       });
-      console.log(`[Portal Auth API] Saved ${portalKey} credential for ${cleanEmail} to ${collectionName}/${targetDocId}`);
+      console.log(`[Portal Auth API] Updated password for ${portalKey} in ${collectionName}/${targetDocId} (Email locked to ${permanentEmail})`);
     }
 
     return res.json({ success: true, credential: payload });

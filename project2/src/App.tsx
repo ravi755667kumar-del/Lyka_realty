@@ -327,9 +327,9 @@ export default function App() {
   const [generatedPasswordNotice, setGeneratedPasswordNotice] = useState(false);
   const [passwordFailedAttempt, setPasswordFailedAttempt] = useState(false);
 
-  const ADMIN_EMAIL = adminDbCredentials[0]?.email || 'admin@lykarealty.ae';
-  const PM_EMAIL = pmDbCredentials[0]?.email || 'manager@lykarealty.ae';
-  const SALES_EMAIL = salesDbCredentials[0]?.email || 'sales@lykarealty.ae';
+  const ADMIN_EMAIL = adminDbCredentials[0]?.email || 'raviku6678@gmail.com';
+  const PM_EMAIL = pmDbCredentials[0]?.email || 'ravikumar755667@gmail.com';
+  const SALES_EMAIL = salesDbCredentials[0]?.email || 'raviku6678@gmail.com';
 
   // Email 6-Digit OTP states for Admin / Property Manager Login (Valid for 3 Minutes)
   const [adminOtpInput, setAdminOtpInput] = useState('');
@@ -485,51 +485,66 @@ export default function App() {
 
     try {
       if (portal === 'sales_manager') {
-        const emailToSave = configSalesEmail.trim();
+        const permanentEmail = salesDbCredentials[0]?.email || SALES_EMAIL;
         const passToSave = configSalesPassword.trim();
-        if (!emailToSave || !passToSave) {
-          setConfigErrorMsg('Please provide Sales Manager email and password.');
+        if (!passToSave) {
+          setConfigErrorMsg('Please provide a new password for Sales Manager.');
           setConfigSaving(false);
           return;
         }
-        const saved = await savePortalCredentialToFirestore('sales_manager', emailToSave, passToSave, 'Lyka Sales Manager', 'sales_manager');
+        if (passToSave.length < 6) {
+          setConfigErrorMsg('Password must be at least 6 characters long.');
+          setConfigSaving(false);
+          return;
+        }
+        const saved = await savePortalCredentialToFirestore('sales_manager', permanentEmail, passToSave, 'Lyka Sales Manager', 'sales_manager');
         setSalesDbCredentials([saved]);
         setAdminEmailInput(saved.email);
         setAdminTargetPortal('sales_manager');
-        setConfigSuccessMsg(`Sales Admin saved to Sales_login in DB! OTP will now be sent to ${saved.email}`);
+        setConfigSuccessMsg(`Sales Admin password updated in Sales_login! (Email permanently locked to ${saved.email})`);
       } else if (portal === 'property_manager') {
-        const emailToSave = configPmEmail.trim();
+        const permanentEmail = pmDbCredentials[0]?.email || PM_EMAIL;
         const passToSave = configPmPassword.trim();
-        if (!emailToSave || !passToSave) {
-          setConfigErrorMsg('Please provide Property Manager email and password.');
+        if (!passToSave) {
+          setConfigErrorMsg('Please provide a new password for Property Manager.');
           setConfigSaving(false);
           return;
         }
-        const saved = await savePortalCredentialToFirestore('property_manager', emailToSave, passToSave, 'Lyka Property Manager', 'property_manager');
+        if (passToSave.length < 6) {
+          setConfigErrorMsg('Password must be at least 6 characters long.');
+          setConfigSaving(false);
+          return;
+        }
+        const saved = await savePortalCredentialToFirestore('property_manager', permanentEmail, passToSave, 'Lyka Property Manager', 'property_manager');
         setPmDbCredentials([saved]);
         setAdminEmailInput(saved.email);
         setAdminTargetPortal('property_manager');
-        setConfigSuccessMsg(`Property Admin saved to Property_login in DB!`);
+        setConfigSuccessMsg(`Property Admin password updated in Property_login! (Email permanently locked to ${saved.email})`);
       } else {
-        const emailToSave = configAdminEmail.trim();
+        const permanentEmail = adminDbCredentials[0]?.email || ADMIN_EMAIL;
         const passToSave = configAdminPassword.trim();
-        if (!emailToSave || !passToSave) {
-          setConfigErrorMsg('Please provide Super Admin email and password.');
+        if (!passToSave) {
+          setConfigErrorMsg('Please provide a new password for Super Admin.');
           setConfigSaving(false);
           return;
         }
-        const saved = await savePortalCredentialToFirestore('admin', emailToSave, passToSave, 'Lyka Super Admin', 'admin');
+        if (passToSave.length < 6) {
+          setConfigErrorMsg('Password must be at least 6 characters long.');
+          setConfigSaving(false);
+          return;
+        }
+        const saved = await savePortalCredentialToFirestore('admin', permanentEmail, passToSave, 'Lyka Super Admin', 'admin');
         setAdminDbCredentials([saved]);
         setAdminEmailInput(saved.email);
         setAdminTargetPortal('admin');
-        setConfigSuccessMsg(`Super Admin saved to Admin_login in DB!`);
+        setConfigSuccessMsg(`Super Admin password updated in Admin_login! (Email permanently locked to ${saved.email})`);
       }
 
       setAdminPasswordInput('');
       setTimeout(() => {
         setShowCredentialConfig(false);
         setConfigSuccessMsg('');
-      }, 1400);
+      }, 1600);
     } catch (err: any) {
       setConfigErrorMsg(err.message || 'Failed to save credentials to database.');
     } finally {
@@ -3121,32 +3136,43 @@ export default function App() {
                         </code>
                       </div>
                       <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Sets the dedicated email ID and password for the Sales Manager. Saved strictly in the <code className="text-emerald-400">Sales_login</code> collection. OTP verification codes will be sent directly to this email.
+                        Updates password in <code className="text-emerald-400">Sales_login</code> collection. <strong className="text-amber-300">Notice:</strong> Registered email address is permanently locked and cannot be changed by any admin.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-                            Sales Admin Email ID
-                          </label>
-                          <input
-                            type="email"
-                            value={configSalesEmail}
-                            onChange={(e) => { setConfigSalesEmail(e.target.value); setConfigErrorMsg(''); }}
-                            placeholder="sales@lykarealty.ae"
-                            required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none"
-                          />
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block">
+                              Sales Admin Email ID
+                            </label>
+                            <span className="text-[9px] font-bold text-amber-400 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Permanently Locked</span>
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="email"
+                              value={salesDbCredentials[0]?.email || SALES_EMAIL}
+                              readOnly
+                              disabled
+                              className="w-full bg-slate-950/80 border border-slate-800 text-slate-300 font-mono rounded-lg pl-3 pr-8 py-2 text-xs cursor-not-allowed select-all"
+                            />
+                            <Lock className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Email cannot be changed by any admin. All OTP & recovery emails are routed here.
+                          </p>
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-                            Sales Admin Password
+                            Update Sales Password
                           </label>
                           <div className="relative">
                             <input
                               type={showConfigSalesPassword ? "text" : "password"}
                               value={configSalesPassword}
                               onChange={(e) => { setConfigSalesPassword(e.target.value); setConfigErrorMsg(''); }}
-                              placeholder="Enter sales password"
+                              placeholder="Enter new sales password"
                               required
                               className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg pl-3 pr-9 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none font-mono"
                             />
@@ -3167,17 +3193,17 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setShowCredentialConfig(false)}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={configSaving}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95"
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95 cursor-pointer"
                         >
                           <Save className="w-3.5 h-3.5" />
-                          <span>{configSaving ? 'Saving to Sales_login...' : 'Save Sales Admin to DB'}</span>
+                          <span>{configSaving ? 'Saving to Sales_login...' : 'Update Sales Password in DB'}</span>
                         </button>
                       </div>
                     </form>
@@ -3202,32 +3228,43 @@ export default function App() {
                         </code>
                       </div>
                       <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Sets the dedicated email ID and password for Property Manager. Saved strictly in the <code className="text-amber-400">Property_login</code> collection.
+                        Updates password in <code className="text-amber-400">Property_login</code> collection. <strong className="text-amber-300">Notice:</strong> Registered email address is permanently locked and cannot be changed by any admin.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-                            Property Admin Email ID
-                          </label>
-                          <input
-                            type="email"
-                            value={configPmEmail}
-                            onChange={(e) => { setConfigPmEmail(e.target.value); setConfigErrorMsg(''); }}
-                            placeholder="manager@lykarealty.ae"
-                            required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none"
-                          />
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block">
+                              Property Admin Email ID
+                            </label>
+                            <span className="text-[9px] font-bold text-amber-400 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Permanently Locked</span>
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="email"
+                              value={pmDbCredentials[0]?.email || PM_EMAIL}
+                              readOnly
+                              disabled
+                              className="w-full bg-slate-950/80 border border-slate-800 text-slate-300 font-mono rounded-lg pl-3 pr-8 py-2 text-xs cursor-not-allowed select-all"
+                            />
+                            <Lock className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Email cannot be changed by any admin. All OTP & recovery emails are routed here.
+                          </p>
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-                            Property Admin Password
+                            Update Property Password
                           </label>
                           <div className="relative">
                             <input
                               type={showConfigPmPassword ? "text" : "password"}
                               value={configPmPassword}
                               onChange={(e) => { setConfigPmPassword(e.target.value); setConfigErrorMsg(''); }}
-                              placeholder="Enter property password"
+                              placeholder="Enter new property password"
                               required
                               className="w-full bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg pl-3 pr-9 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none font-mono"
                             />
@@ -3248,17 +3285,17 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setShowCredentialConfig(false)}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={configSaving}
-                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95"
+                          className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95 cursor-pointer"
                         >
                           <Save className="w-3.5 h-3.5" />
-                          <span>{configSaving ? 'Saving to Property_login...' : 'Save Property Admin to DB'}</span>
+                          <span>{configSaving ? 'Saving to Property_login...' : 'Update Property Password in DB'}</span>
                         </button>
                       </div>
                     </form>
@@ -3283,32 +3320,43 @@ export default function App() {
                         </code>
                       </div>
                       <p className="text-[11px] text-slate-400 leading-relaxed">
-                        Sets the dedicated email ID and password for Super Admin. Saved strictly in the <code className="text-violet-400">Admin_login</code> collection.
+                        Updates password in <code className="text-violet-400">Admin_login</code> collection. <strong className="text-amber-300">Notice:</strong> Registered email address is permanently locked and cannot be changed by any admin.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
-                          <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-                            Super Admin Email ID
-                          </label>
-                          <input
-                            type="email"
-                            value={configAdminEmail}
-                            onChange={(e) => { setConfigAdminEmail(e.target.value); setConfigErrorMsg(''); }}
-                            placeholder="admin@lykarealty.ae"
-                            required
-                            className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg px-3 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none"
-                          />
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block">
+                              Super Admin Email ID
+                            </label>
+                            <span className="text-[9px] font-bold text-amber-400 bg-amber-950/80 border border-amber-500/40 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Permanently Locked</span>
+                            </span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="email"
+                              value={adminDbCredentials[0]?.email || ADMIN_EMAIL}
+                              readOnly
+                              disabled
+                              className="w-full bg-slate-950/80 border border-slate-800 text-slate-300 font-mono rounded-lg pl-3 pr-8 py-2 text-xs cursor-not-allowed select-all"
+                            />
+                            <Lock className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                          </div>
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            Email cannot be changed by any admin. All OTP & recovery emails are routed here.
+                          </p>
                         </div>
                         <div>
                           <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider block mb-1">
-                            Super Admin Password
+                            Update Super Admin Password
                           </label>
                           <div className="relative">
                             <input
                               type={showConfigAdminPassword ? "text" : "password"}
                               value={configAdminPassword}
                               onChange={(e) => { setConfigAdminPassword(e.target.value); setConfigErrorMsg(''); }}
-                              placeholder="Enter admin password"
+                              placeholder="Enter new admin password"
                               required
                               className="w-full bg-slate-900 border border-slate-700 focus:border-violet-500 rounded-lg pl-3 pr-9 py-2 text-xs text-slate-100 font-semibold placeholder-slate-500 outline-none font-mono"
                             />
@@ -3329,17 +3377,17 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setShowCredentialConfig(false)}
-                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                          className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           disabled={configSaving}
-                          className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95"
+                          className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md active:scale-95 cursor-pointer"
                         >
                           <Save className="w-3.5 h-3.5" />
-                          <span>{configSaving ? 'Saving to Admin_login...' : 'Save Super Admin to DB'}</span>
+                          <span>{configSaving ? 'Saving to Admin_login...' : 'Update Super Admin Password in DB'}</span>
                         </button>
                       </div>
                     </form>
@@ -3372,8 +3420,12 @@ export default function App() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      Portal Account Email
+                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                      <span>Registered Portal Email</span>
+                      <span className="text-[10px] text-amber-400 font-medium flex items-center space-x-1">
+                        <Lock className="w-2.5 h-2.5" />
+                        <span>Locked</span>
+                      </span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -3381,16 +3433,14 @@ export default function App() {
                       </span>
                       <input
                         type="email"
-                        value={forgotEmailInput}
-                        onChange={(e) => {
-                          setForgotEmailInput(e.target.value);
-                          setForgotError('');
-                        }}
-                        placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
-                        autoFocus
+                        value={forgotEmailInput || (adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL)}
+                        readOnly
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 font-semibold placeholder-slate-500 outline-none transition-colors"
+                        className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-9 pr-9 py-2.5 text-sm text-slate-300 font-mono select-all cursor-default"
                       />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" title="Registered email address is permanently locked">
+                        <Lock className="w-3.5 h-3.5" />
+                      </span>
                     </div>
                   </div>
 
@@ -3886,19 +3936,11 @@ export default function App() {
                   {/* Email / Login Field */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                      <span>{adminTargetPortal === 'property_manager' ? 'Manager Email / Login' : adminTargetPortal === 'sales_manager' ? 'Sales Manager Email / Login' : 'Admin Email / Login'}</span>
-                      {isOtpLocked ? (
-                        <span className="text-[10px] text-rose-400 font-semibold flex items-center space-x-1">
-                          <Lock className="w-3 h-3 text-rose-400" />
-                          <span>Locked (5/5 Used)</span>
-                        </span>
-                      ) : adminOtpAttemptsUsed > 0 ? (
-                        <span className="text-[10px] text-amber-500 font-medium">
-                          Attempt {adminOtpAttemptsUsed}/5 (1-hr limit)
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500 font-medium">Portal Email</span>
-                      )}
+                      <span>{adminTargetPortal === 'property_manager' ? 'Property Manager Portal Email' : adminTargetPortal === 'sales_manager' ? 'Sales Manager Portal Email' : 'Super Admin Portal Email'}</span>
+                      <span className="text-[10px] text-emerald-400 font-medium flex items-center space-x-1">
+                        <Lock className="w-2.5 h-2.5" />
+                        <span>Fixed Portal Email</span>
+                      </span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -3908,16 +3950,13 @@ export default function App() {
                         id="admin-email-input"
                         type="email"
                         value={adminEmailInput}
-                        onChange={(e) => {
-                          setAdminEmailInput(e.target.value);
-                          setAdminLoginError('');
-                          setPasswordFailedAttempt(false);
-                        }}
-                        placeholder={adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
-                        autoFocus
+                        readOnly
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 font-semibold placeholder-slate-500 outline-none transition-colors"
+                        className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-9 pr-9 py-2.5 text-sm text-slate-300 font-mono select-all cursor-default"
                       />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" title="Admin email address is permanent and cannot be changed">
+                        <Lock className="w-3.5 h-3.5" />
+                      </span>
                     </div>
                   </div>
 
