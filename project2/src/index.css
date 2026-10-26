@@ -996,3 +996,19 @@
   background-color: #1c3266 !important;
   color: #ffffff !important;
 }
+
+
+/* ── Enterprise Security Shield: Anti-Scraping & Mobile Inspection Prevention ── */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+.select-none,
+header,
+nav {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

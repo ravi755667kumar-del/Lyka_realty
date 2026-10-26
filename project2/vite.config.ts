@@ -11,6 +11,12 @@ export default defineConfig(() => {
         '@': path.resolve(import.meta.dirname, '.'),
       },
     },
+    build: {
+      sourcemap: false,
+    },
+    esbuild: {
+      legalComments: 'none' as const,
+    },
     server: {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
