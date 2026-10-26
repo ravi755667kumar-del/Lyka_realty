@@ -18,7 +18,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, BookedPropertyRecord } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, BookedPropertyRecord, FavoritePropertyRecord } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
 export const db = (firebaseConfig as any).firestoreDatabaseId
@@ -1487,6 +1487,46 @@ export async function getCustomerEmbeddingsFromFirestore(): Promise<any[]> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer Favorites Helpers (favorites collection)
+// ─────────────────────────────────────────────────────────────────────────────
 
+export async function saveFavoritePropertyToFirestore(favorite: FavoritePropertyRecord): Promise<void> {
+  const path = `favorites/${favorite.id}`;
+  try {
+    const cleaned = cleanFirestoreData({
+      ...favorite,
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(doc(db, 'favorites', favorite.id), cleaned, { merge: true });
+    console.log(`[Firestore] Favorite saved to collection 'favorites': ${favorite.id}`);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
 
+export async function removeFavoritePropertyFromFirestore(favoriteId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'favorites', favoriteId));
+    console.log(`[Firestore] Favorite removed from collection 'favorites': ${favoriteId}`);
+  } catch (error) {
+    console.warn(`Could not delete favorite ${favoriteId} from Firestore:`, error);
+  }
+}
 
+export async function getFavoritePropertiesFromFirestore(): Promise<FavoritePropertyRecord[]> {
+  try {
+    const snap = await getDocs(collection(db, 'favorites'));
+    const list: FavoritePropertyRecord[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as FavoritePropertyRecord;
+      if (data && data.status !== 'removed') {
+        list.push({ ...data, id: data.id || d.id });
+      }
+    });
+    return list.sort((a, b) => new Date(b.saved_at || 0).getTime() - new Date(a.saved_at || 0).getTime());
+  } catch (error) {
+    console.warn('Could not fetch favorites from Firestore:', error);
+    return [];
+  }
+}

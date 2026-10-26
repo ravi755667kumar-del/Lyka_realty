@@ -379,4 +379,24 @@ export interface PropertyRequirementAudit {
   status: 'action_required' | 'incomplete' | 'sales_ready';
 }
 
-
+export interface FavoritePropertyRecord {
+  id: string; // fav_{userId || guestId}_{propertyId}
+  property_id: string;
+  property_title: string;
+  property_community: string;
+  property_city?: string;
+  property_price_aed: number;
+  property_price_inr?: number;
+  property_bedrooms?: number | string;
+  property_type?: string;
+  property_image_url?: string;
+  property_developer?: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_phone?: string;
+  is_guest: boolean;
+  saved_at: string;
+  status: 'active' | 'removed';
+  updatedAt?: string;
+}

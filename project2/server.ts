@@ -118,6 +118,10 @@ interface StoredVector {
 
 const localEmbeddingsStore: StoredVector[] = [];
 
+// In-memory Customer Favorites Cache (Synced with Firestore 'favorites' collection)
+const localFavoritesStore: Record<string, any> = {};
+
+
 // Firebase Firestore Client State (Primary Vector & Knowledge Storage)
 let firestoreDb: any = null;
 let firebaseAuth: any = null;
@@ -176,7 +180,9 @@ async function initFirebase(): Promise<boolean> {
 }
 
 // ── Persistent Disk Store & Safe Firestore Helpers for Portal Credentials ─────
-const CREDENTIALS_FILE = path.join(__dirname, 'portal-credentials.json');
+const ROOT_CREDENTIALS_FILE = path.resolve(process.cwd(), 'portal-credentials.json');
+const DIST_CREDENTIALS_FILE = path.resolve(process.cwd(), 'dist', 'portal-credentials.json');
+const CREDENTIALS_FILE = fs.existsSync(ROOT_CREDENTIALS_FILE) ? ROOT_CREDENTIALS_FILE : DIST_CREDENTIALS_FILE;
 
 interface StoredPortalCredentials {
   admin: {
@@ -251,7 +257,14 @@ function loadStoredPortalCredentials(): StoredPortalCredentials {
 
 function saveStoredPortalCredentials(creds: StoredPortalCredentials): void {
   try {
-    fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify(creds, null, 2), 'utf-8');
+    const serialized = JSON.stringify(creds, null, 2);
+    try { fs.writeFileSync(ROOT_CREDENTIALS_FILE, serialized, 'utf-8'); } catch (_) {}
+    try {
+      const distDir = path.dirname(DIST_CREDENTIALS_FILE);
+      if (fs.existsSync(distDir)) {
+        fs.writeFileSync(DIST_CREDENTIALS_FILE, serialized, 'utf-8');
+      }
+    } catch (_) {}
   } catch (err: any) {
     console.warn('[Credentials] Failed writing credentials file:', err.message);
   }
@@ -1056,6 +1069,16 @@ interface OtpRecord {
 }
 const activeEmailOtps: Record<string, OtpRecord> = {};
 
+interface PasswordResetTokenRecord {
+  token: string;
+  email: string;
+  portal: 'admin' | 'property_manager' | 'sales_manager';
+  expiresAt: number;
+  createdAt: number;
+}
+const activePasswordResetTokens: Record<string, PasswordResetTokenRecord> = {};
+
+
 // Rate limiter store for OTP requests (Max 5 attempts per 1-hour rolling window)
 const ONE_HOUR_MS = 60 * 60 * 1000; // 3,600,000 ms = 1 hour
 const MAX_OTP_ATTEMPTS = 5;
@@ -1122,16 +1145,78 @@ app.post('/api/auth/reset-otp-rate-limit', requireAdminAuth, (req: Request, res:
   }
 });
 
-// Send 6-Digit Email OTP via Brevo API
+// Send 6-Digit Email OTP via Brevo API (Requires Verified Password for Admin Portals)
 app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
   try {
-    const { email, portal } = req.body;
+    const { email, portal, password } = req.body;
     if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return res.status(400).json({ error: 'Valid email address is required.' });
+      return res.status(400).json({ success: false, error: 'Valid email address is required.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const portalName = portal === 'sales_manager' ? 'Sales Manager' : portal === 'property_manager' ? 'Property Manager' : portal === 'user' ? 'Client' : 'Admin';
+    const portalKey: 'admin' | 'property_manager' | 'sales_manager' =
+      portal === 'sales_manager' ? 'sales_manager' : portal === 'property_manager' ? 'property_manager' : 'admin';
+    const portalName = portalKey === 'sales_manager' ? 'Sales Manager' : portalKey === 'property_manager' ? 'Property Manager' : 'Admin';
+
+    // ── Enforce Password Verification Before Issuing OTP for Admin Portals ──
+    if (portal !== 'user') {
+      if (!password || typeof password !== 'string') {
+        return res.status(400).json({
+          success: false,
+          valid: false,
+          passwordError: true,
+          error: `Please enter your password first. OTP is only sent after password verification.`,
+          message: `Password required before sending verification OTP.`
+        });
+      }
+
+      const cleanPassword = String(password).trim();
+
+      // Load stored credentials (disk + Firestore)
+      const diskCreds = loadStoredPortalCredentials();
+      let targetCred: any = diskCreds[portalKey];
+
+      if (firestoreDb) {
+        try {
+          const colName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
+          const docRef = fsDoc(firestoreDb, colName, portalKey);
+          const snap = await safeFirestoreGetDoc(docRef, 3000);
+          if (snap && snap.exists()) {
+            const d = snap.data();
+            if (d.password) {
+              targetCred = {
+                ...targetCred,
+                ...d,
+                email: d.email || d.Email_id || targetCred.email,
+                password: d.password
+              };
+            }
+          }
+        } catch (fsErr: any) {
+          console.warn('[Send OTP Auth Check] Firestore notice:', fsErr.message);
+        }
+      }
+
+      const expectedPassword = String(targetCred?.password || '').trim();
+      const expectedEmail = String(targetCred?.email || '').trim().toLowerCase();
+      const emailMatches = (cleanEmail === expectedEmail);
+
+      // Constant-time comparison
+      const hashA = crypto.createHash('sha256').update(cleanPassword).digest();
+      const hashB = crypto.createHash('sha256').update(expectedPassword).digest();
+      const passwordMatches = crypto.timingSafeEqual(hashA, hashB);
+
+      if (!emailMatches || !passwordMatches) {
+        return res.status(401).json({
+          success: false,
+          valid: false,
+          passwordError: true,
+          error: `Incorrect password for ${portalName} portal.`,
+          message: `Incorrect password for ${portalName} account. Please verify your password or use "Forgot Password?" below to reset it.`
+        });
+      }
+    }
+
     const now = Date.now();
 
     // ── OTP Rate Limiter (Max 5 attempts per 1-hour window) ───────────────
@@ -1321,6 +1406,316 @@ Lyka Realty LLC, Dubai, UAE.`,
   } catch (error: any) {
     console.error('[Brevo Error]:', error);
     res.status(500).json({ error: error?.message || 'Server error sending email OTP.' });
+  }
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin / Manager Password Reset Flow Endpoints (Forgot Password & Brevo Email)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/auth/send-password-reset-link — Generates secure reset token & emails reset link
+app.post('/api/auth/send-password-reset-link', async (req: Request, res: Response) => {
+  try {
+    const { email, portal } = req.body || {};
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'A valid email address is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const portalKey: 'admin' | 'property_manager' | 'sales_manager' =
+      portal === 'sales_manager' ? 'sales_manager' : portal === 'property_manager' ? 'property_manager' : 'admin';
+    const portalName = portalKey === 'sales_manager' ? 'Sales Manager' : portalKey === 'property_manager' ? 'Property Manager' : 'Admin';
+
+    // Verify that the provided email matches the registered portal email
+    const allCreds = loadStoredPortalCredentials();
+    const targetCred = allCreds[portalKey] || DEFAULT_SERVER_CREDENTIALS[portalKey];
+    const registeredEmail = (targetCred?.email || '').trim().toLowerCase();
+
+    // Also check Firestore for the latest registered email in case disk is stale
+    let firestoreEmail = '';
+    if (firestoreDb) {
+      try {
+        const collectionName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
+        const docSnap = await safeFirestoreGetDoc(fsDoc(firestoreDb, collectionName, portalKey), 3000);
+        if (docSnap && docSnap.exists()) {
+          const d = docSnap.data();
+          firestoreEmail = (d?.email || d?.Email_id || '').trim().toLowerCase();
+        }
+      } catch (_) {}
+    }
+
+    const effectiveRegisteredEmail = firestoreEmail || registeredEmail;
+    if (effectiveRegisteredEmail && cleanEmail !== effectiveRegisteredEmail) {
+      return res.status(400).json({
+        success: false,
+        error: `This email address is not registered for the ${portalName} portal. Please use the correct registered email address.`
+      });
+    }
+
+    // Generate secure 32-byte hex token
+    const token = crypto.randomBytes(32).toString('hex');
+    const now = Date.now();
+    const expiresAt = now + 30 * 60 * 1000; // 30 minutes expiration
+
+    activePasswordResetTokens[token] = {
+      token,
+      email: cleanEmail,
+      portal: portalKey,
+      expiresAt,
+      createdAt: now
+    };
+
+    // Safely write reset token to Firestore 'password_resets'
+    if (firestoreDb) {
+      safeFirestoreSetDoc(fsDoc(firestoreDb, 'password_resets', token), {
+        token,
+        email: cleanEmail,
+        portal: portalKey,
+        expiresAt: new Date(expiresAt).toISOString(),
+        createdAt: new Date(now).toISOString()
+      }, { merge: true }, 3500).catch(() => {});
+    }
+
+    // Determine host URL for the reset link
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const resetUrl = `${protocol}://${host}/?reset_token=${token}&portal=${portalKey}&email=${encodeURIComponent(cleanEmail)}`;
+
+    const brevoApiKey = process.env.BREVO_API_KEY;
+    const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL || 'admin@lykarealty.ae';
+
+    if (brevoApiKey) {
+      const emailPayload = {
+        sender: {
+          name: 'Lyka Realty Security',
+          email: brevoSenderEmail
+        },
+        replyTo: {
+          name: 'Lyka Realty Support',
+          email: brevoSenderEmail
+        },
+        to: [
+          {
+            email: cleanEmail,
+            name: portalName
+          }
+        ],
+        subject: `Reset Your Lyka Realty ${portalName} Password`,
+        textContent: `Lyka Realty Password Reset
+        
+A password reset was requested for your ${portalName} Portal account (${cleanEmail}).
+Click the secure link below to generate or set a new password:
+${resetUrl}
+
+This link is valid for 30 minutes. If you did not request this, you can safely ignore this email.
+Lyka Realty LLC, Dubai, UAE.`,
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; margin: 0; padding: 24px; color: #f1f5f9; }
+              .card { max-width: 540px; margin: 0 auto; background: #131b2e; border: 1px solid #1e293b; border-radius: 16px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+              .brand { color: #f59e0b; font-size: 20px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+              .title { color: #ffffff; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 12px; }
+              .text { color: #94a3b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+              .btn-box { text-align: center; margin: 30px 0; }
+              .btn { display: inline-block; background-color: #f59e0b; color: #0b0f19 !important; font-weight: 800; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-size: 15px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35); }
+              .link-box { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; word-break: break-all; font-family: monospace; font-size: 11px; color: #cbd5e1; margin-bottom: 20px; }
+              .footer { color: #64748b; font-size: 12px; text-align: center; margin-top: 32px; border-top: 1px solid #1e293b; padding-top: 16px; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="brand">🏰 LYKA REALTY DUBAI</div>
+              <h1 class="title">Reset ${portalName} Password</h1>
+              <p class="text">
+                A password reset was requested for your <strong>${portalName} Portal</strong> account (<span style="color:#f59e0b; font-weight:600;">${cleanEmail}</span>). Click the secure button below to set or generate a new password:
+              </p>
+              <div class="btn-box">
+                <a href="${resetUrl}" class="btn" target="_blank">Reset My Password</a>
+              </div>
+              <p class="text" style="font-size: 12px; margin-bottom: 8px;">
+                Or copy and paste this direct link into your browser:
+              </p>
+              <div class="link-box">
+                <a href="${resetUrl}" style="color: #f59e0b; text-decoration: none;">${resetUrl}</a>
+              </div>
+              <p class="text" style="font-size: 12px; color: #64748b; margin-bottom: 0;">
+                ⏱️ This reset link is valid for <strong>30 minutes</strong> only. If you did not request this password reset, please ignore this email.
+              </p>
+              <div class="footer">
+                © ${new Date().getFullYear()} Lyka Realty LLC, Dubai, UAE. Confidential Security Notification.
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+      };
+
+      try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'api-key': brevoApiKey,
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(emailPayload)
+        });
+        const brevoData = await response.json().catch(() => ({}));
+        console.log(`[Brevo Password Reset] Sent to ${cleanEmail}. Status: ${response.status}`, brevoData?.messageId || '');
+      } catch (brevoErr: any) {
+        console.warn('[Brevo Password Reset] Warning dispatching email:', brevoErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Password reset link dispatched to ${cleanEmail}. Please check your Gmail inbox.`,
+      resetUrl,
+      token,
+      email: cleanEmail,
+      portal: portalKey
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/verify-reset-token — Verifies if a reset token is valid
+app.post('/api/auth/verify-reset-token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) {
+      return res.status(400).json({ valid: false, error: 'Token is required' });
+    }
+
+    let tokenRecord = activePasswordResetTokens[token];
+
+    if (!tokenRecord && firestoreDb) {
+      try {
+        const docRef = fsDoc(firestoreDb, 'password_resets', token);
+        const snap = await safeFirestoreGetDoc(docRef, 3000);
+        if (snap && snap.exists()) {
+          const d = snap.data();
+          if (new Date(d.expiresAt).getTime() > Date.now()) {
+            tokenRecord = {
+              token,
+              email: d.email,
+              portal: d.portal,
+              expiresAt: new Date(d.expiresAt).getTime(),
+              createdAt: new Date(d.createdAt).getTime()
+            };
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!tokenRecord || Date.now() > tokenRecord.expiresAt) {
+      return res.json({ valid: false, message: 'Invalid or expired reset token.' });
+    }
+
+    return res.json({
+      valid: true,
+      email: tokenRecord.email,
+      portal: tokenRecord.portal
+    });
+  } catch (err: any) {
+    return res.status(500).json({ valid: false, error: err.message });
+  }
+});
+
+// POST /api/auth/reset-portal-password — Updates password in database & invalidates token
+app.post('/api/auth/reset-portal-password', async (req: Request, res: Response) => {
+  try {
+    const { token, email, portal, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Reset token and new password are required.' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
+
+    // 1. Verify token
+    let tokenRecord = activePasswordResetTokens[token];
+
+    if (!tokenRecord && firestoreDb) {
+      try {
+        const docRef = fsDoc(firestoreDb, 'password_resets', token);
+        const snap = await safeFirestoreGetDoc(docRef, 3000);
+        if (snap && snap.exists()) {
+          const d = snap.data();
+          if (new Date(d.expiresAt).getTime() > Date.now()) {
+            tokenRecord = {
+              token,
+              email: d.email,
+              portal: d.portal,
+              expiresAt: new Date(d.expiresAt).getTime(),
+              createdAt: new Date(d.createdAt).getTime()
+            };
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!tokenRecord || Date.now() > tokenRecord.expiresAt) {
+      return res.status(400).json({ success: false, error: 'This password reset link is invalid or has expired. Please request a new link.' });
+    }
+
+    const portalKey: 'admin' | 'property_manager' | 'sales_manager' =
+      (portal || tokenRecord.portal) === 'sales_manager' ? 'sales_manager' :
+      (portal || tokenRecord.portal) === 'property_manager' ? 'property_manager' : 'admin';
+    const cleanPassword = String(newPassword).trim();
+    const cleanEmail = String(email || tokenRecord.email).trim().toLowerCase();
+    const now = new Date().toISOString();
+
+    // 2. Persist updated password to disk
+    const allCreds = loadStoredPortalCredentials();
+    const currentRecord = allCreds[portalKey] || DEFAULT_SERVER_CREDENTIALS[portalKey];
+
+    allCreds[portalKey] = {
+      ...currentRecord,
+      password: cleanPassword,
+      email: cleanEmail || currentRecord.email,
+      updatedAt: now
+    };
+    saveStoredPortalCredentials(allCreds);
+
+    // 3. Persist updated password to Firestore
+    if (firestoreDb) {
+      const collectionName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
+      const docRef = fsDoc(firestoreDb, collectionName, portalKey);
+      safeFirestoreSetDoc(docRef, {
+        id: portalKey,
+        email: cleanEmail || currentRecord.email,
+        Email_id: cleanEmail || currentRecord.email,
+        password: cleanPassword,
+        role: portalKey,
+        updatedAt: now
+      }, { merge: true }, 4000).catch((e) => {
+        console.warn(`[Password Reset] Firestore sync notice for ${collectionName}:`, e.message);
+      });
+      console.log(`[Password Reset] Password updated in Firestore collection '${collectionName}' for ${portalKey} (${cleanEmail})`);
+    }
+
+    // 4. Invalidate token
+    delete activePasswordResetTokens[token];
+    if (firestoreDb) {
+      fsDeleteDoc(fsDoc(firestoreDb, 'password_resets', token)).catch(() => {});
+    }
+
+    return res.json({
+      success: true,
+      message: `Password updated successfully in database for ${portalKey}! You can now sign in with your new password.`,
+      portal: portalKey,
+      email: cleanEmail
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -2170,6 +2565,103 @@ app.post('/api/properties/unbook', async (req: Request, res: Response) => {
     return res.json({ success: true, propertyId });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Customer Favorites & Wishlist API Endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/favorites/sync — save/sync a favorite property record to database
+app.post('/api/favorites/sync', async (req: Request, res: Response) => {
+  try {
+    const fav = req.body;
+    if (!fav || !fav.id || !fav.property_id) {
+      return res.status(400).json({ success: false, error: 'id and property_id are required' });
+    }
+
+    localFavoritesStore[fav.id] = fav;
+
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'favorites', fav.id), fav, { merge: true });
+        console.log(`[Favorites API] Favorite ${fav.id} synced to Firestore`);
+      } catch (fsErr: any) {
+        console.warn('[Favorites API] Firestore sync warning:', fsErr.message);
+      }
+    }
+
+    return res.json({ success: true, favorite: fav });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/favorites/remove — delete a favorite from database
+app.post('/api/favorites/remove', async (req: Request, res: Response) => {
+  try {
+    const { id, propertyId, userId } = req.body;
+    const targetId = id || (userId && propertyId ? `fav_${userId}_${propertyId}` : null);
+
+    if (targetId) {
+      delete localFavoritesStore[targetId];
+      if (firestoreDb) {
+        try {
+          await fsDeleteDoc(fsDoc(firestoreDb, 'favorites', targetId));
+          console.log(`[Favorites API] Favorite ${targetId} deleted from Firestore`);
+        } catch (_) {}
+      }
+    } else if (propertyId) {
+      for (const k of Object.keys(localFavoritesStore)) {
+        if (localFavoritesStore[k]?.property_id === propertyId) {
+          delete localFavoritesStore[k];
+          if (firestoreDb) {
+            try {
+              await fsDeleteDoc(fsDoc(firestoreDb, 'favorites', k));
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/favorites — list all saved favorites for admin portal
+app.get('/api/favorites', async (_req: Request, res: Response) => {
+  try {
+    let list: any[] = Object.values(localFavoritesStore);
+
+    if (firestoreDb) {
+      try {
+        const snap = await fsGetDocs(fsCollection(firestoreDb, 'favorites'));
+        const dbItems: any[] = [];
+        snap.forEach(d => {
+          const item = d.data();
+          if (item && item.status !== 'removed') {
+            dbItems.push({ ...item, id: item.id || d.id });
+          }
+        });
+        if (dbItems.length > 0) {
+          list = dbItems;
+          // Update in-memory cache
+          dbItems.forEach(item => {
+            localFavoritesStore[item.id] = item;
+          });
+        }
+      } catch (err: any) {
+        console.warn('[Favorites API] Firestore fetch fallback to local:', err.message);
+      }
+    }
+
+    list.sort((a, b) => new Date(b.saved_at || 0).getTime() - new Date(a.saved_at || 0).getTime());
+    return res.json({ success: true, favorites: list });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message, favorites: [] });
   }
 });
 

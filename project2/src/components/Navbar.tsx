@@ -26,12 +26,13 @@ import {
 import type { PropertyListing } from '../types/crm';
 
 interface NavbarProps {
-  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements';
-  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements') => void;
+  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites';
+  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites') => void;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
   bookedPropertyCount?: number;
+  dbFavoritesCount?: number;
   duplicateCount?: number;
   missingRequirementsCount?: number;
   firestoreActive: boolean;
@@ -65,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   customerCount,
   propertyCount,
   bookedPropertyCount,
+  dbFavoritesCount,
   duplicateCount,
   missingRequirementsCount,
   firestoreActive,
@@ -161,7 +163,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (propertyCityFilter === 'Mumbai') return mumbaiProperties;
     return properties || [];
   }, [properties, propertyCityFilter, dubaiProperties, mumbaiProperties]);
-  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites'].includes(activeTab);
 
   // Triple-tap / triple-click counter to open Admin Panel
   const tapCountRef = useRef(0);
@@ -849,12 +851,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                 >
                   <BookmarkCheck className="w-3.5 h-3.5" />
-                  <span>Assign / Bookings</span>
+                                    <span>Assign / Bookings</span>
                   {bookedPropertyCount !== undefined && bookedPropertyCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'assigned_properties' ? 'bg-amber-900/30 text-amber-950' : 'bg-emerald-500/20 text-emerald-300'
                     }`}>
                       {bookedPropertyCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('favorites')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'favorites'
+                      ? 'bg-red-500 text-white shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                >
+                  <Heart className={`w-3.5 h-3.5 ${activeTab === 'favorites' ? 'fill-current' : ''}`} />
+                  <span>Customer Favorites</span>
+                  {dbFavoritesCount !== undefined && dbFavoritesCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'favorites' ? 'bg-white/25 text-white' : 'bg-red-500/20 text-red-300'
+                    }`}>
+                      {dbFavoritesCount}
                     </span>
                   )}
                 </button>
@@ -1048,6 +1069,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Sales Manager
+            </button>
+            <button
+              onClick={() => setActiveTab('favorites')}
+              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border flex items-center space-x-1 ${
+                activeTab === 'favorites'
+                  ? 'bg-red-500 text-white border-red-400'
+                  : 'text-espresso-400 border-espresso-700'
+              }`}
+            >
+              <Heart className="w-3 h-3 fill-current" />
+              <span>Favorites</span>
+              {dbFavoritesCount !== undefined && dbFavoritesCount > 0 && (
+                <span className="text-[9px] px-1 bg-red-400/30 rounded-full font-bold">
+                  {dbFavoritesCount}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('assigned_properties')}

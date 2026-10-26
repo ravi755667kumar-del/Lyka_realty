@@ -26,4 +26,5 @@ portal-credentials.json
 
 # Local IDE / Tool configurations
 .kilo/
+scratch/
 
