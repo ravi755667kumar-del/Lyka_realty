@@ -39,6 +39,7 @@ interface NavbarProps {
   firestoreActive: boolean;
   vectorStatus?: { connected: boolean; count: number };
   onStartNewChat?: () => void;
+  isCustomerLoggedIn?: boolean;
   adminPanelOpen: boolean;
   onToggleAdminPanel: () => void;
   onSelectPortal?: (portal: 'admin' | 'property_manager' | 'sales_manager') => void;
@@ -78,6 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   firestoreActive,
   vectorStatus,
   onStartNewChat,
+  isCustomerLoggedIn = false,
   adminPanelOpen,
   onToggleAdminPanel,
   onSelectPortal,
@@ -182,6 +184,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const tapTimerRef = useRef<any>(null);
 
   const handleTripleTap = (e?: React.MouseEvent) => {
+    if (isCustomerLoggedIn) return;
     if (e) {
       e.stopPropagation();
     }
@@ -597,6 +600,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Triple Tab / Dot Button — Click to open Admin Panel */}
+            {!isCustomerLoggedIn && (
             <button
               onClick={() => onToggleAdminPanel()}
               className={`p-2 rounded-xl text-xs transition-all duration-200 border shadow-sm cursor-pointer ${
@@ -611,12 +615,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <MoreVertical className="w-4 h-4" />
             </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* Admin & Property Manager Sub-nav — permanently visible when authenticated, including on Home */}
-      {isPortalAuthed && (
+      {isAdminTab && isPortalAuthed && !isCustomerLoggedIn && (
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
           <div className="px-4 sm:px-6 flex items-center space-x-3 overflow-x-auto py-2">
             {/* Downside Role Dropdown Selector — Kept inside admin */}
@@ -1174,7 +1179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       )}
 
       {/* Mobile nav — only when NOT in Admin Sub-nav */}
-      {!isPortalAuthed && isAnyAuthed && (
+      {!isCustomerLoggedIn && isAdminTab && isAnyAuthed && (
         <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
         <button
           onClick={() => setActiveTab('chat')}

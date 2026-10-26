@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TermsAndPolicyModal } from './TermsAndPolicyModal';
 import {
   Settings,
@@ -42,6 +42,7 @@ interface SettingsModalProps {
   onOpenAdminPanel: () => void;
   onOpenCredentialsConfig: () => void;
   onAdminLogout: () => void;
+  hideAdminTab?: boolean;
   // AI Engine
   engineProvider: 'groq' | 'gemini';
   onSelectEngineProvider: (provider: 'groq' | 'gemini') => void;
@@ -125,6 +126,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenAdminPanel,
   onOpenCredentialsConfig,
   onAdminLogout,
+  hideAdminTab = false,
   engineProvider,
   onSelectEngineProvider,
   activeModel,
@@ -137,6 +139,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUserLogout
 }) => {
   const [activeTab, setActiveTab] = useState<'appearance' | 'admin' | 'engine' | 'account'>('appearance');
+  useEffect(() => {
+    if (hideAdminTab && activeTab === 'admin') {
+      setActiveTab('appearance');
+    }
+  }, [hideAdminTab, activeTab]);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   const activeBgHex = customBgColor || (currentTheme === 'dark' ? '#0b0f17' : currentTheme === 'navy' ? '#070d1e' : '#fdfbf5');
@@ -192,6 +199,7 @@ return (
             <span>Appearance & Background</span>
           </button>
 
+          {!hideAdminTab && (
           <button
             onClick={() => setActiveTab('admin')}
             className={`flex items-center space-x-2 px-3.5 py-2 rounded-t-xl text-xs font-bold transition-all border-b-2 ${
@@ -206,6 +214,7 @@ return (
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Admin Active" />
             )}
           </button>
+          )}
 
           <button
             onClick={() => setActiveTab('engine')}

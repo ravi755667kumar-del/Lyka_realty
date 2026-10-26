@@ -334,6 +334,27 @@ export default function App() {
   const PM_EMAIL = pmDbCredentials[0]?.email || 'ravikumar755667@gmail.com';
   const SALES_EMAIL = salesDbCredentials[0]?.email || 'raviku6678@gmail.com';
 
+  const adminEmails = useMemo(() => {
+    return [
+      (adminDbCredentials[0]?.email || 'raviku6678@gmail.com').toLowerCase(),
+      (pmDbCredentials[0]?.email || 'ravikumar755667@gmail.com').toLowerCase(),
+      (salesDbCredentials[0]?.email || 'sales@lykarealty.ae').toLowerCase(),
+      'raviku6678@gmail.com',
+      'ravikumar755667@gmail.com'
+    ];
+  }, [adminDbCredentials, pmDbCredentials, salesDbCredentials]);
+
+  // When a regular customer user logs in on Home or Chat, they must NOT see the admin header or panel
+  const isCustomerLoggedIn = useMemo(() => {
+    if (!currentUserEmail) return false;
+    const clean = currentUserEmail.trim().toLowerCase();
+    return !adminEmails.includes(clean);
+  }, [currentUserEmail, adminEmails]);
+
+  const effectiveAdminAuthed = isCustomerLoggedIn ? false : adminAuthenticated;
+  const effectivePmAuthed = isCustomerLoggedIn ? false : propertyManagerAuthenticated;
+  const effectiveSmAuthed = isCustomerLoggedIn ? false : salesManagerAuthenticated;
+
   // Email 6-Digit OTP states for Admin / Property Manager Login (Valid for 3 Minutes)
   const [adminOtpInput, setAdminOtpInput] = useState('');
   const [adminOtpSent, setAdminOtpSent] = useState(false);
@@ -1145,6 +1166,23 @@ export default function App() {
   const handleAuthChange = async (uid: string | null, email?: string) => {
     setCurrentUserId(uid);
     if (email) setCurrentUserEmail(email);
+
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      // If customer logs in, clear any admin portal session so they can't see the admin
+      if (!adminEmails.includes(cleanEmail)) {
+        setAdminAuthenticated(false);
+        setPropertyManagerAuthenticated(false);
+        setSalesManagerAuthenticated(false);
+        setAdminPanelOpen(false);
+        try {
+          localStorage.removeItem('lyka_admin_authenticated');
+          localStorage.removeItem('lyka_pm_authenticated');
+          localStorage.removeItem('lyka_sm_authenticated');
+          localStorage.removeItem('lyka_admin_target_portal');
+        } catch (_) {}
+      }
+    }
 
     if (uid) {
       // 1. Migrate local guest data to Firestore
@@ -2376,10 +2414,11 @@ export default function App() {
         firestoreActive={firestoreActive}
         vectorStatus={mongoStatus}
         onStartNewChat={handleStartNewChat}
+        isCustomerLoggedIn={isCustomerLoggedIn}
         adminPanelOpen={adminPanelOpen}
-        adminAuthenticated={adminAuthenticated}
-        propertyManagerAuthenticated={propertyManagerAuthenticated}
-        salesManagerAuthenticated={salesManagerAuthenticated}
+        adminAuthenticated={effectiveAdminAuthed}
+        propertyManagerAuthenticated={effectivePmAuthed}
+        salesManagerAuthenticated={effectiveSmAuthed}
         adminTargetPortal={adminTargetPortal}
         onSelectPortal={(portal) => {
           setAdminTargetPortal(portal);
@@ -2387,10 +2426,10 @@ export default function App() {
             localStorage.setItem('lyka_admin_target_portal', portal);
           } catch (e) {}
           const isAuthed = portal === 'admin' 
-            ? adminAuthenticated 
+            ? effectiveAdminAuthed 
             : portal === 'property_manager'
-            ? (propertyManagerAuthenticated || adminAuthenticated)
-            : (salesManagerAuthenticated || adminAuthenticated);
+            ? (effectivePmAuthed || effectiveAdminAuthed)
+            : (effectiveSmAuthed || effectiveAdminAuthed);
           if (!isAuthed) {
             handleSelectPortalTab(portal);
             setShowAdminLoginModal(true);
@@ -2406,16 +2445,17 @@ export default function App() {
           }
         }}
         onToggleAdminPanel={() => {
-          if (adminPanelOpen || activeTab !== 'chat') {
-            // Close admin → go back to chat
+          const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites'].includes(activeTab);
+          if (adminPanelOpen || isAdminTab) {
+            // Close admin → go back to home
             setAdminPanelOpen(false);
-            setActiveTab('chat');
+            setActiveTab('home');
           } else {
             const isAuthed = adminTargetPortal === 'admin' 
-              ? adminAuthenticated 
+              ? effectiveAdminAuthed 
               : adminTargetPortal === 'property_manager'
-              ? (propertyManagerAuthenticated || adminAuthenticated)
-              : (salesManagerAuthenticated || adminAuthenticated);
+              ? (effectivePmAuthed || effectiveAdminAuthed)
+              : (effectiveSmAuthed || effectiveAdminAuthed);
             if (!isAuthed) {
               // Not logged in → show login gate
               handleSelectPortalTab(adminTargetPortal);
@@ -2577,7 +2617,7 @@ export default function App() {
           <div className="flex-1 flex w-full h-full overflow-hidden relative">
             <div className="flex-1 flex h-full overflow-hidden">
               {/* Admin Portal Pages — require adminAuthenticated */}
-            {adminAuthenticated && activeTab === 'crm' && (
+            {effectiveAdminAuthed && activeTab === 'crm' && (
               <CrmPipeline
                 leads={leadsList}
                 followUps={followUpsList}
@@ -2605,17 +2645,17 @@ export default function App() {
               />
             )}
 
-            {adminAuthenticated && activeTab === 'knowledge' && (
+            {effectiveAdminAuthed && activeTab === 'knowledge' && (
               <KnowledgeBaseView />
             )}
 
             {/* Stats — accessible to both Admin and Property Manager */}
-            {(adminAuthenticated || propertyManagerAuthenticated) && activeTab === 'stats' && (
+            {(effectiveAdminAuthed || effectivePmAuthed) && activeTab === 'stats' && (
               <AdminStats properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES} />
             )}
 
             {/* Assign / Bookings Section — accessible to both Property Manager and Admin */}
-            {(adminAuthenticated || propertyManagerAuthenticated) && activeTab === 'assigned_properties' && (
+            {(effectiveAdminAuthed || effectivePmAuthed) && activeTab === 'assigned_properties' && (
               <AssignedPropertiesView
                 properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
                 leads={leadsList}
@@ -2626,7 +2666,7 @@ export default function App() {
             )}
 
             {/* Customer Profiles & Activity (Which Customer Logged In) — Admin only */}
-            {adminAuthenticated && activeTab === 'customers' && (
+            {effectiveAdminAuthed && activeTab === 'customers' && (
               <CustomerProfiles 
                 onNavigateToTrends={() => setActiveTab('login_stats')} 
                 onSelectUserChat={(user) => {
@@ -2637,7 +2677,7 @@ export default function App() {
             )}
 
             {/* User Chat History (Select User Name from Login, then view Sequential Q&A Chats) — Admin only */}
-            {adminAuthenticated && activeTab === 'user_chats' && (
+            {effectiveAdminAuthed && activeTab === 'user_chats' && (
               <AdminUserChatHistory
                 initialSelectedUser={chatHistoryTargetUser}
                 onNavigateToProfiles={() => setActiveTab('customers')}
@@ -2657,12 +2697,12 @@ export default function App() {
             )}
 
             {/* Login Trends & Aggregates (Date/Day/Month/Year) — Admin only */}
-            {adminAuthenticated && activeTab === 'login_stats' && (
+            {effectiveAdminAuthed && activeTab === 'login_stats' && (
               <CustomerAnalytics onNavigateToProfiles={() => setActiveTab('customers')} />
             )}
 
             {/* Property Manager, Admin, & Sales Manager Portal Properties Page */}
-            {(propertyManagerAuthenticated || adminAuthenticated || salesManagerAuthenticated) && activeTab === 'properties' && (
+            {(effectivePmAuthed || effectiveAdminAuthed || salesManagerAuthenticated) && activeTab === 'properties' && (
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
@@ -2674,7 +2714,7 @@ export default function App() {
             )}
 
             {/* Sales Manager Portal Pages — Duplicate Detection & Missing Requirements Quality Audit */}
-            {(salesManagerAuthenticated || adminAuthenticated) && (activeTab === 'sales_duplicates' || activeTab === 'sales_missing_requirements') && (
+            {(effectiveSmAuthed || effectiveAdminAuthed) && (activeTab === 'sales_duplicates' || activeTab === 'sales_missing_requirements') && (
               <SalesManagerDashboard
                 properties={propertiesList}
                 activeSubTab={activeTab === 'sales_missing_requirements' ? 'missing_requirements' : 'duplicates'}
@@ -2718,25 +2758,25 @@ export default function App() {
             )}
             </div>
 
-          </div>
-        )}
+            {/* Admin Copilot Chatbot — ONLY rendered for Super Admin on Admin pages (REMOVED from Home) */}
+            {effectiveAdminAuthed && adminTargetPortal === 'admin' && (
+              <AdminCopilotChat
+                properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
+                leads={leadsList}
+                customerCount={customerCount}
+                followUps={followUpsList}
+                activeTab={activeTab}
+                onNavigateTab={(tab) => {
+                  if (tab === 'appearance' || tab === 'settings') {
+                    setShowSettingsModal(true);
+                  } else {
+                    setActiveTab(tab as any);
+                  }
+                }}
+              />
+            )}
 
-        {/* Admin Copilot Chatbot — Available across all views (including Home & Admin pages) for Super Admin */}
-        {adminAuthenticated && adminTargetPortal === 'admin' && (
-          <AdminCopilotChat
-            properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
-            leads={leadsList}
-            customerCount={customerCount}
-            followUps={followUpsList}
-            activeTab={activeTab}
-            onNavigateTab={(tab) => {
-              if (tab === 'appearance' || tab === 'settings') {
-                setShowSettingsModal(true);
-              } else {
-                setActiveTab(tab as any);
-              }
-            }}
-          />
+          </div>
         )}
       </main>
 
@@ -4298,9 +4338,10 @@ export default function App() {
           setCustomBgColor('');
           try { localStorage.removeItem('lyka_realty_custom_bg'); } catch (_) {}
         }}
-        adminAuthenticated={adminAuthenticated}
-        propertyManagerAuthenticated={propertyManagerAuthenticated}
-        salesManagerAuthenticated={salesManagerAuthenticated}
+        adminAuthenticated={effectiveAdminAuthed}
+        propertyManagerAuthenticated={effectivePmAuthed}
+        salesManagerAuthenticated={effectiveSmAuthed}
+        hideAdminTab={isCustomerLoggedIn}
         adminTargetPortal={adminTargetPortal}
         onSelectPortal={(portal) => {
           setAdminTargetPortal(portal);
@@ -4311,10 +4352,10 @@ export default function App() {
         }}
         onOpenAdminPanel={() => {
           const isAuthed = adminTargetPortal === 'admin' 
-            ? adminAuthenticated 
+            ? effectiveAdminAuthed 
             : adminTargetPortal === 'property_manager'
-            ? (propertyManagerAuthenticated || adminAuthenticated)
-            : (salesManagerAuthenticated || adminAuthenticated);
+            ? (effectivePmAuthed || effectiveAdminAuthed)
+            : (effectiveSmAuthed || effectiveAdminAuthed);
           if (!isAuthed) {
             handleSelectPortalTab(adminTargetPortal);
             setShowAdminLoginModal(true);
