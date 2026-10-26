@@ -7,6 +7,7 @@ import {
   ShieldCheck, 
   Cpu, 
   User, 
+  Users,
   Check, 
   Building2, 
   Copy, 
@@ -40,6 +41,7 @@ interface SettingsModalProps {
   adminTargetPortal: 'admin' | 'property_manager' | 'sales_manager';
   onSelectPortal: (portal: 'admin' | 'property_manager' | 'sales_manager') => void;
   onOpenAdminPanel: () => void;
+  onOpenStaffAccess?: () => void;
   onOpenCredentialsConfig: () => void;
   onAdminLogout: () => void;
   hideAdminTab?: boolean;
@@ -124,6 +126,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   adminTargetPortal,
   onSelectPortal,
   onOpenAdminPanel,
+  onOpenStaffAccess,
   onOpenCredentialsConfig,
   onAdminLogout,
   hideAdminTab = false,
@@ -463,17 +466,30 @@ return (
 
                 <div className={`grid gap-2 ${adminAuthenticated && isAnyAdminAuthed ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                   {adminAuthenticated && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onOpenCredentialsConfig();
-                      }}
-                      className="w-full bg-[#f4ede0] hover:bg-[#ebdcc4] dark:bg-slate-800 dark:hover:bg-slate-700 text-[#2d2216] dark:text-slate-200 font-semibold py-2 px-3 rounded-xl text-xs transition-colors border border-[#d6c7ab] dark:border-slate-700 flex items-center justify-center space-x-1.5 cursor-pointer"
-                    >
-                      <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Change Database Credentials</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          if (onOpenStaffAccess) onOpenStaffAccess();
+                        }}
+                        className="w-full bg-[#f4ede0] hover:bg-[#ebdcc4] dark:bg-slate-800 dark:hover:bg-slate-700 text-[#2d2216] dark:text-slate-200 font-semibold py-2 px-3 rounded-xl text-xs transition-colors border border-[#d6c7ab] dark:border-slate-700 flex items-center justify-center space-x-1.5 cursor-pointer"
+                      >
+                        <Users className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                        <span>Manage Staff (ID & Mobile)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenCredentialsConfig();
+                        }}
+                        className="w-full bg-[#f4ede0] hover:bg-[#ebdcc4] dark:bg-slate-800 dark:hover:bg-slate-700 text-[#2d2216] dark:text-slate-200 font-semibold py-2 px-3 rounded-xl text-xs transition-colors border border-[#d6c7ab] dark:border-slate-700 flex items-center justify-center space-x-1.5 cursor-pointer"
+                      >
+                        <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Database Credentials</span>
+                      </button>
+                    </>
                   )}
 
                   {isAnyAdminAuthed ? (

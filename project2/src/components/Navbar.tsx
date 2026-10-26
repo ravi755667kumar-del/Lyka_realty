@@ -22,13 +22,15 @@ import {
   Home,
   X,
   Heart,
-  Palette
+  Palette,
+  UserPlus
 } from 'lucide-react';
 import type { PropertyListing } from '../types/crm';
 
 interface NavbarProps {
-  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites';
-  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites') => void;
+  activeTab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites' | 'staff_access';
+  setActiveTab: (tab: 'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites' | 'staff_access') => void;
+  staffCount?: number;
   leadCount: number;
   customerCount?: number;
   propertyCount?: number;
@@ -71,6 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   leadCount,
   customerCount,
+  staffCount,
   propertyCount,
   bookedPropertyCount,
   dbFavoritesCount,
@@ -177,7 +180,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (propertyCityFilter === 'Mumbai') return mumbaiProperties;
     return properties || [];
   }, [properties, propertyCityFilter, dubaiProperties, mumbaiProperties]);
-  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites'].includes(activeTab);
+  const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites', 'staff_access'].includes(activeTab);
 
   // Triple-tap / triple-click counter to open Admin Panel
   const tapCountRef = useRef(0);
@@ -905,6 +908,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                       activeTab === 'favorites' ? 'bg-white/25 text-white' : 'bg-red-500/20 text-red-300'
                     }`}>
                       {dbFavoritesCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('staff_access')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                    activeTab === 'staff_access'
+                      ? 'bg-violet-600 text-white shadow-md'
+                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
+                  }`}
+                  title="Manage authorized Property Admins & Sales Managers"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-violet-400" />
+                  <span>Staff Access</span>
+                  {staffCount !== undefined && staffCount > 0 && (
+                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
+                      activeTab === 'staff_access' ? 'bg-white/25 text-white' : 'bg-violet-500/30 text-violet-300'
+                    }`}>
+                      {staffCount}
                     </span>
                   )}
                 </button>

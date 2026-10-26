@@ -280,6 +280,163 @@ try {
   }
 } catch (_) {}
 
+// ── Authorized Portal Staff Management (Property Admin & Sales Manager) ───────
+export interface ServerPortalStaffMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  idCard: string;
+  role: 'property_manager' | 'sales_manager';
+  password?: string;
+  status: 'active' | 'suspended';
+  addedAt: string;
+  addedBy?: string;
+}
+
+const ROOT_STAFF_FILE = path.join(__dirname, 'portal_staff.json');
+const DIST_STAFF_FILE = path.join(__dirname, 'dist', 'portal_staff.json');
+const STAFF_FILE = fs.existsSync(ROOT_STAFF_FILE) ? ROOT_STAFF_FILE : (fs.existsSync(DIST_STAFF_FILE) ? DIST_STAFF_FILE : ROOT_STAFF_FILE);
+
+function loadPortalStaff(): ServerPortalStaffMember[] {
+  try {
+    if (fs.existsSync(STAFF_FILE)) {
+      const raw = fs.readFileSync(STAFF_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (err: any) {
+    console.warn('[Staff Management] Failed reading staff file:', err.message);
+  }
+  return [];
+}
+
+function savePortalStaff(staffList: ServerPortalStaffMember[]): void {
+  try {
+    const serialized = JSON.stringify(staffList, null, 2);
+    try { fs.writeFileSync(ROOT_STAFF_FILE, serialized, 'utf-8'); } catch (_) {}
+    try {
+      const distDir = path.dirname(DIST_STAFF_FILE);
+      if (fs.existsSync(distDir)) {
+        fs.writeFileSync(DIST_STAFF_FILE, serialized, 'utf-8');
+      }
+    } catch (_) {}
+  } catch (err: any) {
+    console.warn('[Staff Management] Failed writing staff file:', err.message);
+  }
+}
+
+/**
+ * Searches credentials across added staff and default portal credentials for login & OTP verification
+ */
+async function findCredentialForPortalLogin(
+  portalKey: 'admin' | 'property_manager' | 'sales_manager',
+  cleanEmail: string
+): Promise<{
+  matched: boolean;
+  credential?: {
+    id: string;
+    email: string;
+    password?: string;
+    role: 'admin' | 'property_manager' | 'sales_manager';
+    name?: string;
+    phone?: string;
+    idCard?: string;
+  };
+}> {
+  // 1. Check added staff list (Property Managers & Sales Managers added by Admin with ID card and mobile no)
+  const staffList = loadPortalStaff();
+  const staff = staffList.find(s => 
+    s.role === portalKey && 
+    s.email.toLowerCase() === cleanEmail && 
+    s.status !== 'suspended'
+  );
+  if (staff && staff.password) {
+    return {
+      matched: true,
+      credential: {
+        id: staff.id,
+        email: staff.email,
+        password: staff.password,
+        role: staff.role,
+        name: staff.name,
+        phone: staff.phone,
+        idCard: staff.idCard
+      }
+    };
+  }
+
+  // 2. Check Firestore for added staff in dedicated collection (Property_login or Sales_login)
+  if (firestoreDb && portalKey !== 'admin') {
+    try {
+      const colName = portalKey === 'sales_manager' ? 'Sales_login' : 'Property_login';
+      const docRef = fsDoc(firestoreDb, colName, cleanEmail);
+      const snap = await safeFirestoreGetDoc(docRef, 3000);
+      if (snap && snap.exists()) {
+        const d = snap.data();
+        if (d && d.password) {
+          return {
+            matched: true,
+            credential: {
+              id: snap.id,
+              email: d.email || d.Email_id || cleanEmail,
+              password: d.password,
+              role: portalKey,
+              name: d.name || d.Name || (portalKey === 'sales_manager' ? 'Sales Manager' : 'Property Manager'),
+              phone: d.phone || d.Phone_number || '',
+              idCard: d.id_card || d.idCard || d.idCardNumber || ''
+            }
+          };
+        }
+      }
+    } catch (fsErr: any) {
+      console.warn('[Credential Lookup] Firestore staff check notice:', fsErr.message);
+    }
+  }
+
+  // 3. Fallback to default disk & firestore admin credentials
+  const diskCreds = loadStoredPortalCredentials();
+  let targetCred: any = diskCreds[portalKey];
+
+  if (firestoreDb) {
+    try {
+      const colName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
+      const docRef = fsDoc(firestoreDb, colName, portalKey);
+      const snap = await safeFirestoreGetDoc(docRef, 3000);
+      if (snap && snap.exists()) {
+        const d = snap.data();
+        if (d.password) {
+          targetCred = {
+            ...targetCred,
+            ...d,
+            email: d.email || d.Email_id || targetCred.email,
+            password: d.password
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
+  const expectedEmail = String(targetCred?.email || '').trim().toLowerCase();
+  if (cleanEmail === expectedEmail) {
+    return {
+      matched: true,
+      credential: {
+        id: targetCred.id || portalKey,
+        email: expectedEmail,
+        password: targetCred.password,
+        role: portalKey,
+        name: targetCred.name,
+        phone: targetCred.phone,
+        idCard: targetCred.idCard
+      }
+    };
+  }
+
+  return { matched: false };
+}
+
+
 /**
  * Safe non-blocking Firestore write that times out after timeoutMs (default 3500ms).
  * Prevents gRPC ETIMEDOUT stream locks from hanging API requests.
@@ -824,6 +981,9 @@ interface AdminSession {
   portal: 'admin' | 'property_manager' | 'sales_manager';
   role: 'admin' | 'property_manager' | 'sales_manager';
   email: string;
+  name?: string;
+  phone?: string;
+  idCard?: string;
   createdAt: number;
   expiresAt: number;
 }
@@ -1175,41 +1335,24 @@ app.post('/api/auth/send-email-otp', async (req: Request, res: Response) => {
 
       const cleanPassword = String(password).trim();
 
-      // Load stored credentials (disk + Firestore)
-      const diskCreds = loadStoredPortalCredentials();
-      let targetCred: any = diskCreds[portalKey];
-
-      if (firestoreDb) {
-        try {
-          const colName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
-          const docRef = fsDoc(firestoreDb, colName, portalKey);
-          const snap = await safeFirestoreGetDoc(docRef, 3000);
-          if (snap && snap.exists()) {
-            const d = snap.data();
-            if (d.password) {
-              targetCred = {
-                ...targetCred,
-                ...d,
-                email: d.email || d.Email_id || targetCred.email,
-                password: d.password
-              };
-            }
-          }
-        } catch (fsErr: any) {
-          console.warn('[Send OTP Auth Check] Firestore notice:', fsErr.message);
-        }
+      // Look up credential across staff and default portal credentials
+      const lookup = await findCredentialForPortalLogin(portalKey, cleanEmail);
+      if (!lookup.matched || !lookup.credential) {
+        return res.status(401).json({
+          success: false,
+          valid: false,
+          passwordError: true,
+          error: `Email ${cleanEmail} is not authorized for ${portalName} portal.`,
+          message: `Email ${cleanEmail} is not registered for ${portalName}. Super Admin can add this email in Staff Access.`
+        });
       }
 
-      const expectedPassword = String(targetCred?.password || '').trim();
-      const expectedEmail = String(targetCred?.email || '').trim().toLowerCase();
-      const emailMatches = (cleanEmail === expectedEmail);
-
-      // Constant-time comparison
+      const expectedPassword = String(lookup.credential.password || '').trim();
       const hashA = crypto.createHash('sha256').update(cleanPassword).digest();
       const hashB = crypto.createHash('sha256').update(expectedPassword).digest();
       const passwordMatches = crypto.timingSafeEqual(hashA, hashB);
 
-      if (!emailMatches || !passwordMatches) {
+      if (!passwordMatches) {
         return res.status(401).json({
           success: false,
           valid: false,
@@ -1890,7 +2033,17 @@ app.get('/api/auth/portal-credentials', async (_req: Request, res: Response) => 
       }
     }
 
-    return res.json({ success: true, credentials: result });
+    const staffList = loadPortalStaff();
+    const authorizedEmails = [
+      result.admin.email,
+      result.property_manager.email,
+      result.sales_manager.email,
+      ...staffList.map(s => s.email)
+    ].filter(Boolean);
+    result.authorizedEmails = Array.from(new Set(authorizedEmails.map((e: string) => e.toLowerCase())));
+    result.staff = staffList.map(({ password, ...rest }) => rest);
+
+    return res.json({ success: true, credentials: result, staff: result.staff });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -1923,41 +2076,19 @@ app.post('/api/auth/verify-portal-login', async (req: Request, res: Response) =>
       });
     }
 
-    // 2. Load stored credentials server-side
-    const diskCreds = loadStoredPortalCredentials();
-    let targetCred: any = diskCreds[portalKey];
+    // 2. Look up matching credential across staff & default portal credentials
+    const lookup = await findCredentialForPortalLogin(portalKey, cleanEmail);
+    const targetCred = lookup.credential;
+    const expectedPassword = String(targetCred?.password || '').trim();
 
-    if (firestoreDb) {
-      try {
-        const colName = portalKey === 'sales_manager' ? 'Sales_login' : portalKey === 'property_manager' ? 'Property_login' : 'Admin_login';
-        const docRef = fsDoc(firestoreDb, colName, portalKey);
-        const snap = await safeFirestoreGetDoc(docRef, 3000);
-        if (snap && snap.exists()) {
-          const d = snap.data();
-          if (d.password) {
-            targetCred = {
-              ...targetCred,
-              ...d,
-              email: d.email || d.Email_id || targetCred.email,
-              password: d.password
-            };
-          }
-        }
-      } catch (fsErr: any) {
-        console.warn('[Verify Login] Firestore check notice:', fsErr.message);
-      }
+    let passwordMatches = false;
+    if (lookup.matched && expectedPassword) {
+      const hashA = crypto.createHash('sha256').update(cleanPassword).digest();
+      const hashB = crypto.createHash('sha256').update(expectedPassword).digest();
+      passwordMatches = crypto.timingSafeEqual(hashA, hashB);
     }
 
-    const expectedPassword = String(targetCred?.password || '').trim();
-    const expectedEmail = String(targetCred?.email || '').trim().toLowerCase();
-    const emailMatches = (cleanEmail === expectedEmail);
-
-    // Constant-time comparison using sha256 to defeat timing attacks
-    const hashA = crypto.createHash('sha256').update(cleanPassword).digest();
-    const hashB = crypto.createHash('sha256').update(expectedPassword).digest();
-    const passwordMatches = crypto.timingSafeEqual(hashA, hashB);
-
-    if (!emailMatches || !passwordMatches) {
+    if (!lookup.matched || !passwordMatches) {
       if (!loginAttemptLimits[rateKey] || (now - loginAttemptLimits[rateKey].firstAttempt > LOGIN_LOCKOUT_MS)) {
         loginAttemptLimits[rateKey] = { count: 1, lockedUntil: 0, firstAttempt: now };
       } else {
@@ -1985,6 +2116,9 @@ app.post('/api/auth/verify-portal-login', async (req: Request, res: Response) =>
       portal: portalKey,
       role: portalKey,
       email: cleanEmail,
+      name: targetCred?.name,
+      phone: targetCred?.phone,
+      idCard: targetCred?.idCard,
       createdAt: now,
       expiresAt: now + (8 * 60 * 60 * 1000) // 8-hour session lifetime
     };
@@ -1994,11 +2128,13 @@ app.post('/api/auth/verify-portal-login', async (req: Request, res: Response) =>
       valid: true,
       token,
       user: {
-        id: targetCred.id || portalKey,
+        id: targetCred?.id || portalKey,
         portal: portalKey,
         role: portalKey,
-        email: targetCred.email,
-        name: targetCred.name || (portalKey === 'admin' ? 'Lyka Super Admin' : portalKey === 'sales_manager' ? 'Lyka Sales Manager' : 'Lyka Property Manager')
+        email: targetCred?.email || cleanEmail,
+        name: targetCred?.name || (portalKey === 'admin' ? 'Lyka Super Admin' : portalKey === 'sales_manager' ? 'Lyka Sales Manager' : 'Lyka Property Manager'),
+        phone: targetCred?.phone,
+        idCard: targetCred?.idCard
       }
     });
   } catch (err: any) {
@@ -2055,6 +2191,133 @@ app.post('/api/auth/record-sales-login', async (req: Request, res: Response) => 
 });
 
 // POST /api/auth/save-portal-credential — server-side endpoint to save portal credentials (Super Admin Only)
+
+// ── Staff Access Management Routes ──────────────────────────────────────────
+
+// GET /api/auth/portal-staff — retrieves all authorized staff members (Passwords omitted)
+app.get('/api/auth/portal-staff', async (_req: Request, res: Response) => {
+  try {
+    const staffList = loadPortalStaff();
+    const sanitized = staffList.map(({ password, ...rest }) => rest);
+    return res.json({ success: true, staff: sanitized });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/add-portal-staff — Super Admin adds new Property Admin or Sales Manager
+app.post('/api/auth/add-portal-staff', async (req: Request, res: Response) => {
+  try {
+    const { name, email, phone, idCard, role, password } = req.body || {};
+    if (!email || !role || !password || !name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, email, role, and password are required.'
+      });
+    }
+
+    const cleanRole: 'property_manager' | 'sales_manager' =
+      role === 'sales_manager' ? 'sales_manager' : 'property_manager';
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanName = String(name).trim();
+    const cleanPhone = String(phone || '').trim();
+    const cleanIdCard = String(idCard || '').trim();
+    const cleanPassword = String(password).trim();
+
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      return res.status(400).json({ success: false, error: 'Valid email address is required.' });
+    }
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
+    }
+
+    const staffList = loadPortalStaff();
+    const existingIndex = staffList.findIndex(s => s.email.toLowerCase() === cleanEmail && s.role === cleanRole);
+
+    const newStaff: ServerPortalStaffMember = {
+      id: `staff_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      idCard: cleanIdCard,
+      role: cleanRole,
+      password: cleanPassword,
+      status: 'active',
+      addedAt: new Date().toISOString(),
+      addedBy: 'Super Admin'
+    };
+
+    if (existingIndex >= 0) {
+      staffList[existingIndex] = { ...staffList[existingIndex], ...newStaff, id: staffList[existingIndex].id };
+    } else {
+      staffList.unshift(newStaff);
+    }
+    savePortalStaff(staffList);
+
+    // Sync to Firestore in dedicated collection (Property_login or Sales_login)
+    if (firestoreDb) {
+      const colName = cleanRole === 'sales_manager' ? 'Sales_login' : 'Property_login';
+      const docRef = fsDoc(firestoreDb, colName, cleanEmail);
+      safeFirestoreSetDoc(docRef, {
+        id: newStaff.id,
+        name: cleanName,
+        Name: cleanName,
+        email: cleanEmail,
+        Email_id: cleanEmail,
+        phone: cleanPhone,
+        Phone_number: cleanPhone,
+        id_card: cleanIdCard,
+        idCardNumber: cleanIdCard,
+        role: cleanRole,
+        password: cleanPassword,
+        status: 'active',
+        createdAt: newStaff.addedAt,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }, 3000).catch((e) => {
+        console.warn(`[Portal Staff] Firestore write warning for ${colName}:`, e.message);
+      });
+      console.log(`[Portal Staff] Added staff ${cleanEmail} (${cleanName}) for ${cleanRole} in ${colName}`);
+    }
+
+    const { password: _, ...sanitizedStaff } = newStaff;
+    return res.json({ success: true, staff: sanitizedStaff });
+  } catch (err: any) {
+    console.error('[Add Portal Staff] Error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/remove-portal-staff — Super Admin revokes portal access for a staff member
+app.post('/api/auth/remove-portal-staff', async (req: Request, res: Response) => {
+  try {
+    const { email, role } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required.' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanRole = role === 'sales_manager' ? 'sales_manager' : 'property_manager';
+
+    let staffList = loadPortalStaff();
+    staffList = staffList.filter(s => !(s.email.toLowerCase() === cleanEmail && s.role === cleanRole));
+    savePortalStaff(staffList);
+
+    // Remove from Firestore
+    if (firestoreDb) {
+      const colName = cleanRole === 'sales_manager' ? 'Sales_login' : 'Property_login';
+      const docRef = fsDoc(firestoreDb, colName, cleanEmail);
+      fsDeleteDoc(docRef).catch((e) => {
+        console.warn(`[Portal Staff] Firestore delete warning for ${colName}:`, e.message);
+      });
+      console.log(`[Portal Staff] Revoked portal access for ${cleanEmail} in ${colName}`);
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Remove Portal Staff] Error:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/auth/save-portal-credential', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const session = (req as any).adminSession;

@@ -10,7 +10,8 @@ import {
   PortalCredential,
   BookedPropertyRecord,
   FavoritePropertyRecord,
-  UserProfileData
+  UserProfileData,
+  PortalStaffMember
 } from './types/crm';
 import { 
   createInitialLeadProfile, 
@@ -53,6 +54,7 @@ import {
   saveFavoritePropertyToFirestore,
   removeFavoritePropertyFromFirestore,
   getFavoritePropertiesFromFirestore,
+  fetchPortalStaff,
   auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
@@ -71,6 +73,7 @@ import { CustomerAnalytics } from './components/CustomerAnalytics';
 import { CustomerProfiles } from './components/CustomerProfiles';
 import { AdminUserChatHistory } from './components/AdminUserChatHistory';
 import { AdminCopilotChat } from './components/AdminCopilotChat';
+import { AdminStaffManagement } from './components/AdminStaffManagement';
 import { SettingsModal, AppTheme } from './components/SettingsModal';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
@@ -105,7 +108,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites' | 'staff_access'>('home');
   const [chatHistoryTargetUser, setChatHistoryTargetUser] = useState<UserProfileData | null>(null);
   const [dbFavoritesList, setDbFavoritesList] = useState<FavoritePropertyRecord[]>([]);
 
@@ -289,6 +292,23 @@ export default function App() {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Database-backed Admin, Property Manager, & Sales Manager profile metadata (Passwords are never loaded client-side)
+  
+  // Authorized Staff Access State (Property Admins and Sales Managers added by Super Admin)
+  const [staffList, setStaffList] = useState<PortalStaffMember[]>([]);
+
+  const loadStaffList = async () => {
+    try {
+      const staff = await fetchPortalStaff();
+      setStaffList(staff);
+    } catch (err) {
+      console.warn('Could not load staff list:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadStaffList();
+  }, []);
+
   const [adminDbCredentials, setAdminDbCredentials] = useState<PortalCredential[]>([
     { id: 'admin', email: 'admin@lykarealty.ae', role: 'admin', name: 'Lyka Super Admin' }
   ]);
@@ -335,14 +355,18 @@ export default function App() {
   const SALES_EMAIL = salesDbCredentials[0]?.email || 'raviku6678@gmail.com';
 
   const adminEmails = useMemo(() => {
-    return [
+    const list = [
       (adminDbCredentials[0]?.email || 'raviku6678@gmail.com').toLowerCase(),
       (pmDbCredentials[0]?.email || 'ravikumar755667@gmail.com').toLowerCase(),
       (salesDbCredentials[0]?.email || 'sales@lykarealty.ae').toLowerCase(),
       'raviku6678@gmail.com',
       'ravikumar755667@gmail.com'
     ];
-  }, [adminDbCredentials, pmDbCredentials, salesDbCredentials]);
+    staffList.forEach(s => {
+      if (s.email) list.push(s.email.toLowerCase().trim());
+    });
+    return Array.from(new Set(list));
+  }, [adminDbCredentials, pmDbCredentials, salesDbCredentials, staffList]);
 
   // When a regular customer user logs in on Home or Chat, they must NOT see the admin header or panel
   const isCustomerLoggedIn = useMemo(() => {
@@ -2445,7 +2469,7 @@ export default function App() {
           }
         }}
         onToggleAdminPanel={() => {
-          const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites'].includes(activeTab);
+          const isAdminTab = ['crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites', 'staff_access'].includes(activeTab);
           if (adminPanelOpen || isAdminTab) {
             // Close admin → go back to home
             setAdminPanelOpen(false);
@@ -2734,6 +2758,23 @@ export default function App() {
                 onRefresh={fetchDbFavorites}
                 onSelectProperty={(prop) => setViewingModalProperty(prop)}
                 onRemoveFavorite={handleAdminDeleteFavorite}
+              />
+            )}
+
+            
+            {/* Staff & Portal Access Management (Super Admin adds Property Admins & Sales Managers with ID Card & Mobile) */}
+            {effectiveAdminAuthed && activeTab === 'staff_access' && (
+              <AdminStaffManagement
+                staffList={staffList}
+                onRefreshStaff={loadStaffList}
+                onNavigateToPortals={(portal) => {
+                  handleSelectPortalTab(portal);
+                  if (portal === 'property_manager') {
+                    setActiveTab('properties');
+                  } else {
+                    setActiveTab('sales_duplicates');
+                  }
+                }}
               />
             )}
 
@@ -4369,6 +4410,10 @@ export default function App() {
               setActiveTab('crm');
             }
           }
+        }}
+        onOpenStaffAccess={() => {
+          setAdminPanelOpen(true);
+          setActiveTab('staff_access');
         }}
         onOpenCredentialsConfig={() => {
           setShowCredentialConfig(true);

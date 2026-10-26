@@ -18,7 +18,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, BookedPropertyRecord, FavoritePropertyRecord, QaChatItem, SequentialConversation } from '../types/crm';
+import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, PortalStaffMember, BookedPropertyRecord, FavoritePropertyRecord, QaChatItem, SequentialConversation } from '../types/crm';
 
 const app = initializeApp(firebaseConfig);
 export const db = (firebaseConfig as any).firestoreDatabaseId
@@ -1764,5 +1764,74 @@ export async function getFavoritePropertiesFromFirestore(): Promise<FavoriteProp
   } catch (error) {
     console.warn('Could not fetch favorites from Firestore:', error);
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Portal Staff Management (Property Admin & Sales Manager User Access)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function fetchPortalStaff(): Promise<PortalStaffMember[]> {
+  try {
+    const res = await fetch('/api/auth/portal-staff');
+    if (res.ok) {
+      const data = await res.json();
+      return data.staff || [];
+    }
+  } catch (err) {
+    console.warn('Could not fetch portal staff from server:', err);
+  }
+  return [];
+}
+
+export async function addPortalStaff(payload: {
+  name: string;
+  email: string;
+  phone: string;
+  idCard: string;
+  role: 'property_manager' | 'sales_manager';
+  password: string;
+}): Promise<{ success: boolean; staff?: PortalStaffMember; error?: string }> {
+  try {
+    const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('lyka_admin_token') : null;
+    const res = await fetch('/api/auth/add-portal-staff', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return { success: true, staff: data.staff };
+    }
+    return { success: false, error: data.error || 'Failed to add staff member.' };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error adding staff member.' };
+  }
+}
+
+export async function removePortalStaff(
+  email: string,
+  role: 'property_manager' | 'sales_manager'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const token = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('lyka_admin_token') : null;
+    const res = await fetch('/api/auth/remove-portal-staff', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ email, role })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      return { success: true };
+    }
+    return { success: false, error: data.error || 'Failed to remove staff member.' };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error removing staff member.' };
   }
 }

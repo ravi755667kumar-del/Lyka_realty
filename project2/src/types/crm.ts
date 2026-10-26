@@ -350,9 +350,22 @@ export interface PortalCredential {
   role: 'admin' | 'property_manager' | 'sales_manager';
   name?: string;
   phone?: string;
+  idCard?: string;
   otp_code?: string;
   otp_created_at?: string;
   updatedAt?: string;
+}
+
+export interface PortalStaffMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  idCard: string;
+  role: 'property_manager' | 'sales_manager';
+  status: 'active' | 'suspended';
+  addedAt: string;
+  addedBy?: string;
 }
 
 export interface DuplicatePropertyPair {
