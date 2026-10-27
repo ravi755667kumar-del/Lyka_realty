@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { signOut } from 'firebase/auth';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { isUserAdminAuthenticated } from './lib/security';
 import { 
   LeadProfile, 
   ChatMessage, 
@@ -54,27 +55,32 @@ import {
   saveFavoritePropertyToFirestore,
   removeFavoritePropertyFromFirestore,
   getFavoritePropertiesFromFirestore,
+  syncUserFavoriteWithFirestore,
+  fetchUserFavoritesFromFirestore,
   fetchPortalStaff,
   auth
 } from './lib/firebase';
 import { Navbar } from './components/Navbar';
-import { AboutProjectModal } from './components/AboutProjectModal';
 import { AgenticChat } from './components/AgenticChat';
 import { HomeLanding } from './components/HomeLanding';
 import { LeadProfileSidebar } from './components/LeadProfileSidebar';
-import { CrmPipeline } from './components/CrmPipeline';
-import { PropertyInventory } from './components/PropertyInventory';
-import { SalesManagerDashboard } from './components/SalesManagerDashboard';
-import { AdminFavoritesView } from './components/AdminFavoritesView';
-import { AssignedPropertiesView } from './components/AssignedPropertiesView';
-import { KnowledgeBaseView } from './components/KnowledgeBaseView';
-import { AdminStats } from './components/AdminStats';
-import { CustomerAnalytics } from './components/CustomerAnalytics';
-import { CustomerProfiles } from './components/CustomerProfiles';
-import { AdminUserChatHistory } from './components/AdminUserChatHistory';
-import { AdminCopilotChat } from './components/AdminCopilotChat';
-import { AdminStaffManagement } from './components/AdminStaffManagement';
-import { SettingsModal, AppTheme } from './components/SettingsModal';
+import type { AppTheme } from './components/SettingsModal';
+
+// Code-split admin and secondary modals for ultra-fast, lightweight initial page loads
+const AboutProjectModal = React.lazy(() => import('./components/AboutProjectModal').then(m => ({ default: m.AboutProjectModal })));
+const CrmPipeline = React.lazy(() => import('./components/CrmPipeline').then(m => ({ default: m.CrmPipeline })));
+const PropertyInventory = React.lazy(() => import('./components/PropertyInventory').then(m => ({ default: m.PropertyInventory })));
+const SalesManagerDashboard = React.lazy(() => import('./components/SalesManagerDashboard').then(m => ({ default: m.SalesManagerDashboard })));
+const AdminFavoritesView = React.lazy(() => import('./components/AdminFavoritesView').then(m => ({ default: m.AdminFavoritesView })));
+const AssignedPropertiesView = React.lazy(() => import('./components/AssignedPropertiesView').then(m => ({ default: m.AssignedPropertiesView })));
+const KnowledgeBaseView = React.lazy(() => import('./components/KnowledgeBaseView').then(m => ({ default: m.KnowledgeBaseView })));
+const AdminStats = React.lazy(() => import('./components/AdminStats').then(m => ({ default: m.AdminStats })));
+const CustomerAnalytics = React.lazy(() => import('./components/CustomerAnalytics').then(m => ({ default: m.CustomerAnalytics })));
+const CustomerProfiles = React.lazy(() => import('./components/CustomerProfiles').then(m => ({ default: m.CustomerProfiles })));
+const AdminUserChatHistory = React.lazy(() => import('./components/AdminUserChatHistory').then(m => ({ default: m.AdminUserChatHistory })));
+const AdminCopilotChat = React.lazy(() => import('./components/AdminCopilotChat').then(m => ({ default: m.AdminCopilotChat })));
+const AdminStaffManagement = React.lazy(() => import('./components/AdminStaffManagement').then(m => ({ default: m.AdminStaffManagement })));
+const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
@@ -100,6 +106,7 @@ import {
   Eye,
   EyeOff,
   Heart,
+  LogIn,
   Sparkles,
   RefreshCw,
   ExternalLink,
@@ -126,13 +133,15 @@ export default function App() {
   }
 
   const fetchDbFavorites = async () => {
-    try {
-      const firestoreFavs = await getFavoritePropertiesFromFirestore();
-      if (firestoreFavs && firestoreFavs.length > 0) {
-        setDbFavoritesList(firestoreFavs);
-        return;
-      }
-    } catch (_) {}
+    if (isUserAdminAuthenticated() || auth.currentUser) {
+      try {
+        const firestoreFavs = await getFavoritePropertiesFromFirestore();
+        if (firestoreFavs && firestoreFavs.length > 0) {
+          setDbFavoritesList(firestoreFavs);
+          return;
+        }
+      } catch (_) {}
+    }
 
     try {
       const res = await fetch('/api/favorites');
@@ -288,8 +297,85 @@ export default function App() {
   const [showConfigAdminPassword, setShowConfigAdminPassword] = useState(false);
   const [adminLoginError, setAdminLoginError] = useState('');
   const [adminLoginLoading, setAdminLoginLoading] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem('lyka_client_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed?.id || parsed?.uid || null;
+      }
+    } catch (_) {}
+    return null;
+  });
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem('lyka_client_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed?.email || null;
+      }
+    } catch (_) {}
+    return null;
+  });
+
+  // Header favorites — strictly requires user sign-in / sign-up
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showFavoriteAuthModal, setShowFavoriteAuthModal] = useState(false);
+  const [favoriteToast, setFavoriteToast] = useState<string | null>(null);
+
+  // Visitor is signed in if they have a verified customer account session or an authenticated staff/admin session
+  const isUserSignedIn = useMemo(() => {
+    if (Boolean(currentUserId || currentUserEmail || auth?.currentUser || adminAuthenticated || propertyManagerAuthenticated || salesManagerAuthenticated)) {
+      return true;
+    }
+    try {
+      const stored = localStorage.getItem('lyka_client_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Only valid if user has email or non-guest UID
+        if (parsed?.email || (parsed?.uid && !String(parsed.uid).startsWith('guest_'))) return true;
+      }
+    } catch (_) {}
+    return false;
+  }, [currentUserId, currentUserEmail, adminAuthenticated, propertyManagerAuthenticated, salesManagerAuthenticated]);
+
+  // Listen for Firebase auth state changes to keep current user ID & email synchronized
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUserId(user.uid);
+        if (user.email) setCurrentUserEmail(user.email);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // When a user logs in, automatically restore their saved favorites from Firebase Firestore; when logged out, ensure empty
+  useEffect(() => {
+    const activeEmail = currentUserEmail || auth.currentUser?.email;
+    const activeUid = currentUserId || auth.currentUser?.uid;
+    if (isUserSignedIn && (activeEmail || activeUid)) {
+      fetchUserFavoritesFromFirestore(activeEmail || null, activeUid || null)
+        .then((savedIds) => {
+          if (savedIds && savedIds.length > 0) {
+            setFavorites(savedIds);
+            try {
+              localStorage.setItem('lyka_favorite_properties', JSON.stringify(savedIds));
+              localStorage.setItem('lyka_saved_properties', JSON.stringify(savedIds));
+            } catch (_) {}
+          }
+        })
+        .catch(() => {});
+    } else if (!isUserSignedIn) {
+      setFavorites([]);
+      try {
+        localStorage.removeItem('lyka_favorite_properties');
+        localStorage.removeItem('lyka_saved_properties');
+      } catch (_) {}
+    }
+  }, [isUserSignedIn, currentUserEmail, currentUserId]);
+
 
   // Database-backed Admin, Property Manager, & Sales Manager profile metadata (Passwords are never loaded client-side)
   
@@ -968,36 +1054,10 @@ export default function App() {
   const [selectedProperty, setSelectedProperty] = useState<PropertyListing | null>(null);
   // Header property and city selector state
   const [selectedCityFilter, setSelectedCityFilter] = useState<'all' | 'Dubai' | 'Mumbai'>('all');
-  // Header favorites — property IDs the user has favorited (persisted to localStorage)
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem('lyka_favorite_properties') || localStorage.getItem('lyka_saved_properties');
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [favoriteToast, setFavoriteToast] = useState<string | null>(null);
-
-  // Visitor is signed in if they have a customer account session or an authenticated staff/admin session
-  const isUserSignedIn = useMemo(() => {
-    if (Boolean(currentUserId || currentUserEmail || auth?.currentUser || adminAuthenticated || propertyManagerAuthenticated || salesManagerAuthenticated)) {
-      return true;
-    }
-    try {
-      const stored = localStorage.getItem('lyka_client_user');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.id || parsed?.uid || parsed?.email) return true;
-      }
-    } catch (_) {}
-    return false;
-  }, [currentUserId, currentUserEmail, adminAuthenticated, propertyManagerAuthenticated, salesManagerAuthenticated]);
 
   const handleToggleFavoritesFilter = () => {
     if (!isUserSignedIn) {
+      setShowFavoriteAuthModal(true);
       setFavoriteToast('🔒 Please Sign In or Sign Up to view your saved favorites!');
       setTimeout(() => setFavoriteToast(null), 4500);
       return;
@@ -1020,32 +1080,50 @@ export default function App() {
 
   const toggleFavorite = (propertyId: string) => {
     if (!isUserSignedIn) {
+      setShowFavoriteAuthModal(true);
       setFavoriteToast('🔒 Please Sign In or Sign Up to save properties to your favorites!');
       setTimeout(() => setFavoriteToast(null), 4500);
       return;
     }
 
-    setFavorites(prev => {
-      const isRemoving = prev.includes(propertyId);
-      const updated = isRemoving
-        ? prev.filter(id => id !== propertyId)
-        : [...prev, propertyId];
-      try {
-        localStorage.setItem('lyka_favorite_properties', JSON.stringify(updated));
-        localStorage.setItem('lyka_saved_properties', JSON.stringify(updated));
-      } catch (e) {}
+    const isRemoving = favorites.includes(propertyId);
+    const updated = isRemoving
+      ? favorites.filter(id => id !== propertyId)
+      : [...favorites, propertyId];
 
-      const foundProp = (propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES).find(p => p.id === propertyId);
-      const propTitle = foundProp?.title || 'Residence';
-      if (!isRemoving) {
-        setFavoriteToast(`Saved "${propTitle}" to your favorites!`);
-      } else {
-        setFavoriteToast(`Removed "${propTitle}" from favorites.`);
-      }
-      setTimeout(() => setFavoriteToast(null), 3200);
+    setFavorites(updated);
+    try {
+      localStorage.setItem('lyka_favorite_properties', JSON.stringify(updated));
+      localStorage.setItem('lyka_saved_properties', JSON.stringify(updated));
+    } catch (e) {}
 
-      return updated;
-    });
+    const foundProp = (propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES).find(p => p.id === propertyId);
+    const propTitle = foundProp?.title || 'Residence';
+    if (!isRemoving) {
+      setFavoriteToast(`Saved "${propTitle}" to your favorites!`);
+    } else {
+      setFavoriteToast(`Removed "${propTitle}" from favorites.`);
+    }
+    setTimeout(() => setFavoriteToast(null), 3200);
+
+    // Save or remove directly in Firebase Firestore ('favorites' collection and 'User_login' profile)
+    if (foundProp) {
+      const activeEmail = currentUserEmail || auth.currentUser?.email || currentLead?.email || null;
+      const activeUid = currentUserId || auth.currentUser?.uid || currentLead?.user_id || null;
+      const activeName = currentLead?.full_name || auth.currentUser?.displayName || 'Valued Client';
+
+      syncUserFavoriteWithFirestore(
+        foundProp,
+        activeEmail,
+        activeUid,
+        isRemoving ? 'remove' : 'add',
+        activeName
+      ).catch((err) => {
+        console.warn('[Favorites] Notice syncing favorite with Firebase:', err);
+      });
+    }
+
+    fetchDbFavorites();
   };
   const [viewingDate, setViewingDate] = useState(new Date().toISOString().split('T')[0]);
   const [viewingTime, setViewingTime] = useState('11:00 AM');
@@ -1063,8 +1141,9 @@ export default function App() {
       setFirestoreActive(fsOk);
       fetchDbFavorites();
 
-      // Load existing Firestore leads or seed with sample leads
-      const existingLeads = await getLeadsFromFirestore();
+      // Load existing Firestore leads or seed with sample leads (only if user/admin authenticated)
+      if (isUserAdminAuthenticated() || auth.currentUser) {
+        const existingLeads = await getLeadsFromFirestore();
       if (existingLeads.length > 0) {
         setLeadsList(existingLeads);
       } else {
@@ -1119,10 +1198,11 @@ export default function App() {
         seedLeads.forEach(l => saveLeadData(l));
       }
 
-      // Load follow-ups
-      const existingFollowups = await getFollowUpsFromFirestore();
-      if (existingFollowups.length > 0) {
-        setFollowUpsList(existingFollowups);
+        // Load follow-ups
+        const existingFollowups = await getFollowUpsFromFirestore();
+        if (existingFollowups.length > 0) {
+          setFollowUpsList(existingFollowups);
+        }
       }
 
       // Load custom properties from backend & Firestore
@@ -2665,6 +2745,14 @@ export default function App() {
         {/* Admin Pages — shown when an admin tab is active (not on home or chat) */}
         {activeTab !== 'chat' && activeTab !== 'home' && (
           <div className="flex-1 flex w-full h-full overflow-hidden relative">
+            <Suspense fallback={
+              <div className="flex-1 flex items-center justify-center p-8 text-slate-400 bg-slate-950">
+                <div className="flex items-center space-x-3 text-sm">
+                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Loading portal...</span>
+                </div>
+              </div>
+            }>
             <div className="flex-1 flex h-full overflow-hidden">
               {/* Admin Portal Pages — require adminAuthenticated */}
             {effectiveAdminAuthed && activeTab === 'crm' && (
@@ -2843,6 +2931,7 @@ export default function App() {
               />
             )}
 
+            </Suspense>
           </div>
         )}
       </main>
@@ -4385,15 +4474,21 @@ export default function App() {
       )}
 
       {/* About Project Modal */}
-      <AboutProjectModal
-        isOpen={aboutOpen}
-        onClose={() => setAboutOpen(false)}
-      />
+      {aboutOpen && (
+        <Suspense fallback={null}>
+          <AboutProjectModal
+            isOpen={aboutOpen}
+            onClose={() => setAboutOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Central Unified Settings & Appearance Modal */}
-      <SettingsModal
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+      {showSettingsModal && (
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={showSettingsModal}
+            onClose={() => setShowSettingsModal(false)}
         currentTheme={theme}
         onSelectTheme={setTheme}
         customBgColor={customBgColor}
@@ -4476,9 +4571,61 @@ export default function App() {
             await signOut(auth);
           } catch (_) {}
           localStorage.removeItem('lyka_client_user');
+          localStorage.removeItem('lyka_favorite_properties');
+          localStorage.removeItem('lyka_saved_properties');
           setCurrentUserId(null);
+          setCurrentUserEmail(null);
+          setFavorites([]);
         }}
       />
+        </Suspense>
+      )}
+
+      {/* Interactive Modal Prompt: Sign In Required to Save Favorites */}
+      {showFavoriteAuthModal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div 
+            className="fixed inset-0"
+            onClick={() => setShowFavoriteAuthModal(false)} 
+          />
+          <div className="relative w-full max-w-sm sm:max-w-md bg-gradient-to-b from-[#211913] to-[#14100c] border border-amber-500/40 rounded-3xl p-6 sm:p-7 shadow-2xl z-10 space-y-5 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto shadow-inner text-amber-400">
+              <Heart className="w-7 h-7 text-red-400 fill-red-400" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg sm:text-xl font-serif font-bold text-white tracking-wide">
+                Sign In Required to Save Favorites
+              </h3>
+              <p className="text-xs sm:text-sm text-espresso-200/90 leading-relaxed max-w-xs mx-auto">
+                Save your favorite luxury properties, track prices, and sync them seamlessly across all devices by signing in or creating a free account.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFavoriteAuthModal(false);
+                  setActiveTab('chat');
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-espresso-950 font-bold text-sm transition-all duration-200 shadow-lg shadow-amber-500/20 active:scale-[0.98] cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Sign In / Create Account</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowFavoriteAuthModal(false)}
+                className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Continue Browsing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Visual Toast Notification for Favorite Actions */}
       {favoriteToast && (

@@ -1,7 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, chmodSync } from "node:fs";
 import path from "node:path";
-import { Pool } from "pg";
 import type { Listing } from "../src/types/listing.js";
 
 export type Role = "admin" | "property_manager" | "sales_manager" | "user";
@@ -49,49 +48,55 @@ export const emptyState = (): State => ({
 // It is intentionally a small-prototype store; no silent in-memory fallback exists.
 export async function openStore(): Promise<Store> {
   if (process.env.DATABASE_URL) {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      connectionTimeoutMillis: 5000,
-    });
-    await pool.query(
-      "CREATE TABLE IF NOT EXISTS lyka_state (id integer PRIMARY KEY CHECK (id=1), payload jsonb NOT NULL)",
-    );
-    await pool.query(
-      "INSERT INTO lyka_state VALUES (1,$1) ON CONFLICT DO NOTHING",
-      [JSON.stringify(emptyState())],
-    );
-    return {
-      mode: "PostgreSQL",
-      async read() {
-        return (await pool.query("SELECT payload FROM lyka_state WHERE id=1"))
-          .rows[0].payload;
-      },
-      async change(fn) {
-        const client = await pool.connect();
-        try {
-          await client.query("BEGIN");
-          const state = (
-            await client.query(
-              "SELECT payload FROM lyka_state WHERE id=1 FOR UPDATE",
-            )
-          ).rows[0].payload;
-          const result = fn(state);
-          await client.query("UPDATE lyka_state SET payload=$1 WHERE id=1", [
-            JSON.stringify(state),
-          ]);
-          await client.query("COMMIT");
-          return result;
-        } catch (error) {
-          await client.query("ROLLBACK");
-          throw error;
-        } finally {
-          client.release();
-        }
-      },
-      async close() {
-        await pool.end();
-      },
-    };
+    try {
+      const pgMod: any = await (Function('return import("pg")')() as Promise<any>);
+      const PoolClass = pgMod.Pool || pgMod.default?.Pool;
+      const pool: any = new PoolClass({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 5000,
+      });
+      await pool.query(
+        "CREATE TABLE IF NOT EXISTS lyka_state (id integer PRIMARY KEY CHECK (id=1), payload jsonb NOT NULL)",
+      );
+      await pool.query(
+        "INSERT INTO lyka_state VALUES (1,$1) ON CONFLICT DO NOTHING",
+        [JSON.stringify(emptyState())],
+      );
+      return {
+        mode: "PostgreSQL",
+        async read() {
+          return (await pool.query("SELECT payload FROM lyka_state WHERE id=1"))
+            .rows[0].payload;
+        },
+        async change(fn) {
+          const client = await pool.connect();
+          try {
+            await client.query("BEGIN");
+            const state = (
+              await client.query(
+                "SELECT payload FROM lyka_state WHERE id=1 FOR UPDATE",
+              )
+            ).rows[0].payload;
+            const result = fn(state);
+            await client.query("UPDATE lyka_state SET payload=$1 WHERE id=1", [
+              JSON.stringify(state),
+            ]);
+            await client.query("COMMIT");
+            return result;
+          } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+          } finally {
+            client.release();
+          }
+        },
+        async close() {
+          await pool.end();
+        },
+      };
+    } catch (e) {
+      console.warn("PostgreSQL driver unavailable, falling back to SQLite storage:", e);
+    }
   }
   const filename = path.resolve(process.env.DATA_FILE || "data/lyka.sqlite");
   mkdirSync(path.dirname(filename), { recursive: true, mode: 0o700 });

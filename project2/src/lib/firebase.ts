@@ -15,7 +15,8 @@ import {
   onSnapshot,
   updateDoc,
   deleteField,
-  arrayUnion
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { OperationType, FirestoreErrorInfo, LeadProfile, ChatMessage, FollowUpTask, PropertyListing, UserProfileData, LoginEvent, PortalCredential, PortalStaffMember, BookedPropertyRecord, FavoritePropertyRecord, QaChatItem, SequentialConversation } from '../types/crm';
@@ -1739,6 +1740,180 @@ export async function saveFavoritePropertyToFirestore(favorite: FavoriteProperty
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
+}
+
+/**
+ * Saves or removes a user's favorite property in Firebase:
+ * 1. Writes to Firestore collection 'favorites' (document: fav_{user}_{propertyId})
+ * 2. Syncs to server backend API (/api/favorites/sync or /api/favorites/remove)
+ * 3. Updates the user's document in Firestore collection 'User_login' (favorite_properties array)
+ */
+export async function syncUserFavoriteWithFirestore(
+  property: PropertyListing,
+  userEmail: string | null,
+  userId: string | null,
+  action: 'add' | 'remove',
+  userName?: string
+): Promise<void> {
+  const cleanEmail = userEmail ? userEmail.trim().toLowerCase() : '';
+  const cleanUid = userId ? userId.trim() : '';
+  const userIdentifier = cleanEmail || cleanUid || 'user';
+  const favDocId = `fav_${userIdentifier.replace(/[^a-zA-Z0-9_-]/g, '_')}_${property.id}`;
+
+  if (action === 'add') {
+    const favRecord: FavoritePropertyRecord = {
+      id: favDocId,
+      property_id: property.id,
+      property_title: property.title || 'Luxury Residence',
+      property_community: property.community || '',
+      property_city: property.city || 'Dubai',
+      property_price_aed: Number(property.price_aed || 0),
+      property_price_inr: Number(property.price_inr || 0),
+      property_bedrooms: property.bedrooms ?? '—',
+      property_type: property.property_type || 'Apartment',
+      property_image_url: property.image_url || '',
+      property_developer: property.developer || 'Lyka Realty',
+      user_id: cleanUid || cleanEmail,
+      user_name: userName || 'Valued Client',
+      user_email: cleanEmail,
+      is_guest: false,
+      saved_at: new Date().toISOString(),
+      status: 'active',
+      updatedAt: new Date().toISOString()
+    };
+
+    // 1. Save directly to Firestore 'favorites' collection
+    try {
+      await setDoc(doc(db, 'favorites', favDocId), cleanFirestoreData(favRecord), { merge: true });
+      console.log(`[Firestore] Successfully saved favorite to 'favorites/${favDocId}'`);
+    } catch (fsErr) {
+      console.warn('[Firestore] Notice on direct favorite write, syncing via backend:', fsErr);
+    }
+
+    // 2. Sync via backend server endpoint
+    try {
+      await fetch('/api/favorites/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(favRecord)
+      });
+    } catch (_) {}
+
+    // 3. Update User_login document in Firestore
+    const userTargets = new Set<string>();
+    if (cleanEmail) userTargets.add(cleanEmail);
+    if (cleanUid) userTargets.add(cleanUid);
+
+    for (const targetDoc of userTargets) {
+      try {
+        const userRef = doc(db, 'User_login', targetDoc);
+        await setDoc(userRef, {
+          favorite_properties: arrayUnion(property.id),
+          saved_properties: arrayUnion(property.id),
+          last_favorite_saved_at: new Date().toISOString()
+        }, { merge: true });
+        console.log(`[Firestore] Updated favorite_properties in User_login/${targetDoc}`);
+      } catch (uErr) {
+        console.warn(`[Firestore] Notice updating User_login/${targetDoc}:`, uErr);
+      }
+    }
+  } else {
+    // action === 'remove'
+    // 1. Delete from Firestore 'favorites' collection
+    try {
+      await deleteDoc(doc(db, 'favorites', favDocId));
+      console.log(`[Firestore] Removed favorite from 'favorites/${favDocId}'`);
+    } catch (fsErr) {
+      console.warn('[Firestore] Notice on direct favorite delete:', fsErr);
+    }
+
+    // 2. Sync removal via server API
+    try {
+      await fetch('/api/favorites/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: favDocId, propertyId: property.id })
+      });
+    } catch (_) {}
+
+    // 3. Remove from User_login document in Firestore
+    const userTargets = new Set<string>();
+    if (cleanEmail) userTargets.add(cleanEmail);
+    if (cleanUid) userTargets.add(cleanUid);
+
+    for (const targetDoc of userTargets) {
+      try {
+        const userRef = doc(db, 'User_login', targetDoc);
+        await updateDoc(userRef, {
+          favorite_properties: arrayRemove(property.id),
+          saved_properties: arrayRemove(property.id)
+        });
+      } catch (_) {}
+    }
+  }
+}
+
+/**
+ * Loads a user's saved favorites from Firestore (both User_login and favorites collection)
+ */
+export async function fetchUserFavoritesFromFirestore(
+  userEmail: string | null,
+  userId: string | null
+): Promise<string[]> {
+  const cleanEmail = userEmail ? userEmail.trim().toLowerCase() : '';
+  const cleanUid = userId ? userId.trim() : '';
+  const favSet = new Set<string>();
+
+  // 1. Check User_login collection
+  const targets = [cleanEmail, cleanUid].filter(Boolean);
+  for (const t of targets) {
+    try {
+      const snap = await getDoc(doc(db, 'User_login', t));
+      if (snap.exists()) {
+        const data = snap.data();
+        const arr = data?.favorite_properties || data?.saved_properties;
+        if (Array.isArray(arr)) {
+          arr.forEach((id: string) => {
+            if (id && typeof id === 'string') favSet.add(id);
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 2. Query 'favorites' collection by user_email
+  if (cleanEmail) {
+    try {
+      const q = query(collection(db, 'favorites'), where('user_email', '==', cleanEmail));
+      const qSnap = await getDocs(q);
+      qSnap.forEach(d => {
+        const rec = d.data() as FavoritePropertyRecord;
+        if (rec && rec.status !== 'removed' && rec.property_id) {
+          favSet.add(rec.property_id);
+        }
+      });
+    } catch (_) {}
+  }
+
+  // 3. Query server API /api/favorites
+  try {
+    const res = await fetch('/api/favorites');
+    const data = await res.json();
+    if (data?.success && Array.isArray(data.favorites)) {
+      data.favorites.forEach((fav: any) => {
+        if (
+          fav.status !== 'removed' &&
+          fav.property_id &&
+          ((cleanEmail && fav.user_email?.toLowerCase() === cleanEmail) ||
+           (cleanUid && fav.user_id === cleanUid))
+        ) {
+          favSet.add(fav.property_id);
+        }
+      });
+    }
+  } catch (_) {}
+
+  return Array.from(favSet);
 }
 
 export async function removeFavoritePropertyFromFirestore(favoriteId: string): Promise<void> {

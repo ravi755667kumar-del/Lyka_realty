@@ -177,29 +177,13 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
   const propertiesSectionRef = useRef<HTMLElement>(null);
 
   // Local fallback state if favorites prop is omitted
-  const [localFavorites, setLocalFavorites] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem('lyka_favorite_properties') || localStorage.getItem('lyka_saved_properties');
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [localFavorites, setLocalFavorites] = useState<string[]>([]);
 
   const activeFavorites = Array.isArray(favorites) ? favorites : localFavorites;
 
   const toggleLike = (id: string) => {
     if (onToggleFavorite) {
       onToggleFavorite(id);
-    } else {
-      setLocalFavorites((prev) => {
-        const updated = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
-        try {
-          localStorage.setItem('lyka_favorite_properties', JSON.stringify(updated));
-          localStorage.setItem('lyka_saved_properties', JSON.stringify(updated));
-        } catch (_) {}
-        return updated;
-      });
     }
   };
 
