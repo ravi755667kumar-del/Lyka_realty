@@ -396,7 +396,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed right-3.5 sm:right-5 bottom-4 sm:bottom-6 z-[60] bg-gradient-to-r from-violet-800 via-purple-700 to-amber-600 hover:from-violet-700 hover:to-amber-500 text-white px-3.5 py-2 rounded-full shadow-2xl ring-2 ring-amber-400/50 hover:ring-amber-300 border border-white/20 transition-all hover:scale-105 active:scale-95 group cursor-pointer select-none text-xs sm:text-[13px] font-bold flex items-center space-x-2"
+          className="fixed right-3.5 sm:right-5 xl:right-8 bottom-4 sm:bottom-6 xl:bottom-8 z-[60] bg-gradient-to-r from-violet-800 via-purple-700 to-amber-600 hover:from-violet-700 hover:to-amber-500 text-white px-3.5 py-2 rounded-full shadow-2xl ring-2 ring-amber-400/50 hover:ring-amber-300 border border-white/20 transition-all hover:scale-105 active:scale-95 group cursor-pointer select-none text-xs sm:text-[13px] font-bold flex items-center space-x-2"
           title="Open Admin AI Copilot"
         >
           <div className="relative flex items-center justify-center">
@@ -412,10 +412,10 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
       {/* Expanded Compact Floating Widget (Does not stretch full screen or squash CRM) */}
       {isOpen && (
         <aside
-          className={`fixed right-3 sm:right-5 bottom-4 sm:bottom-6 z-[60] bg-white dark:bg-slate-900 border border-slate-300 dark:border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 ${
+          className={`fixed right-3 sm:right-5 xl:right-8 bottom-4 sm:bottom-6 xl:bottom-8 z-[60] bg-white dark:bg-slate-900 border border-slate-300 dark:border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 ${
             isExpanded
-              ? 'w-[290px] sm:w-[330px] h-[480px] max-h-[82vh]'
-              : 'w-[250px] xs:w-[270px] sm:w-[290px] h-[340px] sm:h-[370px] max-h-[58vh]'
+              ? 'w-[290px] sm:w-[330px] xl:w-[380px] h-[480px] xl:h-[540px] max-h-[82vh]'
+              : 'w-[250px] xs:w-[270px] sm:w-[290px] xl:w-[320px] h-[340px] sm:h-[370px] xl:h-[400px] max-h-[58vh]'
           }`}
           aria-label="Admin Copilot Panel"
         >

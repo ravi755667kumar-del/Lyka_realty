@@ -242,7 +242,7 @@ export const AdminStaffManagement: React.FC<AdminStaffManagementProps> = ({
         </div>
 
         {/* Overview Metric Pills */}
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-4">
+        <div className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-4">
           <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-[#f0e6d2] dark:border-slate-800 flex items-center justify-between shadow-2xs">
             <div className="flex items-center space-x-2.5">
               <div className="w-8 h-8 rounded-lg bg-violet-500/10 dark:bg-violet-500/20 flex items-center justify-center text-violet-600 dark:text-violet-400">
@@ -350,7 +350,7 @@ export const AdminStaffManagement: React.FC<AdminStaffManagementProps> = ({
 
       {/* Main Content Area — Staff Cards */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="max-w-7xl mx-auto space-y-4">
+        <div className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto space-y-4">
           {filteredStaff.length === 0 ? (
             <div className="p-10 rounded-2xl border border-dashed border-[#e5d8be] dark:border-slate-800 text-center bg-white dark:bg-slate-900/40">
               <div className="w-12 h-12 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 mb-3">
@@ -375,7 +375,7 @@ export const AdminStaffManagement: React.FC<AdminStaffManagementProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredStaff.map((staff) => {
                 const isProperty = staff.role === 'property_manager';
                 const isDeleting = deletingEmail === staff.email;

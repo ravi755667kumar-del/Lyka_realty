@@ -134,7 +134,7 @@ function PieChart({ slices }: { slices: { label: string; value: number; color: s
           >
             <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: p.color }} />
             <span className="text-[11px] text-slate-300 flex-1 truncate">{p.label}</span>
-            <span className="text-[11px] font-bold text-[#1c1611] flex-shrink-0">{slices[i].value}</span>
+            <span className="text-[11px] font-bold text-slate-200 flex-shrink-0">{slices[i].value}</span>
             <span className="text-[10px] text-slate-400 flex-shrink-0 w-8 text-right">{p.pct}%</span>
           </div>
         ))}
@@ -249,7 +249,7 @@ export const AdminStats: React.FC<AdminStatsProps> = ({ properties }) => {
             <BarChart3 className="w-5 h-5 text-amber-400" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-[#1c1611]">Property Statistics Dashboard</h2>
+            <h2 className="text-lg font-bold text-slate-100">Property Statistics Dashboard</h2>
             <p className="text-xs text-slate-400">Live breakdown of inventory, pricing, community distribution & bookings</p>
           </div>
         </div>

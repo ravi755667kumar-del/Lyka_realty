@@ -650,7 +650,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
       {/* Grid View */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-5 2xl:gap-6">
           {filteredProperties.map((prop) => {
             const matchScore = computeMatchScore(prop);
             return (
@@ -1312,7 +1312,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   <Edit3 className="w-4 h-4 text-amber-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-[#1c1611] flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-slate-100 flex items-center space-x-2">
                     <span>Edit Property Listing</span>
                     <span className="font-mono text-[10px] text-amber-400 bg-amber-950/70 border border-amber-600/40 px-2 py-0.5 rounded">
                       {editingProperty.id}

@@ -337,7 +337,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
   return (
     <div className="h-full w-full overflow-y-auto landing-scroll bg-slate-950" style={{ backgroundColor: customBgColor || undefined }}>
       {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[500px] sm:min-h-[540px] md:min-h-[580px] lg:min-h-[620px] flex flex-col justify-between overflow-hidden">
+      <section className="relative min-h-[500px] sm:min-h-[540px] md:min-h-[580px] lg:min-h-[640px] xl:min-h-[700px] 2xl:min-h-[760px] flex flex-col justify-between overflow-hidden">
         <img
           src={HERO_IMAGE}
           alt="Modern luxury residence exterior"
@@ -347,23 +347,23 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
         <div className="absolute inset-0 bg-gradient-to-r from-espresso-900/95 via-espresso-900/80 to-espresso-900/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-espresso-900 via-espresso-900/30 to-transparent" />
 
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 md:pt-14 pb-6 md:pb-20 grid md:grid-cols-[1.1fr_0.9fr] lg:grid-cols-[1.15fr_0.85fr] gap-6 md:gap-8 lg:gap-12 items-center flex-1">
+        <div className="relative z-10 w-full max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 pt-8 sm:pt-12 md:pt-14 xl:pt-18 pb-6 md:pb-24 xl:pb-28 grid md:grid-cols-[1.1fr_0.9fr] lg:grid-cols-[1.15fr_0.85fr] xl:grid-cols-[1.2fr_0.8fr] gap-6 md:gap-8 lg:gap-12 xl:gap-16 items-center flex-1">
           {/* Left: headline + AI ask bar */}
-          <div>
+          <div className="max-w-2xl xl:max-w-3xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-500/40 bg-espresso-900/70 backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.16em] uppercase text-amber-400">
+              <span className="text-[10px] sm:text-[11px] xl:text-xs font-bold tracking-[0.16em] uppercase text-amber-400">
                 AI-Powered Real Estate Advisory
               </span>
             </div>
 
-            <h1 className="font-display mt-3 sm:mt-4 text-white text-3xl sm:text-4xl md:text-4xl lg:text-[3.2rem] leading-[1.1] font-bold drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]">
+            <h1 className="font-display mt-3 sm:mt-4 text-white text-3xl sm:text-4xl md:text-4xl lg:text-[3.2rem] xl:text-[3.8rem] 2xl:text-[4.2rem] leading-[1.08] font-bold drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]">
               Find the address
               <br />
               that <em className="text-amber-300 not-italic font-display italic">defines you.</em>
             </h1>
 
-            <p className="mt-2.5 sm:mt-3 text-stone-200 sm:text-white/95 text-xs sm:text-sm md:text-base leading-relaxed max-w-xl font-medium drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]">
+            <p className="mt-2.5 sm:mt-4 text-stone-200 sm:text-white/95 text-xs sm:text-sm md:text-base xl:text-lg leading-relaxed max-w-xl xl:max-w-2xl 2xl:max-w-3xl font-medium drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]">
               Hand-curated apartments, villas and penthouses across Dubai and Mumbai — matched to
               your budget, lifestyle and investment goals by Lyka's agentic AI, in seconds.
             </p>
@@ -371,34 +371,34 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
             {/* ── AI Ask Bar — routes straight into the existing Lyka chatbot ── */}
             <form
               onSubmit={submitAsk}
-              className="mt-4 sm:mt-5 flex flex-col sm:flex-row gap-2 max-w-2xl rounded-2xl sm:rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 sm:p-2 shadow-xl shadow-black/40 border border-white/60 dark:border-slate-700"
+              className="mt-4 sm:mt-6 flex flex-col sm:flex-row gap-2 max-w-2xl xl:max-w-2xl 2xl:max-w-3xl rounded-2xl sm:rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 sm:p-2 shadow-xl shadow-black/40 border border-white/60 dark:border-slate-700"
             >
               <div className="flex items-center flex-1 gap-2 px-3">
-                <Search className="w-4 h-4 text-[#8c765c] flex-shrink-0" />
+                <Search className="w-4 h-4 xl:w-5 xl:h-5 text-[#8c765c] flex-shrink-0" />
                 <input
                   value={askText}
                   onChange={(e) => setAskText(e.target.value)}
                   placeholder="e.g. 2BR in Dubai Marina under AED 2M with sea view"
-                  className="flex-1 bg-transparent text-sm text-[#1c1611] dark:text-white placeholder-[#8c765c] dark:placeholder-slate-400 outline-none py-1.5 sm:py-2 min-w-0"
+                  className="flex-1 bg-transparent text-sm xl:text-base text-[#1c1611] dark:text-white placeholder-[#8c765c] dark:placeholder-slate-400 outline-none py-1.5 sm:py-2 xl:py-2.5 min-w-0"
                   style={{ backgroundColor: 'transparent' }}
                   aria-label="Ask Lyka AI about properties"
                 />
               </div>
               <button
                 type="submit"
-                className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl sm:rounded-full bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs sm:text-sm font-bold transition-colors shadow-md whitespace-nowrap cursor-pointer"
+                className="flex items-center justify-center gap-1.5 px-5 xl:px-6 py-2.5 xl:py-3 rounded-xl sm:rounded-full bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs sm:text-sm xl:text-base font-bold transition-colors shadow-md whitespace-nowrap cursor-pointer"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-3.5 h-3.5 xl:w-4 xl:h-4" />
                 Ask Lyka AI
               </button>
             </form>
 
-            <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2">
+            <div className="mt-3.5 flex flex-wrap gap-1.5 sm:gap-2">
               {SUGGESTION_CHIPS.map((chip) => (
                 <button
                   key={chip}
                   onClick={() => onAskAI(chip)}
-                  className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] font-semibold text-stone-200 hover:text-white bg-black/50 border border-white/20 backdrop-blur-sm hover:border-amber-400/60 hover:bg-black/70 transition-colors cursor-pointer shadow-xs"
+                  className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] xl:text-xs font-semibold text-stone-200 hover:text-white bg-black/50 border border-white/20 backdrop-blur-sm hover:border-amber-400/60 hover:bg-black/70 transition-colors cursor-pointer shadow-xs"
                 >
                   {chip}
                 </button>
@@ -410,8 +410,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           {spotlight && (
             <div className="hidden md:block relative">
               <div className="absolute -inset-6 bg-amber-500/10 blur-2xl rounded-full pointer-events-none" />
-              <div className="relative max-w-xs md:max-w-sm ml-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-2xl shadow-black/50 border border-white/60 dark:border-slate-700">
-                <div className="relative h-44 sm:h-48 rounded-xl overflow-hidden bg-[#f7f2e6] dark:bg-slate-800">
+              <div className="relative max-w-xs md:max-w-sm xl:max-w-[420px] 2xl:max-w-[460px] ml-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 xl:p-4 shadow-2xl shadow-black/50 border border-white/60 dark:border-slate-700">
+                <div className="relative h-44 sm:h-48 xl:h-56 2xl:h-64 rounded-xl overflow-hidden bg-[#f7f2e6] dark:bg-slate-800">
                   <SafeImage
                     src={spotlight.image_url}
                     alt={spotlight.title}
@@ -422,38 +422,38 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   {/* Verified Properties Badge cleanly integrated inside top-left */}
                   <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-espresso-950/85 backdrop-blur-md border border-amber-500/40 flex items-center space-x-1.5 shadow-md">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[10px] font-bold text-amber-300 tracking-wider uppercase">
+                    <span className="text-[10px] xl:text-[11px] font-bold text-amber-300 tracking-wider uppercase">
                       {available.length} Verified Properties
                     </span>
                   </div>
 
                   <div className="absolute top-2.5 right-2.5">{likeButton(spotlight, 'sm')}</div>
                   <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-espresso-900/80 backdrop-blur-sm border border-white/10">
-                    <span className="font-display text-sm sm:text-base font-semibold text-amber-400">
+                    <span className="font-display text-sm sm:text-base xl:text-lg font-semibold text-amber-400">
                       {formatPrice(spotlight)}
                     </span>
                   </div>
                 </div>
                 <div className="px-1.5 pt-2.5 pb-1">
-                  <div className="text-[9.5px] font-bold uppercase tracking-[0.16em] text-amber-600">
+                  <div className="text-[9.5px] xl:text-[10.5px] font-bold uppercase tracking-[0.16em] text-amber-600">
                     Spotlight · {spotlight.community}
                   </div>
-                  <h3 className="text-[#1c1611] dark:text-white text-xs sm:text-sm font-bold leading-snug mt-1 line-clamp-2">
+                  <h3 className="text-[#1c1611] dark:text-white text-xs sm:text-sm xl:text-base font-bold leading-snug mt-1 line-clamp-2">
                     {spotlight.title}
                   </h3>
-                  <div className="flex items-center gap-3 text-[11px] text-[#5a4835] dark:text-slate-300 mt-1.5">
+                  <div className="flex items-center gap-3 text-[11px] xl:text-xs text-[#5a4835] dark:text-slate-300 mt-1.5">
                     <span className="flex items-center gap-1">
-                      <BedDouble className="w-3.5 h-3.5 text-amber-600" />
+                      <BedDouble className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-amber-600" />
                       {spotlight.bedrooms} BR
                     </span>
                     <span className="flex items-center gap-1">
-                      <Maximize2 className="w-3.5 h-3.5 text-amber-600" />
+                      <Maximize2 className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-amber-600" />
                       {spotlight.size_sqft.toLocaleString()} sqft
                     </span>
                   </div>
                   <button
                     onClick={() => askAboutProperty(spotlight)}
-                    className="w-full mt-2.5 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold transition-colors cursor-pointer"
+                    className="w-full mt-2.5 xl:mt-3 flex items-center justify-center gap-1.5 px-3 py-2 xl:py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs xl:text-sm font-bold transition-colors cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     Ask AI about this residence
@@ -466,7 +466,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
         {/* ── Hero stats strip ── */}
         <div className="relative md:absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-espresso-900/85 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 grid grid-cols-2 sm:grid-cols-4 sm:divide-x divide-white/10 gap-2 sm:gap-4">
+          <div className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-2.5 sm:py-3 xl:py-4 grid grid-cols-2 sm:grid-cols-4 sm:divide-x divide-white/10 gap-2 sm:gap-4">
             {[
               { value: `${available.length}`, label: 'Verified Residences' },
               { value: `${communitiesCount}`, label: 'Prime Communities' },
@@ -474,10 +474,10 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
               { value: 'Up to 8%', label: 'Net Rental ROI' },
             ].map((stat) => (
               <div key={stat.label} className="text-center sm:text-left sm:px-4 first:sm:pl-0">
-                <div className="font-display text-lg sm:text-xl font-semibold text-amber-400">
+                <div className="font-display text-lg sm:text-xl xl:text-2xl font-semibold text-amber-400">
                   {stat.value}
                 </div>
-                <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.14em] text-amber-200/80 mt-0.5 font-medium">
+                <div className="text-[9px] sm:text-[10px] xl:text-[11px] uppercase tracking-[0.14em] text-amber-200/80 mt-0.5 font-medium">
                   {stat.label}
                 </div>
               </div>
@@ -487,27 +487,27 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
       </section>
 
       {/* ═══════════════ EXPLORE BY CITY ═══════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-2">
+      <section className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 pt-8 sm:pt-12 pb-2">
         <Reveal>
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">
                 Two Cities · One Standard
               </div>
-              <h2 className="font-display text-xl sm:text-2xl lg:text-3xl font-semibold text-slate-100 mt-2">
+              <h2 className="font-display text-xl sm:text-2xl lg:text-3xl xl:text-4xl font-semibold text-slate-100 mt-2">
                 Explore by city
               </h2>
             </div>
             <button
               onClick={() => selectCity('all')}
-              className="flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-500 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-xs xl:text-sm font-bold text-amber-600 hover:text-amber-500 transition-colors cursor-pointer"
             >
               View all residences
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 xl:gap-8 mt-6">
             {[
               {
                 city: 'Dubai' as CityFilter,
@@ -529,7 +529,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
               <button
                 key={card.city}
                 onClick={() => selectCity(card.city)}
-                className="group relative h-56 sm:h-64 rounded-2xl overflow-hidden text-left border border-slate-800 hover:border-amber-500/50 transition-colors shadow-lg cursor-pointer"
+                className="group relative h-56 sm:h-64 xl:h-72 2xl:h-80 rounded-2xl xl:rounded-3xl overflow-hidden text-left border border-slate-800 hover:border-amber-500/50 transition-colors shadow-lg cursor-pointer"
               >
                 <SafeImage
                   src={card.image}
@@ -537,19 +537,19 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-espresso-900/95 via-espresso-900/35 to-transparent" />
-                <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-espresso-900/70 backdrop-blur-sm border border-white/15 text-espresso-300 text-[11px] font-bold">
+                <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-espresso-900/70 backdrop-blur-sm border border-white/15 text-espresso-300 text-[11px] xl:text-xs font-bold">
                   {card.count} residences
                 </div>
-                <div className="absolute bottom-0 left-0 right-0 p-6 flex items-end justify-between gap-4">
+                <div className="absolute bottom-0 left-0 right-0 p-6 xl:p-8 flex items-end justify-between gap-4">
                   <div>
-                    <div className="font-display text-2xl sm:text-3xl font-semibold text-espresso-300">
+                    <div className="font-display text-2xl sm:text-3xl xl:text-4xl font-semibold text-espresso-300">
                       {card.title}
                     </div>
-                    <div className="text-amber-400 text-xs font-semibold mt-1.5">{card.tagline}</div>
-                    <div className="text-espresso-400 text-[11px] mt-1">{card.subtitle}</div>
+                    <div className="text-amber-400 text-xs xl:text-sm font-semibold mt-1.5">{card.tagline}</div>
+                    <div className="text-espresso-400 text-[11px] xl:text-xs mt-1">{card.subtitle}</div>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-amber-500 text-amber-950 flex items-center justify-center flex-shrink-0 group-hover:translate-x-1 transition-transform">
-                    <ArrowRight className="w-4.5 h-4.5" />
+                  <div className="w-10 h-10 xl:w-12 xl:h-12 rounded-full bg-amber-500 text-amber-950 flex items-center justify-center flex-shrink-0 group-hover:translate-x-1 transition-transform">
+                    <ArrowRight className="w-4.5 h-4.5 xl:w-5 xl:h-5" />
                   </div>
                 </div>
               </button>
@@ -559,24 +559,24 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
       </section>
 
       {/* ═══════════════ BROWSE BY AREA ═══════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+      <section className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-8 sm:py-12">
         <Reveal>
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">
                 Find it by neighbourhood
               </div>
-              <h2 className="font-display text-2xl sm:text-3xl font-semibold text-slate-100 mt-2">
+              <h2 className="font-display text-2xl sm:text-3xl xl:text-4xl font-semibold text-slate-100 mt-2">
                 Browse by area
               </h2>
-              <p className="text-sm text-slate-400 mt-2">
+              <p className="text-sm xl:text-base text-slate-400 mt-2">
                 Jump straight into the community you have in mind — every listing grouped by its area.
               </p>
             </div>
             {areaFilter && (
               <button
                 onClick={() => setAreaFilter(null)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold bg-slate-900 border border-amber-500/50 text-amber-500 hover:bg-slate-800 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs xl:text-sm font-bold bg-slate-900 border border-amber-500/50 text-amber-500 hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
                 Clear area: {areaFilter}
@@ -586,12 +586,12 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
         </Reveal>
 
         <Reveal delay={100}>
-          <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 mt-6 sm:mt-7 snap-x snap-mandatory landing-scroll -mx-4 px-4 sm:mx-0 sm:px-0 touch-pan-x select-none">
+          <div className="flex gap-3 sm:gap-4 xl:gap-5 overflow-x-auto pb-4 pt-1 mt-6 sm:mt-7 snap-x snap-mandatory landing-scroll -mx-4 px-4 sm:mx-0 sm:px-0 touch-pan-x select-none">
             {areaList.map((area) => (
               <button
                 key={area.key}
                 onClick={() => selectArea(area)}
-                className={`group relative w-56 h-44 flex-shrink-0 snap-start rounded-2xl overflow-hidden text-left border transition-all hover:-translate-y-1 cursor-pointer ${
+                className={`group relative w-56 h-44 xl:w-64 xl:h-52 flex-shrink-0 snap-start rounded-2xl xl:rounded-3xl overflow-hidden text-left border transition-all hover:-translate-y-1 cursor-pointer ${
                   areaFilter === area.name
                     ? 'border-amber-500 shadow-lg shadow-amber-500/20'
                     : 'border-slate-800 hover:border-amber-500/50'
@@ -604,19 +604,19 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-espresso-900/75 backdrop-blur-sm border border-white/15 text-espresso-300 text-[10px] font-bold flex items-center gap-1">
+                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-espresso-900/75 backdrop-blur-sm border border-white/15 text-espresso-300 text-[10px] xl:text-[11px] font-bold flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-amber-400" />
                   {area.city}
                 </div>
-                <div className="absolute bottom-0 left-0 right-0 p-4">
-                  <div className="font-display text-lg font-semibold text-white leading-tight">
+                <div className="absolute bottom-0 left-0 right-0 p-4 xl:p-5">
+                  <div className="font-display text-lg xl:text-xl font-semibold text-white leading-tight">
                     {area.name}
                   </div>
                   <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-[11px] text-espresso-400">
+                    <span className="text-[11px] xl:text-xs text-espresso-400">
                       {area.count} {area.count === 1 ? 'listing' : 'listings'}
                     </span>
-                    <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[11px] xl:text-xs font-bold text-amber-400 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       Explore
                       <ArrowRight className="w-3 h-3" />
                     </span>
@@ -629,13 +629,13 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
       </section>
 
       {/* ═══════════════ FEATURED PROPERTIES ═══════════════ */}
-      <section ref={propertiesSectionRef} id="portfolio-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 scroll-mt-16 sm:scroll-mt-20">
+      <section ref={propertiesSectionRef} id="portfolio-section" className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-10 sm:py-16 scroll-mt-16 sm:scroll-mt-20">
         <Reveal>
-          <div className="text-center max-w-2xl mx-auto">
+          <div className="text-center max-w-2xl xl:max-w-3xl mx-auto">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">
               {showFavoritesOnly ? 'Favorite Shortlist' : 'Curated Portfolio'}
             </div>
-            <h2 className="font-display text-2xl sm:text-3xl font-semibold text-slate-100 mt-2 flex items-center justify-center gap-2">
+            <h2 className="font-display text-2xl sm:text-3xl xl:text-4xl font-semibold text-slate-100 mt-2 flex items-center justify-center gap-2">
               {showFavoritesOnly ? (
                 <>
                   <Heart className="w-6 h-6 text-red-500 fill-red-500" />
@@ -648,7 +648,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                 'Featured residences'
               )}
             </h2>
-            <p className="text-sm text-slate-400 mt-3 leading-relaxed">
+            <p className="text-sm xl:text-base text-slate-400 mt-3 leading-relaxed">
               {showFavoritesOnly
                 ? 'Your favorited properties from across the portfolio. Click on any card to ask AI or book a viewing.'
                 : 'Every listing is verified by our property team. Tap the heart to save any residence to your favorites (sign in required) — ask the AI for full details, or book a viewing right away.'}
@@ -702,11 +702,11 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
         {/* Property grid */}
         {shown.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 mt-8 sm:mt-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5 sm:gap-6 xl:gap-7 mt-8 sm:mt-12">
             {shown.map((p, i) => (
               <Reveal key={p.id} delay={(i % 3) * 90}>
                 <article className="group h-full flex flex-col bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden hover:border-amber-500/40 hover:shadow-xl hover:shadow-black/10 hover:-translate-y-1 transition-all duration-300">
-                  <div className="relative h-56 overflow-hidden flex-shrink-0">
+                  <div className="relative h-56 xl:h-60 overflow-hidden flex-shrink-0">
                     <SafeImage
                       src={p.image_url}
                       alt={p.title}
@@ -731,40 +731,40 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
                     {/* Price badge */}
                     <div className="absolute bottom-3.5 left-3.5 px-3 py-1.5 rounded-xl bg-espresso-900/80 backdrop-blur-sm border border-white/10">
-                      <span className="font-display text-base font-semibold text-amber-400">
+                      <span className="font-display text-base xl:text-lg font-semibold text-amber-400">
                         {formatPrice(p)}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex flex-col flex-1 p-5">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-600">
+                  <div className="flex flex-col flex-1 p-5 xl:p-6">
+                    <div className="flex items-center gap-1.5 text-[10px] xl:text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">
                       <MapPin className="w-3 h-3" />
                       {p.city || 'Dubai'} · {p.community}
                     </div>
-                    <h3 className="text-slate-100 text-[15px] font-semibold leading-snug mt-1.5 line-clamp-2">
+                    <h3 className="text-slate-100 text-[15px] xl:text-base font-semibold leading-snug mt-1.5 line-clamp-2">
                       {p.title}
                     </h3>
 
-                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-400 mt-3">
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 text-xs xl:text-sm text-slate-400 mt-3">
                       <span className="flex items-center gap-1.5">
-                        <BedDouble className="w-3.5 h-3.5 text-amber-600" />
+                        <BedDouble className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-amber-600" />
                         {p.bedrooms} BR
                       </span>
                       <span className="flex items-center gap-1.5">
-                        <Maximize2 className="w-3.5 h-3.5 text-amber-600" />
+                        <Maximize2 className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-amber-600" />
                         {p.size_sqft.toLocaleString()} sqft
                       </span>
                       {p.expected_roi && (
                         <span className="flex items-center gap-1.5">
-                          <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+                          <TrendingUp className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-amber-600" />
                           {p.expected_roi.split(' ')[0]}
                         </span>
                       )}
                     </div>
 
                     {p.developer && (
-                      <div className="text-[11px] text-slate-500 mt-2.5">
+                      <div className="text-[11px] xl:text-xs text-slate-500 mt-2.5">
                         by {p.developer}
                       </div>
                     )}
@@ -772,14 +772,14 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
                     <div className="flex gap-2.5 mt-auto pt-5">
                       <button
                         onClick={() => askAboutProperty(p)}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs xl:text-sm font-bold transition-colors shadow-sm cursor-pointer"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
                         Ask AI
                       </button>
                       <button
                         onClick={() => onBookViewing(p)}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors border border-slate-700 cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs xl:text-sm font-bold transition-colors border border-slate-700 cursor-pointer"
                       >
                         <CalendarCheck className="w-3.5 h-3.5 text-amber-600" />
                         Book Viewing
@@ -833,7 +833,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           <div className="text-center mt-9">
             <button
               onClick={() => setVisibleCount((c) => c + 6)}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold hover:border-amber-500/50 hover:text-amber-600 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-slate-900 border border-slate-700 text-slate-300 text-xs xl:text-sm font-bold hover:border-amber-500/50 hover:text-amber-600 transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Reveal more residences ({filtered.length - visibleCount} remaining)
@@ -844,32 +844,32 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
       {/* ═══════════════ HOW IT WORKS ═══════════════ */}
       <section className="border-y border-slate-800 bg-slate-900/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-12 sm:py-20">
           <Reveal>
-            <div className="text-center max-w-2xl mx-auto">
+            <div className="text-center max-w-2xl xl:max-w-3xl mx-auto">
               <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">
                 Effortless by design
               </div>
-              <h2 className="font-display text-2xl sm:text-3xl font-semibold text-slate-100 mt-2">
+              <h2 className="font-display text-2xl sm:text-3xl xl:text-4xl font-semibold text-slate-100 mt-2">
                 How Lyka works
               </h2>
             </div>
           </Reveal>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 mt-8 sm:mt-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 xl:gap-8 mt-8 sm:mt-12">
             {HOW_IT_WORKS.map((step, i) => (
               <Reveal key={step.step} delay={i * 120}>
-                <div className="relative h-full bg-slate-900 border border-slate-800 rounded-3xl p-7 hover:border-amber-500/40 transition-colors">
+                <div className="relative h-full bg-slate-900 border border-slate-800 rounded-3xl p-7 xl:p-9 hover:border-amber-500/40 transition-colors">
                   <div className="flex items-center justify-between">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
-                      <step.icon className="w-5.5 h-5.5 text-amber-500" />
+                    <div className="w-12 h-12 xl:w-14 xl:h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                      <step.icon className="w-5.5 h-5.5 xl:w-6 xl:h-6 text-amber-500" />
                     </div>
-                    <span className="font-display text-3xl font-semibold text-slate-800">
+                    <span className="font-display text-3xl xl:text-4xl font-semibold text-slate-800">
                       {step.step}
                     </span>
                   </div>
-                  <h3 className="text-slate-100 font-semibold text-base mt-5">{step.title}</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed mt-2">{step.text}</p>
+                  <h3 className="text-slate-100 font-semibold text-base xl:text-lg mt-5">{step.title}</h3>
+                  <p className="text-sm xl:text-base text-slate-400 leading-relaxed mt-2">{step.text}</p>
                 </div>
               </Reveal>
             ))}
@@ -877,20 +877,20 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
           {/* Trust markers */}
           <Reveal delay={200}>
-            <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 mt-12 text-slate-400">
-              <span className="flex items-center gap-2 text-xs font-semibold">
+            <div className="flex flex-wrap items-center justify-center gap-x-10 xl:gap-x-14 gap-y-4 mt-12 text-slate-400">
+              <span className="flex items-center gap-2 text-xs xl:text-sm font-semibold">
                 <ShieldCheck className="w-4 h-4 text-amber-600" />
                 RERA-verified listings
               </span>
-              <span className="flex items-center gap-2 text-xs font-semibold">
+              <span className="flex items-center gap-2 text-xs xl:text-sm font-semibold">
                 <Star className="w-4 h-4 text-amber-600" />
                 Senior property advisors
               </span>
-              <span className="flex items-center gap-2 text-xs font-semibold">
+              <span className="flex items-center gap-2 text-xs xl:text-sm font-semibold">
                 <PhoneCall className="w-4 h-4 text-amber-600" />
                 Direct advisor handoff
               </span>
-              <span className="flex items-center gap-2 text-xs font-semibold">
+              <span className="flex items-center gap-2 text-xs xl:text-sm font-semibold">
                 <CalendarCheck className="w-4 h-4 text-amber-600" />
                 In-person & 3D virtual viewings
               </span>
@@ -909,24 +909,24 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
               'radial-gradient(700px 340px at 20% 0%, rgba(196,164,104,0.16), transparent 60%), radial-gradient(600px 300px at 85% 100%, rgba(196,164,104,0.10), transparent 60%)',
           }}
         />
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-8 py-14 sm:py-20 text-center">
+        <div className="relative max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-8 xl:px-12 py-14 sm:py-20 xl:py-24 text-center">
           <Reveal>
             <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-amber-400">
               Begin the conversation
             </div>
-            <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-semibold text-espresso-300 mt-3 sm:mt-4 leading-tight">
+            <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-semibold text-espresso-300 mt-3 sm:mt-4 leading-tight">
               Your next address is one
               <br />
               conversation away.
             </h2>
-            <p className="text-espresso-400 text-xs sm:text-sm lg:text-base mt-4 sm:mt-5 max-w-xl mx-auto leading-relaxed">
+            <p className="text-espresso-400 text-xs sm:text-sm lg:text-base xl:text-lg mt-4 sm:mt-5 max-w-xl xl:max-w-2xl mx-auto leading-relaxed">
               Tell Lyka AI what you're looking for — it qualifies your requirement, curates the
               best matches, and connects you with a senior advisor to close the deal.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6 sm:mt-8 w-full sm:w-auto">
               <button
                 onClick={onOpenChat}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 sm:py-4 rounded-full bg-amber-500 hover:bg-amber-400 text-amber-950 text-sm font-bold transition-colors shadow-xl shadow-black/30 cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-6 sm:px-8 py-3.5 sm:py-4 rounded-full bg-amber-500 hover:bg-amber-400 text-amber-950 text-sm xl:text-base font-bold transition-colors shadow-xl shadow-black/30 cursor-pointer"
               >
                 <MessageSquare className="w-4.5 h-4.5" />
                 Chat with Lyka AI
@@ -934,7 +934,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
               </button>
               <button
                 onClick={() => selectCity('all')}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-full border border-amber-500/50 text-amber-400 hover:bg-amber-500/10 text-sm font-bold transition-colors cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-full border border-amber-500/50 text-amber-400 hover:bg-amber-500/10 text-sm xl:text-base font-bold transition-colors cursor-pointer"
               >
                 <Building2 className="w-4.5 h-4.5" />
                 Browse all residences
@@ -946,15 +946,15 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
 
       {/* ═══════════════ FOOTER ═══════════════ */}
       <footer className="border-t border-slate-800 bg-slate-950" style={{ backgroundColor: customBgColor || undefined }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+        <div className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-8 sm:py-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Lyka Realty" className="h-10 w-auto object-contain rounded-lg drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]" />
+            <img src="/logo.png" alt="Lyka Realty" className="h-10 xl:h-12 w-auto object-contain rounded-lg drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]" />
             <div>
-              <div className="text-slate-100 font-bold text-sm">Lyka Realty</div>
-              <div className="text-slate-500 text-[11px] mt-0.5">Dubai · Mumbai</div>
+              <div className="text-slate-100 font-bold text-sm xl:text-base">Lyka Realty</div>
+              <div className="text-slate-500 text-[11px] xl:text-xs mt-0.5">Dubai · Mumbai</div>
             </div>
           </div>
-          <div className="text-slate-500 text-[11px] text-center sm:text-right leading-relaxed">
+          <div className="text-slate-500 text-[11px] xl:text-xs text-center sm:text-right leading-relaxed">
             AI-powered property advisory & CRM platform.
             <br />
             All listings verified by the Lyka property team.

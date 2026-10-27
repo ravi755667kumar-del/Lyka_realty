@@ -234,7 +234,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by ID, name, community..."
-              className="w-full bg-white border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-amber-500"
             />
           </div>
 
@@ -242,7 +242,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             <select
               value={selectedIntent}
               onChange={(e) => setSelectedIntent(e.target.value)}
-              className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Intents</option>
               <option value="Buy">Buy</option>
@@ -256,7 +256,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             <select
               value={selectedPriority}
               onChange={(e) => setSelectedPriority(e.target.value)}
-              className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
             >
               <option value="ALL">All Priorities</option>
               <option value="Urgent">Urgent</option>
@@ -266,7 +266,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             </select>
           </div>
 
-          <div className="col-span-2 sm:col-span-1 flex items-center justify-between text-xs text-slate-400 bg-white px-3 py-2 rounded-xl border border-slate-700">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-between text-xs text-slate-300 bg-slate-950 px-3 py-2 rounded-xl border border-slate-700/80">
             <span>Filtered Leads:</span>
             <span className="font-bold text-amber-600">
               {filteredLeads.length} of{" "}
@@ -286,7 +286,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             return (
               <div
                 key={stage.id}
-                className="w-72 bg-slate-900/70 border border-slate-800 rounded-2xl flex flex-col h-full max-h-[calc(100vh-250px)]"
+                className="w-72 xl:w-80 2xl:w-88 bg-slate-900/70 border border-slate-800 rounded-2xl flex flex-col h-full max-h-[calc(100vh-250px)]"
               >
                 {/* Stage Header */}
                 <div

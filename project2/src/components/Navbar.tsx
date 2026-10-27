@@ -219,7 +219,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="bg-espresso-900/95 backdrop-blur-xl border-b border-amber-500/20 text-espresso-300 sticky top-0 z-50 select-none shadow-[0_4px_25px_rgba(0,0,0,0.3)]">
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+      <div className="max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto px-2 sm:px-4 lg:px-8 xl:px-12 2xl:px-16">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-1.5 sm:gap-4 w-full">
           {/* Logo & Brand — Left (Supports triple-tap to open Admin) */}
           <div
