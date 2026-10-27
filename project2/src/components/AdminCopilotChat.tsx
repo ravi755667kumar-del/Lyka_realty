@@ -70,8 +70,24 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
   activeTab,
   onNavigateTab
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('copilot') === 'open' || params.get('copilot') === 'true') {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  });
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('expanded') === 'true') {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  });
   const [inputQuery, setInputQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);

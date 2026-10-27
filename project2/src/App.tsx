@@ -115,7 +115,17 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites' | 'staff_access'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'chat' | 'crm' | 'properties' | 'knowledge' | 'stats' | 'customers' | 'user_chats' | 'login_stats' | 'assigned_properties' | 'sales_duplicates' | 'sales_missing_requirements' | 'favorites' | 'staff_access'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const validTabs = ['home', 'chat', 'crm', 'properties', 'knowledge', 'stats', 'customers', 'user_chats', 'login_stats', 'assigned_properties', 'sales_duplicates', 'sales_missing_requirements', 'favorites', 'staff_access'];
+      if (tabParam && validTabs.includes(tabParam)) {
+        return tabParam as any;
+      }
+    } catch (_) {}
+    return 'home';
+  });
   const [chatHistoryTargetUser, setChatHistoryTargetUser] = useState<UserProfileData | null>(null);
   const [dbFavoritesList, setDbFavoritesList] = useState<FavoritePropertyRecord[]>([]);
 
@@ -187,7 +197,16 @@ export default function App() {
   const [mongoStatus, setMongoStatus] = useState({ connected: false, uriConfigured: false, count: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && tabParam !== 'home' && tabParam !== 'chat') {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  });
   const [aboutOpen, setAboutOpen] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [theme, setTheme] = useState<AppTheme>(() => {
