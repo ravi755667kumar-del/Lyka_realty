@@ -39,6 +39,21 @@ const PORT = Number(process.env.PORT) || 3000;
 // ── Security Hardening: Disable information-leak headers ──
 app.disable('x-powered-by');
 
+// ── Security Hardening: Trust Reverse Proxies (Cloudflare, Render) ──
+app.enable('trust proxy');
+
+// ── Security Hardening: Enforce HTTPS Redirect in Production ──
+app.use((req: Request, res: Response, next) => {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    req.headers['x-forwarded-proto'] &&
+    req.headers['x-forwarded-proto'] !== 'https'
+  ) {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
 // ── Security Hardening: Strict request body size limit (prevent DoS) ──
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -55,6 +70,11 @@ app.use((req: Request, _res: Response, next) => {
 
 // ── Security Hardening: Comprehensive HTTP Headers & CSP ──
 app.use((_req: Request, res: Response, next) => {
+  // HTTP Strict Transport Security (HSTS) - 1 year, all subdomains, preloaded
+  res.setHeader(
+    'Strict-Transport-Security',
+    'max-age=31536000; includeSubDomains; preload'
+  );
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-XSS-Protection', '1; mode=block');
@@ -66,7 +86,9 @@ app.use((_req: Request, res: Response, next) => {
   res.setHeader('X-DNS-Prefetch-Control', 'off');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; " +
+    "default-src 'self'; " +
+    "object-src 'none'; " +
+    "base-uri 'self'; " +
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.firebaseapp.com https://*.googleapis.com; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com data:; " +
