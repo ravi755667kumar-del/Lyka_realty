@@ -2999,7 +2999,8 @@ app.get('/api/favorites', async (_req: Request, res: Response) => {
 
 // Mount Vite or static build
 async function startServer() {
-  if (process.env.NODE_ENV?.trim() === 'production') {
+  const isProduction = process.env.NODE_ENV?.trim() === 'production' || fs.existsSync(path.join(__dirname, 'index.html'));
+  if (isProduction) {
     const staticDir = fs.existsSync(path.join(__dirname, 'dist')) ? path.join(__dirname, 'dist') : __dirname;
     app.use(express.static(staticDir));
     app.get('*', (_req: Request, res: Response) => {
