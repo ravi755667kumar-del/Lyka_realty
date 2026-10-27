@@ -625,12 +625,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Admin & Property Manager Sub-nav — permanently visible when authenticated, including on Home */}
       {isAdminTab && isPortalAuthed && (
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
-          <div className="px-2 sm:px-6 flex items-center space-x-1.5 sm:space-x-3 overflow-x-auto py-2 scrollbar-none touch-pan-x">
+          <div className="px-2 sm:px-6 flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2 scrollbar-none touch-pan-x no-scrollbar">
             {/* Downside Role Dropdown Selector — Kept inside admin */}
             <div ref={roleDropdownRef} className="relative flex-shrink-0 mr-1">
               <button
                 onClick={() => setRoleDropdownOpen(prev => !prev)}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+                className={`flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
                   adminTargetPortal === 'admin'
                     ? 'bg-violet-600/30 border-violet-500/60 text-violet-200 hover:bg-violet-600/40 hover:border-violet-400'
                     : adminTargetPortal === 'property_manager'
@@ -771,21 +771,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            <div className="h-6 w-px bg-espresso-700/60 mx-1 flex-shrink-0" />
+            <div className="h-5 w-px bg-espresso-700/60 mx-0.5 sm:mx-1 flex-shrink-0" />
 
             {adminTargetPortal === 'admin' && (
               // Admin Portal Tabs
               <div className="flex items-center space-x-1 flex-shrink-0">
                 <button
                   onClick={() => setActiveTab('crm')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'crm'
                       ? 'bg-violet-600 text-white shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <Kanban className="w-3.5 h-3.5" />
-                  <span>CRM Pipeline</span>
+                  <span className="hidden sm:inline">CRM Pipeline</span>
                   {leadCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'crm' ? 'bg-espresso-800/25 text-espresso-300' : 'bg-violet-500/30 text-violet-200'
@@ -797,26 +797,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('knowledge')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'knowledge'
                       ? 'bg-violet-600 text-white shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <BookOpen className="w-3.5 h-3.5" />
-                  <span>Knowledge Base</span>
+                  <span className="hidden sm:inline">Knowledge Base</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('customers')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'customers'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
-                  <span>Customer Profiles</span>
+                  <span className="hidden sm:inline">Customer Profiles</span>
                   {customerCount !== undefined && customerCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'customers' ? 'bg-amber-900/30 text-amber-950' : 'bg-amber-500/20 text-amber-700'
@@ -828,62 +828,62 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('user_chats')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'user_chats'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
-                  <span>User Chats</span>
+                  <span className="hidden sm:inline">User Chats</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('login_stats')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'login_stats'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Login Trends</span>
+                  <span className="hidden sm:inline">Login Trends</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('stats')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'stats'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
-                  <span>Property Stats</span>
+                  <span className="hidden sm:inline">Property Stats</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('properties')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'properties'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>Dubai Properties</span>
+                  <span className="hidden sm:inline">Dubai Properties</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('assigned_properties')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'assigned_properties'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <BookmarkCheck className="w-3.5 h-3.5" />
-                                    <span>Assign / Bookings</span>
+                                    <span className="hidden sm:inline">Assign / Bookings</span>
                   {bookedPropertyCount !== undefined && bookedPropertyCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'assigned_properties' ? 'bg-amber-900/30 text-amber-950' : 'bg-emerald-500/20 text-emerald-300'
@@ -895,14 +895,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('favorites')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'favorites'
                       ? 'bg-red-500 text-white shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${activeTab === 'favorites' ? 'fill-current' : ''}`} />
-                  <span>Customer Favorites</span>
+                  <span className="hidden sm:inline">Customer Favorites</span>
                   {dbFavoritesCount !== undefined && dbFavoritesCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'favorites' ? 'bg-white/25 text-white' : 'bg-red-500/20 text-red-300'
@@ -914,7 +914,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('staff_access')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'staff_access'
                       ? 'bg-violet-600 text-white shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
@@ -922,7 +922,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title="Manage authorized Property Admins & Sales Managers"
                 >
                   <UserPlus className="w-3.5 h-3.5 text-violet-400" />
-                  <span>Staff Access</span>
+                  <span className="hidden sm:inline">Staff Access</span>
                   {staffCount !== undefined && staffCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'staff_access' ? 'bg-white/25 text-white' : 'bg-violet-500/30 text-violet-300'
@@ -1071,7 +1071,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center space-x-1 flex-shrink-0">
                 <button
                   onClick={() => setActiveTab('properties')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'properties'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
@@ -1090,7 +1090,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('assigned_properties')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'assigned_properties'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
@@ -1109,7 +1109,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('stats')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'stats'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
@@ -1126,14 +1126,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center space-x-1 flex-shrink-0">
                 <button
                   onClick={() => setActiveTab('sales_duplicates')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'sales_duplicates'
                       ? 'bg-emerald-600 text-white shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Duplicate Properties</span>
+                  <span className="hidden sm:inline">Duplicate Properties</span>
                   {duplicateCount !== undefined && duplicateCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'sales_duplicates' ? 'bg-emerald-950/40 text-emerald-200' : 'bg-rose-500/30 text-rose-200'
@@ -1145,14 +1145,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('sales_missing_requirements')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'sales_missing_requirements'
                       ? 'bg-emerald-600 text-white shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
                   }`}
                 >
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Missing Requirements</span>
+                  <span className="hidden sm:inline">Missing Requirements</span>
                   {missingRequirementsCount !== undefined && missingRequirementsCount > 0 && (
                     <span className={`text-[9px] px-1.5 rounded-full font-bold ${
                       activeTab === 'sales_missing_requirements' ? 'bg-emerald-950/40 text-emerald-200' : 'bg-amber-500/30 text-amber-200'
@@ -1164,7 +1164,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setActiveTab('properties')}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                     activeTab === 'properties'
                       ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
                       : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
@@ -1177,11 +1177,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Downside Right Actions: Logout and Back to Chat */}
-            <div className="ml-auto flex items-center space-x-2 flex-shrink-0 pl-3">
+            <div className="ml-auto flex items-center space-x-1 sm:space-x-2 flex-shrink-0 pl-1 sm:pl-3">
               
               <button
                 onClick={onAdminLogout}
-                className="flex items-center space-x-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-500/40 bg-red-950/30 hover:bg-red-900/50 text-red-300 hover:border-red-400 transition-all"
+                className="flex items-center space-x-1 text-xs font-medium px-1.5 sm:px-2.5 py-1.5 rounded-lg border border-red-500/40 bg-red-950/30 hover:bg-red-900/50 text-red-300 hover:border-red-400 transition-all"
                 title="Logout from Admin"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -1192,10 +1192,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setActiveTab('chat');
                   onToggleAdminPanel();
                 }}
-                className="text-xs text-espresso-400 hover:text-espresso-200 px-2.5 py-1.5 rounded-lg hover:bg-espresso-800 border border-espresso-700/60 transition-colors"
+                className="text-xs text-espresso-400 hover:text-espresso-200 px-1.5 sm:px-2.5 py-1.5 rounded-lg hover:bg-espresso-800 border border-espresso-700/60 transition-colors hidden sm:block"
                 title="Back to AI Chat"
               >
-                Back to Chat ✕
+                <span className="hidden sm:inline">Back to Chat</span><span className="sm:hidden">✕</span>
               </button>
             </div>
           </div>
