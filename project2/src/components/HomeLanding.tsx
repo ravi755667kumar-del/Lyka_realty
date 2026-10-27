@@ -335,8 +335,8 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
           e.stopPropagation();
           toggleLike(p.id);
         }}
-        aria-label={liked ? 'Remove from favorites' : 'Save to favorites (no login required)'}
-        title={liked ? 'Remove from favorites' : 'Save to favorites (no login required)'}
+        aria-label={liked ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
+        title={liked ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
         className={`flex items-center justify-center rounded-full backdrop-blur-sm border transition-all active:scale-90 cursor-pointer ${
           size === 'md' ? 'w-9 h-9' : 'w-8 h-8'
         } ${
@@ -668,7 +668,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
             <p className="text-sm text-slate-400 mt-3 leading-relaxed">
               {showFavoritesOnly
                 ? 'Your favorited properties from across the portfolio. Click on any card to ask AI or book a viewing.'
-                : 'Every listing is verified by our property team. Tap the heart to save any residence to your favorites instantly (no login required) — ask the AI for full details, or book a viewing right away.'}
+                : 'Every listing is verified by our property team. Tap the heart to save any residence to your favorites (sign in required) — ask the AI for full details, or book a viewing right away.'}
             </p>
             {showFavoritesOnly && (
               <div className="mt-4">

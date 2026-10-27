@@ -410,10 +410,15 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
 
       {/* Expanded Right-Side Chatbot Drawer */}
       {isOpen && (
-        <aside
-          className="w-80 sm:w-96 bg-white border-l border-slate-200 flex flex-col h-full shrink-0 shadow-2xl z-30 transition-all duration-300 relative"
-          aria-label="Admin Copilot Panel"
-        >
+        <>
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-30 md:hidden" 
+            onClick={() => setIsOpen(false)} 
+          />
+          <aside
+            className="fixed md:relative inset-y-0 right-0 max-w-full w-full sm:w-80 md:w-96 bg-white border-l border-slate-200 flex flex-col h-full shrink-0 shadow-2xl z-40 transition-all duration-300"
+            aria-label="Admin Copilot Panel"
+          >
           {/* Header */}
           <div className="p-3.5 bg-gradient-to-r from-espresso-900 via-espresso-800 to-amber-950 border-b border-espresso-700 shrink-0 text-white">
             <div className="flex items-center justify-between">
@@ -610,6 +615,7 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
             </div>
           </div>
         </aside>
+        </>
       )}
     </>
   );

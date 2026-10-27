@@ -262,7 +262,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
       </div>
 
       {/* Kanban Board Columns */}
-      <div className="flex-1 overflow-x-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-x-auto p-3 sm:p-6 scrollbar-thin touch-pan-x">
         <div className="flex space-x-4 min-w-max h-full">
           {STAGES.map((stage) => {
             const stageLeads = filteredLeads.filter(

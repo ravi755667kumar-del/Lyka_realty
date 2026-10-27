@@ -43,7 +43,6 @@ interface SettingsModalProps {
   onSelectPortal: (portal: 'admin' | 'property_manager' | 'sales_manager') => void;
   onOpenAdminPanel: () => void;
   onOpenStaffAccess?: () => void;
-  onOpenDevicePreview?: () => void;
   onOpenCredentialsConfig: () => void;
   onAdminLogout: () => void;
   hideAdminTab?: boolean;
@@ -129,7 +128,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSelectPortal,
   onOpenAdminPanel,
   onOpenStaffAccess,
-  onOpenDevicePreview,
   onOpenCredentialsConfig,
   onAdminLogout,
   hideAdminTab = false,
@@ -492,17 +490,8 @@ return (
                         <KeyRound className="w-3.5 h-3.5 text-amber-600" />
                         <span>Database Credentials</span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          if (onOpenDevicePreview) onOpenDevicePreview();
-                        }}
-                        className="w-full bg-[#f4ede0] hover:bg-[#ebdcc4] dark:bg-slate-800 dark:hover:bg-slate-700 text-[#2d2216] dark:text-slate-200 font-semibold py-2 px-3 rounded-xl text-xs transition-colors border border-[#d6c7ab] dark:border-slate-700 flex items-center justify-center space-x-1.5 cursor-pointer sm:col-span-2"
-                      >
-                        <Smartphone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                        <span>Device & Dimension Simulator (iPhone, iPad, Galaxy)</span>
-                      </button>
+
+                      
                     </>
                   )}
 
@@ -691,10 +680,10 @@ return (
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">
-                      Guest Session (No Login Required to Save)
+                      Guest Session (Sign In to Save Favorites)
                     </h4>
                     <p className="text-[11px] text-[#6b5843] dark:text-slate-400 mt-0.5">
-                      You can explore, search, and save favorite properties directly on this device without logging in. Sign in only if you want to sync your saved favorites across devices or connect directly with an advisor.
+                      You can explore and search verified luxury properties. Sign in or create an account to save favorite properties and connect directly with an advisor.
                     </p>
                   </div>
                   <button

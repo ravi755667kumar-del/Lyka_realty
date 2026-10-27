@@ -75,7 +75,6 @@ import { AdminUserChatHistory } from './components/AdminUserChatHistory';
 import { AdminCopilotChat } from './components/AdminCopilotChat';
 import { AdminStaffManagement } from './components/AdminStaffManagement';
 import { SettingsModal, AppTheme } from './components/SettingsModal';
-import { DeviceDimensionPreview } from './components/DeviceDimensionPreview';
 import { talkToAgentSchema, mobilePhoneSchema, otpSchema } from './schemas/validation';
 import { 
   Calendar, 
@@ -182,7 +181,6 @@ export default function App() {
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [isDevicePreviewOpen, setIsDevicePreviewOpen] = useState(false);
   const [theme, setTheme] = useState<AppTheme>(() => {
     try {
       const saved = localStorage.getItem('lyka_realty_theme') as AppTheme;
@@ -983,7 +981,27 @@ export default function App() {
 
   const [favoriteToast, setFavoriteToast] = useState<string | null>(null);
 
+  // Visitor is signed in if they have a customer account session or an authenticated staff/admin session
+  const isUserSignedIn = useMemo(() => {
+    if (Boolean(currentUserId || currentUserEmail || auth?.currentUser || adminAuthenticated || propertyManagerAuthenticated || salesManagerAuthenticated)) {
+      return true;
+    }
+    try {
+      const stored = localStorage.getItem('lyka_client_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.id || parsed?.uid || parsed?.email) return true;
+      }
+    } catch (_) {}
+    return false;
+  }, [currentUserId, currentUserEmail, adminAuthenticated, propertyManagerAuthenticated, salesManagerAuthenticated]);
+
   const handleToggleFavoritesFilter = () => {
+    if (!isUserSignedIn) {
+      setFavoriteToast('🔒 Please Sign In or Sign Up to view your saved favorites!');
+      setTimeout(() => setFavoriteToast(null), 4500);
+      return;
+    }
     setActiveTab('home');
     setAdminPanelOpen(false);
     setShowFavoritesOnly(prev => {
@@ -1001,6 +1019,12 @@ export default function App() {
   };
 
   const toggleFavorite = (propertyId: string) => {
+    if (!isUserSignedIn) {
+      setFavoriteToast('🔒 Please Sign In or Sign Up to save properties to your favorites!');
+      setTimeout(() => setFavoriteToast(null), 4500);
+      return;
+    }
+
     setFavorites(prev => {
       const isRemoving = prev.includes(propertyId);
       const updated = isRemoving
@@ -1014,7 +1038,7 @@ export default function App() {
       const foundProp = (propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES).find(p => p.id === propertyId);
       const propTitle = foundProp?.title || 'Residence';
       if (!isRemoving) {
-        setFavoriteToast(`Saved "${propTitle}" to favorites! (No login required)`);
+        setFavoriteToast(`Saved "${propTitle}" to your favorites!`);
       } else {
         setFavoriteToast(`Removed "${propTitle}" from favorites.`);
       }
@@ -2525,7 +2549,6 @@ export default function App() {
         }}
         onOpenAbout={() => setAboutOpen(true)}
         onOpenSettings={() => setShowSettingsModal(true)}
-        onOpenDevicePreview={() => setIsDevicePreviewOpen(true)}
         customBgColor={customBgColor}
         onSelectCustomBg={(c) => {
           setCustomBgColor(c);
@@ -4367,12 +4390,6 @@ export default function App() {
         onClose={() => setAboutOpen(false)}
       />
 
-      {/* In-App Responsive Device & Dimension Simulator */}
-      <DeviceDimensionPreview
-        isOpen={isDevicePreviewOpen}
-        onClose={() => setIsDevicePreviewOpen(false)}
-      />
-
       {/* Central Unified Settings & Appearance Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
@@ -4424,7 +4441,6 @@ export default function App() {
           setAdminPanelOpen(true);
           setActiveTab('staff_access');
         }}
-        onOpenDevicePreview={() => setIsDevicePreviewOpen(true)}
         onOpenCredentialsConfig={() => {
           setShowCredentialConfig(true);
           setConfigPortalTab(adminTargetPortal);
@@ -4464,11 +4480,22 @@ export default function App() {
         }}
       />
 
-      {/* Visual Toast Notification for Guest Favorite Actions */}
+      {/* Visual Toast Notification for Favorite Actions */}
       {favoriteToast && (
-        <div className="fixed bottom-6 right-6 z-[9999] flex items-center space-x-2.5 bg-espresso-950/95 dark:bg-slate-900/95 text-amber-200 border border-amber-500/50 px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-200 text-xs sm:text-sm font-semibold pointer-events-none">
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-center space-x-3 bg-espresso-950/95 dark:bg-slate-900/95 text-amber-200 border border-amber-500/50 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-4 duration-200 text-xs sm:text-sm font-semibold max-w-sm">
           <Heart className="w-4 h-4 text-red-400 fill-red-400 shrink-0" />
-          <span>{favoriteToast}</span>
+          <span className="flex-1">{favoriteToast}</span>
+          {favoriteToast.includes('Sign In') && (
+            <button
+              onClick={() => {
+                setFavoriteToast(null);
+                setActiveTab('chat');
+              }}
+              className="px-2.5 py-1 rounded-lg bg-amber-500 text-espresso-950 hover:bg-amber-400 text-xs font-bold transition-all cursor-pointer shrink-0 ml-1 shadow-sm"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       )}
     </div>

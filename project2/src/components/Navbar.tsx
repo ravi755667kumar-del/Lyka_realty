@@ -24,6 +24,7 @@ import {
   Heart,
   Palette,
   UserPlus,
+  Menu,
   Smartphone
 } from 'lucide-react';
 import type { PropertyListing } from '../types/crm';
@@ -67,7 +68,6 @@ interface NavbarProps {
   onResetCustomBg?: () => void;
   currentTheme?: 'ivory' | 'dark' | 'navy';
   onSelectTheme?: (theme: 'ivory' | 'dark' | 'navy') => void;
-  onOpenDevicePreview?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -109,9 +109,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetCustomBg,
   currentTheme = 'ivory',
   onSelectTheme,
-  onOpenDevicePreview,
 }) => {
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
   const [favoritesDropdownOpen, setFavoritesDropdownOpen] = useState(false);
   const [appearanceDropdownOpen, setAppearanceDropdownOpen] = useState(false);
@@ -234,31 +234,32 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Center: Home + AI Chat tab — Luxury Floating Capsule Navigation */}
-          <nav className="flex items-center p-1 rounded-2xl bg-espresso-800/80 backdrop-blur-md border border-espresso-700/80 shadow-lg shrink-0 gap-1 sm:gap-1.5">
+          <nav className="flex items-center p-0.5 sm:p-1 rounded-xl sm:rounded-2xl bg-espresso-800/80 backdrop-blur-md border border-espresso-700/80 shadow-lg shrink-0 gap-0.5 sm:gap-1.5">
             <button
               onClick={() => { setActiveTab('home'); }}
-              className={`flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+              className={`flex items-center space-x-1 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold transition-all duration-200 cursor-pointer ${
                 activeTab === 'home'
                   ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-amber-950 font-bold shadow-[0_2px_12px_rgba(245,158,11,0.35)]'
                   : 'text-espresso-300 hover:text-white hover:bg-espresso-700/60'
               }`}
             >
-              <Home className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Home</span>
+              <Home className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+              <span>Home</span>
             </button>
             <button
               onClick={() => { setActiveTab('chat'); }}
-              className={`flex items-center space-x-1.5 sm:space-x-2 px-2.5 sm:px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer ${
+              className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold transition-all duration-200 cursor-pointer ${
                 activeTab === 'chat'
                   ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-amber-950 font-bold shadow-[0_2px_12px_rgba(245,158,11,0.35)]'
                   : 'text-espresso-300 hover:text-white hover:bg-espresso-700/60'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5" />
+              <MessageSquare className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
               <span className="hidden md:inline font-bold">Agentic AI Chat</span>
-              <span className="inline md:hidden font-bold">AI Chat</span>
-              <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[9px] font-bold text-emerald-400 uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="hidden sm:inline md:hidden font-bold">AI Chat</span>
+              <span className="inline sm:hidden font-bold">Chat</span>
+              <span className="hidden xs:inline-flex items-center space-x-0.5 px-1 py-0.2 rounded-full bg-emerald-500/20 text-[8px] font-bold text-emerald-400">
+                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="hidden sm:inline">LIVE</span>
               </span>
             </button>
@@ -481,7 +482,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                                     e.stopPropagation();
                                     if (onToggleFavorite) onToggleFavorite(prop.id);
                                   }}
-                                  title={favorites?.includes(prop.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                                  title={favorites?.includes(prop.id) ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
                                   className={`p-1 rounded-full cursor-pointer flex-shrink-0 self-center mt-0.5 transition-transform active:scale-90 ${favorites?.includes(prop.id) ? 'text-red-400' : 'text-slate-500 hover:text-red-400'}`}
                                 >
                                   <Heart className={`w-4 h-4 ${favorites?.includes(prop.id) ? 'fill-current' : ''}`} />
@@ -514,7 +515,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
                     : 'bg-espresso-800/60 border-espresso-700/60 text-espresso-300 hover:text-white hover:bg-espresso-800 hover:border-amber-400/50'
                 }`}
-                title={`Favorites (${favorites?.length || 0}) — Click to view your saved residences (no login required)`}
+                title={`Favorites (${favorites?.length || 0}) — View your saved residences`}
                 aria-label="Favorites"
               >
                 <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'text-red-400 fill-red-400' : favorites && favorites.length > 0 ? 'text-red-400 fill-red-400' : 'text-espresso-300'}`} />
@@ -586,42 +587,36 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Settings (⚙️) Button */}
+            {/* Desktop: Settings & About & Inspect */}
             <button
               onClick={onOpenSettings}
-              className="group flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-espresso-200 hover:text-amber-300 hover:bg-espresso-800/90 border border-espresso-700/70 hover:border-amber-400/50 transition-all duration-200 shadow-sm cursor-pointer"
+              className="hidden sm:flex group items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-espresso-200 hover:text-amber-300 hover:bg-espresso-800/90 border border-espresso-700/70 hover:border-amber-400/50 transition-all duration-200 shadow-sm cursor-pointer"
               title="Settings & Preferences (Background, Admin, AI Engine)"
               aria-label="Settings"
             >
               <Settings className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform duration-300 shrink-0" />
               <span className="hidden md:inline">Settings</span>
             </button>
+
             <button
               onClick={onOpenAbout}
-              className="hidden sm:flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-espresso-200 hover:text-amber-300 hover:bg-espresso-800/90 border border-espresso-700/70 hover:border-amber-400/50 transition-all duration-200 shadow-sm cursor-pointer"
+              className="hidden sm:flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-espresso-200 hover:text-amber-300 hover:bg-espresso-800/90 border border-espresso-700/70 hover:border-amber-400/50 transition-all duration-200 shadow-sm cursor-pointer"
               title="Learn about Lyka Realty"
             >
               <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="hidden md:inline">About</span>
             </button>
 
-                        {/* Admin Login / Portal Button — Clearly visible for Admin login */}
+            
+
+            {/* Mobile Hamburger Menu Button (☰) */}
             <button
-              onClick={() => onToggleAdminPanel()}
-              className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 border shadow-sm cursor-pointer ${
-                adminPanelOpen || isAdminTab
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white border-violet-400 shadow-[0_2px_12px_rgba(139,92,246,0.35)]'
-                  : isAnyAuthed
-                  ? 'bg-violet-600/25 text-violet-200 hover:text-white hover:bg-violet-600/40 border-violet-500/50'
-                  : 'bg-espresso-800/90 text-amber-300 hover:text-white hover:bg-espresso-700 border-amber-500/40 hover:border-amber-400'
-              }`}
-              title={isAnyAuthed ? "Admin & Staff Portal" : "Admin & Staff Portal Login"}
-              aria-label="Admin Login"
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              className="flex sm:hidden items-center justify-center p-1.5 rounded-xl bg-espresso-800/90 hover:bg-espresso-700 text-amber-400 border border-espresso-700 hover:border-amber-400/60 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+              title="Menu (Settings, About)"
+              aria-label="Toggle mobile menu"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="font-bold">
-                {isAnyAuthed ? 'Admin Portal' : 'Admin Login'}
-              </span>
+              {mobileMenuOpen ? <X className="w-4 h-4 text-amber-400" /> : <Menu className="w-4 h-4 text-amber-400" />}
             </button>
           </div>
         </div>
@@ -630,7 +625,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Admin & Property Manager Sub-nav — permanently visible when authenticated, including on Home */}
       {isAdminTab && isPortalAuthed && (
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
-          <div className="px-4 sm:px-6 flex items-center space-x-3 overflow-x-auto py-2">
+          <div className="px-2 sm:px-6 flex items-center space-x-1.5 sm:space-x-3 overflow-x-auto py-2 scrollbar-none touch-pan-x">
             {/* Downside Role Dropdown Selector — Kept inside admin */}
             <div ref={roleDropdownRef} className="relative flex-shrink-0 mr-1">
               <button
@@ -770,20 +765,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <p className="text-[10px] text-slate-400 truncate mt-0.5">Duplicate Control & Quality Audit</p>
                       </div>
                     </button>
-                    {typeof window !== 'undefined' && window.self === window.top && onOpenDevicePreview && (
-                      <div className="pt-1 border-t border-slate-800">
-                        <button
-                          onClick={() => {
-                            setRoleDropdownOpen(false);
-                            onOpenDevicePreview();
-                          }}
-                          className="w-full text-left p-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-all flex items-center space-x-2 text-xs font-semibold cursor-pointer"
-                        >
-                          <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Device Dimensions Simulator</span>
-                        </button>
-                      </div>
-                    )}
+                    
                   </div>
                 </>
               )}
@@ -1196,16 +1178,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Downside Right Actions: Logout and Back to Chat */}
             <div className="ml-auto flex items-center space-x-2 flex-shrink-0 pl-3">
-              {typeof window !== 'undefined' && window.self === window.top && onOpenDevicePreview && (
-                <button
-                  onClick={onOpenDevicePreview}
-                  className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-slate-950 shadow-xs cursor-pointer"
-                  title="Simulate Mobile & Tablet Screen Dimensions (iPhone, iPad, Galaxy)"
-                >
-                  <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Device Preview</span>
-                </button>
-              )}
+              
               <button
                 onClick={onAdminLogout}
                 className="flex items-center space-x-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-red-500/40 bg-red-950/30 hover:bg-red-900/50 text-red-300 hover:border-red-400 transition-all"
@@ -1229,103 +1202,64 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-      {/* Mobile nav — only when NOT in Admin Sub-nav */}
-      {isAdminTab && isAnyAuthed && (
-        <div className="md:hidden flex overflow-x-auto px-4 py-2 space-x-2 bg-espresso-900 border-t border-espresso-700 text-xs">
-        <button
-          onClick={() => setActiveTab('chat')}
-          className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium ${
-            activeTab === 'chat' ? 'bg-amber-500 text-amber-950' : 'text-espresso-400'
-          }`}
-        >
-          AI Chat
-        </button>
-        {/* Duplicate About button removed - already visible in top header bar */}
-        {isAnyAuthed ? (
-          <>
+      
+    
+      {/* Mobile Hamburger Menu Dropdown — Holds Settings and About */}
+      {mobileMenuOpen && (
+        <>
+          <div 
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs sm:hidden"
+            onClick={() => setMobileMenuOpen(false)} 
+          />
+          <div className="fixed top-14 left-2 right-2 z-50 sm:hidden bg-slate-900/98 border border-slate-700 rounded-2xl p-3 shadow-2xl space-y-2 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200 max-w-sm ml-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800 px-1">
+              <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+                Menu
+              </span>
+              <button 
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-slate-400 hover:text-white p-1"
+                aria-label="Close menu"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Settings & Preferences */}
             <button
               onClick={() => {
-                if (onSelectPortal) onSelectPortal('admin');
-                setActiveTab('crm');
+                setMobileMenuOpen(false);
+                if (onOpenSettings) onOpenSettings();
               }}
-              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-                (adminPanelOpen || isAdminTab) && adminTargetPortal === 'admin'
-                  ? 'bg-violet-600 text-white border-violet-500'
-                  : 'text-espresso-400 border-espresso-700'
-              }`}
+              className="w-full flex items-center space-x-2.5 p-2.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-slate-200 border border-slate-700/70 text-xs font-semibold transition-all cursor-pointer"
             >
-              Admin
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                <Settings className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="text-left">
+                <div className="font-bold text-slate-100">Settings & Preferences</div>
+                <div className="text-[10px] text-slate-400">Background theme, AI models, and preferences</div>
+              </div>
             </button>
+
+            {/* About Lyka Realty */}
             <button
               onClick={() => {
-                if (onSelectPortal) onSelectPortal('property_manager');
-                setActiveTab('properties');
+                setMobileMenuOpen(false);
+                if (onOpenAbout) onOpenAbout();
               }}
-              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-                (adminPanelOpen || isAdminTab) && adminTargetPortal === 'property_manager'
-                  ? 'bg-amber-500 text-amber-950 border-amber-400'
-                  : 'text-espresso-400 border-espresso-700'
-              }`}
+              className="w-full flex items-center space-x-2.5 p-2.5 rounded-xl bg-slate-800/70 hover:bg-slate-800 text-slate-200 border border-slate-700/70 text-xs font-semibold transition-all cursor-pointer"
             >
-              Property Admin
+              <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center shrink-0">
+                <Info className="w-4 h-4 text-blue-400" />
+              </div>
+              <div className="text-left">
+                <div className="font-bold text-slate-100">About Lyka Realty</div>
+                <div className="text-[10px] text-slate-400">Project architecture & company information</div>
+              </div>
             </button>
-            <button
-              onClick={() => {
-                if (onSelectPortal) onSelectPortal('sales_manager');
-                setActiveTab('sales_duplicates');
-              }}
-              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-                (adminPanelOpen || isAdminTab) && adminTargetPortal === 'sales_manager'
-                  ? 'bg-emerald-600 text-white border-emerald-500'
-                  : 'text-espresso-400 border-espresso-700'
-              }`}
-            >
-              Sales Manager
-            </button>
-            <button
-              onClick={() => setActiveTab('favorites')}
-              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border flex items-center space-x-1 ${
-                activeTab === 'favorites'
-                  ? 'bg-red-500 text-white border-red-400'
-                  : 'text-espresso-400 border-espresso-700'
-              }`}
-            >
-              <Heart className="w-3 h-3 fill-current" />
-              <span>Favorites</span>
-              {dbFavoritesCount !== undefined && dbFavoritesCount > 0 && (
-                <span className="text-[9px] px-1 bg-red-400/30 rounded-full font-bold">
-                  {dbFavoritesCount}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('assigned_properties')}
-              className={`px-3 py-1.5 rounded-md whitespace-nowrap font-medium border ${
-                activeTab === 'assigned_properties'
-                  ? 'bg-amber-500 text-amber-950 border-amber-400'
-                  : 'text-espresso-400 border-espresso-700'
-              }`}
-            >
-              Assign
-            </button>
-            <button
-              onClick={onAdminLogout}
-              className="px-2.5 py-1.5 rounded-md whitespace-nowrap font-medium border border-red-500/40 text-red-300"
-            >
-              Logout
-            </button>
-            {/* Cut / Close button in upside mobile sub-nav */}
-            <button
-              onClick={() => onToggleAdminPanel()}
-              className="px-2.5 py-1.5 rounded-md whitespace-nowrap font-bold border border-espresso-600 text-espresso-300 hover:text-white hover:bg-espresso-800 ml-auto flex items-center space-x-1"
-              title="Close admin menu"
-            >
-              <span>✕</span>
-              <span>Cut</span>
-            </button>
-          </>
-        ) : null}
-      </div>
+          </div>
+        </>
       )}
     </header>
   );

@@ -974,7 +974,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               {/* Section: Rooms & Size */}
               <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">🛏 Rooms & Size</p>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="text-slate-400 block mb-1">Bedrooms</label>
                     <select
@@ -1026,7 +1026,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </div>
 
                 {/* Date Information */}
-                <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                   <div>
                     <label className="text-slate-400 block mb-1">Listing Date</label>
                     <input
@@ -1470,7 +1470,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="text-slate-400 block mb-1">Developer</label>
                     <input
@@ -1513,7 +1513,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               {/* Section: Rooms, Size & Status */}
               <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">🛏 Rooms, Size & Status</p>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="text-slate-400 block mb-1">Bedrooms</label>
                     <select
@@ -1569,7 +1569,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </div>
 
                 {/* Date Information */}
-                <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                   <div>
                     <label className="text-slate-400 block mb-1">Listing Date</label>
                     <input

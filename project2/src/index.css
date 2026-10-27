@@ -1012,3 +1012,17 @@ nav {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ── Responsive & Touch Utilities ── */
+.touch-pan-x {
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

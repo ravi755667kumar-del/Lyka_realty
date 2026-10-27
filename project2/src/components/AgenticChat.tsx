@@ -2199,8 +2199,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                                       e.stopPropagation();
                                       onToggleFavorite?.(prop.id);
                                     }}
-                                    aria-label={favorites.includes(prop.id) ? 'Remove from favorites' : 'Save property (no login required)'}
-                                    title={favorites.includes(prop.id) ? 'Remove from favorites' : 'Save property without logging in'}
+                                    aria-label={favorites.includes(prop.id) ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
+                                    title={favorites.includes(prop.id) ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
                                     className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 cursor-pointer shadow-md border ${
                                       favorites.includes(prop.id)
                                         ? 'bg-red-500 border-red-400 text-white shadow-red-500/30'
@@ -3213,8 +3213,8 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                 <button
                   type="button"
                   onClick={() => onToggleFavorite?.(selectedDetailProperty.id)}
-                  aria-label={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
-                  title={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                  aria-label={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
+                  title={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
                     favorites.includes(selectedDetailProperty.id)
                       ? 'text-red-500 hover:text-red-600 bg-red-500/15 border border-red-500/30'
@@ -3368,7 +3368,7 @@ export const AgenticChat: React.FC<AgenticChatProps> = ({
                       ? 'bg-red-500 hover:bg-red-600 text-white border-red-400'
                       : 'bg-[#ffffff] hover:bg-[#eee6d3] text-[#4a3b2c] border-[#d6cbb4]'
                   }`}
-                  title={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
+                  title={favorites.includes(selectedDetailProperty.id) ? 'Remove from favorites' : 'Save to favorites (Sign in required)'}
                 >
                   <Heart className={`w-3.5 h-3.5 ${favorites.includes(selectedDetailProperty.id) ? 'fill-current text-white' : 'text-red-500'}`} />
                   <span>{favorites.includes(selectedDetailProperty.id) ? 'Saved' : 'Save'}</span>
