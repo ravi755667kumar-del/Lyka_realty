@@ -70,7 +70,8 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
   activeTab,
   onNavigateTab
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [inputQuery, setInputQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -391,54 +392,50 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
 
   return (
     <>
-      {/* Collapsed Toggle Pill (Shown on Right Edge when closed) */}
+      {/* Collapsed Toggle Pill (Prominent, clearly visible floating launcher) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed right-3 bottom-6 z-40 bg-gradient-to-r from-violet-700 via-purple-700 to-amber-600 hover:from-violet-600 hover:to-amber-500 text-white px-3.5 py-2.5 rounded-2xl shadow-2xl flex items-center space-x-2 border border-violet-400/30 transition-all hover:scale-105 group"
+          className="fixed right-3.5 sm:right-5 bottom-4 sm:bottom-6 z-[60] bg-gradient-to-r from-violet-800 via-purple-700 to-amber-600 hover:from-violet-700 hover:to-amber-500 text-white px-3.5 py-2 rounded-full shadow-2xl ring-2 ring-amber-400/50 hover:ring-amber-300 border border-white/20 transition-all hover:scale-105 active:scale-95 group cursor-pointer select-none text-xs sm:text-[13px] font-bold flex items-center space-x-2"
           title="Open Admin AI Copilot"
         >
-          <div className="relative">
-            <Bot className="w-5 h-5 text-amber-300" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full" />
+          <div className="relative flex items-center justify-center">
+            <Bot className="w-5 h-5 text-amber-300 drop-shadow-sm" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-violet-950 animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-violet-950" />
           </div>
-          <span className="text-xs font-bold tracking-wide">Admin Copilot</span>
-          <ChevronLeft className="w-4 h-4 text-amber-200 group-hover:-translate-x-0.5 transition-transform" />
+          <span className="tracking-wide">Copilot</span>
+          <ChevronLeft className="w-4 h-4 text-amber-200 group-hover:-translate-x-0.5 transition-transform shrink-0" />
         </button>
       )}
 
-      {/* Expanded Right-Side Chatbot Drawer */}
+      {/* Expanded Compact Floating Widget (Does not stretch full screen or squash CRM) */}
       {isOpen && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-30 md:hidden" 
-            onClick={() => setIsOpen(false)} 
-          />
-          <aside
-            className="fixed md:relative inset-y-0 right-0 max-w-full w-full sm:w-80 md:w-96 bg-white border-l border-slate-200 flex flex-col h-full shrink-0 shadow-2xl z-40 transition-all duration-300"
-            aria-label="Admin Copilot Panel"
-          >
+        <aside
+          className={`fixed right-3 sm:right-5 bottom-4 sm:bottom-6 z-[60] bg-white dark:bg-slate-900 border border-slate-300 dark:border-amber-500/30 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-200 animate-in fade-in slide-in-from-bottom-2 ${
+            isExpanded
+              ? 'w-[290px] sm:w-[330px] h-[480px] max-h-[82vh]'
+              : 'w-[250px] xs:w-[270px] sm:w-[290px] h-[340px] sm:h-[370px] max-h-[58vh]'
+          }`}
+          aria-label="Admin Copilot Panel"
+        >
           {/* Header */}
-          <div className="p-3.5 bg-gradient-to-r from-espresso-900 via-espresso-800 to-amber-950 border-b border-espresso-700 shrink-0 text-white">
+          <div className="px-2.5 py-1.5 sm:py-2 bg-gradient-to-r from-espresso-900 via-espresso-800 to-amber-950 border-b border-espresso-700 shrink-0 text-white">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center shrink-0">
                   <Bot className="w-4.5 h-4.5 text-amber-300" />
                 </div>
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <h3 className="text-xs font-bold text-white">Admin Copilot</h3>
-                    <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
-                      Live Data
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-amber-200/90 font-medium">Live Sales Analytics & Navigation</p>
+                <div className="flex items-center space-x-1.5">
+                  <h3 className="text-xs font-bold text-white">Copilot</h3>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
+                    Live
+                  </span>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center space-x-0.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -451,121 +448,113 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
                       }
                     ]);
                   }}
-                  className="p-1.5 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded-lg transition-colors"
+                  className="p-1 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded transition-colors"
                   title="Reset conversation"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(prev => !prev)}
+                  className="p-1 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded transition-colors"
+                  title={isExpanded ? "Collapse height" : "Expand height"}
+                >
+                  {isExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded-lg transition-colors"
-                  title="Minimize Copilot"
+                  className="p-1 text-amber-200/80 hover:text-white hover:bg-espresso-750 rounded transition-colors"
+                  title="Close Copilot"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
             {/* Quick Suggestion Chips */}
-            <div className="flex items-center space-x-1.5 overflow-x-auto pt-2.5 pb-0.5 scrollbar-none text-[10px]">
+            <div className="flex items-center space-x-1 overflow-x-auto pt-1.5 pb-0.5 scrollbar-none text-[8.5px]">
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("Show user chat history")}
-                className="bg-violet-500/20 hover:bg-violet-500/30 text-violet-900 dark:text-violet-200 border border-violet-600/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
+                className="bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-600/30 px-1.5 py-0.5 rounded shrink-0 transition-all font-semibold active:scale-95"
               >
-                <span>💬 User Chats</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickPrompt("How to change background color?")}
-                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-600/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
-              >
-                <span>🎨 Background Color</span>
+                💬 Chats
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("What is today's sales?")}
-                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 border border-amber-600/30 px-2 py-1 rounded-lg shrink-0 transition-all font-semibold active:scale-95 flex items-center space-x-1"
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-600/30 px-1.5 py-0.5 rounded shrink-0 transition-all font-semibold active:scale-95"
               >
-                <span>💰 Today's Sales</span>
+                💰 Sales
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("What is total sales?")}
-                className="bg-slate-100 hover:bg-slate-200 text-zinc-800 border border-slate-300 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95 font-medium"
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-600/30 px-1.5 py-0.5 rounded shrink-0 transition-all font-semibold active:scale-95"
               >
-                <span>📊 Total Revenue</span>
+                📊 Revenue
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("How many properties are booked?")}
-                className="bg-slate-100 hover:bg-slate-200 text-zinc-800 border border-slate-300 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95 font-medium"
+                className="bg-slate-700/60 hover:bg-slate-700 text-zinc-200 border border-slate-600 px-1.5 py-0.5 rounded shrink-0 transition-all font-medium"
               >
-                <span>🔒 Booked Units</span>
+                🔒 Booked
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPrompt("How many leads in CRM?")}
-                className="bg-slate-100 hover:bg-slate-200 text-zinc-800 border border-slate-300 px-2 py-1 rounded-lg shrink-0 transition-all active:scale-95 font-medium"
+                className="bg-slate-700/60 hover:bg-slate-700 text-zinc-200 border border-slate-600 px-1.5 py-0.5 rounded shrink-0 transition-all font-medium"
               >
-                <span>📋 CRM Leads</span>
+                📋 Leads
               </button>
             </div>
           </div>
 
           {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 text-xs bg-[#faf8f4]">
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 text-[10.5px] bg-[#faf8f4] dark:bg-slate-950/60">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
               >
-                {/* Role & Timestamp Header */}
-                <span className="text-[10px] text-zinc-500 font-medium mb-1 px-1">
-                  {msg.role === 'user' ? 'You (Super Admin)' : 'Admin Copilot'} • {msg.timestamp}
+                <span className="text-[8.5px] text-zinc-500 font-medium mb-0.5 px-1">
+                  {msg.role === 'user' ? 'You' : 'Copilot'} • {msg.timestamp}
                 </span>
 
-                {/* Message Bubble */}
                 <div
-                  className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 leading-relaxed space-y-2 shadow-sm ${
+                  className={`max-w-[95%] rounded-xl px-2.5 py-1.5 leading-snug space-y-1 shadow-xs ${
                     msg.role === 'user'
-                      ? 'bg-violet-600 text-white rounded-br-xs font-medium'
-                      : 'bg-white dark:bg-slate-800 border border-amber-600/20 text-[#1e2430] dark:text-slate-100 rounded-bl-xs shadow-xs'
+                      ? 'bg-violet-600 text-white font-medium'
+                      : 'bg-white dark:bg-slate-800 border border-amber-600/20 text-[#1e2430] dark:text-slate-100'
                   }`}
                 >
-                  <div className="whitespace-pre-line text-[11.5px] leading-relaxed text-[#1e2430] dark:text-slate-100">
+                  <div className="whitespace-pre-line text-[10.5px] leading-snug text-[#1e2430] dark:text-slate-100">
                     {renderFormattedContent(msg.content)}
                   </div>
 
-                  {/* Key Metrics Chips (if any) */}
                   {msg.metrics && msg.metrics.length > 0 && (
-                    <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-amber-500/20">
+                    <div className="grid grid-cols-2 gap-1 pt-1 border-t border-amber-500/20">
                       {msg.metrics.map((m, idx) => (
-                        <div key={idx} className="bg-[#faf8f4] border border-amber-600/20 rounded-xl p-2 shadow-xs">
-                          <span className="text-[9.5px] text-zinc-600 uppercase tracking-wider block font-semibold">{m.label}</span>
-                          <span className={`text-xs font-bold font-mono ${m.color || 'text-amber-800'}`}>{m.value}</span>
+                        <div key={idx} className="bg-[#faf8f4] dark:bg-slate-900 border border-amber-600/20 rounded p-1">
+                          <span className="text-[7.5px] text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block font-semibold">{m.label}</span>
+                          <span className={`text-[10px] font-bold font-mono ${m.color || 'text-amber-800 dark:text-amber-300'}`}>{m.value}</span>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {/* Smart Action Navigation Button */}
                   {msg.actionButton && (
-                    <div className="pt-1.5">
+                    <div className="pt-1">
                       <button
                         type="button"
                         onClick={() => onNavigateTab(msg.actionButton!.tab)}
-                        className="w-full bg-gradient-to-r from-amber-500 hover:from-amber-400 to-amber-600 text-amber-950 font-bold px-3 py-2 rounded-xl text-[11px] shadow-md transition-all flex items-center justify-between active:scale-98 group"
+                        className="w-full bg-gradient-to-r from-amber-500 hover:from-amber-400 to-amber-600 text-amber-950 font-bold px-2 py-1 rounded-md text-[9.5px] shadow-xs transition-all flex items-center justify-between active:scale-98 cursor-pointer"
                       >
                         <span className="truncate mr-1">{msg.actionButton.label}</span>
-                        <ArrowRight className="w-3.5 h-3.5 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                        <ArrowRight className="w-3 h-3 shrink-0" />
                       </button>
-                      {msg.actionButton.description && (
-                        <p className="text-[9.5px] text-zinc-600 mt-1 px-1 font-medium">
-                          {msg.actionButton.description}
-                        </p>
-                      )}
                     </div>
                   )}
                 </div>
@@ -573,11 +562,11 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
             ))}
 
             {isTyping && (
-              <div className="flex items-center space-x-2 text-zinc-600 text-xs py-1">
-                <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                  <Bot className="w-3.5 h-3.5 text-amber-700 animate-spin" />
+              <div className="flex items-center space-x-1.5 text-zinc-600 text-[10px] py-0.5">
+                <div className="w-4 h-4 rounded bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                  <Bot className="w-2.5 h-2.5 text-amber-700 animate-spin" />
                 </div>
-                <span className="text-[11px] italic font-medium">Analyzing real-time database records...</span>
+                <span className="italic">Analyzing records...</span>
               </div>
             )}
 
@@ -585,37 +574,36 @@ export const AdminCopilotChat: React.FC<AdminCopilotChatProps> = ({
           </div>
 
           {/* Input Footer */}
-          <div className="p-3 bg-white border-t border-slate-200 shrink-0">
+          <div className="p-1.5 sm:p-2 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleProcessQuery(inputQuery);
               }}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-1.5"
             >
               <input
                 type="text"
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
                 placeholder="Ask e.g. What is today's sales?..."
-                className="flex-1 bg-slate-50 border border-slate-300 focus:border-amber-500 focus:bg-white rounded-xl px-3 py-2 text-xs text-zinc-800 placeholder-zinc-400 outline-none transition-colors font-medium"
+                className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 focus:border-amber-500 rounded-lg px-2 py-1 text-[11px] text-zinc-800 dark:text-white placeholder-zinc-400 outline-none font-medium"
               />
               <button
                 type="submit"
                 disabled={!inputQuery.trim() || isTyping}
-                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-amber-950 p-2 rounded-xl font-bold transition-all shadow-md active:scale-95"
+                className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-amber-950 p-1.5 rounded-lg font-bold transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
                 title="Send query"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3.5 h-3.5" />
               </button>
             </form>
-            <div className="flex items-center justify-between text-[9.5px] text-zinc-500 pt-1.5 px-0.5 font-medium">
+            <div className="flex items-center justify-between text-[8px] text-zinc-500 pt-1 px-0.5 font-medium">
               <span>Super Admin Exclusive</span>
-              <span className="text-amber-700 font-semibold">Real-Time Firestore & State</span>
+              <span className="text-amber-700 dark:text-amber-400 font-semibold">Real-Time Firestore</span>
             </div>
           </div>
         </aside>
-        </>
       )}
     </>
   );

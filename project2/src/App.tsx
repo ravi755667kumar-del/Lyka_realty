@@ -2913,8 +2913,8 @@ export default function App() {
             )}
             </div>
 
-            {/* Admin Copilot Chatbot — ONLY rendered for Super Admin on Admin pages (REMOVED from Home) */}
-            {effectiveAdminAuthed && adminTargetPortal === 'admin' && (
+            {/* Admin Copilot Chatbot — Rendered for Admin across all Admin sections/portals (REMOVED from Home) */}
+            {effectiveAdminAuthed && (
               <AdminCopilotChat
                 properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
                 leads={leadsList}

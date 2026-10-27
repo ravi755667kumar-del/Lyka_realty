@@ -1,3 +1,4 @@
+import { csvCell, downloadCSV } from '../lib/csv';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, 
@@ -65,6 +66,7 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
   const [specificDateFilter, setSpecificDateFilter] = useState<string>(''); // YYYY-MM-DD
   const [providerFilter, setProviderFilter] = useState<'all' | 'Google' | 'Email'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>('recent');
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerStatItem | null>(null);
@@ -347,6 +349,44 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
     }
   };
 
+  // Export CSV
+  const handleExportCSV = () => {
+    if (filteredCustomers.length === 0) {
+      alert("No customer records to export.");
+      return;
+    }
+    const headers = [
+      'Customer Name',
+      'Email',
+      'Age',
+      'Auth Provider',
+      'User ID',
+      'Total Logins',
+      'Login Share %',
+      'Last Login Date',
+      'Activity Status'
+    ];
+    const rows = filteredCustomers.map(c => [
+      c.user.Name || 'Anonymous Customer',
+      c.user.Email_id,
+      c.user.Age || 'N/A',
+      c.user.auth_provider || 'Email',
+      c.user.uid,
+      c.totalLogins,
+      `${c.loginPercentage}%`,
+      c.lastLoginDate,
+      c.activityStatus
+    ].map(csvCell));
+
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const ok = downloadCSV(`lyka_customer_profiles_${dateStr}.csv`, csvContent);
+    if (ok) {
+      setIsExportingCsv(true);
+      setTimeout(() => setIsExportingCsv(false), 2500);
+    }
+  };
+
   // Export JSON Report
   const handleExportData = () => {
     const exportData = filteredCustomers.map(c => ({
@@ -368,8 +408,15 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
     const a = document.createElement('a');
     a.href = url;
     a.download = `lyka-customer-login-statistics-${new Date().toISOString().split('T')[0]}.json`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      try {
+        if (a.parentNode) document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (_) {}
+    }, 2500);
   };
 
   return (
@@ -413,14 +460,37 @@ export const CustomerProfiles: React.FC<CustomerProfilesProps> = ({ onNavigateTo
             </button>
           )}
 
+          {/* Export CSV */}
+          <button
+            onClick={handleExportCSV}
+            className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-xs active:scale-95 ${
+              isExportingCsv
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30'
+            }`}
+            title="Export filtered customers to CSV file"
+          >
+            {isExportingCsv ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Downloaded!</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5 text-amber-500" />
+                <span>Export CSV</span>
+              </>
+            )}
+          </button>
+
           {/* Export JSON */}
           <button
             onClick={handleExportData}
-            className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-all"
-            title="Export filtered customer list"
+            className="flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 transition-all cursor-pointer"
+            title="Export filtered customer list as JSON"
           >
             <Download className="w-3.5 h-3.5 text-slate-400" />
-            <span>Export</span>
+            <span>Export JSON</span>
           </button>
 
           {/* Refresh */}

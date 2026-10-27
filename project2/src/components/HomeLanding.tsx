@@ -337,33 +337,33 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
   return (
     <div className="h-full w-full overflow-y-auto landing-scroll bg-slate-950" style={{ backgroundColor: customBgColor || undefined }}>
       {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <section className="relative min-h-[85vh] sm:min-h-[90vh] lg:min-h-[92vh] flex flex-col justify-between overflow-hidden">
+      <section className="relative min-h-[500px] sm:min-h-[540px] md:min-h-[580px] lg:min-h-[620px] flex flex-col justify-between overflow-hidden">
         <img
           src={HERO_IMAGE}
           alt="Modern luxury residence exterior"
           className="absolute inset-0 w-full h-full object-cover"
         />
         {/* Warm espresso veils keep the brand palette across all three themes */}
-        <div className="absolute inset-0 bg-gradient-to-r from-espresso-900/95 via-espresso-900/78 to-espresso-900/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-espresso-900 via-espresso-900/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-espresso-900/95 via-espresso-900/80 to-espresso-900/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-espresso-900 via-espresso-900/30 to-transparent" />
 
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-24 pb-8 lg:pb-28 grid lg:grid-cols-[1.15fr_0.85fr] gap-8 lg:gap-14 items-center flex-1">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 md:pt-14 pb-6 md:pb-20 grid md:grid-cols-[1.1fr_0.9fr] lg:grid-cols-[1.15fr_0.85fr] gap-6 md:gap-8 lg:gap-12 items-center flex-1">
           {/* Left: headline + AI ask bar */}
           <div>
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-amber-500/40 bg-espresso-900/60 backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-500/40 bg-espresso-900/70 backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-amber-400">
+              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.16em] uppercase text-amber-400">
                 AI-Powered Real Estate Advisory
               </span>
             </div>
 
-            <h1 className="font-display mt-6 text-espresso-300 text-4xl sm:text-5xl lg:text-[3.6rem] leading-[1.08] font-semibold">
+            <h1 className="font-display mt-3 sm:mt-4 text-white text-3xl sm:text-4xl md:text-4xl lg:text-[3.2rem] leading-[1.1] font-bold drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]">
               Find the address
               <br />
-              that <em className="text-amber-400 not-italic font-display italic">defines you.</em>
+              that <em className="text-amber-300 not-italic font-display italic">defines you.</em>
             </h1>
 
-            <p className="mt-5 text-espresso-400 text-base sm:text-lg leading-relaxed max-w-xl">
+            <p className="mt-2.5 sm:mt-3 text-stone-200 sm:text-white/95 text-xs sm:text-sm md:text-base leading-relaxed max-w-xl font-medium drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]">
               Hand-curated apartments, villas and penthouses across Dubai and Mumbai — matched to
               your budget, lifestyle and investment goals by Lyka's agentic AI, in seconds.
             </p>
@@ -371,34 +371,34 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
             {/* ── AI Ask Bar — routes straight into the existing Lyka chatbot ── */}
             <form
               onSubmit={submitAsk}
-              className="mt-8 flex flex-col sm:flex-row gap-2.5 max-w-2xl rounded-2xl sm:rounded-full bg-white/95 backdrop-blur-md p-2.5 shadow-2xl shadow-black/40 border border-white/60"
+              className="mt-4 sm:mt-5 flex flex-col sm:flex-row gap-2 max-w-2xl rounded-2xl sm:rounded-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-1.5 sm:p-2 shadow-xl shadow-black/40 border border-white/60 dark:border-slate-700"
             >
-              <div className="flex items-center flex-1 gap-2.5 px-3">
-                <Search className="w-4.5 h-4.5 text-[#8c765c] flex-shrink-0" />
+              <div className="flex items-center flex-1 gap-2 px-3">
+                <Search className="w-4 h-4 text-[#8c765c] flex-shrink-0" />
                 <input
                   value={askText}
                   onChange={(e) => setAskText(e.target.value)}
                   placeholder="e.g. 2BR in Dubai Marina under AED 2M with sea view"
-                  className="flex-1 bg-transparent text-[15px] text-[#1c1611] dark:text-white placeholder-[#8c765c] dark:placeholder-slate-400 outline-none py-2.5 min-w-0"
+                  className="flex-1 bg-transparent text-sm text-[#1c1611] dark:text-white placeholder-[#8c765c] dark:placeholder-slate-400 outline-none py-1.5 sm:py-2 min-w-0"
                   style={{ backgroundColor: 'transparent' }}
                   aria-label="Ask Lyka AI about properties"
                 />
               </div>
               <button
                 type="submit"
-                className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl sm:rounded-full bg-amber-500 hover:bg-amber-400 text-amber-950 text-sm font-bold transition-colors shadow-md whitespace-nowrap"
+                className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl sm:rounded-full bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs sm:text-sm font-bold transition-colors shadow-md whitespace-nowrap cursor-pointer"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3.5 h-3.5" />
                 Ask Lyka AI
               </button>
             </form>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-1.5 sm:gap-2">
               {SUGGESTION_CHIPS.map((chip) => (
                 <button
                   key={chip}
                   onClick={() => onAskAI(chip)}
-                  className="px-3.5 py-1.5 rounded-full text-xs font-medium text-espresso-400 bg-espresso-900/50 border border-espresso-700/70 backdrop-blur-sm hover:text-amber-400 hover:border-amber-500/50 transition-colors"
+                  className="px-2.5 sm:px-3 py-1 rounded-full text-[11px] font-semibold text-stone-200 hover:text-white bg-black/50 border border-white/20 backdrop-blur-sm hover:border-amber-400/60 hover:bg-black/70 transition-colors cursor-pointer shadow-xs"
                 >
                   {chip}
                 </button>
@@ -406,59 +406,58 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
             </div>
           </div>
 
-          {/* Right: floating spotlight residence card (desktop) */}
+          {/* Right: floating spotlight residence card (shown on tablet/desktop mode) */}
           {spotlight && (
-            <div className="hidden lg:block relative">
-              <div className="absolute -inset-8 bg-amber-500/10 blur-3xl rounded-full pointer-events-none" />
-              <div className="relative max-w-sm ml-auto bg-white/95 backdrop-blur-md rounded-[1.75rem] p-4 shadow-2xl shadow-black/50 border border-white/60">
-                <div className="relative h-52 rounded-2xl overflow-hidden bg-[#f7f2e6]">
+            <div className="hidden md:block relative">
+              <div className="absolute -inset-6 bg-amber-500/10 blur-2xl rounded-full pointer-events-none" />
+              <div className="relative max-w-xs md:max-w-sm ml-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-3 sm:p-3.5 shadow-2xl shadow-black/50 border border-white/60 dark:border-slate-700">
+                <div className="relative h-44 sm:h-48 rounded-xl overflow-hidden bg-[#f7f2e6] dark:bg-slate-800">
                   <SafeImage
                     src={spotlight.image_url}
                     alt={spotlight.title}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-                  <div className="absolute top-3 right-3">{likeButton(spotlight)}</div>
-                  <div className="absolute bottom-3 left-3 px-3 py-1.5 rounded-xl bg-espresso-900/80 backdrop-blur-sm border border-white/10">
-                    <span className="font-display text-base font-semibold text-amber-400">
+                  
+                  {/* Verified Properties Badge cleanly integrated inside top-left */}
+                  <div className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-espresso-950/85 backdrop-blur-md border border-amber-500/40 flex items-center space-x-1.5 shadow-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[10px] font-bold text-amber-300 tracking-wider uppercase">
+                      {available.length} Verified Properties
+                    </span>
+                  </div>
+
+                  <div className="absolute top-2.5 right-2.5">{likeButton(spotlight, 'sm')}</div>
+                  <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-lg bg-espresso-900/80 backdrop-blur-sm border border-white/10">
+                    <span className="font-display text-sm sm:text-base font-semibold text-amber-400">
                       {formatPrice(spotlight)}
                     </span>
                   </div>
                 </div>
-                <div className="px-2 pt-3.5 pb-2">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-600">
+                <div className="px-1.5 pt-2.5 pb-1">
+                  <div className="text-[9.5px] font-bold uppercase tracking-[0.16em] text-amber-600">
                     Spotlight · {spotlight.community}
                   </div>
-                  <h3 className="text-[#1c1611] dark:text-white text-sm font-bold leading-snug mt-1.5 line-clamp-2">
+                  <h3 className="text-[#1c1611] dark:text-white text-xs sm:text-sm font-bold leading-snug mt-1 line-clamp-2">
                     {spotlight.title}
                   </h3>
-                  <div className="flex items-center gap-4 text-xs text-[#5a4835] dark:text-slate-300 mt-2">
-                    <span className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-3 text-[11px] text-[#5a4835] dark:text-slate-300 mt-1.5">
+                    <span className="flex items-center gap-1">
                       <BedDouble className="w-3.5 h-3.5 text-amber-600" />
                       {spotlight.bedrooms} BR
                     </span>
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1">
                       <Maximize2 className="w-3.5 h-3.5 text-amber-600" />
                       {spotlight.size_sqft.toLocaleString()} sqft
                     </span>
                   </div>
                   <button
                     onClick={() => askAboutProperty(spotlight)}
-                    className="w-full mt-3.5 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold transition-colors"
+                    className="w-full mt-2.5 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold transition-colors cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
                     Ask AI about this residence
                   </button>
-                </div>
-              </div>
-
-              {/* Small floating stat chip */}
-              <div className="absolute -bottom-6 -left-10 bg-espresso-900/90 border border-amber-500/40 rounded-2xl px-5 py-3.5 backdrop-blur-md shadow-xl">
-                <div className="font-display text-xl font-semibold text-amber-400">
-                  {available.length}
-                </div>
-                <div className="text-[10px] uppercase tracking-[0.14em] text-espresso-400">
-                  Verified listings
                 </div>
               </div>
             </div>
@@ -466,19 +465,19 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
         </div>
 
         {/* ── Hero stats strip ── */}
-        <div className="relative lg:absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-espresso-900/80 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 grid grid-cols-2 sm:grid-cols-4 sm:divide-x divide-white/10 gap-3 sm:gap-4">
+        <div className="relative md:absolute bottom-0 left-0 right-0 z-10 border-t border-white/10 bg-espresso-900/85 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 grid grid-cols-2 sm:grid-cols-4 sm:divide-x divide-white/10 gap-2 sm:gap-4">
             {[
-              { value: `${available.length}`, label: 'Curated Residences' },
+              { value: `${available.length}`, label: 'Verified Residences' },
               { value: `${communitiesCount}`, label: 'Prime Communities' },
               { value: `AED ${Math.round(portfolioAED / 1000000)}M+`, label: 'Portfolio Value' },
               { value: 'Up to 8%', label: 'Net Rental ROI' },
             ].map((stat) => (
-              <div key={stat.label} className="text-center sm:text-left sm:px-6 first:sm:pl-0">
-                <div className="font-display text-xl sm:text-2xl font-semibold text-amber-400">
+              <div key={stat.label} className="text-center sm:text-left sm:px-4 first:sm:pl-0">
+                <div className="font-display text-lg sm:text-xl font-semibold text-amber-400">
                   {stat.value}
                 </div>
-                <div className="text-[10px] sm:text-[11px] uppercase tracking-[0.14em] text-espresso-400 mt-0.5">
+                <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.14em] text-amber-200/80 mt-0.5 font-medium">
                   {stat.label}
                 </div>
               </div>
@@ -488,7 +487,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
       </section>
 
       {/* ═══════════════ EXPLORE BY CITY ═══════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-2">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-2">
         <Reveal>
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
@@ -530,7 +529,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
               <button
                 key={card.city}
                 onClick={() => selectCity(card.city)}
-                className="group relative h-64 sm:h-72 rounded-3xl overflow-hidden text-left border border-slate-800 hover:border-amber-500/50 transition-colors shadow-lg cursor-pointer"
+                className="group relative h-56 sm:h-64 rounded-2xl overflow-hidden text-left border border-slate-800 hover:border-amber-500/50 transition-colors shadow-lg cursor-pointer"
               >
                 <SafeImage
                   src={card.image}
@@ -560,7 +559,7 @@ export const HomeLanding: React.FC<HomeLandingProps> = ({
       </section>
 
       {/* ═══════════════ BROWSE BY AREA ═══════════════ */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <Reveal>
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>

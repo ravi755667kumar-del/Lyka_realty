@@ -1,4 +1,4 @@
-import { csvCell } from "../lib/csv";
+import { csvCell, downloadCSV } from "../lib/csv";
 import React, { useState } from "react";
 import {
   LeadProfile,
@@ -77,6 +77,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
   const [selectedIntent, setSelectedIntent] = useState<string>("ALL");
   const [selectedPriority, setSelectedPriority] = useState<string>("ALL");
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [targetLeadForTask, setTargetLeadForTask] =
     useState<LeadProfile | null>(null);
 
@@ -112,6 +113,12 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
   });
 
   const handleExportCSV = () => {
+    const listToExport = filteredLeads.length > 0 ? filteredLeads : leads;
+    if (!listToExport || listToExport.length === 0) {
+      alert("No leads available to export.");
+      return;
+    }
+
     const headers = [
       "Lead ID",
       "Full Name",
@@ -127,37 +134,31 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
       "Completeness %",
       "Assigned Agent",
     ];
-    const rows = filteredLeads.map((l) =>
+    const rows = listToExport.map((l) =>
       [
         l.id,
         l.full_name || "Prospect",
-        l.phone,
-        l.email,
-        l.intent,
-        l.customer_type,
+        l.phone || "",
+        l.email || "",
+        l.intent || "",
+        l.customer_type || "",
         l.budget_max || 0,
-        (l.preferred_communities || []).join(", "),
-        l.bedrooms,
-        l.lead_status,
-        l.lead_priority,
-        l.requirement_completeness,
-        l.assigned_agent,
+        (l.preferred_communities || []).join("; "),
+        l.bedrooms || "",
+        l.lead_status || "",
+        l.lead_priority || "",
+        l.requirement_completeness ? (l.requirement_completeness + "%") : "0%",
+        l.assigned_agent || "",
       ].map(csvCell),
     );
 
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `lyka_realty_crm_leads_${new Date().toISOString().split("T")[0]}.csv`,
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const dateStr = new Date().toISOString().split("T")[0];
+    const ok = downloadCSV("lyka_realty_crm_leads_" + dateStr + ".csv", csvContent);
+    if (ok) {
+      setIsExporting(true);
+      setTimeout(() => setIsExporting(false), 2500);
+    }
   };
 
   const handleCreateTask = (e: React.FormEvent) => {
@@ -202,10 +203,24 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
           <div className="flex items-center space-x-2 w-full sm:w-auto">
             <button
               onClick={handleExportCSV}
-              className="flex items-center space-x-1.5 text-xs bg-white hover:bg-slate-100 text-slate-300 border border-slate-700 px-3 py-2 rounded-xl transition-colors font-medium"
+              className={`flex items-center space-x-1.5 text-xs px-3.5 py-2 rounded-xl transition-all font-semibold shadow-xs cursor-pointer active:scale-95 ${
+                isExporting
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                  : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30"
+              }`}
+              title="Export leads to CSV file"
             >
-              <Download className="w-4 h-4 text-amber-600" />
-              <span>Export CSV</span>
+              {isExporting ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Downloaded!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-amber-500" />
+                  <span>Export CSV</span>
+                </>
+              )}
             </button>
           </div>
         </div>

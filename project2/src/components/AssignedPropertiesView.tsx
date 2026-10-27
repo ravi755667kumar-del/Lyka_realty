@@ -1,8 +1,10 @@
+import { csvCell, downloadCSV } from '../lib/csv';
 import React, { useState } from 'react';
 import { PropertyListing, LeadProfile } from '../types/crm';
 import { 
   Building2, 
-  CheckCircle2, 
+  CheckCircle2,
+  Download, 
   Search, 
   Plus, 
   Phone, 
@@ -57,6 +59,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
   onUnbookProperty,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [communityFilter, setCommunityFilter] = useState('ALL');
   const [activeViewTab, setActiveViewTab] = useState<'available' | 'booked' | 'all'>('available');
 
@@ -497,19 +500,70 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
           </div>
         </div>
 
-        {canManageBookings && (
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
           <button
+            type="button"
             onClick={() => {
-              setErrorBanner(null);
-              setSelectedPropId(availableProperties[0]?.id || '');
-              setShowAssignModal(true);
+              const list = bookedProperties;
+              if (!list || list.length === 0) {
+                alert('No booked properties to export.');
+                return;
+              }
+              const headers = ['Property ID', 'Title', 'Community', 'Price (AED)', 'Booked By Client', 'Client Phone', 'Client Email', 'ID Card', 'Booking Notes', 'Status'];
+              const rows = list.map(p => [
+                p.id,
+                p.title,
+                p.community,
+                p.price_aed || 0,
+                p.booked_by_name || p.assigned_to || 'N/A',
+                p.booked_by_phone || p.assigned_phone || 'N/A',
+                p.assigned_email || 'N/A',
+                p.booked_by_id_card || p.assigned_id_card || 'N/A',
+                p.booking_notes || 'Confirmed Deposit',
+                p.status || 'Booked'
+              ].map(csvCell));
+              const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+              const dateStr = new Date().toISOString().split('T')[0];
+              const ok = downloadCSV(`lyka_booked_properties_${dateStr}.csv`, csvContent);
+              if (ok) {
+                setIsExportingCsv(true);
+                setTimeout(() => setIsExportingCsv(false), 2500);
+              }
             }}
-            className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md self-start sm:self-auto cursor-pointer"
+            className={`flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-sm active:scale-95 ${
+              isExportingCsv
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30'
+            }`}
+            title="Export booked units as CSV"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ Book / Assign Property</span>
+            {isExportingCsv ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Downloaded!</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 text-amber-500" />
+                <span>Export Booked CSV</span>
+              </>
+            )}
           </button>
-        )}
+
+          {canManageBookings && (
+            <button
+              onClick={() => {
+                setErrorBanner(null);
+                setSelectedPropId(availableProperties[0]?.id || '');
+                setShowAssignModal(true);
+              }}
+              className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Book / Assign Property</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}

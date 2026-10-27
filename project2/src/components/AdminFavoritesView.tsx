@@ -1,3 +1,4 @@
+import { csvCell, downloadCSV } from '../lib/csv';
 import React, { useState, useMemo } from 'react';
 import { 
   Heart, 
@@ -44,6 +45,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
   onRemoveFavorite
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
   const [userFilter, setUserFilter] = useState<UserTypeFilter>('all');
   const [cityFilter, setCityFilter] = useState<CityFilter>('all');
   const [sortOption, setSortOption] = useState<SortOption>('recent');
@@ -176,29 +178,31 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
 
   // Export CSV
   const handleExportCSV = () => {
-    if (filteredFavorites.length === 0) return;
+    if (filteredFavorites.length === 0) {
+      alert("No favorites records found to export.");
+      return;
+    }
     const headers = ['Record ID', 'Property ID', 'Property Title', 'Community', 'City', 'Price (AED)', 'Customer Name', 'Customer Email', 'Customer Type', 'Saved At'];
     const rows = filteredFavorites.map(f => [
       f.id,
       f.property_id,
-      `"${f.property_title.replace(/"/g, '""')}"`,
-      `"${f.property_community.replace(/"/g, '""')}"`,
+      f.property_title,
+      f.property_community,
       f.property_city || 'Dubai',
       f.property_price_aed,
-      `"${f.user_name.replace(/"/g, '""')}"`,
+      f.user_name,
       f.user_email,
       f.is_guest ? 'Guest' : 'Registered Client',
       f.saved_at
-    ]);
+    ].map(csvCell));
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `customer_favorites_export_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const ok = downloadCSV("customer_favorites_export_" + dateStr + ".csv", csvContent);
+    if (ok) {
+      setIsExporting(true);
+      setTimeout(() => setIsExporting(false), 2500);
+    }
   };
 
   const handleInspect = (propertyId: string) => {
@@ -239,24 +243,26 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
         <div className="flex items-center space-x-2.5 self-start lg:self-center">
           <button
             type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-            title="Refresh database records"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-400' : ''}`} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            type="button"
             onClick={handleExportCSV}
             disabled={filteredFavorites.length === 0}
-            className="flex items-center space-x-1.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold px-3.5 py-2 rounded-xl text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`flex items-center space-x-1.5 font-bold px-3.5 py-2 rounded-xl text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+              isExporting
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                : 'bg-amber-500 hover:bg-amber-400 text-amber-950'
+            }`}
             title="Export filtered records to CSV"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
+            {isExporting ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Downloaded!</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Export CSV</span>
+              </>
+            )}
           </button>
         </div>
       </div>

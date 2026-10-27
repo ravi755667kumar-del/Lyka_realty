@@ -1083,6 +1083,34 @@ app.get('/api/followups', requireAdminAuth, async (_req: Request, res: Response)
   }
 });
 
+// Universal CSV Download Endpoint
+// Serves real HTTP attachments so Android OS DownloadManager, Mobile Chrome,
+// and Desktop browsers cleanly download files directly to the user's Downloads folder.
+app.post('/api/export-csv', (req: Request, res: Response) => {
+  try {
+    const rawFilename = String(req.body.filename || 'lyka_export.csv').trim();
+    // Sanitize filename to prevent header injection or directory traversal
+    const safeBase = rawFilename.replace(/[^a-zA-Z0-9_\-\.]/g, '_').replace(/\.+/g, '.');
+    const safeFilename = safeBase.toLowerCase().endsWith('.csv') ? safeBase : `${safeBase}.csv`;
+    const content = String(req.body.content || '');
+
+    // Prepend UTF-8 BOM (\uFEFF) for Microsoft Excel and Google Sheets compatibility
+    const csvBuffer = Buffer.from('\uFEFF' + content, 'utf-8');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`);
+    res.setHeader('Content-Length', csvBuffer.length.toString());
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    return res.status(200).send(csvBuffer);
+  } catch (err: any) {
+    console.error('[Export CSV] Error generating download stream:', err);
+    return res.status(500).json({ error: 'Failed to stream CSV', message: err?.message });
+  }
+});
+
 
 // Cosine Similarity for Vector Search
 function cosineSimilarity(vecA: number[], vecB: number[]) {

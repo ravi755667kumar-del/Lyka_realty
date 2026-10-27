@@ -230,7 +230,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }}
             title="Lyka Realty — Home (Triple-tap to open Admin)"
           >
-            <img src="/logo.png" alt="Lyka Realty" className="h-8 sm:h-11 w-auto object-contain drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]" />
+            <img src="/logo.png" alt="Lyka Realty" className="h-7 sm:h-11 w-auto max-w-[70px] sm:max-w-none object-contain drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]" />
           </div>
 
           {/* Center: Home + AI Chat tab — Luxury Floating Capsule Navigation */}
@@ -272,7 +272,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div ref={propertyDropdownRef} className="relative flex-shrink-0">
                 <button
                   onClick={() => setPropertyDropdownOpen(prev => !prev)}
-                  className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
+                  className={`flex items-center justify-center p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
                     selectedProperty
                       ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
                       : propertyCityFilter !== 'all'
@@ -282,7 +282,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title="Choose a property from inventory (Dubai or Mumbai)"
                 >
                   <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="hidden md:inline max-w-[150px] lg:max-w-[185px] truncate">
+                  <span className="hidden sm:inline sm:ml-1.5 max-w-[150px] lg:max-w-[185px] truncate">
                     {selectedProperty ? (
                       <span className="flex items-center gap-1.5">
                         <span className="text-[10px] uppercase font-black px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-200 border border-amber-500/40">
@@ -302,20 +302,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       'Choose Property'
                     )}
                   </span>
-                  {/* Compact badge on mobile/tablet */}
-                  <span className="inline md:hidden text-[10px] font-bold text-amber-300 font-mono">
-                    {selectedProperty
-                      ? (selectedProperty.city === 'Mumbai' ? 'MUM' : 'DXB')
-                      : propertyCityFilter === 'Mumbai' ? 'MUM' : propertyCityFilter === 'Dubai' ? 'DXB' : 'Units'}
-                  </span>
-                  <span className="hidden lg:inline text-[9px] opacity-75 font-mono">
-                    {selectedProperty
-                      ? `${selectedProperty.bedrooms ?? '?'} BR`
-                      : propertyCityFilter !== 'all'
-                      ? `${filteredProperties.length} units`
-                      : 'Select'}
-                  </span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 shrink-0 ${propertyDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className="hidden sm:inline w-3.5 h-3.5 sm:ml-1 transition-transform duration-200 shrink-0" />
                 </button>
 
                 {/* Property Dropdown Menu */}
@@ -508,7 +495,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setFavoritesDropdownOpen(prev => !prev);
                   }
                 }}
-                className={`flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
+                className={`relative flex items-center justify-center p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
                   showFavoritesOnly
                     ? 'bg-red-500/25 border-red-500/80 text-red-400 ring-2 ring-red-500/40 shadow-md shadow-red-500/20'
                     : favorites && favorites.length > 0
@@ -519,11 +506,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-label="Favorites"
               >
                 <Heart className={`w-3.5 h-3.5 ${showFavoritesOnly ? 'text-red-400 fill-red-400' : favorites && favorites.length > 0 ? 'text-red-400 fill-red-400' : 'text-espresso-300'}`} />
-                <span className="hidden sm:inline">Favorites</span>
+                <span className="hidden sm:inline sm:ml-1.5">Favorites</span>
                 {favorites && favorites.length > 0 && (
-                  <span className={`inline-flex items-center px-1.5 py-0.2 rounded-full text-[10px] font-black shadow-xs ${
-                    showFavoritesOnly ? 'bg-red-500 text-white' : 'bg-red-500/25 text-red-400 border border-red-500/40'
-                  }`}>
+                  <span className={`inline-flex items-center px-1 py-0.1 sm:px-1.5 sm:py-0.2 rounded-full text-[8.5px] sm:text-[10px] font-black shadow-xs ${
+                    showFavoritesOnly ? 'bg-red-500 text-white' : 'bg-red-500 text-white sm:bg-red-500/25 sm:text-red-400 sm:border sm:border-red-500/40'
+                  } absolute -top-1 -right-1 sm:static sm:top-auto sm:right-auto sm:ml-1.5`}>
                     {favorites.length}
                   </span>
                 )}
@@ -612,11 +599,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Hamburger Menu Button (☰) */}
             <button
               onClick={() => setMobileMenuOpen(prev => !prev)}
-              className="flex sm:hidden items-center justify-center p-1.5 rounded-xl bg-espresso-800/90 hover:bg-espresso-700 text-amber-400 border border-espresso-700 hover:border-amber-400/60 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+              className="flex sm:hidden items-center justify-center w-8 h-8 rounded-xl bg-espresso-800/95 hover:bg-espresso-700 text-amber-300 border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0 ring-1 ring-amber-400/30"
               title="Menu (Settings, About)"
               aria-label="Toggle mobile menu"
             >
-              {mobileMenuOpen ? <X className="w-4 h-4 text-amber-400" /> : <Menu className="w-4 h-4 text-amber-400" />}
+              {mobileMenuOpen ? <X className="w-4.5 h-4.5 text-amber-400" /> : <Menu className="w-4.5 h-4.5 text-amber-300" />}
             </button>
           </div>
         </div>

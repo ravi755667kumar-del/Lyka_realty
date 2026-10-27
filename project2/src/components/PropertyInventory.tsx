@@ -1,3 +1,4 @@
+import { csvCell, downloadCSV } from '../lib/csv';
 import React, { useState, useRef } from 'react';
 import { PropertyListing, LeadProfile } from '../types/crm';
 import { 
@@ -6,7 +7,8 @@ import {
   Filter, 
   MapPin, 
   Coins, 
-  CheckCircle2, 
+  CheckCircle2,
+  Download, 
   Plus, 
   Calendar, 
   Home, 
@@ -51,6 +53,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   const [selectedBeds, setSelectedBeds] = useState<string>('ALL');
   const [selectedVerification, setSelectedVerification] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingProperty, setEditingProperty] = useState<PropertyListing | null>(null);
@@ -466,15 +469,66 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             </p>
           </div>
 
-          {canAddProperty && (
+          <div className="flex items-center space-x-2">
             <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md"
+              onClick={() => {
+                const list = filteredProperties.length > 0 ? filteredProperties : properties;
+                if (!list || list.length === 0) {
+                  alert('No property listings to export.');
+                  return;
+                }
+                const headers = ['Property ID', 'Title', 'Community', 'City', 'Price (AED)', 'Bedrooms', 'Bathrooms', 'Area (Sq Ft)', 'Status', 'Developer', 'Verified'];
+                const rows = list.map(p => [
+                  p.id,
+                  p.title,
+                  p.community,
+                  p.city || 'Dubai',
+                  p.price_aed || 0,
+                  p.bedrooms || 0,
+                  p.bathrooms || 0,
+                  p.size_sqft || 0,
+                  p.status || 'Available',
+                  p.developer || 'N/A',
+                  p.admin_verified ? 'Verified' : 'Pending'
+                ].map(csvCell));
+                const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const dateStr = new Date().toISOString().split('T')[0];
+                const ok = downloadCSV(`lyka_property_inventory_${dateStr}.csv`, csvContent);
+                if (ok) {
+                  setIsExportingCsv(true);
+                  setTimeout(() => setIsExportingCsv(false), 2500);
+                }
+              }}
+              className={`flex items-center space-x-1.5 text-xs px-3.5 py-2 rounded-xl transition-all font-semibold border cursor-pointer shadow-xs active:scale-95 ${
+                isExportingCsv
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                  : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30'
+              }`}
+              title="Export properties to CSV file"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add Property Listing</span>
+              {isExportingCsv ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Downloaded!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-amber-500" />
+                  <span>Export CSV</span>
+                </>
+              )}
             </button>
-          )}
+
+            {canAddProperty && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center space-x-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-amber-950 px-3.5 py-2 rounded-xl transition-all font-bold shadow-md cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Property Listing</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filter Row */}
