@@ -2,13 +2,14 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getSarvamSettings, synthesizeSarvamSpeech } from './sarvamTtsService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '../../.env'), override: true });
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
 
 // 1. Local OpenAI-compatible TTS server (e.g. Kokoro, Piper, OpenedAI-speech)
-const OPENAI_TTS_BASE_URL = process.env.OPENAI_TTS_BASE_URL || 'http://localhost:5050/v1';
+const OPENAI_TTS_BASE_URL = process.env.OPENAI_TTS_BASE_URL || 'http://localhost:5058/v1';
 const OPENAI_TTS_API_KEY = process.env.OPENAI_TTS_API_KEY || 'unused';
 const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'tts-1';
 const OPENAI_TTS_VOICE = process.env.OPENAI_TTS_VOICE || 'nova';
@@ -73,22 +74,47 @@ function cacheResult(key, val) {
  * Generate speech audio.
  * Priority 1: Local OpenAI-compatible TTS server (http://localhost:5050/v1/audio/speech, model="tts-1", voice="nova")
  * Priority 2: Cartesia Sonic 3.6 API
+ *
+ * Configured for polite, humble delivery when reading Teacher Luna chatbot responses aloud.
  */
-export async function generateSpeechAudio({ text, voiceId, speed = 1.0 }) {
+export async function generateSpeechAudio({ text, voiceId, speed = 0.9, language }) {
   const cleaned = cleanTextForSpeech(text);
   if (!cleaned) {
     throw new Error('No valid text provided for speech synthesis');
   }
 
-  const transcript = cleaned.length > 1500 ? cleaned.substring(0, 1500) + '...' : cleaned;
-  const cacheKey = `${voiceId || 'default'}_${speed}_${transcript}`;
+  // Allow long, articulate answers up to 4000 chars without clipping midway
+  const transcript = cleaned.length > 4000 ? cleaned.substring(0, 4000) + '...' : cleaned;
+  const cacheKey = `${voiceId || 'default'}_${speed}_${language || 'en'}_${transcript}`;
 
   if (audioCache.has(cacheKey)) {
     return audioCache.get(cacheKey);
   }
 
   // -------------------------------------------------------------------------
-  // Priority 1: Local OpenAI-Compatible TTS Server (port 5050)
+  // Priority 1: Sarvam AI Indic TTS (Bulbul v3 / v1)
+  // -------------------------------------------------------------------------
+  const sarvamSettings = getSarvamSettings();
+  if (sarvamSettings.configured) {
+    try {
+      const sarvamResult = await synthesizeSarvamSpeech({
+        text: transcript,
+        language,
+        speaker: voiceId,
+        pace: speed
+      });
+      if (sarvamResult?.buffer) {
+        cacheResult(cacheKey, sarvamResult);
+        console.log(`🎙️ Successfully synthesized speech via Sarvam AI Bulbul (${sarvamResult.buffer.length} bytes, speaker: ${sarvamResult.speaker}, lang: ${sarvamResult.language})`);
+        return sarvamResult;
+      }
+    } catch (sarvamErr) {
+      console.warn('Sarvam TTS warning (falling back to Local/Edge TTS):', sarvamErr.message);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Priority 2: Local OpenAI-Compatible TTS Server (port 5058)
   // -------------------------------------------------------------------------
   try {
     const localUrl = `${OPENAI_TTS_BASE_URL.replace(/\/+$/, '')}/audio/speech`;
@@ -144,7 +170,7 @@ export async function generateSpeechAudio({ text, voiceId, speed = 1.0 }) {
         },
         generation_config: {
           speed,
-          volume: 1
+          volume: 0.9
         }
       };
 

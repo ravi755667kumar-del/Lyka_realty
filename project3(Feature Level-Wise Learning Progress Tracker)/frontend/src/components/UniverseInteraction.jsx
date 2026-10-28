@@ -1,3 +1,4 @@
+'use client';
 import React, { useRef, useEffect, useState } from 'react';
 import { 
   Orbit, 
@@ -338,25 +339,64 @@ export default function UniverseInteraction({
         }
 
         // C. Chatbot Live Reaction Effects around Single World
-        // 1. "speaking" -> Holographic data transmission ripples
-        if (cosmicReaction === 'speaking') {
-          const rippleCount = 3;
+        const isSpeaking = cosmicReaction === 'speaking';
+        const voicePulse = isSpeaking ? (Math.sin(timeRef.current * 0.18) * 4.2 + Math.cos(timeRef.current * 0.34) * 2.6) : 0;
+        const currentPlanetRadius = planetRadius + voicePulse;
+
+        // 1. "speaking" -> Highly interactive 3D acoustic shockwaves, audio ripples & voice particles
+        if (isSpeaking) {
+          // Acoustic sonic waves radiating outward from the 3D sphere
+          const rippleCount = 4;
           for (let r = 0; r < rippleCount; r++) {
-            const phase = ((timeRef.current * 0.04 + (r * 0.33)) % 1);
-            const rad = planetRadius + phase * 40;
+            const phase = ((timeRef.current * 0.05 + (r * 0.25)) % 1);
+            const rad = currentPlanetRadius + phase * 48;
             const alpha = Math.max(0, 1 - phase);
+
+            ctx.save();
             ctx.beginPath();
-            ctx.arc(pCenter.x, pCenter.y, rad * pCenter.f, 0, Math.PI * 2);
-            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha * 0.8})`;
-            ctx.lineWidth = 1.8;
+            const segments = 40;
+            for (let s = 0; s <= segments; s++) {
+              const theta = (s / segments) * Math.PI * 2;
+              const freqWave = Math.sin(theta * 7 + timeRef.current * 0.22 + r) * (2.8 * alpha);
+              const rEff = (rad + freqWave) * pCenter.f;
+              const sx = pCenter.x + Math.cos(theta) * rEff;
+              const sy = pCenter.y + Math.sin(theta) * rEff;
+              if (s === 0) ctx.moveTo(sx, sy);
+              else ctx.lineTo(sx, sy);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = r % 2 === 0 
+              ? `rgba(34, 211, 238, ${alpha * 0.9})` 
+              : `rgba(168, 85, 247, ${alpha * 0.8})`;
+            ctx.lineWidth = 2.0 * (1 - phase * 0.4);
+            ctx.shadowColor = '#06B6D4';
+            ctx.shadowBlur = 10;
             ctx.stroke();
+            ctx.restore();
           }
+
+          // Active voice frequency particles rapidly orbiting the 3D sphere
+          ctx.save();
+          for (let p = 0; p < 8; p++) {
+            const pAngle = timeRef.current * 0.09 + (p * (Math.PI * 2 / 8));
+            const pDist = (currentPlanetRadius + 15 + Math.sin(timeRef.current * 0.25 + p) * 5) * pCenter.f;
+            const px = pCenter.x + Math.cos(pAngle) * pDist;
+            const py = pCenter.y + Math.sin(pAngle) * (pDist * 0.42);
+            
+            ctx.beginPath();
+            ctx.arc(px, py, 2.4, 0, Math.PI * 2);
+            ctx.fillStyle = p % 2 === 0 ? '#38BDF8' : '#C084FC';
+            ctx.shadowColor = '#38BDF8';
+            ctx.shadowBlur = 8;
+            ctx.fill();
+          }
+          ctx.restore();
         }
 
         // 2. "quiz" -> Amber Holographic Assessment Shield
         if (cosmicReaction === 'quiz') {
           const shieldPulse = Math.sin(timeRef.current * 0.1) * 3;
-          const sRad = (planetRadius + 12 + shieldPulse) * pCenter.f;
+          const sRad = (currentPlanetRadius + 12 + shieldPulse) * pCenter.f;
           ctx.beginPath();
           ctx.arc(pCenter.x, pCenter.y, sRad, 0, Math.PI * 2);
           ctx.strokeStyle = 'rgba(245, 158, 11, 0.75)';
@@ -371,11 +411,11 @@ export default function UniverseInteraction({
 
         // 3. "analyzing" -> Scanning Laser Grid
         if (cosmicReaction === 'analyzing') {
-          const scanY = pCenter.y - (planetRadius * pCenter.f) + 
-            (((timeRef.current * 2) % (planetRadius * 2 * pCenter.f)));
+          const scanY = pCenter.y - (currentPlanetRadius * pCenter.f) + 
+            (((timeRef.current * 2) % (currentPlanetRadius * 2 * pCenter.f)));
           ctx.beginPath();
-          ctx.moveTo(pCenter.x - planetRadius * pCenter.f, scanY);
-          ctx.lineTo(pCenter.x + planetRadius * pCenter.f, scanY);
+          ctx.moveTo(pCenter.x - currentPlanetRadius * pCenter.f, scanY);
+          ctx.lineTo(pCenter.x + currentPlanetRadius * pCenter.f, scanY);
           ctx.strokeStyle = '#22D3EE';
           ctx.lineWidth = 2;
           ctx.shadowColor = '#06B6D4';
@@ -385,33 +425,38 @@ export default function UniverseInteraction({
         }
 
         // D. Render Single Planet Body with 3D Shading
-        const pr = planetRadius * pCenter.f;
+        const pr = currentPlanetRadius * pCenter.f;
 
-        // Outer Atmosphere Glow
-        const atmoGlow = ctx.createRadialGradient(pCenter.x, pCenter.y, pr * 0.8, pCenter.x, pCenter.y, pr * 1.55);
-        atmoGlow.addColorStop(0, currentPreset.glowColor);
-        atmoGlow.addColorStop(0.6, currentPreset.atmosphere);
+        // Outer Atmosphere Glow (Electrified and reactive when speaking)
+        const atmoGlow = ctx.createRadialGradient(
+          pCenter.x, pCenter.y, pr * 0.75, 
+          pCenter.x, pCenter.y, pr * (isSpeaking ? 1.7 : 1.55)
+        );
+        atmoGlow.addColorStop(0, isSpeaking ? '#38BDF8' : currentPreset.glowColor);
+        atmoGlow.addColorStop(0.5, isSpeaking ? 'rgba(56, 189, 248, 0.45)' : currentPreset.atmosphere);
         atmoGlow.addColorStop(1, 'rgba(5, 8, 20, 0)');
         ctx.beginPath();
-        ctx.arc(pCenter.x, pCenter.y, pr * 1.55, 0, Math.PI * 2);
+        ctx.arc(pCenter.x, pCenter.y, pr * (isSpeaking ? 1.7 : 1.55), 0, Math.PI * 2);
         ctx.fillStyle = atmoGlow;
         ctx.fill();
 
-        // 3D Sphere Shading (Simulating light from top-left)
+        // 3D Sphere Shading (Simulating dynamic light)
         const sphereGrad = ctx.createRadialGradient(
           pCenter.x - pr * 0.35, pCenter.y - pr * 0.35, pr * 0.1,
           pCenter.x, pCenter.y, pr
         );
-        sphereGrad.addColorStop(0, '#FFFFFF');
-        sphereGrad.addColorStop(0.2, currentPreset.baseColor);
+        sphereGrad.addColorStop(0, isSpeaking ? '#E0F2FE' : '#FFFFFF');
+        sphereGrad.addColorStop(0.2, isSpeaking ? '#0284C7' : currentPreset.baseColor);
         sphereGrad.addColorStop(0.75, currentPreset.baseColor);
         sphereGrad.addColorStop(1, '#060B18');
 
         ctx.beginPath();
         ctx.arc(pCenter.x, pCenter.y, pr, 0, Math.PI * 2);
         ctx.fillStyle = sphereGrad;
-        ctx.shadowColor = currentPreset.glowColor;
-        ctx.shadowBlur = 24;
+        ctx.shadowColor = isSpeaking ? '#06B6D4' : currentPreset.glowColor;
+        ctx.shadowBlur = isSpeaking ? 34 : 24;
+        ctx.fill();
+        ctx.shadowBlur = 0;
         ctx.fill();
         ctx.shadowBlur = 0;
 
@@ -744,23 +789,29 @@ export default function UniverseInteraction({
   return (
     <div 
       ref={containerRef}
-      className={`relative w-full aspect-square max-w-[265px] mx-auto rounded-2xl overflow-hidden border border-indigo-500/30 bg-[#050814] shadow-xl shadow-indigo-950/50 select-none flex flex-col ${className}`}
+      className={`relative w-full aspect-square max-w-[210px] mx-auto rounded-2xl overflow-hidden border border-indigo-500/30 bg-[#050814] shadow-xl shadow-indigo-950/50 select-none flex flex-col ${className}`}
     >
-      {/* Sci-Fi HUD Corners */}
-      <div className="absolute top-1.5 left-1.5 pointer-events-none z-20 flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-900/85 backdrop-blur-md border border-gray-800 text-[9px] font-mono text-cyan-400">
-        <span className={`w-1.5 h-1.5 rounded-full ${
+      {/* Sci-Fi HUD Status Pill with Live Audio Pulse */}
+      <div className="absolute top-1.5 left-1.5 pointer-events-none z-20 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-900/90 backdrop-blur-md border border-gray-800 text-[9px] font-mono shadow-sm">
+        <span className={`w-2 h-2 rounded-full ${
           cosmicReaction === 'speaking' ? 'bg-cyan-400 animate-ping' :
           cosmicReaction === 'quiz' ? 'bg-amber-400 animate-pulse' :
-          cosmicReaction === 'passed' ? 'bg-emerald-400 animate-bounce' : 'bg-indigo-400'
+          cosmicReaction === 'passed' ? 'bg-emerald-400 animate-bounce' : 'bg-emerald-400'
         }`} />
-        <span className="font-semibold tracking-wider uppercase text-[8px]">
-          {viewMode === 'single' ? 'SINGLE PLANET' : 'GALAXY'}
+        <span className="font-semibold tracking-wider uppercase text-[8px] text-cyan-300">
+          {cosmicReaction === 'speaking' ? 'AI SPEAKING' : (viewMode === 'single' ? '3D CORE' : 'GALAXY')}
         </span>
+        {cosmicReaction === 'speaking' && (
+          <span className="flex items-end gap-0.5 h-2.5 ml-0.5">
+            <span className="w-0.5 bg-cyan-400 animate-pulse h-full" />
+            <span className="w-0.5 bg-cyan-400 animate-pulse h-2/3" style={{ animationDelay: '100ms' }} />
+            <span className="w-0.5 bg-cyan-400 animate-pulse h-full" style={{ animationDelay: '200ms' }} />
+          </span>
+        )}
       </div>
 
-      <div className="absolute top-1.5 right-1.5 pointer-events-none z-20 flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-900/85 backdrop-blur-md border border-gray-800 text-[9px] font-mono text-indigo-300">
-        <span className="text-gray-400">FOCUS:</span>
-        <strong className="text-white truncate max-w-[75px]">{currentLvl?.title?.split(':')[1] || 'ML'}</strong>
+      <div className="absolute top-1.5 right-1.5 pointer-events-none z-20 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-gray-900/85 backdrop-blur-md border border-gray-800 text-[8px] font-mono text-indigo-300">
+        <strong className="text-white truncate max-w-[70px]">{currentLvl?.title?.split(':')[1] || 'Core'}</strong>
       </div>
 
       {/* Interactive 3D Canvas */}

@@ -45,6 +45,8 @@ import {
   FileText,
   Volume2,
   VolumeX,
+  Play,
+  Pause,
   Square,
   Globe,
   Cloud,
@@ -102,25 +104,71 @@ export default function ChatbotInterface({
   const studentId = user?.id || 'student-demo-1';
 
   const [inputMessage, setInputMessage] = useState('');
-  const [messages, setMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem(`teacher_luna_chat_${studentId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return [];
-  });
+  const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showActionDrawer, setShowActionDrawer] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
-  const [selectedModelMode, setSelectedModelMode] = useState('council'); // 'council', 'openai', 'deepseek', 'qwen'
+  const [isAudioPaused, setIsAudioPaused] = useState(false);
+  const [showSarvamModal, setShowSarvamModal] = useState(false);
+  const [sarvamApiKey, setSarvamApiKey] = useState('');
+  const [sarvamSpeaker, setSarvamSpeaker] = useState('anushka');
+  const [isSarvamConfigured, setIsSarvamConfigured] = useState(false);
+  const [sarvamSaving, setSarvamSaving] = useState(false);
+  const [sarvamSaveMsg, setSarvamSaveMsg] = useState('');
+
+  const fetchSarvamStatus = async () => {
+    try {
+      const res = await fetch('/api/sarvam/status');
+      const data = await res.json();
+      if (data.success) {
+        setIsSarvamConfigured(Boolean(data.configured));
+        if (data.speaker) setSarvamSpeaker(data.speaker);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchSarvamStatus();
+  }, []);
+
+  const handleSaveSarvamKey = async (e) => {
+    e?.preventDefault();
+    setSarvamSaving(true);
+    setSarvamSaveMsg('');
+    try {
+      const res = await fetch('/api/sarvam/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: sarvamApiKey.trim(),
+          speaker: sarvamSpeaker
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsSarvamConfigured(Boolean(data.configured));
+        setSarvamSaveMsg('✅ Sarvam AI API Key connected successfully!');
+        setSarvamApiKey('');
+        setTimeout(() => {
+          setShowSarvamModal(false);
+          setSarvamSaveMsg('');
+        }, 1200);
+      } else {
+        setSarvamSaveMsg('❌ Error saving key: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      setSarvamSaveMsg('❌ Connection error: ' + err.message);
+    } finally {
+      setSarvamSaving(false);
+    }
+  };
+  const [selectedModelMode, setSelectedModelMode] = useState('auto'); // 'auto', 'omniroute', 'nvidia', 'council', 'openai', 'deepseek', 'qwen'
+  const [selectedLanguage, setSelectedLanguage] = useState('auto'); // 'auto', 'english', 'tanglish'
   const currentUtteranceRef = useRef(null);
   const currentAudioRef = useRef(null);
+  const browserSpeechIntervalRef = useRef(null);
+  const audioWatchdogRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   // MCP Integration State
@@ -180,7 +228,17 @@ export default function ChatbotInterface({
   };
 
   const stopSpeaking = () => {
-    // 1. Stop HTML5 Audio if playing Cartesia stream
+    // 1. Clear playback watchdog
+    if (audioWatchdogRef.current) {
+      clearInterval(audioWatchdogRef.current);
+      audioWatchdogRef.current = null;
+    }
+    // 2. Clear browser speech keep-alive timer
+    if (browserSpeechIntervalRef.current) {
+      clearInterval(browserSpeechIntervalRef.current);
+      browserSpeechIntervalRef.current = null;
+    }
+    // 3. Stop HTML5 Audio if playing
     if (currentAudioRef.current) {
       try {
         currentAudioRef.current.pause();
@@ -190,16 +248,44 @@ export default function ChatbotInterface({
       }
       currentAudioRef.current = null;
     }
-    // 2. Stop browser speech synthesis if active
+    // 4. Stop browser speech synthesis if active
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     setSpeakingMessageId(null);
+    setIsAudioPaused(false);
     if (onCosmicReaction) onCosmicReaction('idle');
+  };
+
+  const pauseSpeaking = () => {
+    if (currentAudioRef.current && !currentAudioRef.current.paused) {
+      currentAudioRef.current.pause();
+      setIsAudioPaused(true);
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+      setIsAudioPaused(true);
+    }
+  };
+
+  const resumeSpeaking = () => {
+    if (currentAudioRef.current && currentAudioRef.current.paused) {
+      currentAudioRef.current.play().then(() => {
+        setIsAudioPaused(false);
+      }).catch(err => {
+        console.warn('Could not resume audio:', err.message);
+      });
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      setIsAudioPaused(false);
+    }
   };
 
   const speakText = async (text, messageId) => {
     if (speakingMessageId === messageId) {
+      if (isAudioPaused) {
+        resumeSpeaking();
+        return;
+      }
       stopSpeaking();
       return;
     }
@@ -210,66 +296,121 @@ export default function ChatbotInterface({
     if (!cleaned) return;
 
     setSpeakingMessageId(messageId);
+    setIsAudioPaused(false);
     if (onCosmicReaction) onCosmicReaction('speaking');
 
-    // Method 1: High-fidelity Cartesia Sonic TTS via Backend Endpoint
+    // Method 1: High-fidelity Sarvam Indic TTS via Backend Endpoint
     try {
       const res = await fetch('/api/tts/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleaned })
+        body: JSON.stringify({ text: cleaned, language: selectedLanguage })
       });
 
       if (res.ok) {
         const contentType = res.headers.get('content-type') || '';
         if (contentType.includes('audio')) {
           const blob = await res.blob();
-        if (blob && blob.size > 0) {
-          const audioUrl = URL.createObjectURL(blob);
-          const audio = new Audio(audioUrl);
-          currentAudioRef.current = audio;
+          if (blob && blob.size > 0) {
+            const audioUrl = URL.createObjectURL(blob);
+            const audio = new Audio(audioUrl);
+            currentAudioRef.current = audio;
 
-          audio.onplay = () => {
-            setSpeakingMessageId(messageId);
-            if (onCosmicReaction) onCosmicReaction('speaking');
-          };
+            audio.onplay = () => {
+              setSpeakingMessageId(messageId);
+              setIsAudioPaused(false);
+              if (onCosmicReaction) onCosmicReaction('speaking');
+            };
 
-          audio.onended = () => {
-            URL.revokeObjectURL(audioUrl);
-            currentAudioRef.current = null;
-            setSpeakingMessageId(null);
-            if (onCosmicReaction) onCosmicReaction('idle');
-          };
+            audio.onpause = () => {
+              if (audio.currentTime < audio.duration && !audio.ended && currentAudioRef.current === audio) {
+                setIsAudioPaused(true);
+              }
+            };
 
-          audio.onerror = () => {
-            URL.revokeObjectURL(audioUrl);
-            currentAudioRef.current = null;
-            fallbackToBrowserSpeech(cleaned, messageId);
-          };
+            audio.onended = () => {
+              if (audioWatchdogRef.current) {
+                clearInterval(audioWatchdogRef.current);
+                audioWatchdogRef.current = null;
+              }
+              URL.revokeObjectURL(audioUrl);
+              currentAudioRef.current = null;
+              setSpeakingMessageId(null);
+              setIsAudioPaused(false);
+              if (onCosmicReaction) onCosmicReaction('idle');
+            };
 
-          await audio.play();
-          return;
+            audio.onerror = () => {
+              if (audioWatchdogRef.current) {
+                clearInterval(audioWatchdogRef.current);
+                audioWatchdogRef.current = null;
+              }
+              URL.revokeObjectURL(audioUrl);
+              currentAudioRef.current = null;
+              fallbackToBrowserSpeech(cleaned, messageId);
+            };
+
+            audio.onstalled = () => {
+              console.warn('Audio playback stalled mid-answer; attempting auto-recovery...');
+              if (audio.paused && !audio.ended) {
+                audio.play().catch(() => {});
+              }
+            };
+
+            // Active Watchdog: Auto-detects and un-sticks audio playback if paused unexpectedly
+            let lastAudioPosition = 0;
+            let stalledCycles = 0;
+            if (audioWatchdogRef.current) clearInterval(audioWatchdogRef.current);
+            audioWatchdogRef.current = setInterval(() => {
+              if (!currentAudioRef.current || currentAudioRef.current !== audio || audio.paused || audio.ended) {
+                return;
+              }
+              if (audio.currentTime === lastAudioPosition) {
+                stalledCycles++;
+                if (stalledCycles >= 4) { // Stalled for > 4 seconds
+                  console.warn('Speech playback stalled in between answer; auto-resuming...');
+                  audio.play().catch(() => {
+                    stopSpeaking();
+                    fallbackToBrowserSpeech(cleaned, messageId);
+                  });
+                  stalledCycles = 0;
+                }
+              } else {
+                lastAudioPosition = audio.currentTime;
+                stalledCycles = 0;
+              }
+            }, 1000);
+
+            await audio.play();
+            return;
+          }
         }
       }
-    }
-  } catch (err) {
-      console.warn('Backend Cartesia TTS unavailable; using browser speech fallback:', err.message);
+    } catch (err) {
+      console.warn('Backend Sarvam TTS unavailable; using browser speech fallback:', err.message);
     }
 
-    // Browser Speech Synthesis Fallback
+    // Method 2: Browser Speech Synthesis Fallback (Sentence-chunked to prevent Chrome freeze)
     fallbackToBrowserSpeech(cleaned, messageId);
   };
 
   const fallbackToBrowserSpeech = (cleaned, messageId) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setSpeakingMessageId(null);
+      setIsAudioPaused(false);
       if (onCosmicReaction) onCosmicReaction('idle');
       return;
     }
 
     try {
-      const utterance = new SpeechSynthesisUtterance(cleaned);
-      currentUtteranceRef.current = utterance;
+      window.speechSynthesis.cancel();
+      if (browserSpeechIntervalRef.current) {
+        clearInterval(browserSpeechIntervalRef.current);
+      }
+
+      // Sentence chunking prevents Chromium 15-second speech freeze
+      const sentences = cleaned.match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g) || [cleaned];
+      let chunkIdx = 0;
 
       const voices = window.speechSynthesis.getVoices();
       const naturalVoice = voices.find(v => 
@@ -277,28 +418,85 @@ export default function ChatbotInterface({
         (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online') || v.name.includes('Neural') || v.name.includes('Jenny') || v.name.includes('Samantha') || v.name.includes('Karen') || v.name.includes('Zira') || v.name.includes('Guy'))
       ) || voices.find(v => v.lang.startsWith('en')) || voices[0];
 
-      if (naturalVoice) utterance.voice = naturalVoice;
-      utterance.rate = 0.92;
-      utterance.pitch = 1.04;
+      // Chromium keep-alive timer ensures utterance never silently pauses
+      browserSpeechIntervalRef.current = setInterval(() => {
+        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        } else if (!window.speechSynthesis.speaking) {
+          clearInterval(browserSpeechIntervalRef.current);
+          browserSpeechIntervalRef.current = null;
+        }
+      }, 8000);
 
-      utterance.onstart = () => {
-        setSpeakingMessageId(messageId);
-        if (onCosmicReaction) onCosmicReaction('speaking');
+      const speakSentence = () => {
+        if (chunkIdx >= sentences.length) {
+          if (browserSpeechIntervalRef.current) {
+            clearInterval(browserSpeechIntervalRef.current);
+            browserSpeechIntervalRef.current = null;
+          }
+          setSpeakingMessageId(null);
+          setIsAudioPaused(false);
+          if (onCosmicReaction) onCosmicReaction('idle');
+          return;
+        }
+
+        const sentenceText = sentences[chunkIdx].trim();
+        if (!sentenceText) {
+          chunkIdx++;
+          speakSentence();
+          return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(sentenceText);
+        currentUtteranceRef.current = utterance;
+        if (naturalVoice) utterance.voice = naturalVoice;
+        utterance.rate = 0.88;
+        utterance.pitch = 1.0;
+
+        utterance.onstart = () => {
+          setSpeakingMessageId(messageId);
+          setIsAudioPaused(false);
+          if (onCosmicReaction) onCosmicReaction('speaking');
+        };
+
+        utterance.onpause = () => {
+          setIsAudioPaused(true);
+        };
+
+        utterance.onresume = () => {
+          setIsAudioPaused(false);
+        };
+
+        utterance.onend = () => {
+          chunkIdx++;
+          speakSentence();
+        };
+
+        utterance.onerror = (e) => {
+          console.warn('Speech synthesis chunk warning:', e);
+          chunkIdx++;
+          if (chunkIdx < sentences.length) {
+            speakSentence();
+          } else {
+            if (browserSpeechIntervalRef.current) {
+              clearInterval(browserSpeechIntervalRef.current);
+              browserSpeechIntervalRef.current = null;
+            }
+            setSpeakingMessageId(null);
+            setIsAudioPaused(false);
+            if (onCosmicReaction) onCosmicReaction('idle');
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
       };
 
-      utterance.onend = () => {
-        setSpeakingMessageId(null);
-        if (onCosmicReaction) onCosmicReaction('idle');
-      };
-
-      utterance.onerror = () => {
-        setSpeakingMessageId(null);
-        if (onCosmicReaction) onCosmicReaction('idle');
-      };
-
-      window.speechSynthesis.speak(utterance);
+      speakSentence();
     } catch (e) {
+      console.warn('Browser speech synthesis error:', e.message);
       setSpeakingMessageId(null);
+      setIsAudioPaused(false);
       if (onCosmicReaction) onCosmicReaction('idle');
     }
   };
@@ -339,22 +537,11 @@ export default function ChatbotInterface({
     return () => { isMounted = false; };
   }, [studentId]);
 
-  // Persist messages to localStorage whenever messages update
-  useEffect(() => {
-    if (messages.length > 0) {
-      try {
-        localStorage.setItem(`teacher_luna_chat_${studentId}`, JSON.stringify(messages));
-      } catch (e) {
-        // ignore quota limits
-      }
-    }
-  }, [messages, studentId]);
-
   // Clear chat handler
   const handleClearChat = async () => {
     stopSpeaking();
     try {
-      localStorage.removeItem(`teacher_luna_chat_${studentId}`);
+      try { localStorage.removeItem(`teacher_luna_chat_${studentId}`); } catch (e) {}
       await fetch('/api/ai/chat/clear', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -366,41 +553,34 @@ export default function ChatbotInterface({
     setMessages([]);
   };
 
-  // Initial Welcome Message with Gentle Teacher Persona & Goal Understanding
+  // Start New Journey (Reset all progress & chat)
+  const handleStartNewJourney = async () => {
+    if (window.confirm('Start a fresh new learning journey? This will reset your progress to 0% so you can begin clean.')) {
+      stopSpeaking();
+      try {
+        try { localStorage.removeItem(`teacher_luna_chat_${studentId}`); } catch (e) {}
+        await resetProgress();
+        await fetch('/api/ai/chat/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId })
+        });
+        setMessages([]);
+      } catch (e) {
+        console.warn('Start new journey error:', e);
+      }
+    }
+  };
+
+  // Initial Welcome Message from tutor-conversation-design.pdf
   useEffect(() => {
     if (messages.length === 0 && roadmap) {
-      // Check if we have saved messages in localStorage first
-      const saved = localStorage.getItem(`teacher_luna_chat_${studentId}`);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setMessages(parsed);
-            return;
-          }
-        } catch (e) {}
-      }
-
       setMessages([
         {
           id: 'welcome-msg',
           sender: 'assistant',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          text: `🌸 **Hello there, my dear student!** I am **Teacher Luna**, your gentle AI Study Mentor.\n\nLearning is a joyful adventure, and we will take it gently, one small step at a time with no rush.\n\nBefore we begin, tell me: what dream or course are you passionate about mastering? You can select a track below, or type anything specific you'd love to learn (like Web Development, DevOps, Mobile Apps, or custom)!`,
-          widgets: [
-            {
-              type: 'course_options_card',
-              currentCourse: roadmap.title,
-              currentGoal: roadmap.goal,
-              options: [
-                { id: 'web', title: 'Full-Stack Web Development', badge: 'Frontend & Backend', desc: 'HTML/CSS/JS, React, Node.js, Express, PostgreSQL & Docker' },
-                { id: 'devops', title: 'DevOps & Cloud Engineering', badge: 'Cloud & Infrastructure', desc: 'Linux, Networking, Docker, CI/CD, Kubernetes & Terraform' },
-                { id: 'mobile', title: 'Mobile App Development', badge: 'iOS & Android', desc: 'Dart, Flutter/React Native, State Management, Offline DBs & App Store' },
-                { id: 'ai', title: 'Artificial Intelligence & ML', badge: 'AI & Data Science', desc: 'Python, NumPy, Scikit-Learn, PyTorch, Deep Learning & LLMs' },
-                { id: 'cyber', title: 'Cybersecurity & Ethical Hacking', badge: 'Defensive & Offensive', desc: 'Network Security, OWASP Top 10, Cryptography & Pen Testing' }
-              ]
-            }
-          ]
+          text: "Hey! Welcome in. Before we start, what should I call you?"
         }
       ]);
     }
@@ -631,7 +811,6 @@ export default function ChatbotInterface({
 
       // Build multi-turn chat history
       const chatHistory = messages
-        .filter((m) => m.id !== 'welcome-msg')
         .slice(-8)
         .map((m) => ({
           role: m.sender === 'user' ? 'user' : 'assistant',
@@ -649,10 +828,12 @@ export default function ChatbotInterface({
           message: query,
           studentId: user?.id || 'student-demo-1',
           model: activeModel,
+          language: selectedLanguage,
           context: {
             currentLevelId: selectedLevel?.id || 'level-4',
             history: chatHistory,
             model: activeModel,
+            language: selectedLanguage,
             requestedModel: activeModel
           }
         })
@@ -662,6 +843,9 @@ export default function ChatbotInterface({
       setIsTyping(false);
 
       if (data.success) {
+        if (data.language && data.language !== 'english') {
+          setSelectedLanguage(data.language);
+        }
         const widgets = [];
         if (data.type === 'course_initialized' && data.roadmap) {
           // Update global roadmap & universe orbit
@@ -735,7 +919,7 @@ export default function ChatbotInterface({
 
       setIsTyping(false);
       const errMsgId = `assistant-err-${Date.now()}`;
-      const errText = `🌸 **Teacher Luna Note**: I am ready to answer your questions! However, the backend server is not currently running on \`http://localhost:5000\`.\n\nPlease open a terminal and run:\n\`\`\`powershell\ncd backend\nnode server.js\n\`\`\`\nOnce started, ask me any question, and I will search and synthesize live answers for you!`;
+      const errText = `🌸 **Teacher Luna Note**: I am ready to answer your questions! However, the backend server is not currently running on \`http://localhost:5055\`.\n\nPlease open a terminal and run:\n\`\`\`powershell\nnpm start\n\`\`\`\nOnce started, ask me any question, and I will search and synthesize live answers for you!`;
       setMessages((prev) => [
         ...prev,
         {
@@ -783,16 +967,28 @@ export default function ChatbotInterface({
               <div className="flex items-center gap-1 bg-gray-900/90 border border-gray-800 rounded-lg p-0.5 text-[10px]">
                 <button
                   type="button"
-                  onClick={() => setSelectedModelMode('council')}
+                  onClick={() => setSelectedModelMode('auto')}
                   className={`px-2 py-0.5 rounded font-medium transition-all flex items-center gap-1 ${
-                    selectedModelMode === 'council' || selectedModelMode === 'dual'
-                      ? 'bg-gradient-to-r from-purple-600/80 via-cyan-600/80 to-emerald-600/80 text-white shadow-sm ring-1 ring-cyan-500/30'
+                    selectedModelMode === 'auto' || selectedModelMode === 'council'
+                      ? 'bg-gradient-to-r from-emerald-600/80 via-cyan-600/80 to-purple-600/80 text-white shadow-sm ring-1 ring-cyan-500/30'
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
-                  title="Multi-Engine Council: OpenAI GPT + DeepSeek-R1 + Qwen collaborative synthesis"
+                  title="Auto Smart Engine: Dynamically routes questions to NVIDIA DeepSeek V4.1, Nemotron, or Qwen based on the prompt"
                 >
                   <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
-                  <span>⚡ Council (OpenAI + DeepSeek + Qwen)</span>
+                  <span>⚡ Auto (Smart Route)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedModelMode('nvidia')}
+                  className={`px-1.5 py-0.5 rounded font-medium transition-all ${
+                    selectedModelMode === 'nvidia'
+                      ? 'bg-emerald-600/80 text-white shadow-sm'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  title="NVIDIA NIM API: DeepSeek-V4.1-Flash & Nemotron"
+                >
+                  🟢 NVIDIA
                 </button>
                 <button
                   type="button"
@@ -814,7 +1010,7 @@ export default function ChatbotInterface({
                       ? 'bg-cyan-600/80 text-white shadow-sm'
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
-                  title="DeepSeek-R1 Model"
+                  title="DeepSeek Engine"
                 >
                   ⚡ DeepSeek
                 </button>
@@ -823,12 +1019,25 @@ export default function ChatbotInterface({
                   onClick={() => setSelectedModelMode('qwen')}
                   className={`px-1.5 py-0.5 rounded font-medium transition-all ${
                     selectedModelMode === 'qwen'
-                      ? 'bg-emerald-600/80 text-white shadow-sm'
+                      ? 'bg-amber-600/80 text-white shadow-sm'
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                   title="Qwen Model"
                 >
                   🤖 Qwen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedModelMode('omniroute')}
+                  className={`px-1.5 py-0.5 rounded font-medium transition-all flex items-center gap-1 ${
+                    selectedModelMode === 'omniroute'
+                      ? 'bg-blue-600/80 text-white shadow-sm ring-1 ring-blue-400/40'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                  title="OmniRoute AI Router: Local Keyless Virtual Combo at http://localhost:20128/v1"
+                >
+                  <Globe className="w-2.5 h-2.5 text-blue-300" />
+                  <span>OmniRoute</span>
                 </button>
               </div>
             </div>
@@ -840,24 +1049,76 @@ export default function ChatbotInterface({
 
         {/* Header Quick Controls */}
         <div className="flex items-center gap-2 text-xs text-gray-400">
-          {/* Active Speaking Wave Equalizer & Stop Button */}
+          {/* Active Speaking Wave Equalizer, Pause & Stop Controls */}
           {speakingMessageId && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-[11px] animate-in fade-in">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-[11px] animate-in fade-in shadow-sm">
               <span className="flex items-end gap-0.5 h-3">
-                <span className="w-0.5 bg-cyan-400 animate-pulse h-full" />
-                <span className="w-0.5 bg-cyan-400 animate-pulse h-2/3" style={{ animationDelay: '120ms' }} />
-                <span className="w-0.5 bg-cyan-400 animate-pulse h-full" style={{ animationDelay: '240ms' }} />
+                <span className={`w-0.5 bg-cyan-400 ${isAudioPaused ? 'h-1/2' : 'animate-pulse h-full'}`} />
+                <span className={`w-0.5 bg-cyan-400 ${isAudioPaused ? 'h-1/3' : 'animate-pulse h-2/3'}`} style={{ animationDelay: '120ms' }} />
+                <span className={`w-0.5 bg-cyan-400 ${isAudioPaused ? 'h-1/2' : 'animate-pulse h-full'}`} style={{ animationDelay: '240ms' }} />
               </span>
-              <span className="font-mono text-[10px] hidden sm:inline">Speaking...</span>
+              <span className="font-mono text-[10px] hidden sm:inline">
+                {isAudioPaused ? 'Speech Paused' : 'Speaking...'}
+              </span>
+              {isAudioPaused ? (
+                <button
+                  onClick={resumeSpeaking}
+                  className="ml-1 p-0.5 hover:bg-cyan-800 rounded text-cyan-200 transition-colors"
+                  title="Resume speech"
+                >
+                  <Play className="w-2.5 h-2.5 fill-current" />
+                </button>
+              ) : (
+                <button
+                  onClick={pauseSpeaking}
+                  className="ml-1 p-0.5 hover:bg-cyan-800 rounded text-cyan-200 transition-colors"
+                  title="Pause speech"
+                >
+                  <Pause className="w-2.5 h-2.5 fill-current" />
+                </button>
+              )}
               <button
                 onClick={stopSpeaking}
-                className="ml-1 p-0.5 hover:bg-cyan-900/80 rounded text-cyan-200 transition-colors"
+                className="ml-0.5 p-0.5 hover:bg-red-950/80 rounded text-red-300 transition-colors"
                 title="Stop Speech"
               >
                 <Square className="w-2.5 h-2.5 fill-current" />
               </button>
             </div>
           )}
+
+          {/* Tanglish / Tamil Explanation Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setSelectedLanguage((prev) => (prev === 'tanglish' ? 'english' : 'tanglish'))}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              selectedLanguage === 'tanglish'
+                ? 'bg-amber-950/70 border border-amber-500/40 text-amber-300 shadow-sm ring-1 ring-amber-400/30'
+                : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200'
+            }`}
+            title="Toggle Natural Tanglish / Tamil explanation mode"
+          >
+            <span>🗣️</span>
+            <span className="hidden sm:inline font-semibold">
+              {selectedLanguage === 'tanglish' ? 'Tanglish (தமிழ்)' : 'EN / Tanglish'}
+            </span>
+          </button>
+
+          {/* Sarvam AI Indic Speech Button */}
+          <button
+            type="button"
+            onClick={() => setShowSarvamModal(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              isSarvamConfigured
+                ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
+                : 'hover:bg-gray-800 text-gray-400 hover:text-gray-200 border border-gray-700/50'
+            }`}
+            title="Configure Sarvam AI Indic Voice (Tamil & English)"
+          >
+            <span>🎙️</span>
+            <span className="hidden sm:inline font-semibold">Sarvam AI</span>
+            <span className={`w-1.5 h-1.5 rounded-full ${isSarvamConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`} />
+          </button>
 
           {/* Auto-Voice Reader Toggle Button */}
           <button
@@ -903,6 +1164,16 @@ export default function ChatbotInterface({
             ) : (
               <span className="w-1.5 h-1.5 rounded-full bg-gray-500" title="Not connected" />
             )}
+          </button>
+
+          {/* Start New Journey Button */}
+          <button
+            onClick={handleStartNewJourney}
+            className="px-2 py-1 rounded-lg border border-indigo-500/30 hover:border-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-all shadow-sm active:scale-95"
+            title="Start a fresh new journey (Reset progress to 0%)"
+          >
+            <RotateCcw className="w-3 h-3 text-indigo-400" />
+            <span className="text-[10px] hidden sm:inline">Start New</span>
           </button>
 
           <button
@@ -963,6 +1234,51 @@ export default function ChatbotInterface({
               {/* Message Text rendered naturally with zero <br> tags */}
               <NaturalTextRenderer content={msg.text} />
 
+              {/* Active Speech Playback Card */}
+              {speakingMessageId === msg.id && (
+                <div className="mt-2.5 flex items-center justify-between px-3 py-1.5 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-200 text-xs shadow-md animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-end gap-0.5 h-3">
+                      <span className={`w-1 bg-cyan-400 ${isAudioPaused ? 'h-1/2' : 'animate-pulse h-full'}`} />
+                      <span className={`w-1 bg-cyan-400 ${isAudioPaused ? 'h-1/3' : 'animate-pulse h-2/3'}`} style={{ animationDelay: '150ms' }} />
+                      <span className={`w-1 bg-cyan-400 ${isAudioPaused ? 'h-1/2' : 'animate-pulse h-4/5'}`} style={{ animationDelay: '300ms' }} />
+                    </span>
+                    <span className="font-medium text-[11px] tracking-wide">
+                      {isAudioPaused ? 'Speech paused mid-answer' : 'Luna is speaking this answer...'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {isAudioPaused ? (
+                      <button
+                        onClick={resumeSpeaking}
+                        className="px-2 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-[10px] text-white font-medium transition-colors flex items-center gap-1"
+                        title="Resume speech"
+                      >
+                        <Play className="w-2.5 h-2.5 fill-current" />
+                        <span>Resume</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={pauseSpeaking}
+                        className="px-2 py-0.5 rounded bg-cyan-900/80 hover:bg-cyan-800 text-[10px] text-cyan-200 font-medium transition-colors flex items-center gap-1"
+                        title="Pause speech"
+                      >
+                        <Pause className="w-2.5 h-2.5 fill-current" />
+                        <span>Pause</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={stopSpeaking}
+                      className="px-2 py-0.5 rounded bg-red-950/80 hover:bg-red-900/80 border border-red-500/30 text-[10px] text-red-200 font-medium transition-colors flex items-center gap-1"
+                      title="Stop speaking"
+                    >
+                      <Square className="w-2 h-2 fill-current" />
+                      <span>Stop</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Verified Multi-Source Citations (RAG, Live Web Search & Visual Diagrams) */}
               {msg.sources && (msg.sources.rag || (msg.sources.search && msg.sources.search.length > 0) || (msg.sources.images && msg.sources.images.length > 0)) && (
                 <div className="mt-3 pt-2.5 border-t border-gray-800/80 text-[11px] space-y-1.5">
@@ -979,12 +1295,17 @@ export default function ChatbotInterface({
                         const mRole = typeof m === 'object' ? m.role : null;
                         const isOpenAi = mName.toLowerCase().includes('openai') || mName.toLowerCase().includes('gpt');
                         const isDeepSeek = mName.toLowerCase().includes('deepseek');
+                        const isOmniRoute = mName.toLowerCase().includes('omni');
 
                         let badgeStyle = 'bg-emerald-950/70 border-emerald-500/30 text-emerald-200 shadow-sm';
                         let IconComponent = Bot;
                         let iconColor = 'text-emerald-400';
 
-                        if (isOpenAi) {
+                        if (isOmniRoute) {
+                          badgeStyle = 'bg-blue-950/70 border-blue-500/40 text-blue-200 shadow-sm';
+                          IconComponent = Globe;
+                          iconColor = 'text-blue-400';
+                        } else if (isOpenAi) {
                           badgeStyle = 'bg-purple-950/70 border-purple-500/40 text-purple-200 shadow-sm';
                           IconComponent = Sparkles;
                           iconColor = 'text-purple-400';
@@ -1011,13 +1332,16 @@ export default function ChatbotInterface({
                         const mName = msg.model;
                         const isOpenAi = mName.toLowerCase().includes('openai') || mName.toLowerCase().includes('gpt');
                         const isDeepSeek = mName.toLowerCase().includes('deepseek');
-                        const badgeStyle = isOpenAi
+                        const isOmniRoute = mName.toLowerCase().includes('omni');
+                        const badgeStyle = isOmniRoute
+                          ? 'bg-blue-950/70 border-blue-500/40 text-blue-200'
+                          : isOpenAi
                           ? 'bg-purple-950/70 border-purple-500/40 text-purple-200'
                           : isDeepSeek
                           ? 'bg-cyan-950/70 border-cyan-500/40 text-cyan-200'
                           : 'bg-emerald-950/70 border-emerald-500/30 text-emerald-200';
-                        const IconComponent = isOpenAi ? Sparkles : isDeepSeek ? Zap : Bot;
-                        const iconColor = isOpenAi ? 'text-purple-400' : isDeepSeek ? 'text-cyan-400' : 'text-emerald-400';
+                        const IconComponent = isOmniRoute ? Globe : isOpenAi ? Sparkles : isDeepSeek ? Zap : Bot;
+                        const iconColor = isOmniRoute ? 'text-blue-400' : isOpenAi ? 'text-purple-400' : isDeepSeek ? 'text-cyan-400' : 'text-emerald-400';
                         return (
                           <div 
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${badgeStyle}`}
@@ -2392,7 +2716,89 @@ function NaturalTextRenderer({ content }) {
           </div>
         );
       })}
-    </div>
+    
+      {/* Sarvam AI TTS Configuration Modal */}
+      {showSarvamModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-md p-6 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎙️</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Sarvam AI Speech Voice</h3>
+                  <p className="text-[11px] text-gray-400">Natural Indic TTS for Tamil & English</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSarvamModal(false)}
+                className="text-gray-400 hover:text-white text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSarvamKey} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                  Sarvam AI Subscription Key
+                </label>
+                <input
+                  type="password"
+                  value={sarvamApiKey}
+                  onChange={(e) => setSarvamApiKey(e.target.value)}
+                  placeholder={isSarvamConfigured ? "Key configured (enter new key to update)" : "Paste your Sarvam API subscription key"}
+                  className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Stored securely on the server. Get your key at <a href="https://sarvam.ai" target="_blank" rel="noreferrer" className="text-cyan-400 underline">sarvam.ai</a>.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                  Default Speaker Voice
+                </label>
+                <select
+                  value={sarvamSpeaker}
+                  onChange={(e) => setSarvamSpeaker(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                >
+                  <option value="anushka">Anushka (Warm & Gentle Female - Default)</option>
+                  <option value="meera">Meera (Tamil Fluent Female)</option>
+                  <option value="pavithra">Pavithra (Natural Indic Female)</option>
+                  <option value="arvind">Arvind (Clear Male)</option>
+                  <option value="amartya">Amartya (Deep Male)</option>
+                </select>
+              </div>
+
+              {sarvamSaveMsg && (
+                <div className={`p-2 rounded-lg text-xs ${sarvamSaveMsg.includes('✅') ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30' : 'bg-red-950/80 text-red-300 border border-red-500/30'}`}>
+                  {sarvamSaveMsg}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setShowSarvamModal(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sarvamSaving}
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-emerald-600 to-cyan-600 text-white shadow-md hover:from-emerald-500 hover:to-cyan-500 disabled:opacity-50"
+                >
+                  {sarvamSaving ? 'Saving...' : 'Save & Connect'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+</div>
   );
 }
 

@@ -49,7 +49,19 @@ function persistStore() {
   try {
     fs.writeFileSync(STORE_FILE, JSON.stringify(localStore, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error persisting store.json:', err.message);
+    // If Windows locks the file temporarily, retry safely via temp file swap
+    try {
+      const tempPath = path.join(DATA_DIR, `store_${Date.now()}.tmp`);
+      fs.writeFileSync(tempPath, JSON.stringify(localStore, null, 2), 'utf-8');
+      try {
+        fs.copyFileSync(tempPath, STORE_FILE);
+        fs.unlinkSync(tempPath);
+      } catch {
+        // Fallback: in-memory state is maintained in localStore
+      }
+    } catch {
+      // Non-blocking fallback
+    }
   }
 }
 
@@ -827,15 +839,25 @@ export async function getOrCreateStudentRoadmap(studentId = 'student-demo-1') {
 }
 
 /**
+ * Get student profile
+ */
+export function getStudentProfile(studentId = 'student-demo-1') {
+  return localStore.students?.[studentId] || null;
+}
+
+/**
  * Update student profile info
  */
-export function updateStudentProfile(studentId = 'student-demo-1', { name, email, goal }) {
+export function updateStudentProfile(studentId = 'student-demo-1', { name, email, goal, age, language, preferredLanguage } = {}) {
+  const lang = preferredLanguage || language;
   if (!localStore.students[studentId]) {
     localStore.students[studentId] = {
       id: studentId,
       name: name || 'Student',
       email: email || 'student@example.com',
       goal: goal || 'AI / Machine Learning Engineer',
+      age: age || null,
+      preferredLanguage: lang || 'english',
       studyStreak: 0,
       lastActiveDate: new Date().toISOString(),
       created_at: new Date().toISOString()
@@ -844,6 +866,8 @@ export function updateStudentProfile(studentId = 'student-demo-1', { name, email
     if (name) localStore.students[studentId].name = name;
     if (email) localStore.students[studentId].email = email;
     if (goal) localStore.students[studentId].goal = goal;
+    if (age !== undefined) localStore.students[studentId].age = age;
+    if (lang) localStore.students[studentId].preferredLanguage = lang;
   }
   persistStore();
   return localStore.students[studentId];
@@ -1143,6 +1167,21 @@ export function clearStudentChatMessages(studentId = 'student-demo-1') {
 export function resetRoadmap(studentId = 'student-demo-1') {
   const fresh = createDefaultAiMlRoadmap(studentId);
   localStore.roadmaps[fresh.id] = fresh;
+
+  // Clear chat history, assessments, and activity logs for fresh start
+  if (localStore.chat_messages && localStore.chat_messages[studentId]) {
+    delete localStore.chat_messages[studentId];
+  }
+  if (Array.isArray(localStore.assessments)) {
+    localStore.assessments = localStore.assessments.filter((a) => a.studentId !== studentId);
+  }
+  if (Array.isArray(localStore.activity_logs)) {
+    localStore.activity_logs = localStore.activity_logs.filter((a) => a.studentId !== studentId);
+  }
+  if (localStore.students && localStore.students[studentId]) {
+    localStore.students[studentId].studyStreak = 0;
+  }
+
   persistStore();
   return recalculateAndSyncRoadmap(fresh.id);
 }
@@ -1183,5 +1222,12 @@ export function saveStudentMcpConfig(studentId = 'student-demo-1', configUpdates
   localStore.mcp_configs[studentId] = updated;
   persistStore();
   return updated;
+}
+
+// Ensure demo student is always fresh and clean on server start (ephemeral in-memory baseline)
+try {
+  resetRoadmap('student-demo-1');
+} catch (e) {
+  // safe fallback
 }
 

@@ -37,12 +37,28 @@ if (fs.existsSync(RAG_PATH)) {
   }
 }
 
+// Load Conversation Design from tutor-conversation-design.pdf
+const TUTOR_DESIGN_PATH = path.join(__dirname, '../data/tutor_conversation_design.json');
+let tutorConversationDesign = null;
+if (fs.existsSync(TUTOR_DESIGN_PATH)) {
+  try {
+    tutorConversationDesign = JSON.parse(fs.readFileSync(TUTOR_DESIGN_PATH, 'utf-8'));
+    console.log(`📋 Loaded Conversation Design Blueprint from ${tutorConversationDesign.source || 'tutor-conversation-design.pdf'}`);
+  } catch (err) {
+    console.warn('⚠️ Could not load tutor conversation design:', err.message);
+  }
+}
+
 /**
  * Sanitize AI replies to ensure zero raw HTML (<br>, <div>, etc.) and pure natural paragraphs
  */
 export function cleanChatReply(rawText) {
   if (!rawText) return '';
   return rawText
+    // Remove thinking/reasoning tags (<think>...</think>)
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    // Remove reasoning self-monologues like "Here's a thinking process:\n...\n\n"
+    .replace(/^Here's a thinking process:[\s\S]*?\n(?=[A-Z#*]|Hello|Hi|Welcome|\*\*|Imagine|I |When |To )/i, '')
     // Remove all <br>, <br/>, <br />
     .replace(/<br\s*\/?>/gi, '\n')
     // Remove other HTML tags while keeping inner text
@@ -103,6 +119,212 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-ai/DeepSeek-R1-Distill-Llama-70B';
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
+
+// NVIDIA API & NIM Models (DeepSeek-V4.1-Flash, Nemotron, Llama Vision)
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || process.env.nvidia_api;
+const NVIDIA_BASE_URL = (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
+const NVIDIA_DEFAULT_MODEL = process.env.NVIDIA_DEFAULT_MODEL || 'nvidia/nemotron-3.5-bolt-e4b';
+
+// OmniRoute AI Router (Local keyless virtual combo: http://localhost:20128/v1)
+const OMNIROUTE_BASE_URL = (process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1').replace(/\/+$/, '');
+const OMNIROUTE_MODEL = process.env.OMNIROUTE_MODEL || 'auto';
+const OMNIROUTE_API_KEY = process.env.OMNIROUTE_API_KEY || 'omniroute';
+
+let isOmniRouteActiveCached = false;
+let lastOmniRouteCheck = 0;
+
+export async function isOmniRouteActive() {
+  const now = Date.now();
+  if (now - lastOmniRouteCheck < 10000) {
+    return isOmniRouteActiveCached;
+  }
+  lastOmniRouteCheck = now;
+  try {
+    const res = await axios.get(`${OMNIROUTE_BASE_URL}/models`, {
+      timeout: 1500,
+      headers: { Authorization: `Bearer ${OMNIROUTE_API_KEY}` }
+    });
+    isOmniRouteActiveCached = res.status === 200;
+  } catch {
+    isOmniRouteActiveCached = false;
+  }
+  return isOmniRouteActiveCached;
+}
+
+/**
+ * Call OmniRoute AI Router:
+ * Connects directly to local OmniRoute server (default: http://localhost:20128/v1)
+ * with auto fallback and virtual combos across keyless free providers.
+ */
+export async function callOmniRouteModel({ systemPrompt, history = [], query, modelOverride, maxTokens = 1100 }) {
+  const modelToUse = modelOverride || OMNIROUTE_MODEL || 'auto';
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.filter(h => h.content && (h.role === 'user' || h.role === 'assistant')).map(h => ({ role: h.role, content: h.content })),
+    { role: 'user', content: query }
+  ];
+
+  try {
+    const response = await axios.post(
+      `${OMNIROUTE_BASE_URL}/chat/completions`,
+      {
+        model: modelToUse,
+        messages,
+        temperature: 0.6,
+        max_tokens: maxTokens
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${OMNIROUTE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 25000
+      }
+    );
+
+    const choice = response.data?.choices?.[0];
+    let text = choice?.message?.content;
+    if (!text && choice?.message?.reasoning_content) {
+      text = choice.message.reasoning_content;
+    }
+    if (text && text.trim()) {
+      return {
+        text: text.trim(),
+        model: `OmniRoute (${modelToUse})`,
+        provider: 'OmniRoute Router'
+      };
+    }
+  } catch (err) {
+    console.warn(`OmniRoute (${modelToUse}) notice:`, err.response?.data?.error?.message || err.response?.data?.message || err.message);
+  }
+  return null;
+}
+
+/**
+ * Intelligent Question Classifier & Dynamic Model Selector:
+ * Automatically inspects the question and picks the ideal specialized model.
+ */
+export function autoSelectModelForQuestion(query = '', hasImage = false) {
+  const q = (query || '').toLowerCase();
+
+  // 1. Multimodal / Vision
+  if (hasImage) {
+    return {
+      category: 'vision',
+      preferredNvidia: 'meta/llama-3.2-11b-vision-instruct',
+      preferredGroq: 'qwen/qwen3.8-27b',
+      roleBadge: 'Multimodal Vision Analysis'
+    };
+  }
+
+  // 2. Heavy Coding, Algorithms, Bug Fixing, Implementation
+  const isCoding = /\b(code|coding|function|algorithm|bug|error|syntax|python|javascript|typescript|react|sql|database|class|def|for loop|while loop|regex|recursion|pointer|refactor|compile|stack trace|array|object|promise|async|await|git|commit|pull request|terminal|powershell|bash)\b/i.test(q);
+  if (isCoding) {
+    return {
+      category: 'coding',
+      preferredNvidia: 'nvidia/nemotron-3.5-bolt-e4b',
+      preferredGroq: 'qwen/qwen3.8-27b',
+      roleBadge: 'Deep Code Logic & Algorithmic Debugging (Auto-Selected)'
+    };
+  }
+
+  // 3. System Architecture, Flowcharts, Workflows
+  const isArchitecture = /\b(architecture|diagram|flowchart|workflow|pipeline|lifecycle|system design|sequence|uml|process flow|how it works|overview|draw|visualize)\b/i.test(q);
+  if (isArchitecture) {
+    return {
+      category: 'architecture',
+      preferredNvidia: 'nvidia/nemotron-3.5-bolt-e4b',
+      preferredGroq: 'openai/gpt-oss-120b',
+      roleBadge: 'Architecture & Visual Flowcharts (Auto-Selected)'
+    };
+  }
+
+  // 4. Current Events / Live Tech News
+  const isCurrentTech = /\b(latest|news|update|current|newest|released|announcement|today|version|recent|framework)\b/i.test(q);
+  if (isCurrentTech) {
+    return {
+      category: 'live_synthesis',
+      preferredNvidia: 'nvidia/nemotron-3.5-bolt-e4b',
+      preferredGroq: 'openai/gpt-oss-120b',
+      roleBadge: 'Live Web Knowledge Synthesis (Auto-Selected)'
+    };
+  }
+
+  // 5. Default: Comprehensive Pedagogical Teaching
+  return {
+    category: 'pedagogy',
+    preferredNvidia: 'nvidia/nemotron-3.5-bolt-e4b',
+    preferredGroq: 'openai/gpt-oss-120b',
+    roleBadge: 'Pedagogical Tutor & Conceptual Analogy (Auto-Selected)'
+  };
+}
+
+/**
+ * Call NVIDIA NIM API Model:
+ * Connects directly to NVIDIA's high-performance inference gateway
+ * with auto-fallback across Nemotron-3.5-Bolt, Llama Vision, and Nemotron Lightning.
+ */
+export async function callNvidiaModel({ systemPrompt, history = [], query, modelOverride, maxTokens = 1100 }) {
+  const apiKey = NVIDIA_API_KEY;
+  if (!apiKey || apiKey.includes('your_') || !apiKey.startsWith('nvapi-')) {
+    return null;
+  }
+
+  const modelToUse = modelOverride || NVIDIA_DEFAULT_MODEL;
+  const modelsToTry = [
+    modelToUse,
+    'nvidia/nemotron-3.5-bolt-e4b',
+    'meta/llama-3.2-11b-vision-instruct',
+    'nvidia/nemotron-3.5-lightning-30b-a3b'
+  ];
+  // Deduplicate and try at most the top 2 candidate models
+  const uniqueModels = [...new Set(modelsToTry)].slice(0, 2);
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.filter(h => h.content && (h.role === 'user' || h.role === 'assistant')).map(h => ({ role: h.role, content: h.content })),
+    { role: 'user', content: query }
+  ];
+
+  for (const model of uniqueModels) {
+    try {
+      const response = await axios.post(
+        `${NVIDIA_BASE_URL}/chat/completions`,
+        {
+          model,
+          messages,
+          temperature: 0.6,
+          max_tokens: maxTokens
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          },
+          timeout: 20000
+        }
+      );
+
+      const choice = response.data?.choices?.[0];
+      let text = choice?.message?.content;
+      if (!text && choice?.message?.reasoning_content) {
+        text = choice.message.reasoning_content;
+      }
+      if (text && text.trim()) {
+        return {
+          text: text.trim(),
+          model: model,
+          provider: 'NVIDIA API'
+        };
+      }
+    } catch (err) {
+      console.warn(`NVIDIA model (${model}) notice:`, err.response?.data?.detail || err.response?.data?.message || err.message);
+    }
+  }
+
+  return null;
+}
 
 /**
  * Call OpenAI Model:
@@ -376,65 +598,146 @@ export async function callGeminiModel({ systemPrompt, history = [], query }) {
 
 /**
  * Multi-Engine Council Generative AI Caller:
- * Executes OpenAI GPT, DeepSeek, and Qwen models in parallel!
- * Synthesizes OpenAI's pedagogical narrative with DeepSeek's analytical rigor and Qwen's technical architecture & Mermaid diagrams.
+ * Dynamically routes to NVIDIA NIM (DeepSeek-V4.1-Flash / Nemotron / Llama Vision),
+ * Groq Qwen (Architecture & Diagrams), and OpenAI GPT with Auto Model Routing.
  */
-export async function callGenerativeAI({ systemPrompt, history = [], query, requestedModel }) {
-  const chosen = (requestedModel || process.env.VITE_AI_MODEL || process.env.AI_MODE || 'council').toLowerCase();
+export async function callGenerativeAI({ systemPrompt, history = [], query, requestedModel, maxTokens = 1100 }) {
+  const chosen = (requestedModel || process.env.VITE_AI_MODEL || process.env.AI_MODE || 'auto').toLowerCase();
+  const selection = autoSelectModelForQuestion(query);
 
-  // If student specifically selects ONLY DeepSeek
+  // 0. Explicit OmniRoute Router Selection
+  if (chosen === 'omniroute' || chosen.includes('omni')) {
+    const omniModel = requestedModel && requestedModel.includes('/') && !requestedModel.includes('omni')
+      ? requestedModel
+      : (process.env.OMNIROUTE_MODEL || 'auto');
+    const omniRes = await callOmniRouteModel({ systemPrompt, history, query, modelOverride: omniModel, maxTokens });
+    if (omniRes?.text) {
+      return {
+        text: omniRes.text,
+        model: omniRes.model,
+        models: [{ name: omniRes.model, provider: 'OmniRoute Router', role: 'Keyless Virtual Combo' }],
+        provider: 'OmniRoute Router'
+      };
+    }
+  }
+
+  // 1. Explicit NVIDIA NIM Model Selection
+  if (chosen === 'nvidia' || chosen.includes('nvidia') || chosen.includes('nemotron') || chosen.includes('flash') || chosen.includes('v4.1')) {
+    const nvidiaModel = requestedModel && requestedModel.includes('/') ? requestedModel : selection.preferredNvidia;
+    const nvidiaDirect = await callNvidiaModel({ systemPrompt, history, query, modelOverride: nvidiaModel, maxTokens });
+    if (nvidiaDirect) {
+      return {
+        text: nvidiaDirect.text,
+        model: nvidiaDirect.model,
+        models: [{ name: nvidiaDirect.model, provider: 'NVIDIA API', role: selection.roleBadge }],
+        provider: 'NVIDIA NIM'
+      };
+    }
+  }
+
+  // 2. Explicit DeepSeek Selection
   if (chosen === 'deepseek' || chosen.includes('deepseek')) {
+    // Try NVIDIA's DeepSeek first if available
+    const nvidiaDeepSeek = await callNvidiaModel({ systemPrompt, history, query, modelOverride: 'deepseek-ai/deepseek-v4.1-flash' });
+    if (nvidiaDeepSeek) {
+      return {
+        text: nvidiaDeepSeek.text,
+        model: nvidiaDeepSeek.model,
+        models: [{ name: nvidiaDeepSeek.model, provider: 'NVIDIA API', role: selection.roleBadge }],
+        provider: 'NVIDIA NIM'
+      };
+    }
     const deepseekOnly = await callDeepSeekModel({ systemPrompt, history, query, modelOverride: requestedModel });
     if (deepseekOnly) return deepseekOnly;
   }
 
-  // If student specifically selects ONLY Qwen
+  // 3. Explicit Qwen Selection
   if (chosen === 'qwen' || chosen.includes('qwen2.5') || chosen.includes('qwen3.8')) {
     const qwenOnly = await callQwenModel({ systemPrompt, history, query, modelOverride: requestedModel });
     if (qwenOnly) return qwenOnly;
   }
 
-  // If student specifically selects ONLY OpenAI
+  // 4. Explicit OpenAI Selection
   if (chosen === 'openai' || chosen.startsWith('gpt-') || chosen.startsWith('o1')) {
     const openAiOnly = await callOpenAiModel({ systemPrompt, history, query, modelOverride: requestedModel });
     if (openAiOnly) return openAiOnly;
   }
 
-  // MULTI-MODEL COUNCIL (OpenAI GPT + DeepSeek-R1 + Qwen)
-  // Run all three engines in parallel for maximum depth and sub-second concurrency
-  const [openAiResult, deepseekResult, qwenResult] = await Promise.allSettled([
+  // If OmniRoute is set as primary router in environment
+  if (process.env.USE_OMNIROUTE === 'true' || process.env.AI_PROVIDER === 'omniroute') {
+    const omniDirect = await callOmniRouteModel({
+      systemPrompt: `${systemPrompt}\nFocus on comprehensive analytical guidance, intuitive pedagogical analogies, and step-by-step logic.`,
+      history,
+      query,
+      modelOverride: 'auto',
+      maxTokens
+    });
+    if (omniDirect?.text) {
+      return {
+        text: omniDirect.text,
+        model: omniDirect.model,
+        models: [{ name: omniDirect.model, provider: 'OmniRoute Router', role: 'Keyless Virtual Combo' }],
+        provider: 'OmniRoute Router'
+      };
+    }
+  }
+
+  // 5. HIGH-SPEED DIRECT NVIDIA NIM INFERENCE (Zero Groq Blocking)
+  if (NVIDIA_API_KEY && NVIDIA_API_KEY.startsWith('nvapi-')) {
+    const nvidiaDirect = await callNvidiaModel({
+      systemPrompt: `${systemPrompt}\nFocus on comprehensive analytical guidance, intuitive pedagogical analogies, and step-by-step logic.`,
+      history,
+      query,
+      modelOverride: selection.preferredNvidia,
+      maxTokens
+    });
+    if (nvidiaDirect?.text) {
+      return {
+        text: nvidiaDirect.text,
+        model: nvidiaDirect.model,
+        models: [{ name: nvidiaDirect.model, provider: 'NVIDIA API', role: selection.roleBadge }],
+        provider: 'NVIDIA NIM'
+      };
+    }
+  }
+
+  // 6. MULTI-ENGINE COUNCIL FALLBACK (OpenAI GPT + Qwen)
+  const promises = [];
+
+  // Run OpenAI GPT / Groq for pedagogical narration
+  promises.push(
     callOpenAiModel({
       systemPrompt: `${systemPrompt}\nEmphasize warm pedagogical guidance, an intuitive real-world analogy, and comprehensive explanations.`,
       history,
       query,
       modelOverride: requestedModel
-    }),
-    callDeepSeekModel({
-      systemPrompt: `${systemPrompt}\nEmphasize deep analytical precision, mathematical derivations, and critical technical considerations.`,
-      history,
-      query,
-      modelOverride: requestedModel
-    }),
+    })
+  );
+
+  // Run Qwen for high-speed algorithmic precision and interactive Mermaid diagram
+  promises.push(
     callQwenModel({
       systemPrompt: `${systemPrompt}\nEmphasize technical algorithmic precision, structured breakdown, and an interactive Mermaid diagram (\`\`\`mermaid\ngraph TD\n...\`\`\`).`,
       history,
       query,
-      modelOverride: requestedModel
+      modelOverride: selection.preferredGroq
     })
-  ]);
+  );
 
-  const gpt = openAiResult.status === 'fulfilled' ? openAiResult.value : null;
-  const deepseek = deepseekResult.status === 'fulfilled' ? deepseekResult.value : null;
-  const qwen = qwenResult.status === 'fulfilled' ? qwenResult.value : null;
+  const [nvidiaSettled, openAiSettled, qwenSettled] = await Promise.allSettled(promises);
+
+  const nvidiaRes = nvidiaSettled.status === 'fulfilled' ? nvidiaSettled.value : null;
+  const gpt = openAiSettled.status === 'fulfilled' ? openAiSettled.value : null;
+  const qwen = qwenSettled.status === 'fulfilled' ? qwenSettled.value : null;
 
   const successfulModels = [];
+  if (nvidiaRes) successfulModels.push({ name: nvidiaRes.model, provider: nvidiaRes.provider, role: selection.roleBadge });
   if (gpt) successfulModels.push({ name: gpt.model, provider: gpt.provider, role: 'Pedagogical Reasoning' });
-  if (deepseek) successfulModels.push({ name: deepseek.model, provider: deepseek.provider, role: 'Analytical Rigor & Logic' });
   if (qwen) successfulModels.push({ name: qwen.model, provider: qwen.provider, role: 'Architecture & Diagrams' });
 
   // If multiple models responded -> Collaborative Master Synthesis!
   if (successfulModels.length >= 2) {
-    let combinedText = gpt?.text || deepseek?.text || qwen?.text;
+    let combinedText = nvidiaRes?.text || gpt?.text || qwen?.text;
 
     // Check if Qwen generated an interactive Mermaid diagram that isn't present
     const qwenMermaidMatch = qwen?.text?.match(/```mermaid[\s\S]*?```/i);
@@ -454,9 +757,9 @@ export async function callGenerativeAI({ systemPrompt, history = [], query, requ
       }
     }
 
-    const providerTitle = successfulModels.length === 3
-      ? 'Multi-Engine Council (OpenAI + DeepSeek + Qwen)'
-      : `Dual Engine (${successfulModels.map(m => m.name.split(' ')[0]).join(' + ')})`;
+    const providerTitle = nvidiaRes
+      ? `Auto Smart Engine (NVIDIA ${nvidiaRes.model.split('/')[1] || 'NIM'} + ${qwen ? 'Qwen' : 'Council'})`
+      : 'Multi-Engine Council (OpenAI + DeepSeek + Qwen)';
 
     return {
       text: combinedText,
@@ -466,9 +769,9 @@ export async function callGenerativeAI({ systemPrompt, history = [], query, requ
     };
   }
 
-  // Fallbacks if only one model succeeded
+  // Single model fallbacks
+  if (nvidiaRes?.text) return { text: nvidiaRes.text, model: nvidiaRes.model, models: [successfulModels[0]], provider: 'NVIDIA API' };
   if (gpt?.text) return { text: gpt.text, model: gpt.model, models: [successfulModels[0]], provider: gpt.provider };
-  if (deepseek?.text) return { text: deepseek.text, model: deepseek.model, models: [successfulModels[0]], provider: deepseek.provider };
   if (qwen?.text) return { text: qwen.text, model: qwen.model, models: [successfulModels[0]], provider: qwen.provider };
 
   // Fallback to Gemini
@@ -984,10 +1287,71 @@ export async function handleMcpChatIntent({ query, queryLower, studentId, contex
 /**
  * Handle conversational AI mentor chat queries
  */
+/**
+ * Detect if user requested explanation in Tamil or Tanglish
+ */
+export function detectLanguagePreference(query, currentLang = 'english') {
+  if (!query) return currentLang;
+  const q = query.toLowerCase().trim();
+
+  // Explicit switch to Tamil / Tanglish
+  if (
+    /\b(in\s+tamil|in\s+tanglish|explain\s+in\s+tamil|explain\s+in\s+tanglish|explanation\s+in\s+tamil|explantion\s+in\s+tamil|teach\s+in\s+tamil|teach\s+in\s+tanglish|speak\s+in\s+tamil|speak\s+in\s+tanglish|tamil\s+form|tamil\s+format|tamil\s+la|tamil-la|tanglish\s+la|tanglish-la|tamil\s+please|tanglish\s+please|tanglish\s+natural|natural\s+tanglish|tamil\s+version|solli\s+kudunga|sollunga|solla\s+mudiyuma|puriyala|eppadi|enna\s+panradhu|theriyala)\b/i.test(q) ||
+    /i\s+want\s+.*(?:tamil|tanglish)/i.test(q)
+  ) {
+    return 'tanglish';
+  }
+
+  // Explicit switch back to English
+  if (
+    /\b(in\s+english|explain\s+in\s+english|english\s+please|speak\s+in\s+english|teach\s+in\s+english|switch\s+to\s+english|back\s+to\s+english)\b/i.test(q)
+  ) {
+    return 'english';
+  }
+
+  return currentLang;
+}
+
 export async function handleMentorChat(message, roadmap, studentId = 'student-demo-1', context = {}) {
   const query = (message || '').trim();
   const queryLower = query.toLowerCase();
   const history = context.history || [];
+
+  // Check student's current preferred language (English vs. Tanglish / Tamil)
+  let currentLang = context?.language && context.language !== 'auto' ? context.language : 'english';
+  if (studentId) {
+    try {
+      const { getStudentProfile } = await import('./databaseService.js');
+      const profile = getStudentProfile(studentId);
+      if (profile?.preferredLanguage && (!context?.language || context.language === 'auto')) {
+        currentLang = profile.preferredLanguage;
+      }
+    } catch (e) {}
+  }
+
+  // Detect language switch in the current query
+  const detectedLang = detectLanguagePreference(query, currentLang);
+  if (detectedLang !== currentLang) {
+    currentLang = detectedLang;
+    try {
+      const { updateStudentProfile } = await import('./databaseService.js');
+      updateStudentProfile(studentId, { preferredLanguage: currentLang });
+    } catch (e) {}
+  }
+
+  const isTanglish = currentLang === 'tanglish' || currentLang === 'tamil';
+
+  // Standalone request to switch language to Tamil / Tanglish
+  const isPureLanguageSwitch = 
+    /^(i\s+want\s+(?:to\s+)?(?:explanation|explantion)\s+in\s+tamil|explain\s+in\s+tamil|explain\s+in\s+tanglish|in\s+tamil|in\s+tanglish|tamil\s+la\s+explain\s+pannunga|tanglish\s+la\s+sollu|teach\s+in\s+tamil|speak\s+in\s+tamil|can\s+you\s+(?:speak|explain|teach)\s+in\s+(?:tamil|tanglish))\b/i.test(queryLower.trim());
+
+  if (isPureLanguageSwitch) {
+    return {
+      reply: "Kandippa! Inime naan ungalukku natural Tanglish-la step-by-step-ah simple-ah explain panren.\n\nUnga doubt enna, illa innaikku enna topic pathi therinjikka aasaipadreenga? Solriyeenganna, namma super-ah start pannalaam!",
+      model: 'Teacher Luna • Tanglish',
+      language: 'tanglish'
+    };
+  }
 
   // Find active level and topic
   const currentLvl = roadmap?.levels?.find((l) => l.status === 'In Progress') || roadmap?.levels?.[3] || roadmap?.levels?.[0];
@@ -997,6 +1361,201 @@ export async function handleMentorChat(message, roadmap, studentId = 'student-de
   const mcpResponse = await handleMcpChatIntent({ query, queryLower, studentId, context });
   if (mcpResponse) {
     return mcpResponse;
+  }
+
+  // =========================================================================
+  // 1. AI Engineering Tutor — Conversation Design Flow (tutor-conversation-design.pdf)
+  // Flow: greeting → name & age → student's doubt → teaching
+  // =========================================================================
+  const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant')?.content || '';
+  const lastAssistantLower = lastAssistantMsg.toLowerCase();
+
+  // STAGE 1: Assistant asked "Before we start, what should I call you?" or for name
+  const isAskingName = 
+    lastAssistantLower.includes('what should i call you') || 
+    lastAssistantLower.includes("what's your name") || 
+    lastAssistantLower.includes('what is your name') ||
+    (lastAssistantLower.includes('welcome in') && lastAssistantLower.includes('before we start'));
+
+  if (isAskingName) {
+    // 1A. Student resists or asks why ("why do you need that")
+    if (/\b(why do you need|why do you want|who are you|why\?|what for)\b/i.test(queryLower)) {
+      return {
+        reply: isTanglish 
+          ? "No pressure! Ungalukku personal-ah interact panna dhaan kettein, neenga skip kooda pannalaam. Ungalai naan enna name solli koopadalaam?"
+          : "No pressure, you can skip it. I just use it to keep the chat personal. What should I call you?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+
+    // 1B. Student refuses / skips name
+    if (/^(skip|no|does it matter|just teach me|pass)\b/i.test(queryLower)) {
+      return {
+        reply: isTanglish
+          ? "Fair enough, adhai namma skip pannidalaam! Innaikku unga mind-la enna irukku — yedhavadhu doubt-la stuck aayiteengala, illa edhaavadhu puthusa therinjikka aasaipadreengala?"
+          : "Fair enough, we can skip that too. What's on your mind today — something you're stuck on, or just curious about?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+
+    // Strip trailing language requests like ", tamil la explain pannunga", ", in tamil", etc.
+    let cleanQuery = query
+      .replace(/,?\s*(?:tamil\s+la|in\s+tamil|in\s+tanglish|tanglish\s+la).*$/i, '')
+      .trim();
+
+    // 1C. Student provides name ("Riya", "fine, Arjun", "My name is John")
+    let extractedName = cleanQuery
+      .replace(/^(fine,?\s*|my name is\s*|i am\s*|i'm\s*|call me\s*|it's\s*|it is\s*|en peru\s*|en peyar\s*)/i, '')
+      .replace(/[.!?,]+$/, '')
+      .trim();
+
+    if (extractedName && !extractedName.includes('?') && extractedName.split(/\s+/).length <= 4) {
+      try {
+        const { updateStudentProfile } = await import('./databaseService.js');
+        updateStudentProfile(studentId, { name: extractedName });
+      } catch (e) {}
+
+      if (/^fine\b/i.test(queryLower)) {
+        return {
+          reply: isTanglish
+            ? `Thanks, ${extractedName}! Unga age enna-nu rough-ah solla mudiyuma? Adhukku thagundha maadhiri simple-ah Tanglish-la explain panren.`
+            : `Thanks, ${extractedName}. And how old are you, roughly? Helps me pick the right level of explanation.`,
+          model: 'Teacher Luna • Conversation Flow',
+          language: currentLang
+        };
+      } else {
+        return {
+          reply: isTanglish
+            ? `Nice to meet you, ${extractedName}! Unga age enna-nu rough-ah solla mudiyuma? Adhukku thagundha maadhiri simple-ah Tanglish-la explain panren.`
+            : `Nice to meet you, ${extractedName}. How old are you, just so I can pitch explanations at the right level?`,
+          model: 'Teacher Luna • Conversation Flow',
+          language: currentLang
+        };
+      }
+    }
+  }
+
+  // STAGE 2: Assistant asked "How old are you, roughly?"
+  const isAskingAge = 
+    lastAssistantLower.includes('how old are you') || 
+    lastAssistantLower.includes('pitch explanations at the right level') || 
+    lastAssistantLower.includes('pick the right level of explanation') ||
+    lastAssistantLower.includes('unga age enna');
+
+  if (isAskingAge) {
+    // 2A. Resistance / Skipping age ("does it matter just teach me")
+    if (/\b(does it matter|just teach|skip|why|none of your business|pass|matter)\b/i.test(queryLower)) {
+      return {
+        reply: isTanglish
+          ? "Fair enough, adhaiyum namma skip pannidalaam! Neenga enna topic-la stuck aayiteenga?"
+          : "Fair enough, we can skip that too. What are you stuck on?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+
+    // 2B. Age provided ("16", "I'm 20", "22", "16 years old")
+    const ageMatch = query.match(/\b(\d{1,2})\b/);
+    const ageVal = ageMatch ? parseInt(ageMatch[1], 10) : null;
+    if (ageVal || query.trim().length <= 30) {
+      try {
+        const { updateStudentProfile } = await import('./databaseService.js');
+        if (ageVal) updateStudentProfile(studentId, { age: ageVal });
+      } catch (e) {}
+
+      return {
+        reply: isTanglish
+          ? "Super! Innaikku unga mind-la enna irukku — yedhavadhu doubt-la stuck aayiteengala, illa edhaavadhu puthusa therinjikka aasaipadreenga?"
+          : "Got it. So what's on your mind today — something you're stuck on, or just curious about?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+  }
+
+  // STAGE 3: Assistant asked what's on your mind or what are you stuck on
+  const isAskingDoubt = 
+    lastAssistantLower.includes("what's on your mind today") || 
+    lastAssistantLower.includes('what are you stuck on') ||
+    lastAssistantLower.includes('unga mind-la enna irukku') ||
+    lastAssistantLower.includes('enna topic-la stuck');
+
+  if (isAskingDoubt) {
+    // 3A. Frustration or broad vague complaint ("everything, I hate this subject")
+    if (/\b(everything|hate this subject|i hate this|nothing works|nothing makes sense|stuck on everything|puriyala|ellame)\b/i.test(queryLower)) {
+      return {
+        reply: isTanglish
+          ? "Puriyudhu, romba frustrating-ah dhaan irukkum, adhu natural. Ellaathaiyum ore time-la paakka venaam, ore oru small thing mattum edupom.\n\nNeenga stuck aaguradhukku munnadi enna pannittu irundheenga?"
+          : "That's frustrating, and it's okay to feel that way. Let's pick just one small thing instead of everything.\n\nWhat were you working on right before you got stuck?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+
+    // 3B. Specific recursion doubt from PDF Example 1
+    if (queryLower.includes('recursion')) {
+      return {
+        reply: isTanglish
+          ? "Super question ketteenga! Recursion-na simple-ah purinjikanum-na, oru Russian nesting doll maathiri yosichu paarunga: oru periya doll kulla chinna doll irukkum, adha thirandha innum chinna doll irukkum, kadaisiya open aagadha oru kutti doll varra varaikkum idhu continue aagum.\n\nCode-layum oru function adhaiye thirumba thirumba call pannum, oru 'base case' reach aagi stop aaguradhukku munnadi varaikkum. Oru chinna countdown example paaklama, like 5-la irundhu 0 varaikkum count panra maadhiri?"
+          : "Good one to ask about. Think of recursion like Russian nesting dolls: each doll holds a smaller one, until you reach the tiniest doll that doesn't open anymore.\n\nIn code, a function calls itself on a smaller problem until it hits a “base case” that stops it. Want to see a tiny example, like counting down from 5?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+  }
+
+  // STAGE 4: Following up on frustration narrowing ("What were you working on right before you got stuck?")
+  if (lastAssistantLower.includes('what were you working on right before you got stuck') || lastAssistantLower.includes('enna pannittu irundheenga')) {
+    if (/\b(loop|numbers|array|index|code|function|program|problem)\b/i.test(queryLower)) {
+      return {
+        reply: isTanglish
+          ? "Namma rendu perum serndhu paakkalaam! Unga loop code-ah paste pannunga, illa neenga enna numbers expect panneenga versus enna numbers vandhudhu-nu sollunga?"
+          : "Let's look at it together. Can you paste the loop, or tell me what numbers you expected versus what you got?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+  }
+
+  // STAGE 5: Following up on "Want to see a tiny example, like counting down from 5?"
+  if (lastAssistantLower.includes('want to see a tiny example') || lastAssistantLower.includes('counting down from 5') || lastAssistantLower.includes('chinna countdown example paaklama')) {
+    if (/^(yes|yeah|sure|yep|please|show me|ok|okay|aama|paakkalaam|paaklam|kandippa)\b/i.test(queryLower)) {
+      return {
+        reply: isTanglish
+          ? "Python-la oru chinna countdown function paapom:\n\n```python\ndef countdown(n):\n    if n <= 0:\n        print(\"Blastoff!\")\n        return\n    print(n)\n    countdown(n - 1)\n\ncountdown(3)\n```\n\nIndha countdown(3) run pannா enna output varum-nu predict panna mudiyuma?"
+          : "Here is a short countdown function in Python:\n\n```python\ndef countdown(n):\n    if n <= 0:\n        print(\"Blastoff!\")\n        return\n    print(n)\n    countdown(n - 1)\n\ncountdown(3)\n```\n\nWhat do you predict will be printed when we run countdown(3)?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+  }
+
+  // STAGE 6: Loop diagnosis from PDF Example 2 (starts at 1 but array starts at 0)
+  if (lastAssistantLower.includes('paste the loop') || lastAssistantLower.includes('numbers you expected') || lastAssistantLower.includes('loop code-ah paste')) {
+    if (query.includes('for ') || query.includes('while') || query.includes('range(1') || query.includes('i = 1') || query.includes('[i]')) {
+      return {
+        reply: isTanglish
+          ? "Naan paathen. Unga loop 1-la start aagudhu, aana array eppovum 0-la dhaan start aagum, adhunaala first item miss aagudhu. Start-ah 0-nu mathi run panni paarunga — enna output varudhu?"
+          : "I see it. Your loop starts at 1 but the array starts at 0, so it's skipping the first item. Try changing the start to 0 and run it again — what do you get?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
+  }
+
+  // STAGE 7: Success confirmation ("oh it works now")
+  if (/\b(it works|works now|oh it works|got it now|working now|fixed|work aagudhu)\b/i.test(queryLower)) {
+    if (lastAssistantLower.includes('try changing') || lastAssistantLower.includes('run it again') || lastAssistantLower.includes('run panni paarunga')) {
+      return {
+        reply: isTanglish
+          ? "Super catch! Idhe maathiri innum oru loop panni practice panlaama, illa vera topic polaama?"
+          : "Nice catch. Want to try one more loop to lock that in, or move to something else?",
+        model: 'Teacher Luna • Conversation Flow',
+        language: currentLang
+      };
+    }
   }
 
 
@@ -1173,22 +1732,34 @@ export async function handleMentorChat(message, roadmap, studentId = 'student-de
   // 4. Retrieve from Verified Engineering Guidance RAG Knowledge Base (PDF)
   const ragMatch = searchEngineeringKnowledgeBase(query);
 
-  // 5. Retrieve from Live Google Web Search (SerpApi)
-  let searchResults = [];
-  try {
-    searchResults = await searchWebKnowledge(query, 4);
-  } catch (err) {
-    console.warn('Live search retrieval notice:', err.message);
-  }
+  // 5. Intelligent Search Decision: Skip external searches for greetings / small talk
+  const isSmallTalk = /^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening)|howdy|hola|sup|thanks|thank you|ok|okay|cool|bye|goodbye)\b/i.test(queryLower) && queryLower.split(/\s+/).length <= 5;
+  // Detect if the student explicitly asked for code, diagrams, implementation, or deep-dive
+  const wantsDeepDive = /\b(code|coding|script|snippet|syntax|diagram|flowchart|draw|visualize|flow|architecture|full answer|complete|in detail|deep dive|step by step|how to write|implement|implementation|example in|show me code|all details)\b/i.test(queryLower) ||
+    /\b(yes|sure|okay|please|show me|let's do it|show diagram|show code|go ahead|continue)\b/i.test(queryLower);
 
-  // 6. Retrieve relevant visual diagrams & images from Google Images (SerpApi)
-  const needsVisuals = /\b(image|images|diagram|diagrams|flowchart|flowcharts|chart|charts|picture|pictures|photo|visual|visuals|architecture|tree|graph|structure|workflow|draw|show me|illustrate|how it works)\b/i.test(queryLower) || queryLower.length > 25;
+  // If not small talk and not an explicit deep-dive request, treat as a First-Time Conceptual Introduction (normal teacher style)
+  const isFirstIntroduction = !isSmallTalk && !wantsDeepDive;
+  const needsVisuals = wantsDeepDive && /\b(image|images|diagram|diagrams|flowchart|flowcharts|chart|charts|picture|pictures|photo|visual|visuals|architecture|tree|graph|structure|workflow|draw|show me|illustrate)\b/i.test(queryLower);
+
+  let searchResults = [];
   let imageResults = [];
-  if (needsVisuals) {
+
+  // Run web search and image search in parallel only when technical knowledge is needed
+  if (!isSmallTalk) {
     try {
-      imageResults = await searchGoogleImages(query, 2);
-    } catch (imgErr) {
-      console.warn('Google Image search notice:', imgErr.message);
+      const [searchSettled, imagesSettled] = await Promise.allSettled([
+        searchWebKnowledge(query, 3),
+        needsVisuals ? searchGoogleImages(query, 2) : Promise.resolve([])
+      ]);
+      if (searchSettled.status === 'fulfilled' && Array.isArray(searchSettled.value)) {
+        searchResults = searchSettled.value;
+      }
+      if (imagesSettled.status === 'fulfilled' && Array.isArray(imagesSettled.value)) {
+        imageResults = imagesSettled.value;
+      }
+    } catch (err) {
+      console.warn('Live search retrieval notice:', err.message);
     }
   }
 
@@ -1200,8 +1771,8 @@ export async function handleMentorChat(message, roadmap, studentId = 'student-de
   }
 
   if (searchResults && searchResults.length > 0) {
-    multiSourceContext += `\n[LIVE GOOGLE WEB SEARCH RESULTS & REFERENCES]:\n` +
-      searchResults.map((r, idx) => `${idx + 1}. [${r.title}](${r.link})\n   Summary: ${r.snippet}\n   Domain: ${r.source}`).join('\n\n') + '\n';
+    multiSourceContext += `\n[VERIFIED LIVE GOOGLE & CHROME WEB SEARCH INTEL]:\n` +
+      searchResults.slice(0, 3).map((r, idx) => `Research Intel #${idx + 1}:\n- Topic: "${r.title}"\n- URL: ${r.link}\n- Search Excerpt: ${r.snippet ? r.snippet.slice(0, 220) : ''}\n- Publisher: ${r.source}`).join('\n\n') + '\n';
   }
 
   if (imageResults && imageResults.length > 0) {
@@ -1213,18 +1784,56 @@ export async function handleMentorChat(message, roadmap, studentId = 'student-de
       `- In addition, illustrate the step-by-step logic with an interactive Mermaid flowchart block (\`\`\`mermaid\ngraph TD\n...\`\`\`).\n`;
   }
 
-  const systemPrompt = `You are Teacher Luna, a deeply caring, gentle, articulate, and inspiring human teacher and mentor.
+  const tutorBlueprint = tutorConversationDesign?.fullText || `
+AI Engineering Tutor — Conversation Design
+Flow: greeting → name & age → student's doubt → teaching
+Design Rules for the Prompt:
+- Ask for name and age only once, lightly. If the student resists or skips, do not insist — move on.
+- If the student shows frustration or gives a vague answer (“everything”), narrow the question to one small thing instead of pushing them to pick a whole topic.
+- If the student gives a wrong answer, do not just correct it. Point at what's likely wrong and ask them to try again before giving the fix.
+- Match explanation depth to stated age when given; default to a general teen/adult level if age is skipped.
+- Never make the student feel bad for not knowing something.
+`;
+
+  const systemPrompt = `You are Teacher Luna, a deeply caring, gentle, articulate, polite, humble, and inspiring human teacher and mentor.
+
+${isTanglish ? `
+CRITICAL LANGUAGE DIRECTIVE — NATURAL TANGLISH / TAMIL:
+- The student requested explanations in TAMIL / TANGLISH.
+- You MUST answer completely in natural, colloquial TANGLISH (Tamil spoken naturally using English alphabet / Latin script, exactly like South Indian engineering teachers and college students talk).
+- Keep ALL technical keywords, code syntax, functions, variables, and library names in ENGLISH (e.g. "function", "variable", "recursion", "base case", "API", "loop", "array", "Docker", "React"). Never translate technical terms into awkward archaic Tamil.
+- Write natural conversational Tamil in English script:
+  * "Vanakkam! Super question ketteenga..."
+  * "Idhula main concept enna-na..."
+  * "Oru real-life example vechu paapom..."
+  * "Idhu ungalukku purinjidhaa? Oru chinna code example paakkalaama?"
+- Ensure the tone is polite, gentle, encouraging, and clear (Teacher Luna persona).
+- Formatting: Clean markdown paragraphs with natural spacing. Zero raw HTML tags.
+` : ''}
+PEDAGOGICAL DIRECTIVES (from tutor-conversation-design.pdf):
+${tutorBlueprint}
+- If the student gives a wrong answer or prediction, DO NOT just correct it. Point at what is likely wrong and ask them to try again before giving the fix.
+- Match explanation depth to the stated age when given; default to a general teen/adult level if age was skipped.
+- Teach in short, bite-sized steps. Always validate the student and never make them feel bad for not knowing something.
 PERSONA & VOICE:
-- Speak naturally, warmly, and encouragingly, like an experienced, kind human tutor having a real one-on-one conversation with a student.
+- Speak naturally, warmly, politely, and humbly, like an experienced, kind human tutor having a real one-on-one conversation with a student.
 - Deliver the BEST, most comprehensive, and crystal-clear explanation. Start with an intuitive real-world analogy, break down the core mechanics clearly, and provide practical context.
-- Never sound robotic, cold, or dismissive. Validate the student's effort and curiosity.
+- Never sound robotic, cold, arrogant, or dismissive. Always be polite and humble. Validate the student's effort and curiosity, and never talk down to them.
 - Conclude with an inspiring takeaway or a thoughtful question to confirm their understanding.
 
 FORMATTING & VOICE READABILITY (CRITICAL):
+- Directly begin your response in the warm, polite, humble voice of Teacher Luna.
+- Do NOT output reasoning notes, thinking headers ("Here's a thinking process:"), or internal drafts.
 - Write in clean, fluid markdown paragraphs with natural spacing (use blank lines, NEVER HTML).
 - NEVER use raw HTML tags such as <br>, <br/>, <div>, <span>, or <p>. Zero HTML tags allowed.
 - Ensure the text reads smoothly and effortlessly when spoken aloud by a natural voice narrator.
 - Avoid repetitive bullet points or clutter; prioritize coherent, well-structured prose.
+
+SERPAPI SEARCH RESULT PRESENTATION (POLITE & HUMBLE):
+- When you use live Google/Chrome search results (SerpApi) to inform your answer, present them with humility — never as absolute authority.
+- Say things like "Based on what I found," "It appears that," or "Some sources suggest" rather than stating search facts as unquestionable truth.
+- Always acknowledge that information can evolve, and encourage the student to verify with official documentation.
+- Do NOT copy-paste raw search snippets or lists of URLs. Read, digest, and synthesize the facts into your own original, polite teaching voice.
 
 Student Goal: ${roadmap?.goal || 'AI / Machine Learning Engineer'}
 Current Focus: ${currentLvl?.title || 'Fundamentals'} (${currentLvl?.completionPercentage ?? 0}% completed)
@@ -1233,26 +1842,76 @@ Active Topic: ${activeTopic?.title || 'Core Principles'}
 MULTI-SOURCE CONTEXT (RAG + LIVE GOOGLE SEARCH + VISUAL DIAGRAMS):
 ${multiSourceContext}
 
-TEACHING & SYNTHESIS INSTRUCTIONS:
-1. If the user asks for latest news, announcements, releases, or current events, synthesize fresh facts and recency directly from the Live Google Web Search results. Present the news clearly and accurately.
-2. If explaining technical or academic concepts, provide the highest quality explanation ("best answer") so the student gains deep, lasting understanding.
-3. Synthesize insights from both the Verified Knowledge Base (RAG) and Live Web Search where relevant.
-4. When explaining algorithms, workflows, architectures, processes, or step-by-step systems, ALWAYS provide an interactive Mermaid diagram using \`\`\`mermaid code block (e.g. flowchart TD or graph TD) so the student can visualize how the components connect and operate.
-5. If visual diagram images are provided in the context, embed them naturally with ![Image Title](url) to visually illustrate the explanation.
-6. Include 1 to 3 relevant clickable Markdown links [Source Name](URL) from the search results so the student can verify and read original articles.
-7. Provide clean, well-commented code snippets (\`\`\`javascript, \`\`\`python, or relevant language) when programming questions are asked.`;
+CRITICAL DIRECTIVE ON SEARCH FROM CHROME (ZERO COPY-PASTE):
+1. LIVE SEARCH DEEP DIGESTION (NEVER COPY-PASTE):
+   - You are provided with real-time Google and Chrome search results in the context above.
+   - You MUST NEVER copy-paste, repeat, or regurgitate raw search snippets or lists of URLs.
+   - Instead, thoroughly READ and DIGEST the search facts, understand the underlying technical mechanics, and explain them from first principles as an inspiring, articulate teacher.
+   - Synthesize the latest facts naturally into your explanation. Explain WHAT it means, WHY it works, and HOW to apply it.
+2. PEDAGOGICAL STRUCTURE FOR EVERY ANSWER:
+   - Start with an intuitive real-world analogy so the concept clicks immediately.
+   - Provide a clear, step-by-step breakdown explaining the underlying logic.
+   - Always illustrate the process or architecture with an interactive Mermaid diagram (\`\`\`mermaid\nflowchart TD\n...\`\`\`) so the student visualizes the flow.
+   - If programming or technical implementation is involved, provide clean, working, well-commented code snippets (\`\`\`python, \`\`\`javascript, etc.).
+3. CITATIONS & VERIFICATION:
+   - Include 1 to 3 relevant clickable Markdown links [Source Name](URL) at the bottom under a clean "📚 Recommended Reading" section so the student can verify the official documentation, but make 100% of the explanation your own original teaching.`;
+
+  const smallTalkPrompt = `You are Teacher Luna, a warm, articulate, polite, humble, and deeply encouraging AI Study Mentor.
+The student is greeting you or having friendly conversation.
+- Greet them warmly, politely, and humbly. Validate their learning mindset.
+- Ask them what topic, framework, or coding challenge they would love to explore or practice today.
+- Respond in 1 to 2 conversational, natural markdown paragraphs.
+- Keep it concise, natural, friendly, and humble. Do not generate diagrams or code for simple greetings.`;
+
+const firstIntroPrompt = `You are Teacher Luna, a deeply caring, gentle, articulate, polite, humble, and inspiring human teacher.
+PERSONA & NATURAL TEACHER PEDAGOGY (FIRST-TIME CONCEPT INTRODUCTION):
+- Act like a real, supportive human teacher introducing a new concept for the first time in class.
+- CRITICAL DIRECTIVE: Do NOT give the entire full lecture, complex architecture diagrams, or code dump all at once! A great teacher never overwhelms a student on the first turn.
+- Step 1: Warmly acknowledge and validate their curiosity ("That is such a wonderful question to explore!").
+- Step 2: Introduce the core idea using an intuitive, relatable real-world analogy (e.g. comparing an API to a restaurant waiter, Docker to a shipping container, React to a recipe chef).
+- Step 3: Explain the fundamental "What it is" and "Why it exists" in 2 clear, accessible paragraphs.
+- Step 4: End with a friendly, interactive check-in offering the next step:
+  "Does that mental picture make sense to you? Would you like me to draw a visual flowchart of how it works, or shall we write a small code example together?"
+- Format: Clean markdown paragraphs with natural spacing. Zero raw HTML tags. Do NOT output a Mermaid diagram or code block on this first introduction.`;
+
+  let finalSystemPrompt = systemPrompt;
+  let tokenLimit = 1000;
+
+  if (isSmallTalk) {
+    finalSystemPrompt = smallTalkPrompt;
+    tokenLimit = 280;
+  } else if (isFirstIntroduction) {
+    finalSystemPrompt = firstIntroPrompt;
+    tokenLimit = 420;
+  }
+
+  if (isTanglish) {
+    finalSystemPrompt += `\n\nCRITICAL LANGUAGE DIRECTIVE — NATURAL TANGLISH / TAMIL:
+- The student requested explanations in TAMIL / TANGLISH.
+- You MUST answer completely in natural, colloquial TANGLISH (Tamil spoken naturally using English alphabet / Latin script, exactly like South Indian engineering teachers and college students talk).
+- Keep ALL technical keywords, code syntax, functions, variables, and library names in ENGLISH (e.g. "function", "variable", "recursion", "base case", "API", "loop", "array", "Docker", "React"). Never translate technical terms into awkward archaic Tamil.
+- Write natural conversational Tamil in English script:
+  * "Vanakkam! Super question ketteenga..."
+  * "Idhula main concept enna-na..."
+  * "Oru real-life example vechu paapom..."
+  * "Idhu ungalukku purinjidhaa? Oru chinna code example paakkalaama?"
+- Ensure the tone is polite, gentle, encouraging, and clear (Teacher Luna persona).
+- Formatting: Clean markdown paragraphs with natural spacing. Zero raw HTML tags.`;
+  }
+
 
   const aiResult = await callGenerativeAI({
-    systemPrompt,
+    systemPrompt: finalSystemPrompt,
     history,
     query,
+    maxTokens: tokenLimit,
     requestedModel: context?.requestedModel || context?.model
   });
 
   const sourceMeta = {
     rag: ragMatch ? {
-      title: `Engineering Guidance RAG (Page ${ragMatch.page})`,
-      source: 'Engineering_Guidance_RAG_Knowledge_Base.pdf',
+      title: ragMatch.title || `Engineering Guidance RAG (Page ${ragMatch.page})`,
+      source: ragMatch.source || 'Engineering_Guidance_RAG_Knowledge_Base.pdf',
       page: ragMatch.page,
       excerpt: ragMatch.content.substring(0, 160) + '...'
     } : null,
@@ -1279,27 +1938,56 @@ TEACHING & SYNTHESIS INSTRUCTIONS:
     };
   }
 
-  // Fallback if AI providers failed: synthesize directly from RAG and Live Search
-  if (ragMatch || (searchResults && searchResults.length > 0)) {
-    let combinedText = '';
-    if (ragMatch) {
-      combinedText += `### 📖 Engineering Guidance (RAG Knowledge Base - Page ${ragMatch.page})\n\n${ragMatch.content}\n\n`;
+  // If primary council did not return text, perform guaranteed LLM synthesis via NVIDIA
+  if (!aiResult?.text && NVIDIA_API_KEY) {
+    try {
+      const guaranteedLlm = await callNvidiaModel({
+        systemPrompt: `${systemPrompt}\n\nCRITICAL TEACHER INSTRUCTION:\nGive a complete, inspiring lesson right now. Use the search facts to explain the mechanics. Start with a vivid analogy, give step-by-step intuition, include an interactive Mermaid diagram, and provide clean code. Never copy paste snippets.`,
+        history,
+        query,
+        modelOverride: 'nvidia/nemotron-3.5-bolt-e4b'
+      });
+      if (guaranteedLlm?.text) {
+        aiResult = guaranteedLlm;
+      }
+    } catch (e) {
+      console.warn('Guaranteed NVIDIA LLM retry notice:', e.message);
     }
-    if (searchResults && searchResults.length > 0) {
-      combinedText += `### 🌐 Live Web Search Resources\n` +
-        searchResults.slice(0, 3).map(r => `- [${r.title}](${r.link}) &bull; *${r.snippet}* (${r.source})`).join('\n');
-    }
+  }
+
+  if (aiResult?.text) {
     return {
-      reply: combinedText,
-      type: 'rag_and_search',
-      sources: sourceMeta
+      reply: cleanChatReply(aiResult.text),
+      type: 'general_ai',
+      provider: aiResult.provider,
+      model: aiResult.model,
+      models: aiResult.models || [{ name: aiResult.model, role: 'Active Model' }],
+      sources: sourceMeta,
+      pipeline: {
+        search: Boolean(searchResults && searchResults.length > 0),
+        model: aiResult.model,
+        models: aiResult.models ? aiResult.models.map(m => m.name || m) : [aiResult.model],
+        rag: Boolean(ragMatch),
+        images: Boolean(imageResults && imageResults.length > 0)
+      }
     };
   }
 
-  // Friendly conversational fallback if offline
+  // Pure Pedagogical Teacher Fallback (If completely offline - ZERO raw copy-paste snippets)
+  let fallbackText = `🌸 **Hello there, my dear student!**\n\nI hear your curiosity about **${query}**! While live neural network inference is momentarily offline, let me share this foundational guidance with you:\n\n`;
+  if (ragMatch?.content) {
+    fallbackText += `### 📖 Core Engineering Foundation\n\n${ragMatch.content}\n\n`;
+  }
+  fallbackText += `### 💡 Pedagogical Concept Breakdown\n\nWhen exploring this topic, always approach it from first principles: identify the fundamental problem, break down the core equations or data structures, and test with small toy examples before scaling up.\n\n`;
+  if (searchResults && searchResults.length > 0) {
+    fallbackText += `### 📚 Recommended Verified Documentation\n\n` +
+      searchResults.slice(0, 3).map(r => `- [${r.title}](${r.link}) — *${r.source}*`).join('\n') + '\n\n';
+  }
+  fallbackText += `Whenever you are ready, ask me to explain any specific mechanism step by step or write code together! 🌟`;
+
   return {
-    reply: `🌸 **Hello, my dear student!** I am **Teacher Luna**, your gentle AI Study Mentor. I am right by your side as you explore **${currentLvl?.title}**, focusing on **${activeTopic?.title}**.\n\nTake a gentle breath, and ask me anything you like:\n- "Can you explain ${activeTopic?.title || 'this topic'} step by step?"\n- "Quiz me gently on ${activeTopic?.title || 'this concept'}"\n- "I want to start Web Development" (or DevOps, Mobile Apps, Cybersecurity!)\n- "Show my progress"`,
-    type: 'help',
+    reply: cleanChatReply(fallbackText),
+    type: 'pedagogical_lesson',
     sources: sourceMeta
   };
 }

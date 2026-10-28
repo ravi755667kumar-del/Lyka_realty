@@ -6,42 +6,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isWindows = process.platform === 'win32';
-const npmCmd = isWindows ? 'npm.cmd' : 'npm';
+const npxCmd = isWindows ? 'npx.cmd' : 'npx';
 
 console.log('\n================================================================');
-console.log('🌟 LAUNCHING UNIFIED AI STUDY MENTOR PLATFORM');
+console.log('🌟 LAUNCHING UNIFIED NEXT.JS AI STUDY MENTOR PLATFORM');
+console.log('👉 SINGLE APP URL (Open in browser): http://localhost:5180');
 console.log('================================================================');
-console.log('🔗 Connecting Frontend + Backend + AI Model + RAG + Live Search + Voice TTS...\n');
+console.log('⚛️ Full-Stack Next.js (App Router + API Routes + Sarvam AI + Teacher Luna)\n');
 
-// 1. Launch Local OpenAI-Compatible TTS Server (Port 5050)
-console.log('🎙️  Starting Local OpenAI TTS Server on http://localhost:5050 ...');
+// 1. Launch Local Edge/OpenAI-Compatible TTS Server (Port 5058 - Optional)
 const ttsServer = spawn('python', ['tts_server.py'], {
   cwd: __dirname,
-  stdio: 'inherit',
-  shell: true
+  stdio: 'ignore',
+  shell: false
+});
+ttsServer.on('error', () => {
+  // TTS is optional, proceed cleanly if Python isn't installed
 });
 
-// 2. Launch Backend API Server (Port 5000)
-console.log('📡 Starting Backend & RAG API Server on http://localhost:5000 ...');
-const backend = spawn('node', ['backend/server.js'], {
+// 2. Launch Next.js Server on http://localhost:5180
+const nextApp = spawn(npxCmd, ['next', 'dev', '-p', '5180'], {
   cwd: __dirname,
   stdio: 'inherit',
-  shell: true
-});
-
-// 3. Launch Frontend Client (Port 5173 with automatic /api proxy to Port 5000)
-console.log('⚛️  Starting Frontend Development Server on http://localhost:5173 ...\n');
-const frontend = spawn(npmCmd, ['--prefix', 'frontend', 'run', 'dev'], {
-  cwd: __dirname,
-  stdio: 'inherit',
-  shell: true
+  shell: isWindows
 });
 
 function handleExit() {
   console.log('\n🛑 Shutting down AI Study Mentor services cleanly...');
   try { ttsServer.kill(); } catch (e) {}
-  try { backend.kill(); } catch (e) {}
-  try { frontend.kill(); } catch (e) {}
+  try { nextApp.kill(); } catch (e) {}
   process.exit(0);
 }
 

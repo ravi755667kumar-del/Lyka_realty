@@ -14,9 +14,10 @@ import {
   getStudentMcpConfig,
   saveStudentMcpConfig
 } from '../services/databaseService.js';
-import { generatePersonalizedRecommendation, analyzeExternalUrl, handleMentorChat } from '../services/aiMentorService.js';
+import { generatePersonalizedRecommendation, analyzeExternalUrl, handleMentorChat, isOmniRouteActive } from '../services/aiMentorService.js';
 import { fetchTopicResources } from '../services/serpApiService.js';
 import { generateSpeechAudio } from '../services/cartesiaTtsService.js';
+import { getSarvamSettings, saveSarvamSettings, synthesizeSarvamSpeech } from '../services/sarvamTtsService.js';
 import { analyzeLinkAndGenerateNotesWithLangChain } from '../services/langchainLinkService.js';
 import {
   testGitHubConnection,
@@ -56,12 +57,18 @@ router.post('/roadmap/create-or-switch', async (req, res) => {
 
 /**
  * GET /api/roadmap
- * Fetch or initialize student's roadmap
+ * Fetch or initialize student's roadmap (supports ?fresh=true for clean ephemeral start)
  */
 router.get('/roadmap', async (req, res) => {
   try {
     const studentId = req.query.studentId || 'student-demo-1';
-    const roadmap = await getOrCreateStudentRoadmap(studentId);
+    const isFresh = req.query.fresh === 'true' || req.query.fresh === '1';
+    let roadmap;
+    if (isFresh) {
+      roadmap = resetRoadmap(studentId);
+    } else {
+      roadmap = await getOrCreateStudentRoadmap(studentId);
+    }
     res.json({ success: true, roadmap });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -658,12 +665,12 @@ router.get('/tests/run', async (req, res) => {
  */
 router.post('/tts/speak', async (req, res) => {
   try {
-    const { text, voiceId, speed } = req.body;
+    const { text, voiceId, speed, language } = req.body;
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ success: false, error: 'Text string is required for speech synthesis' });
     }
 
-    const result = await generateSpeechAudio({ text, voiceId, speed });
+    const result = await generateSpeechAudio({ text, voiceId, speed, language });
 
     if (result?.fallback) {
       return res.status(200).json({
@@ -686,6 +693,89 @@ router.post('/tts/speak', async (req, res) => {
   } catch (error) {
     console.error('TTS speech generation error:', error.message);
     res.status(200).json({ success: false, fallback: 'browser', error: error.message });
+  }
+});
+
+/**
+ * GET /api/omniroute/status
+ * Check OmniRoute local proxy status and configuration
+ */
+router.get('/omniroute/status', async (req, res) => {
+  try {
+    const isUp = await isOmniRouteActive();
+    res.json({
+      success: true,
+      connected: isUp,
+      url: process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1',
+      model: process.env.OMNIROUTE_MODEL || 'auto'
+    });
+  } catch (err) {
+    res.json({
+      success: false,
+      connected: false,
+      error: err.message,
+      url: process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1',
+      model: process.env.OMNIROUTE_MODEL || 'auto'
+    });
+  }
+});
+
+/**
+ * GET /api/sarvam/settings & /api/sarvam/status
+ * Get Sarvam AI configuration status
+ */
+router.get(['/sarvam/settings', '/sarvam/status'], (req, res) => {
+  const settings = getSarvamSettings();
+  res.json({
+    success: true,
+    configured: settings.configured,
+    speaker: settings.speaker,
+    languageCode: settings.languageCode
+  });
+});
+
+/**
+ * POST /api/sarvam/settings
+ * Save Sarvam API key and voice preferences securely
+ */
+router.post('/sarvam/settings', (req, res) => {
+  try {
+    const { apiKey, speaker, languageCode } = req.body;
+    const result = saveSarvamSettings({ apiKey, speaker, languageCode });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/sarvam/tts
+ * Convert text to base64 audio via Sarvam AI Indic TTS proxy
+ */
+router.post('/sarvam/tts', async (req, res) => {
+  try {
+    const { text, language_code, language, speaker, pace } = req.body;
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ success: false, message: 'Text string is required' });
+    }
+
+    const result = await synthesizeSarvamSpeech({
+      text,
+      language: language_code || language,
+      speaker,
+      pace
+    });
+
+    res.json({
+      success: true,
+      audio: result.base64Audio,
+      engine: result.engine,
+      speaker: result.speaker,
+      language: result.language
+    });
+  } catch (err) {
+    console.error('Sarvam TTS API route error:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'Sarvam TTS failed' });
   }
 });
 

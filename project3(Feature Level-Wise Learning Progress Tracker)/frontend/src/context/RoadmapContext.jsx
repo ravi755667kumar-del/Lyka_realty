@@ -62,11 +62,46 @@ export const RoadmapProvider = ({ children }) => {
     }
   }, [user?.id]);
 
+  // On initial mount / browser refresh: start fresh and clean (no DB persistence)
   useEffect(() => {
-    fetchRoadmap();
-    fetchRecommendation();
-    fetchAssessments();
-  }, [fetchRoadmap, fetchRecommendation, fetchAssessments]);
+    let isMounted = true;
+
+    const initFreshSessionOnRefresh = async () => {
+      setLoading(true);
+      const studentId = user?.id || 'student-demo-1';
+      try {
+        // Clear local storage chat cache
+        try {
+          localStorage.removeItem(`teacher_luna_chat_${studentId}`);
+        } catch (e) {}
+
+        const res = await fetch('/api/progress/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId })
+        });
+        const data = await res.json();
+        if (isMounted && data.roadmap) {
+          setRoadmap(data.roadmap);
+        }
+      } catch (err) {
+        console.warn('Initial fresh reset notice, falling back to standard fetch:', err);
+        if (isMounted) await fetchRoadmap();
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+      if (isMounted) {
+        fetchRecommendation();
+        fetchAssessments();
+      }
+    };
+
+    initFreshSessionOnRefresh();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, fetchRoadmap, fetchRecommendation, fetchAssessments]);
 
   // Refresh all data from database on demand
   const refreshAllData = useCallback(async () => {
@@ -171,8 +206,16 @@ export const RoadmapProvider = ({ children }) => {
       const data = await res.json();
       if (data.roadmap) {
         setRoadmap(data.roadmap);
+        if (data.roadmap.levels && data.roadmap.levels.length > 0) {
+          const firstLvl = data.roadmap.levels.find(l => l.status === 'In Progress') || data.roadmap.levels[0];
+          setSelectedLevel(firstLvl);
+          if (firstLvl.topics && firstLvl.topics.length > 0) {
+            setSelectedTopic(firstLvl.topics.find(t => t.status !== 'Completed') || firstLvl.topics[0]);
+          }
+        }
         fetchRecommendation();
         fetchAssessments();
+        return data.roadmap;
       }
     } catch (err) {
       console.error('Reset error:', err);

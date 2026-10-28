@@ -574,27 +574,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Explicit Admin / Staff Portal Button — Always visible in Header */}
-            <button
-              onClick={() => {
-                if (onToggleAdminPanel) onToggleAdminPanel();
-              }}
-              className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
-                isAnyAuthed
-                  ? 'bg-violet-600/30 border-violet-500/70 text-violet-200 hover:bg-violet-600/40 hover:border-violet-400 ring-1 ring-violet-500/40'
-                  : 'bg-espresso-800/70 border-espresso-700/70 text-amber-200 hover:text-white hover:bg-espresso-700 hover:border-amber-400/60'
-              }`}
-              title={isAnyAuthed ? `Open Admin Portal (${adminTargetPortal === 'property_manager' ? 'Property Admin' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Super Admin'})` : "Login to Admin Portal"}
-              aria-label="Admin Portal"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="hidden md:inline">{isAnyAuthed ? 'Admin Portal' : 'Admin Login'}</span>
-              <span className="inline md:hidden">Admin</span>
-              {isAnyAuthed && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" title="Logged In" />
-              )}
-            </button>
-
             {/* Desktop: Settings & About & Inspect */}
             <button
               onClick={onOpenSettings}
@@ -1100,26 +1079,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Admin Portal Entry in Mobile Menu */}
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                if (onToggleAdminPanel) onToggleAdminPanel();
-              }}
-              className="w-full flex items-center space-x-2.5 p-2.5 rounded-xl bg-violet-950/60 hover:bg-violet-900/80 text-violet-200 border border-violet-700/60 text-xs font-semibold transition-all cursor-pointer"
-            >
-              <div className="w-8 h-8 rounded-lg bg-violet-600/30 border border-violet-500/50 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-violet-300" />
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-slate-100 flex items-center space-x-1.5">
-                  <span>{isAnyAuthed ? 'Open Admin Portal' : 'Admin Login'}</span>
-                  {isAnyAuthed && <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded font-bold">Active</span>}
-                </div>
-                <div className="text-[10px] text-slate-400">CRM, property inventory, analytics & staff access</div>
-              </div>
-            </button>
 
             {/* Settings & Preferences */}
             <button

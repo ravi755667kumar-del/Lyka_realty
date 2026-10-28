@@ -1,18 +1,53 @@
 {
   "name": "ai-study-mentor-tracker",
-  "version": "1.0.0",
-  "description": "AI Study Mentor & Level-Wise Learning Progress Tracker with 3D Cosmos, RAG, Live Search, and Natural Human TTS",
+  "version": "2.0.0",
+  "description": "Next.js Unified AI Study Mentor & Level-Wise Learning Progress Tracker with 3D Cosmos, RAG, Live Search, Sarvam AI TTS, and Natural Tanglish",
   "type": "module",
   "scripts": {
-    "start": "node start.js",
-    "dev": "node start.js",
-    "app": "node backend/server.js",
-    "backend": "node backend/server.js",
-    "frontend": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "test": "npm --prefix backend test"
+    "dev": "next dev -p 5180",
+    "build": "next build",
+    "start": "next start -p 5180",
+    "test": "node test/progress.test.js",
+    "test:rag": "node test/supabase_rag.test.js",
+    "test:mcp": "node test/mcp.test.js",
+    "omniroute": "npx omniroute"
   },
-  "keywords": ["ai", "mentor", "learning-tracker", "rag", "serpapi", "tts", "3d-cosmos"],
+  "keywords": [
+    "ai",
+    "mentor",
+    "learning-tracker",
+    "nextjs",
+    "rag",
+    "serpapi",
+    "tts",
+    "sarvam-ai",
+    "tanglish",
+    "3d-cosmos"
+  ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@langchain/core": "^1.3.0",
+    "@langchain/openai": "^1.7.1",
+    "@supabase/supabase-js": "^2.118.0",
+    "autoprefixer": "^10.6.2",
+    "axios": "^1.20.0",
+    "canvas-confetti": "^1.9.4",
+    "cheerio": "^1.2.0",
+    "dotenv": "^18.0.9",
+    "imap-simple": "^5.1.0",
+    "lucide-react": "^1.61.0",
+    "mermaid": "^12.2.0",
+    "next": "^16.4.3",
+    "nodemailer": "^10.2.1",
+    "postcss": "^8.5.32",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^3.4.19",
+    "uuid": "^14.0.3",
+    "youtube-transcript": "^1.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3"
+  }
 }

@@ -5,6 +5,8 @@ Supports standard OpenAI client:
   from openai import OpenAI
   client = OpenAI(base_url="http://localhost:5050/v1", api_key="unused")
   response = client.audio.speech.create(model="tts-1", voice="nova", input="Hello student!")
+
+Configured for polite, humble delivery when reading Teacher Luna chatbot responses aloud.
 """
 
 import os
@@ -29,13 +31,16 @@ app.add_middleware(
 )
 
 # Map OpenAI voice names to ultra-realistic Edge-TTS neural voices
+# Selected for polite, humble, gentle teacher delivery when reading chatbot responses aloud.
 VOICE_MAP = {
-    "nova": "en-US-AvaNeural",         # Warm, expressive, gentle female teacher
-    "alloy": "en-US-JennyNeural",      # Clear, articulate neutral
-    "echo": "en-US-GuyNeural",         # Confident, friendly male tutor
-    "fable": "en-GB-SoniaNeural",      # British articulate female
-    "onyx": "en-US-ChristopherNeural", # Deep, resonant male
-    "shimmer": "en-US-EmmaNeural",     # Bright, cheerful female
+    "nova": "en-US-AvaNeural",         # Warm, polite, humble, gentle female teacher (default)
+    "alloy": "en-US-JennyNeural",      # Clear, articulate, polite neutral
+    "echo": "en-US-GuyNeural",         # Confident, friendly, humble male tutor
+    "fable": "en-GB-SoniaNeural",      # British articulate, polite female
+    "onyx": "en-US-ChristopherNeural", # Deep, resonant, humble male
+    "shimmer": "en-US-EmmaNeural",     # Bright, cheerful, polite female
+    "tanglish": "en-IN-NeerjaNeural",  # Natural Indian English / Tanglish
+    "tamil": "ta-IN-PallaviNeural",    # Native Tamil
     "default": "en-US-AvaNeural"
 }
 
@@ -58,9 +63,18 @@ async def generate_speech(req: SpeechRequest):
     if not text:
         raise HTTPException(status_code=400, detail="Text input is required")
 
-    # Select mapped neural voice
+    # Select mapped neural voice with automatic Tanglish/Tamil accent detection
+    lower_text = text.lower()
+    is_tanglish_or_tamil = any(w in lower_text for w in ["vanakkam", "unga", "neenga", "pannunga", "paapom", "solren", "puriyudhu", "enna-nu", "idhula", "tanglish", "tamil"])
+    is_native_tamil_script = any('\u0B80' <= char <= '\u0BFF' for char in text)
+
     selected_voice = req.voice.lower() if req.voice else "nova"
-    edge_voice = VOICE_MAP.get(selected_voice, VOICE_MAP["default"])
+    if is_native_tamil_script:
+        edge_voice = VOICE_MAP["tamil"]
+    elif is_tanglish_or_tamil or selected_voice in ["tanglish", "tamil"]:
+        edge_voice = VOICE_MAP["tanglish"]
+    else:
+        edge_voice = VOICE_MAP.get(selected_voice, VOICE_MAP["default"])
 
     # Calculate speech rate adjustment (e.g. +0%, +10%)
     speed_factor = req.speed if req.speed else 1.0
@@ -97,7 +111,7 @@ if __name__ == "__main__":
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
             pass
-    port = int(os.environ.get("OPENAI_TTS_PORT", 5050))
+    port = int(os.environ.get("OPENAI_TTS_PORT", 5058))
     print(f"\n========================================================")
     print(f"[OpenAI-TTS] Server starting on http://127.0.0.1:{port}")
     print(f"[OpenAI-TTS] Compatible with: OpenAI(base_url='http://localhost:{port}/v1')")

@@ -6,11 +6,11 @@ export default defineConfig({
   plugins: [react()],
   envDir: '../',
   server: {
-    port: 5173,
+    port: 5180,
     host: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: 'http://127.0.0.1:5055',
         changeOrigin: true,
         secure: false,
       }
