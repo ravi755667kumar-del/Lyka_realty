@@ -363,89 +363,101 @@ return (
             <div className="space-y-4">
               <div>
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-violet-700 dark:text-violet-400 mb-1">
-                  Administrative Access & Changes
+                  {adminAuthenticated ? 'Super Admin Portal' : propertyManagerAuthenticated ? 'Property Admin Portal' : salesManagerAuthenticated ? 'Sales Manager Portal' : 'Administrative Access'}
                 </h3>
                 <p className="text-xs text-[#5a4835] dark:text-slate-400 leading-relaxed">
-                  Manage the 3 specialized administrative portals, check real-time authentication status, and configure database credentials for Lyka Realty.
+                  {adminAuthenticated 
+                    ? 'Super Admin Portal active: CRM pipeline, knowledge base, customer profiles, user chats, and login analytics.'
+                    : propertyManagerAuthenticated
+                    ? 'Property Admin Portal active: Manage Dubai real estate inventory, viewing slots, and bookings.'
+                    : salesManagerAuthenticated
+                    ? 'Sales Manager Portal active: Duplicate property audit and requirement tracking.'
+                    : 'Select a specialized portal to authenticate into Lyka Realty.'}
                 </p>
               </div>
 
               {/* Portal Selector Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className={`grid gap-2.5 ${!isAnyAdminAuthed ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1'}`}>
                 {/* 1. Super Admin */}
-                <div
-                  onClick={() => onSelectPortal('admin')}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                    adminTargetPortal === 'admin'
-                      ? 'border-violet-500 bg-violet-500/10 dark:bg-violet-500/20 ring-1 ring-violet-500/30'
-                      : 'border-[#ebdcc4] dark:border-slate-800 bg-[#faf6ec]/50 dark:bg-slate-800/40 hover:border-violet-400'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <ShieldCheck className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-                    {adminAuthenticated ? (
-                      <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="text-[9px] text-slate-500">Locked</span>
-                    )}
+                {(!isAnyAdminAuthed || adminAuthenticated) && (
+                  <div
+                    onClick={() => onSelectPortal('admin')}
+                    className={`p-3.5 rounded-2xl border transition-all ${!isAnyAdminAuthed ? 'cursor-pointer' : ''} ${
+                      adminTargetPortal === 'admin'
+                        ? 'border-violet-500 bg-violet-500/10 dark:bg-violet-500/20 ring-1 ring-violet-500/30'
+                        : 'border-[#ebdcc4] dark:border-slate-800 bg-[#faf6ec]/50 dark:bg-slate-800/40 hover:border-violet-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <ShieldCheck className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                      {adminAuthenticated ? (
+                        <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-slate-500">Sign In</span>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">Super Admin</h4>
+                    <p className="text-[10px] text-[#6b5843] dark:text-slate-400 mt-0.5">
+                      Full CRM leads, analytics, customer profiles, and knowledge base
+                    </p>
                   </div>
-                  <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">Super Admin</h4>
-                  <p className="text-[10px] text-[#6b5843] dark:text-slate-400 mt-0.5">
-                    Full CRM leads, analytics, and vector embeddings
-                  </p>
-                </div>
+                )}
 
                 {/* 2. Property Admin */}
-                <div
-                  onClick={() => onSelectPortal('property_manager')}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                    adminTargetPortal === 'property_manager'
-                      ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 ring-1 ring-amber-500/30'
-                      : 'border-[#ebdcc4] dark:border-slate-800 bg-[#faf6ec]/50 dark:bg-slate-800/40 hover:border-amber-400'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                    {propertyManagerAuthenticated || adminAuthenticated ? (
-                      <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="text-[9px] text-slate-500">Locked</span>
-                    )}
+                {(!isAnyAdminAuthed || propertyManagerAuthenticated) && (
+                  <div
+                    onClick={() => onSelectPortal('property_manager')}
+                    className={`p-3.5 rounded-2xl border transition-all ${!isAnyAdminAuthed ? 'cursor-pointer' : ''} ${
+                      adminTargetPortal === 'property_manager'
+                        ? 'border-amber-500 bg-amber-500/10 dark:bg-amber-500/20 ring-1 ring-amber-500/30'
+                        : 'border-[#ebdcc4] dark:border-slate-800 bg-[#faf6ec]/50 dark:bg-slate-800/40 hover:border-amber-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Building2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      {propertyManagerAuthenticated ? (
+                        <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-slate-500">Sign In</span>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">Property Admin</h4>
+                    <p className="text-[10px] text-[#6b5843] dark:text-slate-400 mt-0.5">
+                      Inventory, bookings, and viewing slots
+                    </p>
                   </div>
-                  <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">Property Admin</h4>
-                  <p className="text-[10px] text-[#6b5843] dark:text-slate-400 mt-0.5">
-                    Inventory, bookings, and viewing slots
-                  </p>
-                </div>
+                )}
 
                 {/* 3. Sales Manager */}
-                <div
-                  onClick={() => onSelectPortal('sales_manager')}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                    adminTargetPortal === 'sales_manager'
-                      ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/20 ring-1 ring-emerald-500/30'
-                      : 'border-[#ebdcc4] dark:border-slate-800 bg-[#faf6ec]/50 dark:bg-slate-800/40 hover:border-emerald-400'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <Copy className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                    {salesManagerAuthenticated || adminAuthenticated ? (
-                      <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="text-[9px] text-slate-500">Locked</span>
-                    )}
+                {(!isAnyAdminAuthed || salesManagerAuthenticated) && (
+                  <div
+                    onClick={() => onSelectPortal('sales_manager')}
+                    className={`p-3.5 rounded-2xl border transition-all ${!isAnyAdminAuthed ? 'cursor-pointer' : ''} ${
+                      adminTargetPortal === 'sales_manager'
+                        ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/20 ring-1 ring-emerald-500/30'
+                        : 'border-[#ebdcc4] dark:border-slate-800 bg-[#faf6ec]/50 dark:bg-slate-800/40 hover:border-emerald-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <Copy className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                      {salesManagerAuthenticated ? (
+                        <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-slate-500">Sign In</span>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">Sales Manager</h4>
+                    <p className="text-[10px] text-[#6b5843] dark:text-slate-400 mt-0.5">
+                      Duplicate auditing and requirements tracking
+                    </p>
                   </div>
-                  <h4 className="text-xs font-bold text-[#1c1611] dark:text-white">Sales Manager</h4>
-                  <p className="text-[10px] text-[#6b5843] dark:text-slate-400 mt-0.5">
-                    Duplicate auditing and requirements tracking
-                  </p>
-                </div>
+                )}
               </div>
 
               {/* Action Buttons */}

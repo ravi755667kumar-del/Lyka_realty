@@ -114,7 +114,7 @@ const REQUIREMENT_RULES: RequirementRule[] = [
     label: 'Bathrooms Count',
     severity: 'info',
     description: 'Layout detail for families and luxury buyers.',
-    checkValid: (p) => Boolean(p.bathrooms && p.bathrooms.trim().length > 0)
+    checkValid: (p) => Boolean(p.bathrooms && String(p.bathrooms).trim().length > 0)
   },
   {
     field: 'contact_mobile',
@@ -495,17 +495,17 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-950 text-slate-100 overflow-y-auto pb-24">
+    <div className="flex-1 flex flex-col h-full bg-[#fdfbf5] text-[#1c1611] overflow-y-auto pb-24">
       {/* Toast Notification */}
       {saveToast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2.5 px-4 py-3 rounded-xl bg-slate-900 border border-emerald-500/50 shadow-2xl shadow-emerald-500/20 text-emerald-200 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-300">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2.5 px-4 py-3 rounded-xl bg-[#faf6ec] border border-emerald-500/50 shadow-2xl shadow-emerald-500/20 text-emerald-200 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-300">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <span>{saveToast.message}</span>
         </div>
       )}
 
       {/* Hero Header */}
-      <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-900 border-b border-emerald-800/30 px-4 sm:px-8 py-6">
+      <div className="bg-gradient-to-r from-emerald-50 via-[#faf6ec] to-amber-50 border-b border-[#ebdcc4] px-4 sm:px-8 py-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -513,12 +513,12 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                   Sales Manager Portal
                 </span>
-                <span className="text-xs text-slate-400">Lyka Quality Assurance</span>
+                <span className="text-xs text-[#7d6851]">Lyka Quality Assurance</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-100 mt-1 flex items-center space-x-2">
+              <h1 className="text-xl sm:text-2xl font-black text-[#1c1611] mt-1 flex items-center space-x-2">
                 <span>Property Duplicate & Quality Audit Control</span>
               </h1>
-              <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+              <p className="text-xs text-[#7d6851] mt-1 max-w-2xl">
                 Scan for duplicate property records across your Dubai inventory, and enforce essential sales requirements before listings are presented to buyers.
               </p>
             </div>
@@ -535,33 +535,33 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
 
           {/* Metric Cards Banner */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <div className="bg-white border border-[#ebdcc4] rounded-2xl p-3.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#7d6851] flex items-center justify-between">
                 <span>Total Properties</span>
-                <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                <Building2 className="w-3.5 h-3.5 text-[#8c765c]" />
               </div>
-              <div className="text-xl font-black text-slate-100 mt-1">{properties.length}</div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Active Dubai & Mumbai listings</p>
+              <div className="text-xl font-black text-[#1c1611] mt-1">{properties.length}</div>
+              <p className="text-[10px] text-[#7d6851] mt-0.5">Active Dubai & Mumbai listings</p>
             </div>
 
             <div className={`border rounded-2xl p-3.5 transition-all ${
               duplicateGroups.length > 0
                 ? 'bg-rose-950/20 border-rose-800/40 text-rose-200'
-                : 'bg-slate-900/80 border-slate-800 text-slate-200'
+                : 'bg-[#faf6ec]/80 border-[#ebdcc4] text-[#2d2216]'
             }`}>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#7d6851] flex items-center justify-between">
                 <span>Duplicate Groups</span>
-                <Copy className={`w-3.5 h-3.5 ${duplicateGroups.length > 0 ? 'text-rose-400' : 'text-slate-500'}`} />
+                <Copy className={`w-3.5 h-3.5 ${duplicateGroups.length > 0 ? 'text-rose-400' : 'text-[#8c765c]'}`} />
               </div>
               <div className="text-xl font-black mt-1 flex items-baseline space-x-1.5">
                 <span className={duplicateGroups.length > 0 ? 'text-rose-400' : 'text-emerald-400'}>
                   {duplicateGroups.length}
                 </span>
-                <span className="text-[10px] font-normal text-slate-400">
+                <span className="text-[10px] font-normal text-[#7d6851]">
                   {duplicateGroups.length > 0 ? 'groups detected' : 'clean catalog'}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">
+              <p className="text-[10px] text-[#7d6851] mt-0.5">
                 {duplicateGroups.length > 0 ? 'Action needed to clean records' : 'No duplicates detected'}
               </p>
             </div>
@@ -569,41 +569,41 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
             <div className={`border rounded-2xl p-3.5 transition-all ${
               criticalIssuesCount > 0
                 ? 'bg-amber-950/20 border-amber-800/40'
-                : 'bg-slate-900/80 border-slate-800'
+                : 'bg-[#faf6ec]/80 border-[#ebdcc4]'
             }`}>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#7d6851] flex items-center justify-between">
                 <span>Incomplete Listings</span>
-                <ShieldAlert className={`w-3.5 h-3.5 ${criticalIssuesCount > 0 ? 'text-amber-400' : 'text-slate-500'}`} />
+                <ShieldAlert className={`w-3.5 h-3.5 ${criticalIssuesCount > 0 ? 'text-amber-400' : 'text-[#8c765c]'}`} />
               </div>
-              <div className="text-xl font-black text-slate-100 mt-1 flex items-baseline space-x-1.5">
+              <div className="text-xl font-black text-[#1c1611] mt-1 flex items-baseline space-x-1.5">
                 <span className={totalIncompleteCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>
                   {totalIncompleteCount}
                 </span>
-                <span className="text-[10px] font-normal text-slate-400">
+                <span className="text-[10px] font-normal text-[#7d6851]">
                   ({criticalIssuesCount} critical)
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Missing RERA, price, or details</p>
+              <p className="text-[10px] text-[#7d6851] mt-0.5">Missing RERA, price, or details</p>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <div className="bg-white border border-[#ebdcc4] rounded-2xl p-3.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#7d6851] flex items-center justify-between">
                 <span>Catalog Health Score</span>
                 <Percent className="w-3.5 h-3.5 text-emerald-400" />
               </div>
               <div className="text-xl font-black text-emerald-400 mt-1">{avgCompleteness}%</div>
-              <p className="text-[10px] text-slate-400 mt-0.5">Average requirement completeness</p>
+              <p className="text-[10px] text-[#7d6851] mt-0.5">Average requirement completeness</p>
             </div>
           </div>
 
           {/* Sub-Tabs Switcher */}
-          <div className="flex items-center space-x-2 mt-6 border-b border-slate-800/80 -mb-6">
+          <div className="flex items-center space-x-2 mt-6 border-b border-[#ebdcc4]/80 -mb-6">
             <button
               onClick={() => setTab('duplicates')}
               className={`flex items-center space-x-2 px-4 py-2.5 font-bold text-xs border-b-2 transition-all ${
                 activeTab === 'duplicates'
                   ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10 rounded-t-xl'
-                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded-t-xl'
+                  : 'border-transparent text-[#7d6851] hover:text-[#2d2216] hover:bg-[#faf6ec]/50 rounded-t-xl'
               }`}
             >
               <Copy className="w-3.5 h-3.5" />
@@ -620,7 +620,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
               className={`flex items-center space-x-2 px-4 py-2.5 font-bold text-xs border-b-2 transition-all ${
                 activeTab === 'missing_requirements'
                   ? 'border-emerald-500 text-emerald-300 bg-emerald-500/10 rounded-t-xl'
-                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded-t-xl'
+                  : 'border-transparent text-[#7d6851] hover:text-[#2d2216] hover:bg-[#faf6ec]/50 rounded-t-xl'
               }`}
             >
               <BadgeAlert className="w-3.5 h-3.5" />
@@ -641,15 +641,15 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         {/* ═════════════════════════════════════════════════════════════════════════ */}
         {/* SHARED FILTER & SEARCH TOOLBAR (Location, Price, Availability) */}
         {/* ═════════════════════════════════════════════════════════════════════════ */}
-        <div className="bg-slate-900/80 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-xl space-y-3 mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+        <div className="bg-white border border-[#ebdcc4] p-4 sm:p-5 rounded-3xl shadow-xl space-y-3 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#ebdcc4]/80">
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#2d2216]">
                 Filter Inventory ({properties.length} Total Properties)
               </span>
             </div>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] text-[#7d6851]">
               Filter listings by Location (Community), Price Range, and Availability
             </span>
           </div>
@@ -657,13 +657,13 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 1. Search */}
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-[#7d6851] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search title, community, ID, developer..."
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full bg-[#fdfbf5] border border-[#ebdcc4]/80 rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#1c1611] placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
               />
             </div>
 
@@ -674,14 +674,14 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 value={selectedCommunity}
                 onChange={(e) => setSelectedCommunity(e.target.value)}
                 aria-label="Filter by Location"
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                className="w-full bg-[#fdfbf5] border border-[#ebdcc4]/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-[#1c1611] focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
               >
                 <option value="ALL">All Locations / Communities ({uniqueCommunities.length})</option>
                 {uniqueCommunities.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#7d6851] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
             {/* 3. Price Range Filter */}
@@ -691,7 +691,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 value={priceFilter}
                 onChange={(e) => setPriceFilter(e.target.value as any)}
                 aria-label="Filter by Price"
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                className="w-full bg-[#fdfbf5] border border-[#ebdcc4]/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-[#1c1611] focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
               >
                 <option value="ALL">All Price Ranges</option>
                 <option value="UNDER_1_5M">Under 1.5M AED</option>
@@ -699,7 +699,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 <option value="3M_6M">3M - 6M AED</option>
                 <option value="ABOVE_6M">Above 6M AED</option>
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#7d6851] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
             {/* 4. Availability Filter */}
@@ -709,7 +709,7 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 value={availabilityFilter}
                 onChange={(e) => setAvailabilityFilter(e.target.value as any)}
                 aria-label="Filter by Availability"
-                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                className="w-full bg-[#fdfbf5] border border-[#ebdcc4]/80 rounded-xl pl-10 pr-8 py-2.5 text-xs text-[#1c1611] focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
               >
                 <option value="ALL">All Availability Statuses</option>
                 <option value="AVAILABLE">Available (Unbooked)</option>
@@ -717,15 +717,15 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 <option value="OFF_PLAN">Off-Plan / Payment Plan</option>
                 <option value="BOOKED">Booked / Reserved</option>
               </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#7d6851] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 
           {/* Active Filter Chips & Reset */}
           {(selectedCommunity !== 'ALL' || priceFilter !== 'ALL' || availabilityFilter !== 'ALL' || searchQuery.trim() !== '') && (
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-              <div className="flex flex-wrap items-center gap-1.5 text-slate-400">
-                <span className="font-semibold text-slate-300">Active Filters:</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#ebdcc4]/80 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5 text-[#7d6851]">
+                <span className="font-semibold text-[#2d2216]">Active Filters:</span>
                 {selectedCommunity !== 'ALL' && (
                   <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     <span>Location: {selectedCommunity}</span>
@@ -773,36 +773,36 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         {activeTab === 'duplicates' && (
           <div className="space-y-6">
             {/* Header info */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-4 rounded-2xl border border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#faf6ec]/40 p-4 rounded-2xl border border-[#ebdcc4]">
               <div className="flex items-center space-x-3">
                 <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center">
                   <Copy className="w-4 h-4 text-red-700" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">Duplicate Property Detection System</h3>
-                  <p className="text-xs text-slate-200 font-medium">
+                  <h3 className="text-sm font-bold text-[#1c1611]">Duplicate Property Detection System</h3>
+                  <p className="text-xs text-[#2d2216] font-medium">
                     Matches listings based on identical titles, RERA IDs, matching hero photos, or identical specs in the same community.
                   </p>
                 </div>
               </div>
-              <div className="text-xs font-semibold text-slate-200">
-                Found <span className="text-slate-100 font-bold">{filteredDuplicateGroups.length}</span> duplicate cluster(s)
+              <div className="text-xs font-semibold text-[#2d2216]">
+                Found <span className="text-[#1c1611] font-bold">{filteredDuplicateGroups.length}</span> duplicate cluster(s)
                 {duplicateGroups.length !== filteredDuplicateGroups.length && (
-                  <span className="text-slate-300 font-medium"> (filtered from {duplicateGroups.length})</span>
+                  <span className="text-[#2d2216] font-medium"> (filtered from {duplicateGroups.length})</span>
                 )}
               </div>
             </div>
 
             {/* If No Duplicates Found */}
             {filteredDuplicateGroups.length === 0 ? (
-              <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-12 text-center max-w-xl mx-auto">
+              <div className="bg-[#faf6ec]/40 border border-[#ebdcc4] rounded-3xl p-12 text-center max-w-xl mx-auto">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="w-7 h-7 text-emerald-700" />
                 </div>
-                <h4 className="text-base font-bold text-slate-100">
+                <h4 className="text-base font-bold text-[#1c1611]">
                   {duplicateGroups.length === 0 ? 'No Duplicate Properties Detected!' : 'No Duplicates Match Filter Criteria'}
                 </h4>
-                <p className="text-xs text-slate-200 mt-1 max-w-md mx-auto">
+                <p className="text-xs text-[#2d2216] mt-1 max-w-md mx-auto">
                   {duplicateGroups.length === 0
                     ? 'All listings in your inventory currently have unique titles, specifications, and permits. Your catalog is clean.'
                     : 'Try clearing or adjusting your location, price, or availability filters to view other duplicate groups.'}
@@ -818,22 +818,22 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                   return (
                     <div 
                       key={group.id}
-                      className="bg-slate-900/90 border border-rose-300/80 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden"
+                      className="bg-[#faf6ec]/90 border border-rose-300/80 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden"
                     >
                       {/* Top banner tag */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-slate-700/80">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#ebdcc4]/80">
                         <div className="flex items-center space-x-2">
                           <span className="px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider bg-rose-100 text-red-950 border border-rose-300 flex items-center space-x-1">
                             <AlertTriangle className="w-3.5 h-3.5 text-red-700 mr-1" />
                             <span>{group.confidence}% Match Confidence</span>
                           </span>
-                          <span className="text-xs font-medium text-slate-100">
-                            Reason: <strong className="text-slate-100 font-bold">{group.reason}</strong>
+                          <span className="text-xs font-medium text-[#1c1611]">
+                            Reason: <strong className="text-[#1c1611] font-bold">{group.reason}</strong>
                           </span>
                         </div>
                         <button
                           onClick={() => setDismissedDuplicateGroupIds(prev => [...prev, group.id])}
-                          className="text-xs font-bold text-slate-200 hover:text-slate-100 px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors"
+                          className="text-xs font-bold text-[#2d2216] hover:text-[#1c1611] px-3 py-1 rounded-lg hover:bg-slate-800 transition-colors"
                           title="Ignore this cluster in this session"
                         >
                           Dismiss / Not Duplicate
@@ -858,41 +858,41 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                 />
                               ) : (
                                 <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center flex-shrink-0">
-                                  <Building2 className="w-6 h-6 text-slate-500" />
+                                  <Building2 className="w-6 h-6 text-[#8c765c]" />
                                 </div>
                               )}
                               <div className="min-w-0 flex-1 pr-16">
                                 <span className="text-[11px] font-mono font-bold text-emerald-700">{primary.id}</span>
-                                <h4 className="text-sm font-bold text-slate-100 truncate">{primary.title}</h4>
-                                <p className="text-xs text-slate-200 font-medium mt-0.5">{primary.community} • {primary.property_type}</p>
+                                <h4 className="text-sm font-bold text-[#1c1611] truncate">{primary.title}</h4>
+                                <p className="text-xs text-[#2d2216] font-medium mt-0.5">{primary.community} • {primary.property_type}</p>
                               </div>
                             </div>
 
                             {/* Key specs comparison */}
                             <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-200 text-xs">
                               <div>
-                                <span className="text-[11px] text-slate-200 font-bold block">Price</span>
+                                <span className="text-[11px] text-[#2d2216] font-bold block">Price</span>
                                 <span className="font-extrabold text-emerald-800">AED {primary.price_aed ? primary.price_aed.toLocaleString() : 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[11px] text-slate-200 font-bold block">Size</span>
-                                <span className="font-bold text-slate-100">{primary.size_sqft ? `${primary.size_sqft} sqft` : 'N/A'}</span>
+                                <span className="text-[11px] text-[#2d2216] font-bold block">Size</span>
+                                <span className="font-bold text-[#1c1611]">{primary.size_sqft ? `${primary.size_sqft} sqft` : 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[11px] text-slate-200 font-bold block">Bedrooms</span>
-                                <span className="font-bold text-slate-100">{primary.bedrooms} BR</span>
+                                <span className="text-[11px] text-[#2d2216] font-bold block">Bedrooms</span>
+                                <span className="font-bold text-[#1c1611]">{primary.bedrooms} BR</span>
                               </div>
                               <div>
-                                <span className="text-[11px] text-slate-200 font-bold block">RERA Permit</span>
-                                <span className="font-mono text-slate-100 font-bold">{primary.rera_id || 'None'}</span>
+                                <span className="text-[11px] text-[#2d2216] font-bold block">RERA Permit</span>
+                                <span className="font-mono text-[#1c1611] font-bold">{primary.rera_id || 'None'}</span>
                               </div>
                               <div>
-                                <span className="text-[11px] text-slate-200 font-bold block">Developer</span>
-                                <span className="text-slate-100 font-bold truncate">{primary.developer || 'N/A'}</span>
+                                <span className="text-[11px] text-[#2d2216] font-bold block">Developer</span>
+                                <span className="text-[#1c1611] font-bold truncate">{primary.developer || 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[11px] text-slate-200 font-bold block">Status</span>
-                                <span className="text-slate-100 font-bold">{primary.status || 'Ready'}</span>
+                                <span className="text-[11px] text-[#2d2216] font-bold block">Status</span>
+                                <span className="text-[#1c1611] font-bold">{primary.status || 'Ready'}</span>
                               </div>
                             </div>
                           </div>
@@ -934,41 +934,41 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                     />
                                   ) : (
                                     <div className="w-16 h-16 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center flex-shrink-0">
-                                      <Building2 className="w-6 h-6 text-slate-500" />
+                                      <Building2 className="w-6 h-6 text-[#8c765c]" />
                                     </div>
                                   )}
                                   <div className="min-w-0 flex-1 pr-16">
                                     <span className="text-[11px] font-mono font-bold text-red-700">{dup.id}</span>
-                                    <h4 className="text-sm font-bold text-slate-100 truncate">{dup.title}</h4>
-                                    <p className="text-xs text-slate-200 font-medium mt-0.5">{dup.community} • {dup.property_type}</p>
+                                    <h4 className="text-sm font-bold text-[#1c1611] truncate">{dup.title}</h4>
+                                    <p className="text-xs text-[#2d2216] font-medium mt-0.5">{dup.community} • {dup.property_type}</p>
                                   </div>
                                 </div>
 
                                 {/* Specs */}
                                 <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-200 text-xs">
                                   <div>
-                                    <span className="text-[11px] text-slate-200 font-bold block">Price</span>
-                                    <span className="font-extrabold text-slate-100">AED {dup.price_aed ? dup.price_aed.toLocaleString() : 'N/A'}</span>
+                                    <span className="text-[11px] text-[#2d2216] font-bold block">Price</span>
+                                    <span className="font-extrabold text-[#1c1611]">AED {dup.price_aed ? dup.price_aed.toLocaleString() : 'N/A'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-slate-200 font-bold block">Size</span>
-                                    <span className="font-bold text-slate-100">{dup.size_sqft ? `${dup.size_sqft} sqft` : 'N/A'}</span>
+                                    <span className="text-[11px] text-[#2d2216] font-bold block">Size</span>
+                                    <span className="font-bold text-[#1c1611]">{dup.size_sqft ? `${dup.size_sqft} sqft` : 'N/A'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-slate-200 font-bold block">Bedrooms</span>
-                                    <span className="font-bold text-slate-100">{dup.bedrooms} BR</span>
+                                    <span className="text-[11px] text-[#2d2216] font-bold block">Bedrooms</span>
+                                    <span className="font-bold text-[#1c1611]">{dup.bedrooms} BR</span>
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-slate-200 font-bold block">RERA Permit</span>
-                                    <span className="font-mono text-slate-100 font-bold">{dup.rera_id || 'None'}</span>
+                                    <span className="text-[11px] text-[#2d2216] font-bold block">RERA Permit</span>
+                                    <span className="font-mono text-[#1c1611] font-bold">{dup.rera_id || 'None'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-slate-200 font-bold block">Developer</span>
-                                    <span className="text-slate-100 font-bold truncate">{dup.developer || 'N/A'}</span>
+                                    <span className="text-[11px] text-[#2d2216] font-bold block">Developer</span>
+                                    <span className="text-[#1c1611] font-bold truncate">{dup.developer || 'N/A'}</span>
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-slate-200 font-bold block">Status</span>
-                                    <span className="text-slate-100 font-bold">{dup.status || 'Ready'}</span>
+                                    <span className="text-[11px] text-[#2d2216] font-bold block">Status</span>
+                                    <span className="text-[#1c1611] font-bold">{dup.status || 'Ready'}</span>
                                   </div>
                                 </div>
                               </div>
@@ -1011,14 +1011,14 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
         {activeTab === 'missing_requirements' && (
           <div className="space-y-6">
             {/* Severity / Quality Status Sub-Tabs */}
-            <div className="bg-slate-900/60 border border-slate-800 p-3 sm:p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="bg-[#faf6ec]/60 border border-[#ebdcc4] p-3 sm:p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setAuditSeverityFilter('all')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     auditSeverityFilter === 'all'
                       ? 'bg-emerald-700 text-white shadow-md'
-                      : 'bg-white text-slate-100 hover:bg-slate-100 border border-slate-300'
+                      : 'bg-white text-[#1c1611] hover:bg-slate-100 border border-slate-300'
                   }`}
                 >
                   All Properties ({requirementAudits.length})
@@ -1071,17 +1071,17 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                 </button>
               </div>
 
-              <div className="text-xs font-semibold text-slate-200">
-                Showing <span className="text-slate-100 font-bold">{filteredAudits.length}</span> of <span className="text-slate-100 font-bold">{requirementAudits.length}</span> audited listing(s)
+              <div className="text-xs font-semibold text-[#2d2216]">
+                Showing <span className="text-[#1c1611] font-bold">{filteredAudits.length}</span> of <span className="text-[#1c1611] font-bold">{requirementAudits.length}</span> audited listing(s)
               </div>
             </div>
 
             {/* Audit Cards Grid */}
             {filteredAudits.length === 0 ? (
-              <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-12 text-center">
+              <div className="bg-[#faf6ec]/40 border border-[#ebdcc4] rounded-3xl p-12 text-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-slate-100">No properties matching filter</h4>
-                <p className="text-xs text-slate-200 mt-1">Try clearing your search query or selecting a different severity filter.</p>
+                <h4 className="text-sm font-bold text-[#1c1611]">No properties matching filter</h4>
+                <p className="text-xs text-[#2d2216] mt-1">Try clearing your search query or selecting a different severity filter.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1092,12 +1092,12 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                   return (
                     <div
                       key={p.id}
-                      className={`bg-slate-900/80 border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all ${
+                      className={`bg-[#faf6ec]/80 border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all ${
                         audit.status === 'action_required'
                           ? 'border-rose-400/60 shadow-md shadow-rose-950/10'
                           : audit.status === 'incomplete'
                           ? 'border-amber-400/50'
-                          : 'border-slate-800'
+                          : 'border-[#ebdcc4]'
                       }`}
                     >
                       <div>
@@ -1108,20 +1108,20 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                               <img
                                 src={p.image_url}
                                 alt={p.title}
-                                className="w-14 h-14 rounded-xl object-cover border border-slate-800 flex-shrink-0"
+                                className="w-14 h-14 rounded-xl object-cover border border-[#ebdcc4] flex-shrink-0"
                               />
                             ) : (
-                              <div className="w-14 h-14 rounded-xl bg-slate-950 border border-rose-500/40 flex items-center justify-center flex-shrink-0">
+                              <div className="w-14 h-14 rounded-xl bg-[#fdfbf5] border border-rose-500/40 flex items-center justify-center flex-shrink-0">
                                 <AlertTriangle className="w-5 h-5 text-rose-500" />
                               </div>
                             )}
                             <div className="min-w-0">
                               <div className="flex items-center space-x-2">
                                 <span className="text-[11px] font-mono text-emerald-700 font-bold">{p.id}</span>
-                                <span className="text-[11px] text-slate-200 font-semibold">• {p.community}</span>
+                                <span className="text-[11px] text-[#2d2216] font-semibold">• {p.community}</span>
                               </div>
-                              <h4 className="text-sm font-bold text-slate-100 truncate mt-0.5">{p.title}</h4>
-                              <p className="text-xs text-slate-200 font-semibold truncate">
+                              <h4 className="text-sm font-bold text-[#1c1611] truncate mt-0.5">{p.title}</h4>
+                              <p className="text-xs text-[#2d2216] font-semibold truncate">
                                 {p.developer || 'No Developer Listed'} • AED {p.price_aed ? p.price_aed.toLocaleString() : 'Price Missing'}
                               </p>
                             </div>
@@ -1156,21 +1156,21 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                         </div>
 
                         {/* What Needs To Be Filled Section */}
-                        <div className="mt-4 pt-3 border-t border-slate-700/80 space-y-2.5">
+                        <div className="mt-4 pt-3 border-t border-[#ebdcc4]/80 space-y-2.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-100 flex items-center space-x-1.5">
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#1c1611] flex items-center space-x-1.5">
                               <FileText className="w-3.5 h-3.5 text-emerald-600" />
                               <span>What Needs To Be Filled</span>
                             </span>
-                            <span className="text-xs text-slate-200 font-semibold">
+                            <span className="text-xs text-[#2d2216] font-semibold">
                               {totalMissing === 0 ? '0 fields missing' : `${totalMissing} item(s) required`}
                             </span>
                           </div>
 
                           {totalMissing === 0 ? (
-                            <div className="flex items-center space-x-2 text-xs font-bold text-slate-100 bg-emerald-50 border-2 border-emerald-300 rounded-xl p-3 shadow-xs">
+                            <div className="flex items-center space-x-2 text-xs font-bold text-[#1c1611] bg-emerald-50 border-2 border-emerald-300 rounded-xl p-3 shadow-xs">
                               <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
-                              <span className="text-slate-100">100% Sales Ready — All mandatory Dubai legal and presentation requirements are complete!</span>
+                              <span className="text-[#1c1611]">100% Sales Ready — All mandatory Dubai legal and presentation requirements are complete!</span>
                             </div>
                           ) : (
                             <div className="space-y-2.5">
@@ -1183,11 +1183,11 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                   </div>
                                   <ul className="space-y-1.5 pl-0.5">
                                     {audit.criticalIssues.map((issue) => (
-                                      <li key={issue.field} className="text-xs text-slate-100 flex items-start space-x-2 leading-relaxed">
+                                      <li key={issue.field} className="text-xs text-[#1c1611] flex items-start space-x-2 leading-relaxed">
                                         <X className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5 font-bold" />
-                                        <span className="text-slate-100">
-                                          <strong className="text-slate-100 font-bold">{issue.label}:</strong>{' '}
-                                          <span className="text-slate-200 font-medium">{issue.description}</span>
+                                        <span className="text-[#1c1611]">
+                                          <strong className="text-[#1c1611] font-bold">{issue.label}:</strong>{' '}
+                                          <span className="text-[#2d2216] font-medium">{issue.description}</span>
                                         </span>
                                       </li>
                                     ))}
@@ -1204,11 +1204,11 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                   </div>
                                   <ul className="space-y-1.5 pl-0.5">
                                     {audit.warningIssues.map((issue) => (
-                                      <li key={issue.field} className="text-xs text-slate-100 flex items-start space-x-2 leading-relaxed">
+                                      <li key={issue.field} className="text-xs text-[#1c1611] flex items-start space-x-2 leading-relaxed">
                                         <span className="w-2 h-2 rounded-full bg-amber-700 flex-shrink-0 mt-1.5" />
-                                        <span className="text-slate-100">
-                                          <strong className="text-slate-100 font-bold">{issue.label}:</strong>{' '}
-                                          <span className="text-slate-200 font-medium">{issue.description}</span>
+                                        <span className="text-[#1c1611]">
+                                          <strong className="text-[#1c1611] font-bold">{issue.label}:</strong>{' '}
+                                          <span className="text-[#2d2216] font-medium">{issue.description}</span>
                                         </span>
                                       </li>
                                     ))}
@@ -1227,10 +1227,10 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                                     {audit.infoIssues.map((issue) => (
                                       <span
                                         key={issue.field}
-                                        className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-slate-100 border border-slate-300 shadow-xs"
+                                        className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white text-[#1c1611] border border-slate-300 shadow-xs"
                                         title={issue.description}
                                       >
-                                        <span>• Fill <strong className="text-slate-100 font-bold">{issue.label}</strong></span>
+                                        <span>• Fill <strong className="text-[#1c1611] font-bold">{issue.label}</strong></span>
                                       </span>
                                     ))}
                                   </div>
@@ -1242,8 +1242,8 @@ export const SalesManagerDashboard: React.FC<SalesManagerDashboardProps> = ({
                       </div>
 
                       {/* Card bottom action (NO EDIT OPTION for Sales Manager) */}
-                      <div className="mt-4 pt-3 border-t border-slate-700/80 flex items-center justify-between text-xs">
-                        <span className="text-xs text-slate-200 font-semibold">
+                      <div className="mt-4 pt-3 border-t border-[#ebdcc4]/80 flex items-center justify-between text-xs">
+                        <span className="text-xs text-[#2d2216] font-semibold">
                           {p.status || 'Ready'} • {p.property_type} • {p.bedrooms} BR
                         </span>
 

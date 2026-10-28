@@ -152,24 +152,24 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden font-sans transition-colors duration-200" style={{ backgroundColor: customBgColor || undefined }}>
+    <div className="flex-1 flex flex-col h-full overflow-hidden font-sans transition-colors duration-200 bg-[#fdfbf5]" style={{ backgroundColor: customBgColor || undefined }}>
       {/* Top Header */}
-      <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-espresso-100 dark:border-slate-800 px-4 sm:px-6 py-4 shadow-sm">
+      <div className="shrink-0 bg-white border-b border-[#ebdcc4] px-4 sm:px-6 py-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-800 flex items-center justify-center font-bold">
               <MessageSquare className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                <h1 className="text-lg sm:text-xl font-bold text-[#1c1611]">
                   User Chat History
                 </h1>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/30">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-900 border border-amber-500/30">
                   Admin Inspection
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-[#5a4835] mt-0.5">
                 First select a user name from login, then inspect their sequential Q&A chat history.
               </p>
             </div>
@@ -179,7 +179,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
             {onNavigateToProfiles && (
               <button
                 onClick={onNavigateToProfiles}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-[#ebdcc4] hover:bg-[#faf6ec] text-xs font-semibold text-[#2d2216] transition-colors"
               >
                 <Users className="w-3.5 h-3.5 text-amber-600" />
                 <span>Customer Profiles</span>
@@ -194,14 +194,14 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-all ${
                   appearanceOpen
                     ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
-                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                    : 'border-[#ebdcc4] bg-white hover:bg-[#faf6ec] text-[#2d2216]'
                 }`}
                 title="Change background color"
               >
                 <Palette className="w-3.5 h-3.5 text-amber-500" />
                 <span className="hidden sm:inline">Background</span>
                 <div 
-                  className="w-2.5 h-2.5 rounded-full border border-slate-300 dark:border-slate-600 shadow-xs shrink-0"
+                  className="w-2.5 h-2.5 rounded-full border border-slate-300 shadow-xs shrink-0"
                   style={{ backgroundColor: customBgColor || (currentTheme === 'dark' ? '#0b0f17' : currentTheme === 'navy' ? '#070d1e' : '#fdfbf5') }}
                 />
               </button>
@@ -209,11 +209,11 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
               {appearanceOpen && (
                 <>
                   <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setAppearanceOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-4 space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-[#ebdcc4] rounded-2xl shadow-2xl z-50 p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#ebdcc4] pb-2">
                       <div className="flex items-center space-x-1.5">
                         <Palette className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">Admin Background Color</span>
+                        <span className="text-xs font-bold text-[#1c1611]">Admin Background Color</span>
                       </div>
                       {onResetCustomBg && (
                         <button
@@ -222,7 +222,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                             onResetCustomBg();
                             if (onSelectTheme) onSelectTheme('ivory');
                           }}
-                          className="text-[10px] text-amber-600 dark:text-amber-400 hover:underline font-semibold"
+                          className="text-[10px] text-amber-700 hover:underline font-semibold"
                         >
                           Reset
                         </button>
@@ -230,7 +230,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                     </div>
 
                     <div className="space-y-1.5">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Luxury Presets</span>
+                      <span className="text-[10px] uppercase font-bold text-[#7d6851] tracking-wider block">Luxury Presets</span>
                       <div className="grid grid-cols-3 gap-1.5">
                         <button
                           type="button"
@@ -238,7 +238,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                             if (onSelectTheme) onSelectTheme('ivory');
                             if (onSelectCustomBg) onSelectCustomBg('#fdfbf5');
                           }}
-                          className="p-2 rounded-xl border border-slate-200 hover:border-amber-500 bg-[#fdfbf5] text-slate-900 text-center transition-all shadow-xs cursor-pointer"
+                          className="p-2 rounded-xl border border-[#ebdcc4] hover:border-amber-500 bg-[#fdfbf5] text-[#1c1611] text-center transition-all shadow-xs cursor-pointer"
                         >
                           <div className="w-4 h-4 rounded-full bg-[#fdfbf5] border border-slate-300 mx-auto mb-1" />
                           <span className="text-[10px] font-bold block">Ivory</span>
@@ -268,8 +268,8 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Custom Color Picker</span>
+                    <div className="space-y-1.5 pt-1 border-t border-[#ebdcc4]">
+                      <span className="text-[10px] uppercase font-bold text-[#7d6851] tracking-wider block">Custom Color Picker</span>
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
@@ -286,7 +286,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                           onChange={(e) => {
                             if (onSelectCustomBg) onSelectCustomBg(e.target.value);
                           }}
-                          className="flex-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white font-mono placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                          className="flex-1 bg-white border border-[#ebdcc4] rounded-lg px-2.5 py-1 text-xs text-[#1c1611] font-mono placeholder-[#8c765c] focus:outline-none focus:border-amber-500"
                         />
                       </div>
                     </div>
@@ -298,7 +298,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                           setAppearanceOpen(false);
                           onOpenSettings();
                         }}
-                        className="w-full text-center py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        className="w-full text-center py-1.5 rounded-lg bg-[#faf6ec] hover:bg-[#ebdcc4]/50 text-[#2d2216] text-[11px] font-semibold transition-colors border border-[#ebdcc4] cursor-pointer"
                       >
                         All Theme & Appearance Settings →
                       </button>
@@ -314,7 +314,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                 if (selectedUser) loadUserConversations(selectedUser);
               }}
               disabled={loadingUsers || loadingChats}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-espresso-900 dark:bg-slate-800 hover:bg-espresso-800 dark:hover:bg-slate-700 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#1c1611] hover:bg-[#2d2216] text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50"
               title="Refresh users and chat history"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingUsers || loadingChats ? 'animate-spin' : ''}`} />
@@ -324,12 +324,12 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
         </div>
 
         {/* STEP 1: Select User Name from Login Dropdown / Selector Bar */}
-        <div className="mt-4 pt-3 border-t border-espresso-100/80 dark:border-slate-800/80 flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        <div className="mt-4 pt-3 border-t border-[#ebdcc4] flex flex-col md:flex-row items-stretch md:items-center gap-3">
           <div className="flex items-center space-x-2 shrink-0">
             <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[11px] flex items-center justify-center shadow-xs">
               1
             </span>
-            <label htmlFor="user-select-dropdown" className="text-xs font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+            <label htmlFor="user-select-dropdown" className="text-xs font-bold text-[#1c1611] whitespace-nowrap">
               Select User Name from Login:
             </label>
           </div>
@@ -349,9 +349,9 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                     if (found) handleSelectUser(found);
                   }
                 }}
-                className="w-full pl-3 pr-8 py-2 rounded-xl text-xs font-medium border border-espresso-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 shadow-xs appearance-none cursor-pointer"
+                className="w-full pl-3 pr-8 py-2 rounded-xl text-xs font-medium border border-[#ebdcc4] bg-white text-[#1c1611] focus:outline-none focus:ring-2 focus:ring-amber-500/50 shadow-xs appearance-none cursor-pointer"
               >
-                <option value="">
+                <option value="" className="text-[#1c1611] bg-white">
                   {loadingUsers ? 'Loading registered users...' : `-- Choose a User Name to View Chats (${users.length} Registered) --`}
                 </option>
                 {users.map((u) => {
@@ -360,26 +360,26 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                   const emailOrUid = u.Email_id || u.uid;
                   const provider = u.auth_provider || 'Email';
                   return (
-                    <option key={key} value={key}>
+                    <option key={key} value={key} className="text-[#1c1611] bg-white">
                       {displayName} — {emailOrUid} ({provider})
                     </option>
                   );
                 })}
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-[#7d6851]">
                 <ChevronRight className="w-4 h-4 rotate-90" />
               </div>
             </div>
 
             {/* Quick Search Box */}
             <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[#8c765c] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search user name/email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border border-espresso-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border border-[#ebdcc4] bg-white text-[#1c1611] placeholder-[#8c765c] focus:outline-none focus:ring-2 focus:ring-amber-500/50"
               />
             </div>
           </div>
@@ -387,7 +387,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
           {selectedUser && (
             <button
               onClick={() => handleSelectUser(null)}
-              className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-semibold px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0"
+              className="text-xs text-rose-700 hover:text-rose-800 font-semibold px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors shrink-0"
             >
               Clear Selection
             </button>
@@ -401,15 +401,15 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
         {!selectedUser ? (
           <div className="max-w-4xl mx-auto space-y-6">
             {/* Guide Card */}
-            <div className="bg-gradient-to-br from-amber-500/10 via-amber-600/5 to-slate-900/5 border border-amber-500/30 rounded-2xl p-6 sm:p-8 text-center space-y-3 shadow-sm">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center mx-auto shadow-xs">
+            <div className="bg-gradient-to-br from-amber-500/10 via-[#faf6ec] to-amber-600/5 border border-amber-500/30 rounded-2xl p-6 sm:p-8 text-center space-y-3 shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-800 flex items-center justify-center mx-auto shadow-xs">
                 <Users className="w-7 h-7" />
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              <h2 className="text-base sm:text-lg font-bold text-[#1c1611]">
                 Select a User to View Chat History
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto">
-                First of all, select a user name from the dropdown above, or click any user card below. All sequential conversations (<code className="font-mono text-amber-700 dark:text-amber-400">conversation_1</code>, <code className="font-mono text-amber-700 dark:text-amber-400">conversation_2</code>...) and Agentic AI Q&A transcripts will load automatically.
+              <p className="text-xs sm:text-sm text-[#5a4835] max-w-lg mx-auto">
+                First of all, select a user name from the dropdown above, or click any user card below. All sequential conversations (<code className="font-mono text-amber-800 font-bold">conversation_1</code>, <code className="font-mono text-amber-800 font-bold">conversation_2</code>...) and Agentic AI Q&A transcripts will load automatically.
               </p>
             </div>
 
@@ -418,19 +418,19 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <UserCheck className="w-4 h-4 text-amber-600" />
-                  <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-[#1c1611] uppercase tracking-wider">
                     Registered Login Accounts ({filteredUsers.length})
                   </h3>
                 </div>
                 {searchTerm && (
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-[#7d6851]">
                     Filtered by: "{searchTerm}"
                   </span>
                 )}
               </div>
 
               {filteredUsers.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-slate-400 text-xs">
+                <div className="bg-white border border-[#ebdcc4] rounded-2xl p-8 text-center text-[#7d6851] text-xs">
                   No registered users match your search.
                 </div>
               ) : (
@@ -442,29 +442,29 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                       <div
                         key={u.Email_id || u.uid}
                         onClick={() => handleSelectUser(u)}
-                        className="bg-white dark:bg-slate-900 hover:bg-amber-50/50 dark:hover:bg-slate-800/80 border border-espresso-100 dark:border-slate-800 hover:border-amber-500/50 rounded-2xl p-4 cursor-pointer transition-all shadow-xs group flex items-center justify-between"
+                        className="bg-white hover:bg-[#faf6ec] border border-[#ebdcc4] hover:border-amber-500/50 rounded-2xl p-4 cursor-pointer transition-all shadow-xs group flex items-center justify-between"
                       >
                         <div className="flex items-center space-x-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-500/30 group-hover:scale-105 transition-transform">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-800 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-500/30 group-hover:scale-105 transition-transform">
                             {initials}
                           </div>
                           <div className="min-w-0">
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-amber-700 dark:group-hover:text-amber-400 transition-colors">
+                            <h4 className="text-sm font-bold text-[#1c1611] truncate group-hover:text-amber-800 transition-colors">
                               {u.Name || 'Anonymous Customer'}
                             </h4>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono truncate">
+                            <p className="text-xs text-[#5a4835] font-mono truncate">
                               {u.Email_id || u.uid}
                             </p>
                             <div className="flex items-center space-x-2 mt-1">
                               <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold ${
                                 isGoogle 
-                                  ? 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' 
-                                  : 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400'
+                                  ? 'bg-blue-500/10 text-blue-700 border border-blue-200' 
+                                  : 'bg-emerald-500/10 text-emerald-700 border border-emerald-200'
                               }`}>
                                 {u.auth_provider || 'Email'}
                               </span>
                               {u.Age && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#faf6ec] text-[#5a4835] border border-[#ebdcc4]">
                                   {u.Age} yrs
                                 </span>
                               )}
@@ -472,7 +472,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-1 text-xs font-semibold text-amber-700 dark:text-amber-400 group-hover:translate-x-1 transition-transform shrink-0">
+                        <div className="flex items-center space-x-1 text-xs font-bold text-amber-800 group-hover:translate-x-1 transition-transform shrink-0">
                           <span>View Chats</span>
                           <ChevronRight className="w-4 h-4" />
                         </div>
@@ -487,26 +487,26 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
           /* CASE 2: USER IS SELECTED -> SHOW CHAT HISTORY */
           <div className="max-w-5xl mx-auto space-y-6">
             {/* Selected User Overview Card */}
-            <div className="bg-white dark:bg-slate-900 border border-espresso-100 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs">
+            <div className="bg-white border border-[#ebdcc4] rounded-2xl p-4 sm:p-5 shadow-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center space-x-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-400 text-white font-black text-sm flex items-center justify-center shadow-md shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-600 to-amber-500 text-white font-black text-sm flex items-center justify-center shadow-md shrink-0">
                     {selectedUser.Name ? selectedUser.Name.substring(0, 2).toUpperCase() : 'CU'}
                   </div>
                   <div>
                     <div className="flex items-center space-x-2 flex-wrap">
-                      <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                      <h2 className="text-base sm:text-lg font-bold text-[#1c1611]">
                         {selectedUser.Name || 'Anonymous Customer'}
                       </h2>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-bold border border-amber-500/30">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-900 font-bold border border-amber-500/30">
                         {conversations.length} {conversations.length === 1 ? 'Conversation' : 'Conversations'}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-800 dark:text-violet-300 font-bold border border-violet-500/30">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-900 font-bold border border-violet-500/30">
                         {totalQaCount} Q&A Pairs
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-3 text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono flex-wrap">
+                    <div className="flex items-center space-x-3 text-xs text-[#5a4835] mt-1 font-mono flex-wrap">
                       <span>{selectedUser.Email_id}</span>
                       {(selectedUser.phone || selectedUser.Phone_number) && (
                         <span>• Tel: {selectedUser.phone || selectedUser.Phone_number}</span>
@@ -519,7 +519,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                 <div className="flex items-center space-x-2 shrink-0">
                   <button
                     onClick={() => handleSelectUser(null)}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-[#ebdcc4] hover:bg-[#faf6ec] text-xs font-semibold text-[#2d2216] transition-colors"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Change User</span>
@@ -537,8 +537,8 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
 
               {/* Conversation Selector Tabs */}
               {conversations.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-espresso-100 dark:border-slate-800 flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                <div className="mt-4 pt-3 border-t border-[#ebdcc4] flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin">
+                  <span className="text-[11px] font-bold text-[#7d6851] uppercase tracking-wider shrink-0 mr-1">
                     Conversations:
                   </span>
                   <button
@@ -546,7 +546,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
                       selectedConvKey === 'all'
                         ? 'bg-amber-500 text-slate-950 shadow-sm'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        : 'bg-[#faf6ec] text-[#2d2216] hover:bg-[#ebdcc4] border border-[#ebdcc4]'
                     }`}
                   >
                     All Conversations ({conversations.length})
@@ -562,12 +562,12 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                         className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 flex items-center space-x-1.5 ${
                           isSelected
                             ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            : 'bg-[#faf6ec] text-[#2d2216] hover:bg-[#ebdcc4] border border-[#ebdcc4]'
                         }`}
                       >
                         <span>Conv #{c.conversation_number}</span>
                         <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                          isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
+                          isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-[#ebdcc4] text-[#2d2216]'
                         }`}>
                           {qCount} Q&A
                         </span>
@@ -580,9 +580,9 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
 
             {/* Loading Indicator */}
             {loadingChats && (
-              <div className="bg-white dark:bg-slate-900 border border-espresso-100 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3">
+              <div className="bg-white border border-[#ebdcc4] rounded-2xl p-12 text-center space-y-3">
                 <RefreshCw className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                <p className="text-xs text-[#5a4835] font-medium">
                   Loading sequential conversations and Q&A pairs for {selectedUser.Name || 'User'}...
                 </p>
               </div>
@@ -590,14 +590,14 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
 
             {/* Empty State if no conversations found */}
             {!loadingChats && conversations.length === 0 && (
-              <div className="bg-white dark:bg-slate-900 border border-espresso-100 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3 shadow-xs">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+              <div className="bg-white border border-[#ebdcc4] rounded-2xl p-12 text-center space-y-3 shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-[#faf6ec] text-[#8c765c] flex items-center justify-center mx-auto border border-[#ebdcc4]">
                   <MessageCircle className="w-6 h-6" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                <h3 className="text-sm font-bold text-[#1c1611]">
                   No Chat History Found for {selectedUser.Name || 'User'}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                <p className="text-xs text-[#5a4835] max-w-md mx-auto">
                   This user has logged in successfully, but has not initiated any Agentic AI chat inquiries yet.
                 </p>
               </div>
@@ -607,10 +607,10 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
             {!loadingChats && displayedConversations.map((conv) => (
               <div
                 key={conv.conversation_key || conv.lead_id}
-                className="bg-white dark:bg-slate-900 border border-espresso-100 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs space-y-0"
+                className="bg-white border border-[#ebdcc4] rounded-2xl overflow-hidden shadow-xs space-y-0"
               >
                 {/* Conversation Header Bar */}
-                <div className="bg-espresso-900 text-white px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-espresso-800">
+                <div className="bg-[#1c1611] text-white px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2d2216]">
                   <div className="flex items-center space-x-3">
                     <span className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shadow-xs">
                       #{conv.conversation_number}
@@ -620,11 +620,11 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                         <h3 className="text-sm font-bold text-white tracking-wide">
                           {conv.title || `Conversation ${conv.conversation_number}`}
                         </h3>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-espresso-800 text-amber-300">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#2d2216] text-amber-300 border border-amber-500/20">
                           {conv.conversation_key}
                         </span>
                       </div>
-                      <div className="flex items-center space-x-3 text-[11px] text-espresso-300 font-mono mt-0.5">
+                      <div className="flex items-center space-x-3 text-[11px] text-[#ebdcc4]/80 font-mono mt-0.5">
                         <span className="flex items-center space-x-1">
                           <Calendar className="w-3 h-3 text-amber-400" />
                           <span>{conv.date}</span>
@@ -642,7 +642,7 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
 
                   <button
                     onClick={() => copyTranscript(conv)}
-                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-espresso-800 hover:bg-espresso-700 text-espresso-200 text-xs font-medium transition-colors shrink-0 self-start sm:self-auto"
+                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-[#2d2216] hover:bg-[#3d2f20] text-[#ebdcc4] text-xs font-medium transition-colors shrink-0 self-start sm:self-auto border border-[#ebdcc4]/20"
                     title="Copy full conversation transcript"
                   >
                     {copiedKey === conv.conversation_key ? (
@@ -660,57 +660,57 @@ export const AdminUserChatHistory: React.FC<AdminUserChatHistoryProps> = ({
                 </div>
 
                 {/* Sequential Q&A Chats inside Conversation */}
-                <div className="p-4 sm:p-6 space-y-6 bg-slate-50/50 dark:bg-slate-950/40">
+                <div className="p-4 sm:p-6 space-y-6 bg-[#faf6ec]/50">
                   {conv.chats.map((qaItem: QaChatItem) => (
                     <div
                       key={qaItem.sequence}
-                      className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 hover:border-amber-500/30 transition-colors"
+                      className="bg-white border border-[#ebdcc4] rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 hover:border-amber-500/40 transition-colors"
                     >
                       {/* Step Indicator Header */}
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                      <div className="flex items-center justify-between border-b border-[#ebdcc4] pb-2.5">
                         <div className="flex items-center space-x-2">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-900 border border-amber-500/30">
                             Sequence #{qaItem.sequence}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2 text-[11px] text-slate-400 font-mono">
-                          <Clock className="w-3 h-3 text-slate-400" />
+                        <div className="flex items-center space-x-2 text-[11px] text-[#7d6851] font-mono">
+                          <Clock className="w-3 h-3 text-amber-600" />
                           <span>{qaItem.date} • {qaItem.time}</span>
                         </div>
                       </div>
 
                       {/* 1. User Question Card */}
-                      <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 rounded-xl p-3.5 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-300">
+                      <div className="bg-[#fff9ef] border border-[#ebdcc4] rounded-xl p-3.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-amber-950">
                           <div className="flex items-center space-x-2">
-                            <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center justify-center text-[10px] font-black">
+                            <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-900 flex items-center justify-center text-[10px] font-black">
                               U
                             </span>
-                            <span>User Question ({selectedUser.Name || 'Customer'})</span>
+                            <span className="text-[#1c1611]">User Question ({selectedUser.Name || 'Customer'})</span>
                           </div>
-                          <span className="text-[10px] text-amber-800/70 dark:text-amber-400 font-mono">
+                          <span className="text-[10px] text-[#7d6851] font-mono">
                             {qaItem.time}
                           </span>
                         </div>
-                        <p className="text-xs sm:text-sm font-medium text-slate-900 dark:text-slate-100 pl-7 leading-relaxed whitespace-pre-wrap">
+                        <p className="text-xs sm:text-sm font-semibold text-[#1c1611] pl-7 leading-relaxed whitespace-pre-wrap">
                           {qaItem.user_question || '<Empty prompt>'}
                         </p>
                       </div>
 
                       {/* 2. Lyka AI Answer Card */}
-                      <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 rounded-xl p-3.5 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-bold text-violet-900 dark:text-violet-300">
+                      <div className="bg-[#fcfaf4] border border-[#ebdcc4] rounded-xl p-3.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-[#1c1611]">
                           <div className="flex items-center space-x-2">
-                            <span className="w-5 h-5 rounded-md bg-violet-500/20 text-violet-700 dark:text-violet-300 flex items-center justify-center text-[10px]">
-                              <Sparkles className="w-3 h-3 text-amber-500" />
+                            <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-800 flex items-center justify-center text-[10px]">
+                              <Sparkles className="w-3 h-3 text-amber-600" />
                             </span>
-                            <span>Lyka Agentic AI Answer</span>
+                            <span className="text-[#1c1611]">Lyka Agentic AI Answer</span>
                           </div>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-[#7d6851] font-mono">
                             {qaItem.time}
                           </span>
                         </div>
-                        <div className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 pl-7 leading-relaxed whitespace-pre-wrap">
+                        <div className="text-xs sm:text-sm text-[#2d2216] pl-7 leading-relaxed whitespace-pre-wrap">
                           {qaItem.ai_answer || '<No response recorded>'}
                         </div>
                       </div>

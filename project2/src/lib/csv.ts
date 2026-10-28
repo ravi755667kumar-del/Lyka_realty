@@ -392,3 +392,26 @@ export function downloadCSV(filename: string, csvContent: string): boolean {
     }
   }
 }
+
+/**
+ * Export CRM active leads and follow-up tasks to formatted CSV.
+ */
+export function exportLeadsToCSV(leads: any[], _followUps?: any[]): boolean {
+  const headers = ['Lead ID', 'Name', 'Phone', 'Email', 'Intent', 'Priority', 'Status', 'Budget (AED)', 'Communities', 'Created At'];
+  const rows = leads.map(l => [
+    l.id || '',
+    l.full_name || 'N/A',
+    l.phone || '',
+    l.email || '',
+    l.intent || '',
+    l.lead_priority || '',
+    l.lead_status || '',
+    l.budget_max || 0,
+    (l.preferred_communities || []).join('; '),
+    l.created_at || ''
+  ].map(csvCell));
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const dateStr = new Date().toISOString().split('T')[0];
+  return downloadCSV(`lyka_crm_leads_${dateStr}.csv`, csvContent);
+}
+

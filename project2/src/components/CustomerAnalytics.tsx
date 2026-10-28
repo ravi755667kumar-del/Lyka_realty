@@ -385,23 +385,23 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-300 font-sans p-4 sm:p-6 space-y-6">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#fdfbf5] text-[#2d2216] font-sans p-4 sm:p-6 space-y-6">
       
       {/* ─── TOP HEADER ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#ebdcc4] pb-5">
         <div>
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-600 shadow-lg shadow-amber-500/10">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-300 flex items-center space-x-2">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#2d2216] flex items-center space-x-2">
                 <span>Customer Login & Activity Analytics</span>
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   Live
                 </span>
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+              <p className="text-xs sm:text-sm text-[#8c765c] mt-0.5">
                 Track registered customers and login statistics by Date, Day, Month, and Year
               </p>
             </div>
@@ -424,7 +424,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           <button
             onClick={fetchData}
             disabled={refreshing}
-            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all shadow-sm disabled:opacity-50"
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#1c1611] hover:bg-[#2d2216] text-white border border-[#2d2216] transition-all shadow-sm disabled:opacity-50"
             title="Refresh login data from database"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-amber-600' : ''}`} />
@@ -437,54 +437,54 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
         {/* Total Customers */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-amber-500/40 transition-all">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-amber-500/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Customers</span>
+            <span className="text-xs font-semibold text-[#7d6851] uppercase tracking-wider">Total Customers</span>
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
               <UserCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-slate-300">{kpis.totalCustomers}</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#2d2216]">{kpis.totalCustomers}</span>
             <span className="text-[11px] text-emerald-400 font-medium">Registered</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Verified user profiles in database</p>
+          <p className="text-[11px] text-[#8c765c] mt-1">Verified user profiles in database</p>
         </div>
 
         {/* Logins Today */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-emerald-500/40 transition-all">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-emerald-500/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Logins Today</span>
+            <span className="text-xs font-semibold text-[#7d6851] uppercase tracking-wider">Logins Today</span>
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
               <Clock className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-slate-300">{kpis.loginsToday}</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#2d2216]">{kpis.loginsToday}</span>
             <span className="text-[11px] text-emerald-400 font-medium">Today</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Active customer sessions today</p>
+          <p className="text-[11px] text-[#8c765c] mt-1">Active customer sessions today</p>
         </div>
 
         {/* Logins This Month */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-violet-500/40 transition-all">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-violet-500/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Monthly Logins</span>
+            <span className="text-xs font-semibold text-[#7d6851] uppercase tracking-wider">Monthly Logins</span>
             <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline space-x-2">
-            <span className="text-2xl sm:text-3xl font-extrabold text-slate-300">{kpis.loginsThisMonth}</span>
+            <span className="text-2xl sm:text-3xl font-extrabold text-[#2d2216]">{kpis.loginsThisMonth}</span>
             <span className="text-[11px] text-violet-300 font-medium">Past 30 days</span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">{kpis.loginsThisWeek} logins this week</p>
+          <p className="text-[11px] text-[#8c765c] mt-1">{kpis.loginsThisWeek} logins this week</p>
         </div>
 
         {/* Auth Provider Split */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-cyan-500/40 transition-all">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-4 sm:p-5 relative overflow-hidden group hover:border-cyan-500/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Login Method</span>
+            <span className="text-xs font-semibold text-[#7d6851] uppercase tracking-wider">Login Method</span>
             <div className="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
               <ShieldCheck className="w-4 h-4" />
             </div>
@@ -492,35 +492,35 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           <div className="mt-3 flex items-center space-x-3">
             <div className="flex items-center space-x-1">
               <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span className="text-sm font-bold text-slate-300">{kpis.googleCount}</span>
-              <span className="text-[11px] text-slate-400">Google</span>
+              <span className="text-sm font-bold text-[#2d2216]">{kpis.googleCount}</span>
+              <span className="text-[11px] text-[#7d6851]">Google</span>
             </div>
-            <div className="text-slate-500">|</div>
+            <div className="text-[#8c765c]">|</div>
             <div className="flex items-center space-x-1">
               <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-              <span className="text-sm font-bold text-slate-300">{kpis.emailCount}</span>
-              <span className="text-[11px] text-slate-400">Email</span>
+              <span className="text-sm font-bold text-[#2d2216]">{kpis.emailCount}</span>
+              <span className="text-[11px] text-[#7d6851]">Email</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-500 mt-1">Avg customer age: {kpis.avgAge} yrs</p>
+          <p className="text-[11px] text-[#8c765c] mt-1">Avg customer age: {kpis.avgAge} yrs</p>
         </div>
 
       </div>
 
       {/* ─── PRIMARY STATISTICAL CHART SECTION (DATE / DAY / MONTH / YEAR) ─── */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
+      <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-5 sm:p-6 shadow-xl space-y-5">
         
         {/* Controls Toolbar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#ebdcc4] pb-4">
           
           {/* Mode Selector (Date / Day / Month / Year) */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 overflow-x-auto">
+          <div className="flex items-center space-x-1.5 bg-white p-1 rounded-xl border border-[#ebdcc4] overflow-x-auto">
             <button
               onClick={() => setGroupMode('date')}
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'date'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  : 'text-[#7d6851] hover:text-[#2d2216] hover:bg-slate-800'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
@@ -532,7 +532,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'day'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  : 'text-[#7d6851] hover:text-[#2d2216] hover:bg-slate-800'
               }`}
             >
               <CalendarDays className="w-3.5 h-3.5" />
@@ -544,7 +544,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'month'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  : 'text-[#7d6851] hover:text-[#2d2216] hover:bg-slate-800'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
@@ -556,7 +556,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 groupMode === 'year'
                   ? 'bg-amber-500 text-amber-950 shadow-sm'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800'
+                  : 'text-[#7d6851] hover:text-[#2d2216] hover:bg-slate-800'
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5" />
@@ -567,15 +567,15 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           {/* Sub-filters depending on active mode */}
           <div className="flex items-center space-x-2">
             {groupMode === 'date' && (
-              <div className="flex items-center space-x-1 text-xs bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center space-x-1 text-xs bg-white p-1 rounded-xl border border-[#ebdcc4]">
                 {(['7d', '14d', '30d', 'all'] as DateRange[]).map((r) => (
                   <button
                     key={r}
                     onClick={() => setDateRange(r)}
                     className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
                       dateRange === r
-                        ? 'bg-slate-800 text-slate-300 font-semibold'
-                        : 'text-slate-500 hover:text-slate-300'
+                        ? 'bg-slate-800 text-[#2d2216] font-semibold'
+                        : 'text-[#8c765c] hover:text-[#2d2216]'
                     }`}
                   >
                     {r === '7d' ? '7 Days' : r === '14d' ? '14 Days' : r === '30d' ? '30 Days' : 'All Dates'}
@@ -586,11 +586,11 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
 
             {groupMode === 'month' && (
               <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-400 font-medium">Year:</span>
+                <span className="text-xs text-[#7d6851] font-medium">Year:</span>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-white border border-slate-700 rounded-lg text-xs font-semibold px-2.5 py-1 text-slate-300 outline-none"
+                  className="bg-white border border-[#ebdcc4] rounded-lg text-xs font-semibold px-2.5 py-1 text-[#2d2216] outline-none"
                 >
                   {[2024, 2025, 2026, 2027].map(yr => (
                     <option key={yr} value={yr}>{yr}</option>
@@ -599,7 +599,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               </div>
             )}
 
-            <div className="text-xs font-semibold text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+            <div className="text-xs font-semibold text-[#7d6851] bg-slate-800/80 px-2.5 py-1 rounded-lg border border-[#ebdcc4]">
               Total Logins: <span className="text-amber-600 font-bold">{totalViewLogins}</span>
             </div>
           </div>
@@ -608,22 +608,22 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
 
         {/* ─── VISUAL STATISTICAL BAR CHART ─── */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+          <div className="flex items-center justify-between text-xs text-[#7d6851] mb-2">
             <span>
               {groupMode === 'date' && `Daily Login Distribution (${dateRange === 'all' ? 'All recorded dates' : `Past ${dateRange.replace('d', ' days')}`})`}
               {groupMode === 'day' && 'Weekly Login Peak Pattern (Monday to Sunday)'}
               {groupMode === 'month' && `Monthly Login Activity (${selectedYear})`}
               {groupMode === 'year' && 'Year-over-Year Total Logins'}
             </span>
-            <span className="text-[11px] text-slate-500">Hover bars to see exact counts</span>
+            <span className="text-[11px] text-[#8c765c]">Hover bars to see exact counts</span>
           </div>
 
           {aggregatedStats.length === 0 ? (
-            <div className="py-16 text-center text-slate-500 text-xs">
+            <div className="py-16 text-center text-[#8c765c] text-xs">
               No login records found for this period.
             </div>
           ) : (
-            <div className="h-64 sm:h-72 w-full flex items-end gap-1.5 sm:gap-3 pt-6 pb-2 px-2 bg-slate-950/70 border border-slate-800/80 rounded-2xl overflow-x-auto">
+            <div className="h-64 sm:h-72 w-full flex items-end gap-1.5 sm:gap-3 pt-6 pb-2 px-2 bg-white/70 border border-[#ebdcc4]/80 rounded-2xl overflow-x-auto">
               {aggregatedStats.map((item) => {
                 const heightPercent = maxStatCount > 0 ? Math.max((item.count / maxStatCount) * 100, item.count > 0 ? 8 : 2) : 2;
                 const isPeak = item.count > 0 && item.count === maxStatCount;
@@ -634,15 +634,15 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     className="flex-1 min-w-[32px] sm:min-w-[42px] flex flex-col items-center h-full justify-end group relative"
                   >
                     {/* Tooltip on hover */}
-                    <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 bg-slate-900 border border-amber-500/50 shadow-xl rounded-lg px-2.5 py-1 text-center whitespace-nowrap">
-                      <p className="text-[10px] font-bold text-white">{item.subLabel}</p>
+                    <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 bg-[#faf6ec] border border-amber-500/50 shadow-xl rounded-lg px-2.5 py-1 text-center whitespace-nowrap">
+                      <p className="text-[10px] font-bold text-[#2d2216]">{item.subLabel}</p>
                       <p className="text-[10px] text-amber-600 font-semibold">{item.count} logins ({item.uniqueUsers} users)</p>
                     </div>
 
                     {/* Value label on top of bar */}
                     {item.count > 0 && (
                       <span className={`text-[10px] font-bold mb-1 transition-transform group-hover:scale-110 ${
-                        isPeak ? 'text-amber-600' : 'text-slate-400'
+                        isPeak ? 'text-amber-600' : 'text-[#7d6851]'
                       }`}>
                         {item.count}
                       </span>
@@ -661,7 +661,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     />
 
                     {/* Axis Label */}
-                    <span className="text-[10px] font-medium text-slate-400 mt-2 truncate w-full text-center">
+                    <span className="text-[10px] font-medium text-[#7d6851] mt-2 truncate w-full text-center">
                       {item.label}
                     </span>
                   </div>
@@ -675,19 +675,19 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           
           {/* Auth Provider Distribution */}
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <div className="bg-white p-4 rounded-xl border border-[#ebdcc4] space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center space-x-1.5">
+              <span className="text-xs font-bold text-[#1c1611] flex items-center space-x-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
                 <span>Authentication Method Breakdown</span>
               </span>
-              <span className="text-[10px] text-slate-400">{users.length} total users</span>
+              <span className="text-[10px] text-[#7d6851]">{users.length} total users</span>
             </div>
 
             <div className="space-y-2">
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-300 flex items-center space-x-1">
+                  <span className="text-[#2d2216] flex items-center space-x-1">
                     <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                     <span>Google Sign In</span>
                   </span>
@@ -705,7 +705,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
 
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-300 flex items-center space-x-1">
+                  <span className="text-[#2d2216] flex items-center space-x-1">
                     <span className="w-2 h-2 rounded-full bg-violet-400"></span>
                     <span>Email & Password</span>
                   </span>
@@ -724,20 +724,20 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           </div>
 
           {/* Customer Age Demographics */}
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <div className="bg-white p-4 rounded-xl border border-[#ebdcc4] space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <Users className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-bold text-[#1c1611] flex items-center space-x-1.5">
+                <Users className="w-3.5 h-3.5 text-amber-600" />
                 <span>Customer Age Distribution</span>
               </span>
-              <span className="text-[10px] text-slate-400">Average: {kpis.avgAge} yrs</span>
+              <span className="text-[10px] text-[#7d6851]">Average: {kpis.avgAge} yrs</span>
             </div>
 
             <div className="grid grid-cols-4 gap-2 text-center">
               {Object.entries(ageDemographics).map(([bracket, count]) => (
-                <div key={bracket} className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-                  <span className="text-[10px] text-slate-400 block">{bracket} yrs</span>
-                  <span className="text-base font-extrabold text-white mt-0.5 block">{count}</span>
+                <div key={bracket} className="bg-white p-2 rounded-lg border border-[#ebdcc4]/80">
+                  <span className="text-[10px] text-[#7d6851] block">{bracket} yrs</span>
+                  <span className="text-base font-extrabold text-[#1c1611] mt-0.5 block">{count}</span>
                   <span className="text-[9px] text-cyan-400 block">
                     {users.length > 0 ? Math.round((count / users.length) * 100) : 0}%
                   </span>
@@ -751,18 +751,18 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
       </div>
 
       {/* ─── CUSTOMER REGISTRY & ACTIVITY TABLE ─── */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+      <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
         
         {/* Table Header and Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center space-x-2">
+            <h2 className="text-base font-bold text-[#1c1611] flex items-center space-x-2">
               <span>Customer Registry & Login History</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-[#2d2216]">
                 {filteredUsers.length} users
               </span>
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[#7d6851] mt-0.5">
               Detailed user credentials, auth methods, last logins, and engagement
             </p>
           </div>
@@ -770,20 +770,20 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
           {/* Search & Provider Filter */}
           <div className="flex items-center space-x-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-[#8c765c] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search name, email, uid..."
-                className="bg-white border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500/50 w-44 sm:w-56"
+                className="bg-white border border-[#ebdcc4] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[#2d2216] placeholder-slate-500 outline-none focus:border-amber-500/50 w-44 sm:w-56"
               />
             </div>
 
             <select
               value={providerFilter}
               onChange={(e) => setProviderFilter(e.target.value as any)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 outline-none"
+              className="bg-white border border-[#ebdcc4] rounded-xl px-2.5 py-1.5 text-xs text-[#2d2216] outline-none"
             >
               <option value="all">All Providers</option>
               <option value="Google">Google Only</option>
@@ -793,9 +793,9 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
         </div>
 
         {/* Table */}
-        <div className="border border-slate-800/80 rounded-xl overflow-x-auto">
+        <div className="border border-[#ebdcc4]/80 rounded-xl overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/80 text-slate-400 font-semibold border-b border-slate-800">
+            <thead className="bg-white/80 text-[#7d6851] font-semibold border-b border-[#ebdcc4]">
               <tr>
                 <th className="py-3 px-4">Customer</th>
                 <th className="py-3 px-4">Contact (Email & Phone)</th>
@@ -809,7 +809,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             <tbody className="divide-y divide-slate-800/50">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">
+                  <td colSpan={7} className="py-8 text-center text-[#8c765c]">
                     No customers found matching your search.
                   </td>
                 </tr>
@@ -829,15 +829,15 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                             {u.Name ? u.Name.substring(0, 2).toUpperCase() : 'CU'}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-white truncate">{u.Name || 'Customer'}</p>
-                            <p className="text-[10px] text-slate-500 truncate font-mono">UID: {u.uid ? u.uid.substring(0, 8) + '...' : 'N/A'}</p>
+                            <p className="font-semibold text-[#1c1611] truncate">{u.Name || 'Customer'}</p>
+                            <p className="text-[10px] text-[#8c765c] truncate font-mono">UID: {u.uid ? u.uid.substring(0, 8) + '...' : 'N/A'}</p>
                           </div>
                         </div>
                       </td>
 
                       {/* Contact Info (Email & Phone) */}
                       <td className="py-3 px-4">
-                        <div className="text-slate-300 font-mono text-[11px] truncate max-w-[180px]">{u.Email_id || 'N/A'}</div>
+                        <div className="text-[#2d2216] font-mono text-[11px] truncate max-w-[180px]">{u.Email_id || 'N/A'}</div>
                         {(u.talk_to_agent_phone || u.phone) && (
                           <div className="flex items-center space-x-1 text-emerald-400 font-mono text-[10px] mt-0.5">
                             <Phone className="w-2.5 h-2.5" />
@@ -853,13 +853,13 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                       </td>
 
                       {/* Age */}
-                      <td className="py-3 px-4 text-slate-300">
+                      <td className="py-3 px-4 text-[#2d2216]">
                         {u.Age ? (
-                          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px] font-semibold border border-slate-700">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[#2d2216] text-[10px] font-semibold border border-[#ebdcc4]">
                             {u.Age} yrs
                           </span>
                         ) : (
-                          <span className="text-slate-500 text-[10px]">N/A</span>
+                          <span className="text-[#8c765c] text-[10px]">N/A</span>
                         )}
                       </td>
 
@@ -876,13 +876,13 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
 
                       {/* Last Login */}
                       <td className="py-3 px-4">
-                        <div className="text-slate-300">{getTimeAgo(u.last_login)}</div>
-                        <div className="text-[10px] text-slate-500">{formatDateTime(u.last_login)}</div>
+                        <div className="text-[#2d2216]">{getTimeAgo(u.last_login)}</div>
+                        <div className="text-[10px] text-[#8c765c]">{formatDateTime(u.last_login)}</div>
                       </td>
 
                       {/* Total Logins */}
                       <td className="py-3 px-4">
-                        <span className="font-bold text-white px-2 py-0.5 rounded-md bg-slate-800 text-xs">
+                        <span className="font-bold text-[#1c1611] px-2.5 py-0.5 rounded-md bg-[#faf6ec] border border-[#ebdcc4] text-xs shadow-xs">
                           {loginCount} {loginCount === 1 ? 'time' : 'times'}
                         </span>
                       </td>
@@ -891,7 +891,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => setSelectedUserDetail(u)}
-                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white hover:bg-[#faf6ec] text-[#1c1611] hover:text-amber-800 border border-[#ebdcc4] transition-colors shadow-xs"
                         >
                           View Details
                         </button>
@@ -909,16 +909,16 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
       {/* ─── USER DETAIL MODAL ─── */}
       {selectedUserDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl relative">
+          <div className="bg-white border border-[#ebdcc4] rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl relative">
             
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-[#ebdcc4] pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-600 font-bold">
                   {selectedUserDetail.Name ? selectedUserDetail.Name.substring(0, 2).toUpperCase() : 'U'}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">{selectedUserDetail.Name || 'Customer Profile'}</h3>
-                  <div className="flex items-center space-x-2 text-[11px] text-slate-400 font-mono">
+                  <h3 className="text-base font-bold text-[#1c1611]">{selectedUserDetail.Name || 'Customer Profile'}</h3>
+                  <div className="flex items-center space-x-2 text-[11px] text-[#7d6851] font-mono">
                     <span>{selectedUserDetail.Email_id}</span>
                     {(selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone) && (
                       <span className="text-emerald-400 font-semibold">
@@ -930,7 +930,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
               </div>
               <button
                 onClick={() => setSelectedUserDetail(null)}
-                className="text-slate-500 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                className="text-[#8c765c] hover:text-[#1c1611] p-1 rounded-lg hover:bg-[#faf6ec] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -954,11 +954,11 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                   </span>
                 </div>
 
-                <div className="bg-slate-950/80 p-2.5 rounded-lg border border-amber-500/30 space-y-2">
+                <div className="bg-white/80 p-2.5 rounded-lg border border-amber-500/30 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-[9px] text-slate-400 uppercase font-semibold">Mobile Number</span>
-                      <p className="text-xs font-bold text-white font-mono mt-0.5">
+                      <span className="text-[9px] text-[#7d6851] uppercase font-semibold">Mobile Number</span>
+                      <p className="text-xs font-bold text-[#2d2216] font-mono mt-0.5">
                         {selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone || 'Not provided'}
                       </p>
                     </div>
@@ -984,7 +984,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
                     )}
                   </div>
                   {selectedUserDetail.talk_to_agent_reason && (
-                    <p className="text-[10px] text-amber-700/80 italic border-t border-slate-800 pt-1.5">
+                    <p className="text-[10px] text-amber-700/80 italic border-t border-[#ebdcc4] pt-1.5">
                       "{selectedUserDetail.talk_to_agent_reason}"
                     </p>
                   )}
@@ -994,49 +994,49 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
 
             {/* Profile Info Grid */}
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Customer Age</span>
-                <span className="text-sm font-bold text-white mt-0.5 block">{selectedUserDetail.Age ? `${selectedUserDetail.Age} Years Old` : 'Not specified'}</span>
+              <div className="bg-white p-3 rounded-xl border border-[#ebdcc4]/80">
+                <span className="text-[10px] text-[#8c765c] uppercase tracking-wider block">Customer Age</span>
+                <span className="text-sm font-bold text-[#1c1611] mt-0.5 block">{selectedUserDetail.Age ? `${selectedUserDetail.Age} Years Old` : 'Not specified'}</span>
               </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Sign-in Provider</span>
-                <span className="text-sm font-bold text-white mt-0.5 block">{selectedUserDetail.auth_provider || 'Email'}</span>
+              <div className="bg-white p-3 rounded-xl border border-[#ebdcc4]/80">
+                <span className="text-[10px] text-[#8c765c] uppercase tracking-wider block">Sign-in Provider</span>
+                <span className="text-sm font-bold text-[#1c1611] mt-0.5 block">{selectedUserDetail.auth_provider || 'Email'}</span>
               </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Contact Phone</span>
-                <span className="text-xs font-semibold text-white mt-0.5 block font-mono truncate">
+              <div className="bg-white p-3 rounded-xl border border-[#ebdcc4]/80">
+                <span className="text-[10px] text-[#8c765c] uppercase tracking-wider block">Contact Phone</span>
+                <span className="text-xs font-semibold text-[#2d2216] mt-0.5 block font-mono truncate">
                   {selectedUserDetail.talk_to_agent_phone || selectedUserDetail.phone || 'Not provided'}
                 </span>
               </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Firebase UID</span>
-                <span className="text-xs font-mono text-slate-300 mt-0.5 block truncate">{selectedUserDetail.uid || 'N/A'}</span>
+              <div className="bg-white p-3 rounded-xl border border-[#ebdcc4]/80">
+                <span className="text-[10px] text-[#8c765c] uppercase tracking-wider block">Firebase UID</span>
+                <span className="text-xs font-mono text-[#2d2216] mt-0.5 block truncate">{selectedUserDetail.uid || 'N/A'}</span>
               </div>
             </div>
 
             {/* Login History List */}
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-300 block">
+              <span className="text-xs font-bold text-[#2d2216] block">
                 Recorded Login Timestamps ({selectedUserDetail.login_history?.length || 1})
               </span>
               <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                 {selectedUserDetail.login_history && selectedUserDetail.login_history.length > 0 ? (
                   selectedUserDetail.login_history.map((ts, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-xs bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/80">
+                    <div key={idx} className="flex items-center justify-between text-xs bg-white px-3 py-2 rounded-lg border border-[#ebdcc4]/80">
                       <div className="flex items-center space-x-2">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-slate-300">{formatDateTime(ts)}</span>
+                        <span className="text-[#2d2216]">{formatDateTime(ts)}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500">{getTimeAgo(ts)}</span>
+                      <span className="text-[10px] text-[#8c765c]">{getTimeAgo(ts)}</span>
                     </div>
                   ))
                 ) : (
-                  <div className="flex items-center justify-between text-xs bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/80">
+                  <div className="flex items-center justify-between text-xs bg-white px-3 py-2 rounded-lg border border-[#ebdcc4]/80">
                     <div className="flex items-center space-x-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-slate-300">{formatDateTime(selectedUserDetail.last_login)}</span>
+                      <span className="text-[#2d2216]">{formatDateTime(selectedUserDetail.last_login)}</span>
                     </div>
-                    <span className="text-[10px] text-slate-500">{getTimeAgo(selectedUserDetail.last_login)}</span>
+                    <span className="text-[10px] text-[#8c765c]">{getTimeAgo(selectedUserDetail.last_login)}</span>
                   </div>
                 )}
               </div>
@@ -1045,7 +1045,7 @@ export const CustomerAnalytics: React.FC<CustomerAnalyticsProps> = ({
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setSelectedUserDetail(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#1c1611] hover:bg-[#2d2216] text-white transition-colors"
               >
                 Close
               </button>

@@ -305,8 +305,8 @@ export default function App() {
   const isPortalAuthed = adminTargetPortal === 'admin' 
     ? adminAuthenticated 
     : adminTargetPortal === 'property_manager'
-    ? (propertyManagerAuthenticated || adminAuthenticated)
-    : (salesManagerAuthenticated || adminAuthenticated);
+    ? propertyManagerAuthenticated
+    : salesManagerAuthenticated;
   const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
   const [adminEmailInput, setAdminEmailInput] = useState('');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
@@ -473,16 +473,41 @@ export default function App() {
     return Array.from(new Set(list));
   }, [adminDbCredentials, pmDbCredentials, salesDbCredentials, staffList]);
 
-  // When a regular customer user logs in on Home or Chat, they must NOT see the admin header or panel
+  // When a regular customer user logs in on Home or Chat, they must NOT see the admin header or panel unless authenticated as admin
   const isCustomerLoggedIn = useMemo(() => {
+    if (adminAuthenticated || propertyManagerAuthenticated || salesManagerAuthenticated) return false;
     if (!currentUserEmail) return false;
     const clean = currentUserEmail.trim().toLowerCase();
     return !adminEmails.includes(clean);
-  }, [currentUserEmail, adminEmails]);
+  }, [currentUserEmail, adminEmails, adminAuthenticated, propertyManagerAuthenticated, salesManagerAuthenticated]);
 
-  const effectiveAdminAuthed = isCustomerLoggedIn ? false : adminAuthenticated;
-  const effectivePmAuthed = isCustomerLoggedIn ? false : propertyManagerAuthenticated;
-  const effectiveSmAuthed = isCustomerLoggedIn ? false : salesManagerAuthenticated;
+  const effectiveAdminAuthed = adminAuthenticated;
+  const effectivePmAuthed = propertyManagerAuthenticated;
+  const effectiveSmAuthed = salesManagerAuthenticated;
+
+  // Strict portal isolation guard: Ensure Super Admin cannot view or stay on Property Admin / Sales Manager tabs
+  useEffect(() => {
+    if (adminAuthenticated && !propertyManagerAuthenticated) {
+      if (activeTab === 'properties' || activeTab === 'assigned_properties') {
+        setActiveTab('crm');
+      }
+    }
+    if (adminAuthenticated && !salesManagerAuthenticated) {
+      if (activeTab === 'sales_duplicates' || activeTab === 'sales_missing_requirements') {
+        setActiveTab('crm');
+      }
+    }
+    if (propertyManagerAuthenticated && !adminAuthenticated) {
+      if (['crm', 'knowledge', 'customers', 'user_chats', 'login_stats', 'staff_access', 'sales_duplicates', 'sales_missing_requirements'].includes(activeTab)) {
+        setActiveTab('properties');
+      }
+    }
+    if (salesManagerAuthenticated && !adminAuthenticated) {
+      if (['crm', 'knowledge', 'customers', 'user_chats', 'login_stats', 'staff_access', 'properties', 'assigned_properties'].includes(activeTab)) {
+        setActiveTab('sales_duplicates');
+      }
+    }
+  }, [adminAuthenticated, propertyManagerAuthenticated, salesManagerAuthenticated, activeTab]);
 
   // Email 6-Digit OTP states for Admin / Property Manager Login (Valid for 3 Minutes)
   const [adminOtpInput, setAdminOtpInput] = useState('');
@@ -2542,7 +2567,7 @@ export default function App() {
           ? 'bg-[#0b0f17] text-slate-100 theme-dark dark' 
           : theme === 'navy' 
           ? 'bg-[#070d1e] text-blue-50 theme-navy dark' 
-          : 'bg-slate-950 text-slate-300 theme-ivory'
+          : 'bg-[#fdfbf5] text-[#2d2216] theme-ivory'
       }`}
     >
 
@@ -2577,8 +2602,8 @@ export default function App() {
           const isAuthed = portal === 'admin' 
             ? effectiveAdminAuthed 
             : portal === 'property_manager'
-            ? (effectivePmAuthed || effectiveAdminAuthed)
-            : (effectiveSmAuthed || effectiveAdminAuthed);
+            ? effectivePmAuthed
+            : effectiveSmAuthed;
           if (!isAuthed) {
             handleSelectPortalTab(portal);
             setShowAdminLoginModal(true);
@@ -2603,8 +2628,8 @@ export default function App() {
             const isAuthed = adminTargetPortal === 'admin' 
               ? effectiveAdminAuthed 
               : adminTargetPortal === 'property_manager'
-              ? (effectivePmAuthed || effectiveAdminAuthed)
-              : (effectiveSmAuthed || effectiveAdminAuthed);
+              ? effectivePmAuthed
+              : effectiveSmAuthed;
             if (!isAuthed) {
               // Not logged in → show login gate
               handleSelectPortalTab(adminTargetPortal);
@@ -2765,10 +2790,10 @@ export default function App() {
         {activeTab !== 'chat' && activeTab !== 'home' && (
           <div className="flex-1 flex w-full h-full overflow-hidden relative">
             <Suspense fallback={
-              <div className="flex-1 flex items-center justify-center p-8 text-slate-400 bg-slate-950">
+              <div className="flex-1 flex items-center justify-center p-8 text-[#5a4835] bg-[#fdfbf5]">
                 <div className="flex items-center space-x-3 text-sm">
-                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span>Loading portal...</span>
+                  <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="font-semibold text-xs tracking-wider">Loading portal...</span>
                 </div>
               </div>
             }>
@@ -2811,8 +2836,8 @@ export default function App() {
               <AdminStats properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES} />
             )}
 
-            {/* Assign / Bookings Section — accessible to both Property Manager and Admin */}
-            {(effectiveAdminAuthed || effectivePmAuthed) && activeTab === 'assigned_properties' && (
+            {/* Assign / Bookings Section — Property Manager only */}
+            {effectivePmAuthed && activeTab === 'assigned_properties' && (
               <AssignedPropertiesView
                 properties={propertiesList.length > 0 ? propertiesList : ALL_VERIFIED_PROPERTIES}
                 leads={leadsList}
@@ -2858,20 +2883,20 @@ export default function App() {
               <CustomerAnalytics onNavigateToProfiles={() => setActiveTab('customers')} />
             )}
 
-            {/* Property Manager, Admin, & Sales Manager Portal Properties Page */}
-            {(effectivePmAuthed || effectiveAdminAuthed || salesManagerAuthenticated) && activeTab === 'properties' && (
+            {/* Property Manager Portal Properties Page — Property Manager only */}
+            {effectivePmAuthed && activeTab === 'properties' && (
               <PropertyInventory
                 properties={propertiesList}
                 currentLead={currentLead}
-                canAddProperty={adminTargetPortal === 'property_manager' || adminAuthenticated}
+                canAddProperty={adminTargetPortal === 'property_manager'}
                 onBookViewing={(prop) => setViewingModalProperty(prop)}
                 onAddProperty={handleAddProperty}
                 onUpdateProperty={handleUpdateProperty}
               />
             )}
 
-            {/* Sales Manager Portal Pages — Duplicate Detection & Missing Requirements Quality Audit */}
-            {(effectiveSmAuthed || effectiveAdminAuthed) && (activeTab === 'sales_duplicates' || activeTab === 'sales_missing_requirements') && (
+            {/* Sales Manager Portal Pages — Duplicate Detection & Missing Requirements Quality Audit (Sales Manager only) */}
+            {effectiveSmAuthed && (activeTab === 'sales_duplicates' || activeTab === 'sales_missing_requirements') && (
               <SalesManagerDashboard
                 properties={propertiesList}
                 activeSubTab={activeTab === 'sales_missing_requirements' ? 'missing_requirements' : 'duplicates'}
@@ -2911,21 +2936,25 @@ export default function App() {
               />
             )}
 
-            {/* Unauthorized access fallback */}
+            {/* Unauthorized access fallback — Warm Luxury Theme */}
             {adminPanelOpen && !isPortalAuthed && String(activeTab) !== 'chat' && (
-              <div className="flex-1 flex items-center justify-center bg-slate-950">
-                <div className="text-center p-8">
-                  <Lock className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-bold text-slate-300 mb-2">Access Denied</h3>
-                  <p className="text-slate-500 mb-6">Please sign in to access this portal.</p>
+              <div className="flex-1 flex items-center justify-center bg-[#fdfbf5] p-4">
+                <div className="text-center p-8 bg-white border border-[#f0e6d2] rounded-3xl shadow-xl max-w-sm w-full">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-4 text-amber-600">
+                    <Lock className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-extrabold text-[#1c1611] mb-1.5">Portal Sign In Required</h3>
+                  <p className="text-xs text-[#6b5843] mb-6 leading-relaxed">
+                    Please authenticate to access the {adminTargetPortal === 'property_manager' ? 'Property Admin' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Admin'} portal.
+                  </p>
                   <button
                     onClick={() => {
                       handleSelectPortalTab(adminTargetPortal);
                       setShowAdminLoginModal(true);
                     }}
-                    className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold rounded-xl text-sm transition-colors"
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-amber-600/20 cursor-pointer active:scale-95"
                   >
-                    Sign In
+                    Sign In to Portal
                   </button>
                 </div>
               </div>
@@ -2943,6 +2972,12 @@ export default function App() {
                 onNavigateTab={(tab) => {
                   if (tab === 'appearance' || tab === 'settings') {
                     setShowSettingsModal(true);
+                  } else if (tab === 'properties' || tab === 'assigned_properties') {
+                    if (effectivePmAuthed) setActiveTab(tab as any);
+                    else setActiveTab('crm');
+                  } else if (tab === 'sales_duplicates' || tab === 'sales_missing_requirements') {
+                    if (effectiveSmAuthed) setActiveTab(tab as any);
+                    else setActiveTab('crm');
                   } else {
                     setActiveTab(tab as any);
                   }
@@ -2955,37 +2990,37 @@ export default function App() {
         )}
       </main>
 
-      {/* Viewing Scheduler Modal */}
+      {/* Viewing Scheduler Modal — Luxury Ivory & Espresso */}
       {viewingModalProperty && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4 max-h-[92dvh] overflow-y-auto my-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white border border-[#ebdcc4] text-[#2d2216] rounded-3xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4 max-h-[92dvh] overflow-y-auto my-auto animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Calendar className="w-5 h-5 text-amber-600" />
-                <h3 className="text-sm font-bold text-slate-300">Schedule Property Viewing</h3>
+                <h3 className="text-sm font-bold text-[#1c1611]">Schedule Property Viewing</h3>
               </div>
               <button 
                 onClick={() => setViewingModalProperty(null)}
-                className="text-slate-400 hover:text-slate-300"
+                className="text-[#8c7860] hover:text-[#1c1611] p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center space-x-3">
+            <div className="bg-[#faf6ec] p-3 rounded-2xl border border-[#f0e6d2] flex items-center space-x-3">
               <img 
                 src={viewingModalProperty.image_url} 
                 alt={viewingModalProperty.title}
-                className="w-16 h-14 rounded-lg object-cover" 
+                className="w-16 h-14 rounded-xl object-cover border border-[#e5d8be]" 
               />
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-bold text-slate-300 truncate">{viewingModalProperty.title}</h4>
-                <p className="text-[11px] text-amber-600 font-semibold mt-0.5">
+                <h4 className="text-xs font-bold text-[#1c1611] truncate">{viewingModalProperty.title}</h4>
+                <p className="text-[11px] text-amber-700 font-semibold mt-0.5">
                   {(viewingModalProperty.city || '').toLowerCase() === 'mumbai' && viewingModalProperty.price_inr
                     ? `₹ ${(viewingModalProperty.price_inr / 10000000).toFixed(1)} Cr (AED ${viewingModalProperty.price_aed.toLocaleString()})`
                     : `AED ${viewingModalProperty.price_aed.toLocaleString()}`}
                 </p>
-                <p className="text-[10px] text-slate-400">{viewingModalProperty.community} • {viewingModalProperty.bedrooms} BR</p>
+                <p className="text-[10px] text-[#6b5843]">{viewingModalProperty.community} • {viewingModalProperty.bedrooms} BR</p>
               </div>
               <button
                 type="button"
@@ -2994,21 +3029,21 @@ export default function App() {
                 title={favorites.includes(viewingModalProperty.id) ? 'Remove from favorites' : 'Save property (no login required)'}
                 className={`p-2 rounded-xl border transition-all active:scale-95 cursor-pointer shrink-0 ${
                   favorites.includes(viewingModalProperty.id)
-                    ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/50'
+                    ? 'bg-red-500/20 border-red-500/50 text-red-500'
+                    : 'bg-white border-[#ebdcc4] text-[#8c7860] hover:text-red-500 hover:border-red-400'
                 }`}
               >
-                <Heart className={`w-4 h-4 ${favorites.includes(viewingModalProperty.id) ? 'fill-current text-red-400' : ''}`} />
+                <Heart className={`w-4 h-4 ${favorites.includes(viewingModalProperty.id) ? 'fill-current text-red-500' : ''}`} />
               </button>
             </div>
 
             <form onSubmit={handleConfirmViewing} className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-400 block mb-1">Preferred Viewing Mode</label>
+                <label className="text-[#6b5843] block mb-1 font-semibold">Preferred Viewing Mode</label>
                 <select
                   value={viewingMode}
                   onChange={(e) => setViewingMode(e.target.value as any)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  className="w-full bg-white border border-[#e5d8be] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                 >
                   <option value="In-person at property">In-person at property</option>
                   <option value="Virtual 3D walkthrough">Virtual 3D walkthrough / Video call</option>
@@ -3017,22 +3052,22 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-slate-400 block mb-1">Date</label>
+                  <label className="text-[#6b5843] block mb-1 font-semibold">Date</label>
                   <input
                     type="date"
                     value={viewingDate}
                     onChange={(e) => setViewingDate(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-[#e5d8be] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-slate-400 block mb-1">Time Slot</label>
+                  <label className="text-[#6b5843] block mb-1 font-semibold">Time Slot</label>
                   <select
                     value={viewingTime}
                     onChange={(e) => setViewingTime(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-[#e5d8be] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                   >
                     <option value="10:00 AM">10:00 AM</option>
                     <option value="11:30 AM">11:30 AM</option>
@@ -3047,13 +3082,13 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setViewingModalProperty(null)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-semibold"
+                  className="flex-1 bg-[#faf6ec] hover:bg-[#f3ead7] text-[#4a3928] border border-[#ebdcc4] py-2.5 rounded-xl font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl font-bold shadow-md"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white py-2.5 rounded-xl font-bold shadow-md shadow-amber-600/20 cursor-pointer active:scale-95"
                 >
                   Confirm Viewing
                 </button>
@@ -3063,56 +3098,56 @@ export default function App() {
         </div>
       )}
 
-      {/* Human Agent Handoff Modal */}
+      {/* Human Agent Handoff Modal — Luxury Ivory & Espresso */}
       {showHandoffModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4 max-h-[92dvh] overflow-y-auto my-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white border border-[#ebdcc4] text-[#2d2216] rounded-3xl max-w-md w-full p-4 sm:p-6 shadow-2xl space-y-3 sm:space-y-4 max-h-[92dvh] overflow-y-auto my-auto animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <UserCheck className="w-5 h-5 text-amber-600" />
-                <h3 className="text-sm font-bold text-slate-300">Escalate to Lyka Senior Agent</h3>
+                <h3 className="text-sm font-bold text-[#1c1611]">Escalate to Lyka Senior Agent</h3>
               </div>
               <button 
                 onClick={() => setShowHandoffModal(false)}
-                className="text-slate-400 hover:text-slate-300"
+                className="text-[#8c7860] hover:text-[#1c1611] p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
+            <div className="bg-[#faf6ec] p-3.5 rounded-2xl border border-[#f0e6d2] space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-slate-400">Assigned Lyka Specialist:</span>
-                <span className="font-bold text-slate-300">{currentLead.assigned_agent}</span>
+                <span className="text-[#6b5843]">Assigned Lyka Specialist:</span>
+                <span className="font-bold text-[#1c1611]">{currentLead.assigned_agent}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Customer Intent:</span>
-                <span className="text-amber-600 font-semibold">{currentLead.intent} ({currentLead.customer_type})</span>
+                <span className="text-[#6b5843]">Customer Intent:</span>
+                <span className="text-amber-700 font-semibold">{currentLead.intent} ({currentLead.customer_type})</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Target Budget:</span>
-                <span className="text-slate-300 font-mono">AED {currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'In discussion'}</span>
+                <span className="text-[#6b5843]">Target Budget:</span>
+                <span className="text-[#1c1611] font-mono">AED {currentLead.budget_max ? currentLead.budget_max.toLocaleString() : 'In discussion'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Communities:</span>
-                <span className="text-slate-300">{(currentLead.preferred_communities || []).join(', ') || 'Any prime community'}</span>
+                <span className="text-[#6b5843]">Communities:</span>
+                <span className="text-[#1c1611]">{(currentLead.preferred_communities || []).join(', ') || 'Any prime community'}</span>
               </div>
             </div>
 
             {/* Mobile Number Input */}
             <div className="space-y-1.5 text-xs">
-              <label className="text-slate-300 font-semibold flex items-center justify-between">
+              <label className="text-[#1c1611] font-semibold flex items-center justify-between">
                 <span className="flex items-center space-x-1.5">
-                  <Phone className="w-3.5 h-3.5 text-amber-500" />
+                  <Phone className="w-3.5 h-3.5 text-amber-600" />
                   <span>Mobile Number (10 digits): <span className="text-amber-600">*</span></span>
                 </span>
                 {handoffPhone.length === 10 ? (
-                  <span className="text-[10px] text-emerald-400 font-bold flex items-center space-x-1">
+                  <span className="text-[10px] text-emerald-600 font-bold flex items-center space-x-1">
                     <CheckCircle2 className="w-3 h-3" />
                     <span>Valid 10 Digits</span>
                   </span>
                 ) : (
-                  <span className="text-[10px] text-amber-600 font-medium">10 digits required</span>
+                  <span className="text-[10px] text-amber-700 font-medium">10 digits required</span>
                 )}
               </label>
               <div className="relative">
@@ -3122,40 +3157,39 @@ export default function App() {
                   maxLength={10}
                   value={handoffPhone}
                   onChange={(e) => {
-                    // Strictly numbers only: accept only 0-9, maximum 10 digits
                     const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
                     setHandoffPhone(onlyDigits);
                     setHandoffError('');
                   }}
                   placeholder="e.g. 9876543210 (10 digits)"
-                  className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-slate-300 placeholder-slate-500 text-xs outline-none transition-colors font-mono tracking-wider ${
-                    handoffError ? 'border-rose-500/80 focus:border-rose-500' : 'border-slate-800 focus:border-amber-500'
+                  className={`w-full bg-[#faf6ec] border rounded-xl px-3.5 py-2.5 text-[#2d2216] placeholder-[#8c7860] text-xs outline-none transition-colors font-mono tracking-wider ${
+                    handoffError ? 'border-rose-500 focus:border-rose-500' : 'border-[#e5d8be] focus:border-amber-500'
                   }`}
                   required
                 />
               </div>
               {handoffError && (
-                <p className="text-[11px] text-rose-400 flex items-center space-x-1">
+                <p className="text-[11px] text-rose-600 flex items-center space-x-1">
                   <AlertCircle className="w-3 h-3 shrink-0" />
                   <span>{handoffError}</span>
                 </p>
               )}
-              <div className="text-[10px] text-slate-500 flex items-center justify-between">
+              <div className="text-[10px] text-[#6b5843] flex items-center justify-between">
                 <span>Must be exactly 10 digits (Numbers only). Verified by Zod.</span>
-                <span className={`font-mono font-bold ${handoffPhone.length === 10 ? 'text-emerald-400' : 'text-amber-600'}`}>
+                <span className={`font-mono font-bold ${handoffPhone.length === 10 ? 'text-emerald-700' : 'text-amber-700'}`}>
                   {handoffPhone.length}/10 digits
                 </span>
               </div>
             </div>
 
             <div className="space-y-1.5 text-xs">
-              <label className="text-slate-400 block">Handoff Reason & Notes for Agent:</label>
+              <label className="text-[#6b5843] block font-semibold">Handoff Reason & Notes for Agent:</label>
               <textarea
                 rows={3}
                 value={handoffNotes}
                 onChange={(e) => setHandoffNotes(e.target.value)}
                 placeholder="E.g., Client requested in-person meeting or price negotiation guidance on Marina 2BR..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500 resize-none"
+                className="w-full bg-[#faf6ec] border border-[#e5d8be] rounded-xl p-3 text-[#2d2216] placeholder-[#8c7860] outline-none focus:border-amber-500 resize-none"
               />
             </div>
 
@@ -3163,14 +3197,14 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowHandoffModal(false)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-semibold text-xs"
+                className="flex-1 bg-[#faf6ec] hover:bg-[#f3ead7] text-[#4a3928] border border-[#ebdcc4] py-2.5 rounded-xl font-semibold text-xs cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmHandoff}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2.5 rounded-xl font-bold shadow-md text-xs flex items-center justify-center space-x-1.5"
+                className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white py-2.5 rounded-xl font-bold shadow-md shadow-amber-600/20 text-xs flex items-center justify-center space-x-1.5 cursor-pointer active:scale-95"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Submit</span>
@@ -3180,11 +3214,11 @@ export default function App() {
         </div>
       )}
       {/* ─────────────────────────────────────────
-           Admin Email-Gate Login Modal
+           Admin Email-Gate Login Modal — Luxury Warm Ivory Theme
       ───────────────────────────────────────── */}
       {showAdminLoginModal && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className={`bg-slate-900 border border-slate-700 rounded-2xl w-full ${showCredentialConfig ? 'max-w-xl' : 'max-w-md'} shadow-2xl overflow-hidden max-h-[92vh] flex flex-col transition-all duration-200`}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className={`bg-white border border-[#ebdcc4] text-[#2d2216] rounded-3xl w-full ${showCredentialConfig ? 'max-w-xl' : 'max-w-md'} shadow-2xl overflow-hidden max-h-[92vh] flex flex-col transition-all duration-200 animate-in zoom-in-95`}>
             {/* Header */}
             <div className={`px-6 py-5 shrink-0 transition-colors ${
               adminTargetPortal === 'property_manager'
@@ -3239,14 +3273,14 @@ export default function App() {
 
             {/* Portal Switcher Tabs */}
             <div className="px-6 pt-4 pb-0 space-y-2.5 shrink-0">
-              <div className="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/60">
+              <div className="flex bg-[#faf6ec] p-1 rounded-xl border border-[#ebdcc4]">
                 <button
                   type="button"
                   onClick={() => handleSelectPortalTab('admin')}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'admin'
                       ? 'bg-violet-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      : 'text-[#6b5843] hover:text-[#1c1611]'
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
@@ -3257,8 +3291,8 @@ export default function App() {
                   onClick={() => handleSelectPortalTab('property_manager')}
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'property_manager'
-                      ? 'bg-amber-500 text-amber-950 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-[#6b5843] hover:text-[#1c1611]'
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
@@ -3270,7 +3304,7 @@ export default function App() {
                   className={`flex-1 flex items-center justify-center space-x-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     adminTargetPortal === 'sales_manager'
                       ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
+                      : 'text-[#6b5843] hover:text-[#1c1611]'
                   }`}
                 >
                   <Copy className="w-3.5 h-3.5" />
@@ -3279,11 +3313,11 @@ export default function App() {
               </div>
 
               {/* Firestore DB Collection Indicator & Toggle to Configure Credentials */}
-              <div className="flex items-center justify-between text-[11px] bg-slate-800/50 border border-slate-700/50 rounded-xl px-3 py-1.5">
-                <div className="flex items-center space-x-1.5 text-emerald-400 font-medium">
+              <div className="flex items-center justify-between text-[11px] bg-[#faf6ec] border border-[#ebdcc4] rounded-xl px-3 py-1.5">
+                <div className="flex items-center space-x-1.5 text-emerald-700 font-medium">
                   <Database className="w-3.5 h-3.5 shrink-0" />
                   <span>
-                    DB Collection: <code className="font-mono text-[10px] text-amber-300 font-bold">
+                    DB Collection: <code className="font-mono text-[10px] text-amber-800 font-bold">
                       {adminTargetPortal === 'property_manager' ? 'Property_login' : adminTargetPortal === 'sales_manager' ? 'Sales_login' : 'Admin_login'}
                     </code>
                   </span>
@@ -3306,7 +3340,7 @@ export default function App() {
                         setConfigSalesPassword('');
                       }
                     }}
-                    className="text-[11px] font-semibold text-amber-500 hover:text-amber-400 flex items-center space-x-1 underline"
+                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 flex items-center space-x-1 underline"
                   >
                     <Settings className="w-3 h-3" />
                     <span>{showCredentialConfig ? 'Back to Login' : 'Set in DB'}</span>
@@ -4128,19 +4162,24 @@ export default function App() {
                     if (smCredentials && smCredentials.length > 0) setSalesDbCredentials(smCredentials);
 
                     if (valid) {
+                      const cleanEmail = adminEmailInput.trim().toLowerCase();
+                      setCurrentUserEmail(cleanEmail);
+                      setShowFavoriteAuthModal(false);
+                      setShowFavoritesOnly(false);
+
                       if (adminTargetPortal === 'admin') {
                         setAdminAuthenticated(true);
-                        setPropertyManagerAuthenticated(true);
-                        setSalesManagerAuthenticated(true);
+                        setPropertyManagerAuthenticated(false);
+                        setSalesManagerAuthenticated(false);
                         try {
                           localStorage.setItem('lyka_admin_authenticated', 'true');
-                          localStorage.setItem('lyka_pm_authenticated', 'true');
-                          localStorage.setItem('lyka_sm_authenticated', 'true');
+                          localStorage.removeItem('lyka_pm_authenticated');
+                          localStorage.removeItem('lyka_sm_authenticated');
                           localStorage.setItem('lyka_admin_target_portal', 'admin');
                         } catch (e) {}
 
                         // Record super admin access
-                        recordSalesManagerLoginInFirestore(adminEmailInput.trim(), 'Lyka Super Admin', 'Master_Admin_Login').catch(() => {});
+                        recordSalesManagerLoginInFirestore(cleanEmail, 'Lyka Super Admin', 'Master_Admin_Login').catch(() => {});
 
                         resetAdminModalState();
                         setShowAdminLoginModal(false);
@@ -4148,8 +4187,12 @@ export default function App() {
                         setActiveTab('crm');
                       } else if (adminTargetPortal === 'property_manager') {
                         setPropertyManagerAuthenticated(true);
+                        setAdminAuthenticated(false);
+                        setSalesManagerAuthenticated(false);
                         try {
                           localStorage.setItem('lyka_pm_authenticated', 'true');
+                          localStorage.removeItem('lyka_admin_authenticated');
+                          localStorage.removeItem('lyka_sm_authenticated');
                           localStorage.setItem('lyka_admin_target_portal', 'property_manager');
                         } catch (e) {}
                         resetAdminModalState();
@@ -4158,14 +4201,18 @@ export default function App() {
                         setActiveTab('properties');
                       } else {
                         setSalesManagerAuthenticated(true);
+                        setAdminAuthenticated(false);
+                        setPropertyManagerAuthenticated(false);
                         try {
                           localStorage.setItem('lyka_sm_authenticated', 'true');
+                          localStorage.removeItem('lyka_admin_authenticated');
+                          localStorage.removeItem('lyka_pm_authenticated');
                           localStorage.setItem('lyka_admin_target_portal', 'sales_manager');
                         } catch (e) {}
 
                         // Store successful Sales Manager login in Firestore DB (Sales_login and login_events)
                         await recordSalesManagerLoginInFirestore(
-                          adminEmailInput.trim() || 'sales@lykarealty.ae',
+                          cleanEmail || 'sales@lykarealty.ae',
                           'Lyka Sales Manager',
                           'Sales_Portal_Login'
                         );
@@ -4212,9 +4259,9 @@ export default function App() {
                         value={adminEmailInput}
                         readOnly
                         required
-                        className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-9 pr-9 py-2.5 text-sm text-slate-300 font-mono select-all cursor-default"
+                        className="w-full bg-[#faf6ec] border border-[#e5d8be] rounded-xl pl-9 pr-9 py-2.5 text-sm text-[#2d2216] font-mono select-all cursor-default"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" title="Admin email address is permanent and cannot be changed">
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8c7860]" title="Admin email address is permanent and cannot be changed">
                         <Lock className="w-3.5 h-3.5" />
                       </span>
                     </div>
@@ -4223,7 +4270,7 @@ export default function App() {
                   {/* Password Field */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+                      <label className="text-xs font-semibold text-[#6b5843] uppercase tracking-wider">Password</label>
                       <button
                         type="button"
                         onClick={() => {
@@ -4236,14 +4283,14 @@ export default function App() {
                           setForgotError('');
                           setForgotSuccess('');
                         }}
-                        className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-colors underline cursor-pointer"
+                        className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 transition-colors underline cursor-pointer"
                       >
                         Forgot Password?
                       </button>
                     </div>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <Lock className="w-4 h-4 text-slate-500" />
+                        <Lock className="w-4 h-4 text-[#8c7860]" />
                       </span>
                       <input
                         id="admin-password-input"
@@ -4256,7 +4303,7 @@ export default function App() {
                         }}
                         placeholder="Enter password"
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-violet-500 rounded-xl pl-9 pr-10 py-2.5 text-sm text-slate-100 font-semibold placeholder-slate-500 outline-none transition-colors"
+                        className="w-full bg-white border border-[#e5d8be] focus:border-violet-500 rounded-xl pl-9 pr-10 py-2.5 text-sm text-[#2d2216] font-semibold placeholder-[#8c7860] outline-none transition-colors"
                       />
                       <button
                         type="button"
@@ -4422,28 +4469,28 @@ export default function App() {
                         placeholder="Type 6-digit OTP from email"
                         autoFocus
                         required
-                        className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 font-bold placeholder-slate-500 outline-none transition-colors font-mono tracking-widest"
+                        className="w-full bg-[#faf6ec] border border-[#e5d8be] focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-sm text-[#2d2216] font-bold placeholder-[#8c7860] outline-none transition-colors font-mono tracking-widest"
                       />
                     </div>
                   )}
 
                   {/* General Login / Auth Error */}
                   {adminLoginError && !passwordFailedAttempt && (
-                    <div className="flex items-center space-x-2 bg-red-950/60 border border-red-500/50 rounded-xl px-3 py-2.5 text-xs text-rose-300">
-                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <div className="flex items-center space-x-2 bg-rose-50 border border-rose-300 rounded-xl px-3 py-2.5 text-xs text-rose-800">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                       <span>{adminLoginError}</span>
                     </div>
                   )}
 
                   {/* Hint */}
-                  <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-[11px] text-slate-500 flex items-center justify-between">
+                  <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl px-3 py-2 text-[11px] text-[#6b5843] flex items-center justify-between">
                     <div>
-                      <span className="text-slate-400 font-medium">DB Login:</span>{' '}
-                      <span className={adminTargetPortal === 'property_manager' ? 'text-amber-600 font-mono' : adminTargetPortal === 'sales_manager' ? 'text-emerald-400 font-mono' : 'text-violet-400 font-mono'}>
+                      <span className="text-[#8c7860] font-medium">DB Login:</span>{' '}
+                      <span className={adminTargetPortal === 'property_manager' ? 'text-amber-700 font-mono font-bold' : adminTargetPortal === 'sales_manager' ? 'text-emerald-700 font-mono font-bold' : 'text-violet-700 font-mono font-bold'}>
                         {adminTargetPortal === 'property_manager' ? PM_EMAIL : adminTargetPortal === 'sales_manager' ? SALES_EMAIL : ADMIN_EMAIL}
                       </span>
                     </div>
-                    <span className="text-[10px] text-emerald-400 font-medium flex items-center space-x-1">
+                    <span className="text-[10px] text-emerald-700 font-medium flex items-center space-x-1">
                       <Clock className="w-3 h-3" />
                       <span>Password-Verified OTP</span>
                     </span>
@@ -4457,7 +4504,7 @@ export default function App() {
                         setShowAdminLoginModal(false);
                         resetAdminModalState();
                       }}
-                      className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      className="flex-1 bg-[#faf6ec] hover:bg-[#f3ead7] text-[#4a3928] border border-[#ebdcc4] py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -4535,8 +4582,8 @@ export default function App() {
           const isAuthed = adminTargetPortal === 'admin' 
             ? effectiveAdminAuthed 
             : adminTargetPortal === 'property_manager'
-            ? (effectivePmAuthed || effectiveAdminAuthed)
-            : (effectiveSmAuthed || effectiveAdminAuthed);
+            ? effectivePmAuthed
+            : effectiveSmAuthed;
           if (!isAuthed) {
             handleSelectPortalTab(adminTargetPortal);
             setShowAdminLoginModal(true);

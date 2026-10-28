@@ -447,7 +447,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-300 overflow-y-auto p-4 sm:p-6 space-y-6">
+    <div className="flex-1 bg-[#fdfbf5] text-[#2d2216] overflow-y-auto p-4 sm:p-6 space-y-6">
       {/* Top Banner / Notification */}
       {successBanner && (
         <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 px-4 py-3 rounded-2xl flex items-center justify-between text-xs animate-in fade-in">
@@ -484,7 +484,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-300 flex items-center space-x-2">
+              <h2 className="text-lg font-bold text-[#2d2216] flex items-center space-x-2">
                 <span>Assign & Booked Properties</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 border border-emerald-500/30">
                   {bookedProperties.length} Booked
@@ -493,7 +493,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   {availableProperties.length} Available
                 </span>
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#8c765c]">
                 Click any available property in the list area below to assign or book it. Once booked, it is automatically locked and excluded from AI Chatbot recommendations.
               </p>
             </div>
@@ -568,39 +568,39 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Inventory</p>
-          <p className="text-2xl font-bold text-slate-300 mt-1">{properties.length}</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">All registered units</p>
+        <div className="bg-white border border-[#ebdcc4] rounded-2xl p-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8c765c]">Total Inventory</p>
+          <p className="text-2xl font-bold text-[#2d2216] mt-1">{properties.length}</p>
+          <p className="text-[11px] text-[#8c765c] mt-0.5">All registered units</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <div className="bg-white border border-[#ebdcc4] rounded-2xl p-4">
           <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Available For Sale</p>
           <p className="text-2xl font-bold text-emerald-600 mt-1">{availableProperties.length}</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">Active in AI Chatbot</p>
+          <p className="text-[11px] text-[#8c765c] mt-0.5">Active in AI Chatbot</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <div className="bg-white border border-[#ebdcc4] rounded-2xl p-4">
           <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Booked / Assigned</p>
           <p className="text-2xl font-bold text-amber-600 mt-1">{bookedProperties.length}</p>
-          <p className="text-[11px] text-slate-500 mt-0.5">Excluded from Chatbot</p>
+          <p className="text-[11px] text-[#8c765c] mt-0.5">Excluded from Chatbot</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <div className="bg-white border border-[#ebdcc4] rounded-2xl p-4">
           <p className="text-[10px] font-bold uppercase tracking-wider text-violet-600">Booked Volume (AED)</p>
           <p className="text-2xl font-bold text-violet-600 mt-1">
             {totalBookedValue >= 1_000_000 
               ? `${(totalBookedValue / 1_000_000).toFixed(2)}M` 
               : totalBookedValue.toLocaleString()}
           </p>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-[11px] text-[#8c765c] mt-0.5">
             Token: AED {totalTokenAmount.toLocaleString()}
           </p>
         </div>
       </div>
 
       {/* ── LIST AREA NAVIGATION TABS ──────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#ebdcc4] pb-3">
         {/* Tab Buttons */}
         <div className="flex items-center space-x-2">
           <button
@@ -608,7 +608,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
               activeViewTab === 'available'
                 ? 'bg-emerald-600 text-white shadow-sm'
-                : 'bg-slate-900 text-slate-500 hover:text-slate-300 border border-slate-800'
+                : 'bg-[#faf6ec] text-[#8c765c] hover:text-[#2d2216] border border-[#ebdcc4]'
             }`}
           >
             <span>🟢 Available Properties to Book</span>
@@ -624,7 +624,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
               activeViewTab === 'booked'
                 ? 'bg-amber-500 text-amber-950 shadow-sm'
-                : 'bg-slate-900 text-slate-500 hover:text-slate-300 border border-slate-800'
+                : 'bg-[#faf6ec] text-[#8c765c] hover:text-[#2d2216] border border-[#ebdcc4]'
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
@@ -640,8 +640,8 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
             onClick={() => setActiveViewTab('all')}
             className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeViewTab === 'all'
-                ? 'bg-slate-800 text-slate-300 border border-slate-700 shadow-sm'
-                : 'bg-slate-900 text-slate-500 hover:text-slate-300 border border-slate-800'
+                ? 'bg-slate-800 text-[#2d2216] border border-[#ebdcc4] shadow-sm'
+                : 'bg-[#faf6ec] text-[#8c765c] hover:text-[#2d2216] border border-[#ebdcc4]'
             }`}
           >
             <span>All Units ({properties.length})</span>
@@ -650,11 +650,11 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
         {/* Community filter selector */}
         <div className="flex items-center space-x-2">
-          <span className="text-xs text-slate-500 hidden sm:inline">Community:</span>
+          <span className="text-xs text-[#8c765c] hidden sm:inline">Community:</span>
           <select
             value={communityFilter}
             onChange={(e) => setCommunityFilter(e.target.value)}
-            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
+            className="bg-white border border-[#ebdcc4] rounded-xl px-3 py-1.5 text-xs text-[#2d2216] font-medium focus:outline-none focus:border-amber-500 cursor-pointer"
             style={{ backgroundColor: '#ffffff', color: '#463726' }}
           >
             <option value="ALL">All Communities ({allCommunities.length})</option>
@@ -666,9 +666,9 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
       </div>
 
       {/* Search Bar */}
-      <div className="flex items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-2.5 rounded-2xl">
+      <div className="flex items-center justify-between gap-3 bg-white border border-[#ebdcc4] p-2.5 rounded-2xl">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#7d6851] absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchTerm}
@@ -678,20 +678,20 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 ? "Search available properties by title, community, bedrooms, price..."
                 : "Search by property, community, client name, or booking ref..."
             }
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+            className="w-full bg-white border border-[#ebdcc4] rounded-xl pl-9 pr-3 py-1.5 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
             style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
           />
         </div>
 
-        <span className="text-xs text-slate-500 hidden sm:inline">
+        <span className="text-xs text-[#8c765c] hidden sm:inline">
           {activeViewTab === 'available' && (
-            <>Showing <strong className="text-slate-300 font-bold">{filteredAvailable.length}</strong> of {availableProperties.length} available to book</>
+            <>Showing <strong className="text-[#2d2216] font-bold">{filteredAvailable.length}</strong> of {availableProperties.length} available to book</>
           )}
           {activeViewTab === 'booked' && (
-            <>Showing <strong className="text-slate-300 font-bold">{filteredBooked.length}</strong> of {bookedProperties.length} booked properties</>
+            <>Showing <strong className="text-[#2d2216] font-bold">{filteredBooked.length}</strong> of {bookedProperties.length} booked properties</>
           )}
           {activeViewTab === 'all' && (
-            <>Showing <strong className="text-slate-300 font-bold">{filteredAvailable.length + filteredBooked.length}</strong> units</>
+            <>Showing <strong className="text-[#2d2216] font-bold">{filteredAvailable.length + filteredBooked.length}</strong> units</>
           )}
         </span>
       </div>
@@ -701,11 +701,11 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
+              <h3 className="text-sm font-bold text-[#2d2216] flex items-center space-x-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span>Available Properties List (Click to Book)</span>
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#8c765c]">
                 Click <strong>"Book This Property"</strong> on any unit. Once booked, it will immediately move to the Booked section and will <strong>NOT be recommended during AI Chat</strong>.
               </p>
             </div>
@@ -716,7 +716,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               {filteredAvailable.map((prop) => (
                 <div
                   key={prop.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-emerald-500/60 transition-all flex flex-col justify-between group"
+                  className="bg-white border border-[#ebdcc4] rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-emerald-500/60 transition-all flex flex-col justify-between group"
                 >
                   <div>
                     {/* Image with Available status pill */}
@@ -733,11 +733,11 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                         <span>AVAILABLE TO BOOK</span>
                       </div>
 
-                      <div className="absolute top-3 right-3 bg-slate-900/90 text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-md border border-slate-700">
+                      <div className="absolute top-3 right-3 bg-[#faf6ec]/90 text-[#2d2216] text-[10px] font-semibold px-2 py-0.5 rounded-md border border-[#ebdcc4]">
                         {prop.community}
                       </div>
 
-                      <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs">
+                      <div className="absolute inset-x-0 bottom-0 pt-6 pb-2 px-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between text-xs">
                         <span className="text-white font-bold truncate max-w-[70%] drop-shadow">{prop.title}</span>
                         <span className="text-amber-400 font-extrabold drop-shadow">AED {Number(prop.price_aed).toLocaleString()}</span>
                       </div>
@@ -746,16 +746,16 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     {/* Property Specs Body */}
                     <div className="p-4 space-y-2.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-slate-500 font-medium">Specs:</span>
-                        <span className="text-slate-300 font-semibold">{prop.bedrooms} Bed • {prop.size_sqft} sqft • {prop.property_type}</span>
+                        <span className="text-[#8c765c] font-medium">Specs:</span>
+                        <span className="text-[#2d2216] font-semibold">{prop.bedrooms} Bed • {prop.size_sqft} sqft • {prop.property_type}</span>
                       </div>
 
-                      <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-[#7d6851] line-clamp-2 leading-relaxed">
                         {prop.description}
                       </p>
 
-                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800">
-                        <span className="text-slate-500">Expected ROI:</span>
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#ebdcc4]">
+                        <span className="text-[#8c765c]">Expected ROI:</span>
                         <span className="font-bold text-emerald-600">{prop.expected_roi || '7.5% net ROI'}</span>
                       </div>
                     </div>
@@ -777,10 +777,10 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               ))}
             </div>
           ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
-              <Building2 className="w-10 h-10 mx-auto text-slate-400 opacity-50" />
-              <h4 className="text-sm font-bold text-slate-300">No Available Properties Found</h4>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <div className="bg-white border border-[#ebdcc4] rounded-2xl p-12 text-center space-y-3">
+              <Building2 className="w-10 h-10 mx-auto text-[#7d6851] opacity-50" />
+              <h4 className="text-sm font-bold text-[#2d2216]">No Available Properties Found</h4>
+              <p className="text-xs text-[#8c765c] max-w-sm mx-auto">
                 No properties match your search term or all properties have been booked.
               </p>
             </div>
@@ -793,11 +793,11 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
+              <h3 className="text-sm font-bold text-[#2d2216] flex items-center space-x-2">
                 <Lock className="w-4 h-4 text-amber-600" />
                 <span>Booked & Assigned Properties ({bookedProperties.length})</span>
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#8c765c]">
                 These properties have been secured by clients and are <strong>EXCLUDED from AI Chatbot recommendations</strong>.
               </p>
             </div>
@@ -808,7 +808,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               {filteredBooked.map((prop) => (
                 <div 
                   key={prop.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm hover:border-slate-700 transition-all flex flex-col"
+                  className="bg-white border border-[#ebdcc4] rounded-2xl overflow-hidden shadow-sm hover:border-[#ebdcc4] transition-all flex flex-col"
                 >
                   {/* Image & Booking Tag */}
                   <div className="relative h-44 w-full bg-slate-800 overflow-hidden">
@@ -826,12 +826,12 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     </div>
 
                     {prop.booking_id && (
-                      <div className="absolute top-3 right-3 bg-slate-900 text-slate-300 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-slate-700">
+                      <div className="absolute top-3 right-3 bg-[#faf6ec] text-[#2d2216] text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border border-[#ebdcc4]">
                         {prop.booking_id}
                       </div>
                     )}
 
-                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs">
+                    <div className="absolute inset-x-0 bottom-0 pt-6 pb-2 px-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between text-xs">
                       <span className="text-white font-bold truncate max-w-[70%] drop-shadow">{prop.title}</span>
                       <span className="text-amber-400 font-extrabold drop-shadow">AED {Number(prop.price_aed).toLocaleString()}</span>
                     </div>
@@ -840,13 +840,13 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   {/* Booking & Client Details Body */}
                   <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
                     <div className="space-y-2.5">
-                      <div className="flex items-center justify-between text-xs border-b border-slate-800 pb-2">
-                        <span className="text-slate-500">Community / Type:</span>
-                        <span className="text-slate-300 font-semibold">{prop.community} • {prop.bedrooms} BR</span>
+                      <div className="flex items-center justify-between text-xs border-b border-[#ebdcc4] pb-2">
+                        <span className="text-[#8c765c]">Community / Type:</span>
+                        <span className="text-[#2d2216] font-semibold">{prop.community} • {prop.bedrooms} BR</span>
                       </div>
 
                       {/* Assigned Client Card */}
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                      <div className="bg-white border border-[#ebdcc4] rounded-xl p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 flex items-center space-x-1">
                             <User className="w-3 h-3" />
@@ -865,15 +865,15 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                           )}
                         </div>
 
-                        <p className="text-sm font-bold text-slate-300">
+                        <p className="text-sm font-bold text-[#2d2216]">
                           {prop.assigned_to || prop.booked_by_name || 'Confidential Client'}
                         </p>
 
-                        <div className="flex items-center space-x-3 text-xs text-slate-400">
+                        <div className="flex items-center space-x-3 text-xs text-[#7d6851]">
                           {(prop.assigned_phone || prop.booked_by_phone) && (
                             <a 
                               href={`tel:${prop.assigned_phone || prop.booked_by_phone}`}
-                              className="flex items-center space-x-1 text-slate-400 hover:text-emerald-600 transition-colors"
+                              className="flex items-center space-x-1 text-[#7d6851] hover:text-emerald-600 transition-colors"
                             >
                               <Phone className="w-3 h-3 text-emerald-600" />
                               <span>{prop.assigned_phone || prop.booked_by_phone}</span>
@@ -882,7 +882,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                           {prop.assigned_email && (
                             <a 
                               href={`mailto:${prop.assigned_email}`}
-                              className="flex items-center space-x-1 text-slate-400 hover:text-emerald-600 transition-colors truncate"
+                              className="flex items-center space-x-1 text-[#7d6851] hover:text-emerald-600 transition-colors truncate"
                             >
                               <Mail className="w-3 h-3 text-emerald-600" />
                               <span className="truncate">{prop.assigned_email}</span>
@@ -891,23 +891,23 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                         </div>
 
                         {/* Identification Details */}
-                        <div className="flex items-center space-x-1.5 text-xs text-slate-300 font-semibold bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800">
+                        <div className="flex items-center space-x-1.5 text-xs text-[#2d2216] font-semibold bg-[#faf6ec]/90 px-2.5 py-1.5 rounded-lg border border-[#ebdcc4]">
                           <CreditCard className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                           <span className="truncate">
-                            <span className="text-slate-400 font-normal">{prop.assigned_id_type || 'Govt ID'}:</span>{' '}
+                            <span className="text-[#7d6851] font-normal">{prop.assigned_id_type || 'Govt ID'}:</span>{' '}
                             <span className="font-mono text-emerald-400 font-bold">{prop.assigned_id_card || prop.booked_by_id_card || 'Verified on file'}</span>
                           </span>
                         </div>
 
                         {prop.booking_amount_aed ? (
-                          <div className="pt-1 border-t border-slate-800 flex items-center justify-between text-[11px]">
-                            <span className="text-slate-500">Advance / Token:</span>
+                          <div className="pt-1 border-t border-[#ebdcc4] flex items-center justify-between text-[11px]">
+                            <span className="text-[#8c765c]">Advance / Token:</span>
                             <span className="font-bold text-emerald-600">AED {Number(prop.booking_amount_aed).toLocaleString()}</span>
                           </div>
                         ) : null}
 
                         {prop.booking_notes && (
-                          <div className="text-[11px] text-slate-500 bg-slate-900 p-2 rounded-lg italic border border-slate-800">
+                          <div className="text-[11px] text-[#8c765c] bg-[#faf6ec] p-2 rounded-lg italic border border-[#ebdcc4]">
                             "{prop.booking_notes}"
                           </div>
                         )}
@@ -915,7 +915,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     </div>
 
                     {/* Card Actions */}
-                    <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-800">
+                    <div className="pt-2 flex items-center justify-between gap-2 border-t border-[#ebdcc4]">
                       {canManageBookings && (
                         <button
                           onClick={() => handleOpenBookingForProperty(prop.id)}
@@ -944,13 +944,13 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               ))}
             </div>
           ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto text-slate-500">
+            <div className="bg-white border border-[#ebdcc4] rounded-2xl p-12 text-center space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-[#ebdcc4] flex items-center justify-center mx-auto text-[#8c765c]">
                 <Lock className="w-6 h-6" />
               </div>
               <div className="max-w-md mx-auto space-y-1">
-                <h3 className="text-base font-bold text-slate-300">No Properties Currently Booked</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
+                <h3 className="text-base font-bold text-[#2d2216]">No Properties Currently Booked</h3>
+                <p className="text-xs text-[#8c765c] leading-relaxed">
                   All properties are currently open and available in the AI Chatbot. When you assign or book a property for a client here, it will be automatically locked and hidden from chatbot recommendations.
                 </p>
               </div>
@@ -974,7 +974,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               return (
                 <div
                   key={prop.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between"
+                  className="bg-white border border-[#ebdcc4] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between"
                 >
                   <div className="relative h-40 w-full bg-slate-800 overflow-hidden">
                     <img src={prop.image_url} alt={prop.title} className="w-full h-full object-cover" />
@@ -992,14 +992,14 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                         </span>
                       )}
                     </div>
-                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-xs">
+                    <div className="absolute inset-x-0 bottom-0 pt-6 pb-2 px-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex items-center justify-between text-xs">
                       <span className="text-white font-bold truncate max-w-[70%] drop-shadow">{prop.title}</span>
                       <span className="text-amber-400 font-extrabold drop-shadow">AED {Number(prop.price_aed).toLocaleString()}</span>
                     </div>
                   </div>
 
                   <div className="p-4 space-y-3">
-                    <div className="flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex items-center justify-between text-xs text-[#7d6851]">
                       <span>{prop.community} • {prop.bedrooms} Bed</span>
                       <span className={isBooked ? 'text-amber-700 font-semibold' : 'text-emerald-600 font-semibold'}>
                         {isBooked ? `Assigned to: ${prop.assigned_to || 'Client'}` : 'Open in Chatbot'}
@@ -1007,7 +1007,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     </div>
 
                     {canManageBookings && (
-                      <div className="pt-2 border-t border-slate-800 flex items-center justify-end">
+                      <div className="pt-2 border-t border-[#ebdcc4] flex items-center justify-end">
                         {isBooked ? (
                           <button
                             onClick={() => handleReleaseBooking(prop.id, prop.title)}
@@ -1035,16 +1035,16 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
       {/* ── Assign / Book Property Modal ────────────────────────────────────── */}
       {showAssignModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#ebdcc4] pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600">
                   <Lock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-300">Book & Assign Property</h3>
-                  <p className="text-[11px] text-slate-500">Property will be marked as Booked and hidden from Chatbot</p>
+                  <h3 className="text-sm font-bold text-[#2d2216]">Book & Assign Property</h3>
+                  <p className="text-[11px] text-[#8c765c]">Property will be marked as Booked and hidden from Chatbot</p>
                 </div>
               </div>
               <button 
@@ -1052,7 +1052,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   setShowAssignModal(false);
                   setPickerOpen(false);
                 }}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                className="text-[#7d6851] hover:text-slate-600 cursor-pointer p-1"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1060,15 +1060,15 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
             {/* Selected Property Preview Banner */}
             {selectedPropertyObj && (
-              <div className="bg-slate-950 border border-emerald-500/30 rounded-xl p-3 flex items-center space-x-3">
+              <div className="bg-white border border-emerald-500/30 rounded-xl p-3 flex items-center space-x-3">
                 <img 
                   src={selectedPropertyObj.image_url} 
                   alt={selectedPropertyObj.title} 
-                  className="w-16 h-12 rounded-lg object-cover flex-shrink-0 border border-slate-800"
+                  className="w-16 h-12 rounded-lg object-cover flex-shrink-0 border border-[#ebdcc4]"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-slate-300 truncate">{selectedPropertyObj.title}</p>
-                  <p className="text-[10px] text-slate-500">{selectedPropertyObj.community} • {selectedPropertyObj.bedrooms} BR {selectedPropertyObj.property_type}</p>
+                  <p className="text-xs font-bold text-[#2d2216] truncate">{selectedPropertyObj.title}</p>
+                  <p className="text-[10px] text-[#8c765c]">{selectedPropertyObj.community} • {selectedPropertyObj.bedrooms} BR {selectedPropertyObj.property_type}</p>
                   <p className="text-xs font-extrabold text-amber-700 mt-0.5">AED {Number(selectedPropertyObj.price_aed).toLocaleString()}</p>
                 </div>
                 {selectedPropertyObj.is_booked || (selectedPropertyObj.status || '').toLowerCase() === 'booked' ? (
@@ -1119,18 +1119,18 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] pt-1.5 border-t border-slate-700/60">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] pt-1.5 border-t border-[#ebdcc4]/60">
                       <div>
-                        <span className="text-slate-400">Booked By:</span>{' '}
-                        <strong className="text-white font-semibold">{matchCheck.registeredName || 'On Record'}</strong>
+                        <span className="text-[#7d6851]">Booked By:</span>{' '}
+                        <strong className="text-[#1c1611] font-semibold">{matchCheck.registeredName || 'On Record'}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Booker Mobile:</span>{' '}
-                        <strong className="text-white font-semibold">{matchCheck.registeredPhone || 'On Record'}</strong>
+                        <span className="text-[#7d6851]">Booker Mobile:</span>{' '}
+                        <strong className="text-[#1c1611] font-semibold">{matchCheck.registeredPhone || 'On Record'}</strong>
                       </div>
                       <div>
-                        <span className="text-slate-400">Booker ID:</span>{' '}
-                        <strong className="text-white font-semibold">{matchCheck.registeredIdCard || 'Verified on file'}</strong>
+                        <span className="text-[#7d6851]">Booker ID:</span>{' '}
+                        <strong className="text-[#1c1611] font-semibold">{matchCheck.registeredIdCard || 'Verified on file'}</strong>
                       </div>
                     </div>
                     
@@ -1147,10 +1147,10 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 );
               } else {
                 return (
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-400 flex items-center space-x-2">
+                  <div className="bg-white border border-[#ebdcc4] rounded-xl p-2.5 text-xs text-[#7d6851] flex items-center space-x-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>
-                      <strong className="text-slate-200">Open Available Unit:</strong> Enter client identification (Name, Mobile & Govt ID Card) to verify and lock their assignment.
+                      <strong className="text-[#2d2216]">Open Available Unit:</strong> Enter client identification (Name, Mobile & Govt ID Card) to verify and lock their assignment.
                     </span>
                   </div>
                 );
@@ -1160,7 +1160,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
             <form onSubmit={handleApplyBooking} className="space-y-4">
               {/* Select Property with Interactive Picker */}
               <div className="space-y-1.5 relative">
-                <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
+                <label className="text-xs font-semibold text-[#7d6851] flex items-center justify-between">
                   <span>Selected Property Unit *</span>
                   <span className="text-[10px] text-emerald-600 font-bold">{availableProperties.length} available</span>
                 </label>
@@ -1170,37 +1170,37 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setPickerOpen(prev => !prev)}
-                    className="w-full text-left bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-300 flex items-center justify-between hover:border-emerald-500 transition-all shadow-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    className="w-full text-left bg-white border border-[#ebdcc4] rounded-xl px-3.5 py-2.5 text-xs text-[#2d2216] flex items-center justify-between hover:border-emerald-500 transition-all shadow-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
                     style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
                   >
                     {selectedPropertyObj ? (
                       <div className="flex items-center space-x-2.5 min-w-0">
                         <Building2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                         <div className="truncate">
-                          <span className="font-bold text-slate-300">{selectedPropertyObj.title}</span>
-                          <span className="text-slate-500 ml-1.5">({selectedPropertyObj.community} • {selectedPropertyObj.bedrooms} BR)</span>
+                          <span className="font-bold text-[#2d2216]">{selectedPropertyObj.title}</span>
+                          <span className="text-[#8c765c] ml-1.5">({selectedPropertyObj.community} • {selectedPropertyObj.bedrooms} BR)</span>
                           <span className="text-amber-700 font-extrabold ml-2">AED {Number(selectedPropertyObj.price_aed).toLocaleString()}</span>
                         </div>
                       </div>
                     ) : (
-                      <span className="text-slate-500 font-medium">-- Click to choose an available property --</span>
+                      <span className="text-[#8c765c] font-medium">-- Click to choose an available property --</span>
                     )}
-                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ml-2 flex-shrink-0 ${pickerOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-[#7d6851] transition-transform ml-2 flex-shrink-0 ${pickerOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* Dropdown Menu Popup */}
                   {pickerOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-2 space-y-2 max-h-72 flex flex-col backdrop-blur-lg">
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#faf6ec] border border-[#ebdcc4] rounded-xl shadow-2xl z-50 p-2 space-y-2 max-h-72 flex flex-col backdrop-blur-lg">
                       {/* Search box inside dropdown */}
                       <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-[#7d6851] absolute left-2.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           autoFocus
                           value={pickerSearch}
                           onChange={(e) => setPickerSearch(e.target.value)}
                           placeholder="Search property, city, community..."
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-white border border-[#ebdcc4] rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                           style={{ backgroundColor: '#fdfbf5', color: '#463726' }}
                         />
                       </div>
@@ -1211,7 +1211,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                           type="button"
                           onClick={() => setPickerSearch('')}
                           className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                            !pickerSearch ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                            !pickerSearch ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-[#7d6851] hover:text-white'
                           }`}
                         >
                           All ({availableProperties.length})
@@ -1220,7 +1220,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                           type="button"
                           onClick={() => setPickerSearch('Dubai')}
                           className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                            pickerSearch.toLowerCase() === 'dubai' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                            pickerSearch.toLowerCase() === 'dubai' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-[#7d6851] hover:text-white'
                           }`}
                         >
                           <span>🏙️</span> Dubai
@@ -1229,7 +1229,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                           type="button"
                           onClick={() => setPickerSearch('Mumbai')}
                           className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                            pickerSearch.toLowerCase() === 'mumbai' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                            pickerSearch.toLowerCase() === 'mumbai' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-[#7d6851] hover:text-white'
                           }`}
                         >
                           <span>🌆</span> Mumbai
@@ -1252,14 +1252,14 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                                 }}
                                 className={`w-full text-left p-2.5 rounded-lg border transition-all flex items-center justify-between text-xs cursor-pointer ${
                                   isSelected 
-                                    ? 'bg-emerald-500/15 border-emerald-500 text-slate-300 font-bold'
-                                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800/80 hover:border-slate-700'
+                                    ? 'bg-emerald-500/15 border-emerald-500 text-[#2d2216] font-bold'
+                                    : 'bg-white border-[#ebdcc4] text-[#2d2216] hover:bg-slate-800/80 hover:border-[#ebdcc4]'
                                 }`}
                                 style={{ color: '#1c1611' }}
                               >
                                 <div className="min-w-0 flex-1 pr-2">
-                                  <p className="font-bold text-slate-300 truncate">{p.title}</p>
-                                  <div className="flex items-center space-x-2 text-[10px] text-slate-500 mt-0.5">
+                                  <p className="font-bold text-[#2d2216] truncate">{p.title}</p>
+                                  <div className="flex items-center space-x-2 text-[10px] text-[#8c765c] mt-0.5">
                                     <span>{p.community}</span>
                                     <span>•</span>
                                     <span>{p.bedrooms} BR {p.property_type}</span>
@@ -1274,7 +1274,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                             );
                           })
                         ) : (
-                          <div className="py-4 text-center text-xs text-slate-500">
+                          <div className="py-4 text-center text-xs text-[#8c765c]">
                             No properties matching "{pickerSearch}"
                           </div>
                         )}
@@ -1288,7 +1288,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                   required
                   value={selectedPropId}
                   onChange={(e) => handleSelectProperty(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-semibold focus:outline-none focus:border-emerald-500 mt-1 cursor-pointer"
+                  className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] font-semibold focus:outline-none focus:border-emerald-500 mt-1 cursor-pointer"
                   style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                 >
                   <option value="" style={{ backgroundColor: '#ffffff', color: '#1c1611' }}>
@@ -1325,17 +1325,17 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
               {/* Quick Select from CRM Leads */}
               {leads && leads.length > 0 && (
-                <div className="space-y-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                  <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
+                <div className="space-y-1.5 bg-white p-2.5 rounded-xl border border-[#ebdcc4]">
+                  <label className="text-xs font-semibold text-[#7d6851] flex items-center justify-between">
                     <span className="flex items-center space-x-1.5 text-amber-600 font-bold">
                       <Users className="w-3.5 h-3.5" />
                       <span>Quick-Fill from CRM Lead</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 font-semibold">{leads.length} leads in pipeline</span>
+                    <span className="text-[10px] text-[#8c765c] font-semibold">{leads.length} leads in pipeline</span>
                   </label>
                   <select
                     onChange={(e) => handleSelectLead(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-300 font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    className="w-full bg-[#faf6ec] border border-[#ebdcc4] rounded-lg px-3 py-1.5 text-xs text-[#2d2216] font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                     defaultValue=""
                   >
@@ -1354,27 +1354,27 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               {/* Client Name & Mobile */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Client / Buyer Full Name *</label>
+                  <label className="text-xs font-semibold text-[#7d6851]">Client / Buyer Full Name *</label>
                   <input
                     type="text"
                     required
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder="e.g. Rahul Sharma"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Client Mobile Number *</label>
+                  <label className="text-xs font-semibold text-[#7d6851]">Client Mobile Number *</label>
                   <input
                     type="tel"
                     required
                     value={clientPhone}
                     onChange={(e) => setClientPhone(e.target.value)}
                     placeholder="e.g. +971 50 123 4567"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
@@ -1383,14 +1383,14 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               {/* Client Identification: ID Card Type & ID Card Number */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400 flex items-center space-x-1">
+                  <label className="text-xs font-semibold text-[#7d6851] flex items-center space-x-1">
                     <CreditCard className="w-3.5 h-3.5 text-amber-500" />
                     <span>Identification ID Type *</span>
                   </label>
                   <select
                     value={clientIdType}
                     onChange={(e) => setClientIdType(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-semibold focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] font-semibold focus:outline-none focus:border-emerald-500 cursor-pointer"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   >
                     <option value="Emirates ID">Emirates ID (UAE)</option>
@@ -1402,7 +1402,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#7d6851] flex items-center justify-between">
                     <span className="flex items-center space-x-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                       <span>ID Card Number *</span>
@@ -1415,7 +1415,7 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
                     value={clientIdCard}
                     onChange={(e) => setClientIdCard(e.target.value)}
                     placeholder={clientIdType === 'Emirates ID' ? '784-1990-1234567-1' : clientIdType === 'Aadhaar Card' ? '4832 9182 1029' : 'Passport / ID Number'}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
@@ -1424,25 +1424,25 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
               {/* Client Email & Token Amount */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Client Email (Optional)</label>
+                  <label className="text-xs font-semibold text-[#7d6851]">Client Email (Optional)</label>
                   <input
                     type="email"
                     value={clientEmail}
                     onChange={(e) => setClientEmail(e.target.value)}
                     placeholder="e.g. client@domain.com"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Booking Advance / Token (AED)</label>
+                  <label className="text-xs font-semibold text-[#7d6851]">Booking Advance / Token (AED)</label>
                   <input
                     type="number"
                     value={bookingAmount}
                     onChange={(e) => setBookingAmount(e.target.value)}
                     placeholder="e.g. 50000"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-medium"
                     style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                   />
                 </div>
@@ -1450,26 +1450,26 @@ export const AssignedPropertiesView: React.FC<AssignedPropertiesViewProps> = ({
 
               {/* Notes */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400">Booking Remarks / Terms</label>
+                <label className="text-xs font-semibold text-[#7d6851]">Booking Remarks / Terms</label>
                 <textarea
                   rows={2}
                   value={bookingNotes}
                   onChange={(e) => setBookingNotes(e.target.value)}
                   placeholder="e.g. 10% token deposit received. Sale deed agreement scheduled for next Monday."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none font-medium"
+                  className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none font-medium"
                   style={{ backgroundColor: '#fdfbf5', color: '#1c1611' }}
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 flex items-center justify-end space-x-2 border-t border-slate-800">
+              <div className="pt-2 flex items-center justify-end space-x-2 border-t border-[#ebdcc4]">
                 <button
                   type="button"
                   onClick={() => {
                     setShowAssignModal(false);
                     setPickerOpen(false);
                   }}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-[#8c765c] hover:text-slate-800 cursor-pointer"
                 >
                   Cancel
                 </button>

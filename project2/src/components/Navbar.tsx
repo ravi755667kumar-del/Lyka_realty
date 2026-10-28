@@ -208,13 +208,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Determine which portal is currently authenticated (Super Admin has access to all)
+  // Determine which portal is currently authenticated (Strict isolation per portal)
   const currentPortal = adminTargetPortal;
   const isPortalAuthed = currentPortal === 'admin' 
     ? adminAuthenticated 
     : currentPortal === 'property_manager'
-    ? (propertyManagerAuthenticated || adminAuthenticated)
-    : (Boolean(salesManagerAuthenticated) || adminAuthenticated);
+    ? propertyManagerAuthenticated
+    : Boolean(salesManagerAuthenticated);
   const isAnyAuthed = adminAuthenticated || propertyManagerAuthenticated || Boolean(salesManagerAuthenticated);
 
   return (
@@ -574,6 +574,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
+            {/* Explicit Admin / Staff Portal Button — Always visible in Header */}
+            <button
+              onClick={() => {
+                if (onToggleAdminPanel) onToggleAdminPanel();
+              }}
+              className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm cursor-pointer ${
+                isAnyAuthed
+                  ? 'bg-violet-600/30 border-violet-500/70 text-violet-200 hover:bg-violet-600/40 hover:border-violet-400 ring-1 ring-violet-500/40'
+                  : 'bg-espresso-800/70 border-espresso-700/70 text-amber-200 hover:text-white hover:bg-espresso-700 hover:border-amber-400/60'
+              }`}
+              title={isAnyAuthed ? `Open Admin Portal (${adminTargetPortal === 'property_manager' ? 'Property Admin' : adminTargetPortal === 'sales_manager' ? 'Sales Manager' : 'Super Admin'})` : "Login to Admin Portal"}
+              aria-label="Admin Portal"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden md:inline">{isAnyAuthed ? 'Admin Portal' : 'Admin Login'}</span>
+              <span className="inline md:hidden">Admin</span>
+              {isAnyAuthed && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" title="Logged In" />
+              )}
+            </button>
+
             {/* Desktop: Settings & About & Inspect */}
             <button
               onClick={onOpenSettings}
@@ -613,148 +634,47 @@ export const Navbar: React.FC<NavbarProps> = ({
       {isAdminTab && isPortalAuthed && (
         <div className="border-t border-violet-500/30 bg-espresso-900/95 backdrop-blur-sm">
           <div className="px-2 sm:px-6 flex items-center space-x-1 sm:space-x-2 overflow-x-auto py-2 scrollbar-none touch-pan-x no-scrollbar">
-            {/* Downside Role Dropdown Selector — Kept inside admin */}
-            <div ref={roleDropdownRef} className="relative flex-shrink-0 mr-1">
-              <button
-                onClick={() => setRoleDropdownOpen(prev => !prev)}
-                className={`flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shadow-sm ${
-                  adminTargetPortal === 'admin'
-                    ? 'bg-violet-600/30 border-violet-500/60 text-violet-200 hover:bg-violet-600/40 hover:border-violet-400'
-                    : adminTargetPortal === 'property_manager'
-                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400'
-                    : 'bg-emerald-600/25 border-emerald-500/60 text-emerald-200 hover:bg-emerald-600/40 hover:border-emerald-400'
-                }`}
-                title="Choose Admin, Property Admin, or Sales Manager"
-              >
-                {adminTargetPortal === 'admin' ? (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-violet-400" />
-                    <span>Admin</span>
-                    {leadCount > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-violet-950/60 text-violet-200">
-                        {leadCount}
-                      </span>
-                    )}
-                  </>
-                ) : adminTargetPortal === 'property_manager' ? (
-                  <>
-                    <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Property Admin</span>
-                    {propertyCount !== undefined && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-950/40 text-amber-950">
-                        {propertyCount}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Sales Manager</span>
-                    {duplicateCount !== undefined && duplicateCount > 0 && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-rose-900/60 text-rose-200">
-                        {duplicateCount}
-                      </span>
-                    )}
-                  </>
-                )}
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${roleDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Downside Dropdown Menu */}
-              {roleDropdownOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
-                    onClick={() => setRoleDropdownOpen(false)} 
-                  />
-                  <div className="absolute left-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl z-50 p-2 space-y-1.5 text-slate-100 backdrop-blur-xl">
-                    <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                      Choose Option
-                    </div>
-
-                    {/* Option 1: Admin */}
-                    <button
-                      onClick={() => {
-                        setRoleDropdownOpen(false);
-                        if (onSelectPortal) onSelectPortal('admin');
-                        setActiveTab('crm');
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
-                        adminTargetPortal === 'admin'
-                          ? 'bg-violet-600/25 border-violet-500 text-violet-900 dark:text-white shadow-sm'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white'
-                      }`}
-                    >
-                      <ShieldCheck className="w-4 h-4 text-violet-400 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-100 dark:text-white">Admin</span>
-                          {adminTargetPortal === 'admin' && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-violet-500/30 text-violet-200">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">CRM Pipeline, Knowledge & Analytics</p>
-                      </div>
-                    </button>
-
-                    {/* Option 2: Property Admin */}
-                    <button
-                      onClick={() => {
-                        setRoleDropdownOpen(false);
-                        if (onSelectPortal) onSelectPortal('property_manager');
-                        setActiveTab('properties');
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
-                        adminTargetPortal === 'property_manager'
-                          ? 'bg-amber-500/25 border-amber-500 text-amber-950 dark:text-white shadow-sm'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white'
-                      }`}
-                    >
-                      <Building2 className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-100 dark:text-white">Property Admin</span>
-                          {adminTargetPortal === 'property_manager' && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-amber-500/30 text-amber-200">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">Dubai Properties & Inventory</p>
-                      </div>
-                    </button>
-
-                    {/* Option 3: Sales Manager */}
-                    <button
-                      onClick={() => {
-                        setRoleDropdownOpen(false);
-                        if (onSelectPortal) onSelectPortal('sales_manager');
-                        setActiveTab('sales_duplicates');
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-start space-x-2.5 ${
-                        adminTargetPortal === 'sales_manager'
-                          ? 'bg-emerald-600/25 border-emerald-500 text-emerald-900 dark:text-white shadow-sm'
-                          : 'bg-slate-800/40 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-slate-100 dark:hover:text-white'
-                      }`}
-                    >
-                      <Copy className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-100 dark:text-white">Sales Manager</span>
-                          {adminTargetPortal === 'sales_manager' && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-emerald-500/30 text-emerald-200">
-                              Active
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">Duplicate Control & Quality Audit</p>
-                      </div>
-                    </button>
-                    
-                  </div>
-                </>
+            {/* Dedicated Role Badge — Strictly locked to current authenticated portal (No cross-portal access) */}
+            <div className="relative flex-shrink-0 mr-1">
+              {adminTargetPortal === 'admin' ? (
+                <div
+                  className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm bg-violet-600/30 border-violet-500/60 text-violet-200"
+                  title="Super Admin Portal (CRM, Knowledge, Customer Profiles, Chats & Analytics)"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-violet-400" />
+                  <span>Super Admin</span>
+                  {leadCount > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-violet-950/60 text-violet-200">
+                      {leadCount}
+                    </span>
+                  )}
+                </div>
+              ) : adminTargetPortal === 'property_manager' ? (
+                <div
+                  className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm bg-amber-500/20 border-amber-500/50 text-amber-300"
+                  title="Property Admin Portal (Dubai Properties & Bookings)"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Property Admin</span>
+                  {propertyCount !== undefined && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-950/40 text-amber-950">
+                      {propertyCount}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm bg-emerald-600/25 border-emerald-500/60 text-emerald-200"
+                  title="Sales Manager Portal (Duplicate Properties & Missing Requirements)"
+                >
+                  <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Sales Manager</span>
+                  {duplicateCount !== undefined && duplicateCount > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-rose-900/60 text-rose-200">
+                      {duplicateCount}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
@@ -847,37 +767,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Property Stats</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('properties')}
-                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    activeTab === 'properties'
-                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
-                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
-                  }`}
-                >
-                  <Building2 className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Dubai Properties</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('assigned_properties')}
-                  className={`flex items-center space-x-0 sm:space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                    activeTab === 'assigned_properties'
-                      ? 'bg-amber-500 text-amber-950 font-bold shadow-md'
-                      : 'text-espresso-400 hover:text-espresso-300 hover:bg-espresso-800'
-                  }`}
-                >
-                  <BookmarkCheck className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Assign / Bookings</span>
-                  {bookedPropertyCount !== undefined && bookedPropertyCount > 0 && (
-                    <span className={`text-[9px] px-1.5 rounded-full font-bold ${
-                      activeTab === 'assigned_properties' ? 'bg-amber-900/30 text-amber-950' : 'bg-emerald-500/20 text-emerald-300'
-                    }`}>
-                      {bookedPropertyCount}
-                    </span>
-                  )}
                 </button>
 
                 <button
@@ -1211,6 +1100,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Admin Portal Entry in Mobile Menu */}
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onToggleAdminPanel) onToggleAdminPanel();
+              }}
+              className="w-full flex items-center space-x-2.5 p-2.5 rounded-xl bg-violet-950/60 hover:bg-violet-900/80 text-violet-200 border border-violet-700/60 text-xs font-semibold transition-all cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-lg bg-violet-600/30 border border-violet-500/50 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-violet-300" />
+              </div>
+              <div className="text-left">
+                <div className="font-bold text-slate-100 flex items-center space-x-1.5">
+                  <span>{isAnyAuthed ? 'Open Admin Portal' : 'Admin Login'}</span>
+                  {isAnyAuthed && <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded font-bold">Active</span>}
+                </div>
+                <div className="text-[10px] text-slate-400">CRM, property inventory, analytics & staff access</div>
+              </div>
+            </button>
 
             {/* Settings & Preferences */}
             <button

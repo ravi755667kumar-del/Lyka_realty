@@ -455,16 +455,16 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-300 flex flex-col h-full overflow-hidden">
+    <div className="flex-1 bg-[#fdfbf5] text-[#2d2216] flex flex-col h-full overflow-hidden">
       {/* Top Filter Header */}
-      <div className="p-4 sm:p-6 bg-slate-900 border-b border-slate-800 space-y-4">
+      <div className="p-4 sm:p-6 bg-[#faf6ec] border-b border-[#ebdcc4] space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-300 flex items-center space-x-2">
+            <h2 className="text-lg font-bold text-[#2d2216] flex items-center space-x-2">
               <Building2 className="w-5 h-5 text-amber-600" />
               <span>Verified Dubai Property Database</span>
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#7d6851]">
               Approved Lyka Realty listings across Dubai Marina, Downtown, Palm Jumeirah, Dubai Hills, and JVC.
             </p>
           </div>
@@ -533,33 +533,33 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
         {/* Filter Row */}
         <div className="flex flex-wrap items-center gap-2 pb-2">
-          <span className="text-xs text-slate-400 font-semibold mr-1">Region:</span>
+          <span className="text-xs text-[#7d6851] font-semibold mr-1">Region:</span>
           <button
             onClick={() => setSelectedCity('ALL')}
-            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               selectedCity === 'ALL'
                 ? 'bg-amber-500 text-amber-950 shadow-sm'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
+                : 'bg-white text-[#5a4835] hover:text-[#2d2216] border border-[#ebdcc4]'
             }`}
           >
             All Portfolios ({properties.length})
           </button>
           <button
             onClick={() => setSelectedCity('Dubai')}
-            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               selectedCity === 'Dubai'
                 ? 'bg-amber-500 text-amber-950 shadow-sm'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
+                : 'bg-white text-[#5a4835] hover:text-[#2d2216] border border-[#ebdcc4]'
             }`}
           >
             Dubai Properties
           </button>
           <button
             onClick={() => setSelectedCity('Mumbai')}
-            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               selectedCity === 'Mumbai'
                 ? 'bg-amber-500 text-amber-950 shadow-sm'
-                : 'bg-slate-950 text-slate-400 hover:text-slate-300 border border-slate-800'
+                : 'bg-white text-[#5a4835] hover:text-[#2d2216] border border-[#ebdcc4]'
             }`}
           >
             Mumbai NRI Corridor
@@ -568,13 +568,13 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
           <div className="relative col-span-2 sm:col-span-1">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-[#8c765c] absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search title, community, admin ID..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-300 placeholder-slate-500 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#ebdcc4] rounded-xl pl-9 pr-3 py-2 text-xs text-[#2d2216] placeholder-[#a69279] outline-none focus:border-amber-500 shadow-2xs"
             />
           </div>
 
@@ -582,7 +582,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedCommunity}
               onChange={(e) => setSelectedCommunity(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] outline-none focus:border-amber-500 shadow-2xs"
             >
               <option value="ALL">All Communities</option>
               <optgroup label="Dubai Communities">
@@ -612,7 +612,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] outline-none focus:border-amber-500 shadow-2xs"
             >
               <option value="ALL">All Statuses</option>
               <option value="Ready">Ready to Move</option>
@@ -624,7 +624,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedBeds}
               onChange={(e) => setSelectedBeds(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] outline-none focus:border-amber-500 shadow-2xs"
             >
               <option value="ALL">All Bedrooms</option>
               <option value="1">1 Bedroom</option>
@@ -638,7 +638,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <select
               value={selectedVerification}
               onChange={(e) => setSelectedVerification(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-emerald-500 font-semibold"
+              className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-xs text-[#2d2216] outline-none focus:border-emerald-500 font-semibold shadow-2xs"
             >
               <option value="ALL">🛡️ All Verification</option>
               <option value="VERIFIED">✅ Admin Verified Only</option>
@@ -656,7 +656,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             return (
               <div
                 key={prop.id}
-                className="bg-slate-900 border border-slate-800 hover:border-amber-500/50 rounded-2xl overflow-hidden transition-all shadow-md group flex flex-col justify-between"
+                className="bg-white border border-[#ebdcc4] hover:border-amber-500/50 rounded-2xl overflow-hidden transition-all shadow-sm hover:shadow-md group flex flex-col justify-between"
               >
                 <div>
                   <div className="relative h-48 overflow-hidden">
@@ -666,10 +666,10 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                     />
                     <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                      <span className="bg-amber-500/90 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded shadow">
+                      <span className="bg-amber-500/95 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded shadow">
                         {prop.city || (prop.id.startsWith('MUM') ? 'Mumbai' : 'Dubai')}
                       </span>
-                      <span className="bg-slate-900/90 backdrop-blur-md text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded border border-slate-700">
+                      <span className="bg-white/95 backdrop-blur-md text-[#5a4835] text-[10px] font-bold px-2 py-0.5 rounded border border-[#ebdcc4] shadow-2xs">
                         {prop.community}
                       </span>
                       {prop.is_booked || (prop.status || '').toLowerCase() === 'booked' ? (
@@ -678,25 +678,25 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                           <span>BOOKED</span>
                         </span>
                       ) : (
-                        <span className="bg-slate-900/90 backdrop-blur-md text-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-700">
+                        <span className="bg-white/95 backdrop-blur-md text-[#5a4835] text-[10px] font-semibold px-2 py-0.5 rounded border border-[#ebdcc4] shadow-2xs">
                           {prop.status}
                         </span>
                       )}
                       {prop.rera_id && (
-                        <span className="bg-slate-900/90 backdrop-blur-md text-emerald-400 text-[9px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        <span className="bg-emerald-50 text-emerald-800 text-[9px] font-mono px-1.5 py-0.5 rounded border border-emerald-300">
                           {prop.rera_id}
                         </span>
                       )}
                       {prop.admin_verified || prop.admin_verification_name ? (
-                        <span className="bg-emerald-950/90 backdrop-blur-md text-emerald-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-500/40 flex items-center space-x-1" title={`Admin Verified by ${prop.admin_verification_name || 'Property Admin'} (ID: ${prop.admin_verification_id_card || 'Verified'})`}>
-                          <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                        <span className="bg-emerald-50 text-emerald-800 text-[9px] font-bold px-1.5 py-0.5 rounded border border-emerald-300 flex items-center space-x-1" title={`Admin Verified by ${prop.admin_verification_name || 'Property Admin'} (ID: ${prop.admin_verification_id_card || 'Verified'})`}>
+                          <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
                           <span>Admin Verified</span>
                         </span>
                       ) : null}
                     </div>
 
-                    <div className="absolute bottom-3 right-3 bg-emerald-950/90 backdrop-blur-md border border-emerald-500/40 text-emerald-300 text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">
-                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                    <div className="absolute bottom-3 right-3 bg-emerald-50/95 backdrop-blur-md border border-emerald-300 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1 shadow-2xs">
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
                       <span>{matchScore}% Match</span>
                     </div>
                   </div>
@@ -704,53 +704,53 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                   <div className="p-4 space-y-2">
                     <div className="flex items-baseline justify-between flex-wrap gap-1">
                       <div>
-                        <span className="text-base font-extrabold text-amber-600">
+                        <span className="text-base font-extrabold text-amber-700">
                           AED {prop.price_aed.toLocaleString()}
                         </span>
-                        <span className="text-[11px] text-slate-400 ml-1.5 font-medium">
+                        <span className="text-[11px] text-[#7d6851] ml-1.5 font-medium">
                           (≈ ₹{((prop.price_inr || (prop.price_aed * 22.8)) / 10000000).toFixed(2)} Cr)
                         </span>
                       </div>
-                      <span className="text-xs text-slate-400 font-medium">
+                      <span className="text-xs text-[#7d6851] font-medium">
                         {prop.bedrooms} Bed • {prop.size_sqft} sqft
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-slate-300 text-sm leading-snug line-clamp-1 group-hover:text-amber-700 transition-colors">
+                    <h3 className="font-bold text-[#2d2216] text-sm leading-snug line-clamp-1 group-hover:text-amber-700 transition-colors">
                       {prop.title}
                     </h3>
 
-                    <p className="text-xs text-slate-400 line-clamp-2">
+                    <p className="text-xs text-[#7d6851] line-clamp-2">
                       {prop.description}
                     </p>
 
                     <div className="pt-2 flex flex-wrap gap-1">
                       {prop.amenities.slice(0, 3).map((am, i) => (
-                        <span key={i} className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
+                        <span key={i} className="text-[10px] bg-[#faf6ec] text-[#5a4835] px-2 py-0.5 rounded border border-[#ebdcc4]">
                           {am}
                         </span>
                       ))}
                     </div>
 
                     {/* Admin Verification Details Badge */}
-                    <div className="mt-2.5 bg-slate-950/80 border border-slate-800 rounded-xl p-2 text-[10px] space-y-1">
-                      <div className="flex items-center justify-between text-slate-300 font-semibold">
-                        <span className="flex items-center space-x-1.5 text-emerald-400">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <div className="mt-2.5 bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-2 text-[10px] space-y-1">
+                      <div className="flex items-center justify-between text-[#2d2216] font-semibold">
+                        <span className="flex items-center space-x-1.5 text-emerald-700">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                           <span>Admin: <strong>{prop.admin_verification_name || prop.contact_name || 'Property Admin'}</strong></span>
                         </span>
-                        <span className="text-[9px] font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-700/40 px-1.5 py-0.5 rounded">
+                        <span className="text-[9px] font-mono text-cyan-800 bg-cyan-50 border border-cyan-200 px-1.5 py-0.5 rounded">
                           {prop.admin_verification_id_type || (prop.city === 'Mumbai' ? 'Aadhaar Card' : 'Emirates ID')}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[9px] pt-1 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between text-[#7d6851] text-[9px] pt-1 border-t border-[#ebdcc4]">
                         <span className="flex items-center space-x-1">
-                          <CreditCard className="w-2.5 h-2.5 text-cyan-400" />
-                          <span>ID Card: <strong className="text-slate-300 font-mono">{prop.admin_verification_id_card || '784-1990-1234567-1'}</strong></span>
+                          <CreditCard className="w-2.5 h-2.5 text-cyan-600" />
+                          <span>ID Card: <strong className="text-[#2d2216] font-mono">{prop.admin_verification_id_card || '784-1990-1234567-1'}</strong></span>
                         </span>
                         <span className="flex items-center space-x-1">
-                          <Phone className="w-2.5 h-2.5 text-emerald-400" />
-                          <span>Mob: <strong className="text-slate-300 font-mono">{prop.admin_verification_mobile || prop.contact_mobile || '+971 50 892 4110'}</strong></span>
+                          <Phone className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>Mob: <strong className="text-[#2d2216] font-mono">{prop.admin_verification_mobile || prop.contact_mobile || '+971 50 892 4110'}</strong></span>
                         </span>
                       </div>
                     </div>
@@ -758,10 +758,10 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </div>
 
                 <div className="p-4 pt-0">
-                  <div className="border-t border-slate-800 pt-3 flex items-center justify-between">
+                  <div className="border-t border-[#ebdcc4] pt-3 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Estimated Yield</span>
-                      <span className="text-xs font-bold text-emerald-400">{prop.expected_roi || '7.5% net ROI'}</span>
+                      <span className="text-[10px] text-[#7d6851] uppercase tracking-wider block">Estimated Yield</span>
+                      <span className="text-xs font-bold text-emerald-700">{prop.expected_roi || '7.5% net ROI'}</span>
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -769,7 +769,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenEditModal(prop)}
-                          className="bg-slate-800 hover:bg-slate-700 text-amber-500 hover:text-amber-400 text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 border border-slate-700 shadow-sm"
+                          className="bg-[#faf6ec] hover:bg-[#f5ebd6] text-amber-800 hover:text-amber-900 text-xs font-bold px-3 py-1.5 rounded-xl transition-all flex items-center space-x-1.5 border border-[#ebdcc4] shadow-2xs cursor-pointer"
                           title="Edit property details"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -780,7 +780,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       <button
                         type="button"
                         onClick={() => onBookViewing(prop)}
-                        className="bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1.5 shadow-sm"
+                        className="bg-amber-500 hover:bg-amber-400 text-amber-950 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors flex items-center space-x-1.5 shadow-2xs cursor-pointer"
                       >
                         <Calendar className="w-3.5 h-3.5" />
                         <span>Book Viewing</span>
@@ -796,10 +796,10 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
       {/* Add Property Modal */}
       {canAddProperty && showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-[#ebdcc4] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-[#2d2216]">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
+              <h3 className="text-sm font-bold text-[#2d2216] flex items-center space-x-2">
                 <Building2 className="w-4 h-4 text-amber-600" />
                 <span>Add Verified Property Listing</span>
               </h3>
@@ -818,11 +818,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
             <form onSubmit={handleCreateProperty} className="space-y-4 text-xs">
 
               {/* Section: 🛡️ Admin Verification (Required for Listing Compliance) */}
-              <div className="bg-gradient-to-r from-emerald-950/60 via-slate-800/80 to-amber-950/40 border border-emerald-500/50 rounded-xl p-3.5 space-y-3 shadow-lg">
+              <div className="bg-gradient-to-r from-emerald-50 via-[#faf6ec] to-amber-50 border border-emerald-300 rounded-xl p-3.5 space-y-3 shadow-lg">
                 <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                   <div className="flex items-center space-x-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span className="text-emerald-300 font-bold uppercase tracking-wider text-[11px]">
+                    <span className="text-emerald-800 font-bold uppercase tracking-wider text-[11px]">
                       🛡️ Admin Verification & Legal Identity Check (Mandatory)
                     </span>
                   </div>
@@ -831,7 +831,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     <span>Compliance Verified</span>
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
+                <p className="text-[11px] text-[#5a4835] leading-relaxed">
                   Real Estate regulatory protocols mandate full Property Admin identification (<strong className="text-amber-300">Admin Name, Mobile, and Official ID Card</strong>) before any listing is published to active database.
                 </p>
 
@@ -844,7 +844,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                       <User className="w-3.5 h-3.5 text-amber-400" />
                       <span>Admin Verifier Name <span className="text-rose-400">*</span></span>
                     </label>
@@ -858,13 +858,13 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                         setAddValidationError('');
                       }}
                       placeholder="E.g., Farhan Qureshi (Property Admin)"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      className="w-full bg-white border border-[#ebdcc4] focus:border-amber-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                       <Phone className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Admin Mobile Number <span className="text-rose-400">*</span></span>
                     </label>
@@ -878,20 +878,20 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                         setAddValidationError('');
                       }}
                       placeholder="E.g., +971 50 892 4110"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      className="w-full bg-white border border-[#ebdcc4] focus:border-emerald-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                       <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
                       <span>Admin ID Card Type <span className="text-rose-400">*</span></span>
                     </label>
                     <select
                       value={newAdminIdType}
                       onChange={(e) => setNewAdminIdType(e.target.value as any)}
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      className="w-full bg-white border border-[#ebdcc4] focus:border-cyan-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs"
                     >
                       <option value="Emirates ID">Emirates ID (UAE)</option>
                       <option value="Aadhaar Card">Aadhaar Card (India)</option>
@@ -902,7 +902,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                  <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                     <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Admin ID Card Number <span className="text-rose-400">*</span></span>
                   </label>
@@ -911,7 +911,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     value={newAdminIdCard}
                     onChange={(e) => { setNewAdminIdCard(e.target.value); setAddValidationError(''); }}
                     placeholder={newAdminIdType === 'Emirates ID' ? 'E.g., 784-1990-1234567-1' : newAdminIdType === 'Aadhaar Card' ? 'E.g., 1234 5678 9012' : 'E.g., ID-ADM-99420'}
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs font-mono"
+                    className="w-full bg-white border border-[#ebdcc4] focus:border-cyan-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs font-mono"
                     required
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
@@ -921,28 +921,28 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               </div>
 
               {/* Section: Public Contact Info */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">📞 Public Contact & Inquiries</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Contact Person Name</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Contact Person Name</label>
                     <input
                       type="text"
                       value={newContactName}
                       onChange={(e) => setNewContactName(e.target.value)}
                       placeholder="E.g., Ahmed Al Mansouri"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Mobile Number</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Mobile Number</label>
                     <input
                       type="tel"
                       value={newMobile}
                       onChange={(e) => setNewMobile(e.target.value)}
                       placeholder="E.g., +971 50 123 4567"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
@@ -950,28 +950,28 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               </div>
 
               {/* Section: Property Details */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">🏠 Property Details</p>
 
                 <div>
-                  <label className="text-slate-400 block mb-1">Listing Title</label>
+                  <label className="text-[#5a4835] font-medium block mb-1">Listing Title</label>
                   <input
                     type="text"
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
                     placeholder="E.g., Marina Gate Luxury 2BR with Yacht Views"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Community</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Community</label>
                     <select
                       value={newCommunity}
                       onChange={(e) => setNewCommunity(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Dubai Marina">Dubai Marina</option>
                       <option value="Downtown Dubai">Downtown Dubai</option>
@@ -984,12 +984,12 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Developer</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Developer</label>
                     <input
                       type="text"
                       value={newDeveloper}
                       onChange={(e) => setNewDeveloper(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
@@ -997,11 +997,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Property Type</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Property Type</label>
                     <select
                       value={newType}
                       onChange={(e) => setNewType(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option>Apartment</option>
                       <option>Villa</option>
@@ -1011,11 +1011,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Furnished Status</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Furnished Status</label>
                     <select
                       value={newFurnished}
                       onChange={(e) => setNewFurnished(e.target.value as any)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Furnished">Furnished</option>
                       <option value="Unfurnished">Unfurnished</option>
@@ -1026,15 +1026,15 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               </div>
 
               {/* Section: Rooms & Size */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">🛏 Rooms & Size</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Bedrooms</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Bedrooms</label>
                     <select
                       value={newBeds}
                       onChange={(e) => setNewBeds(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Studio">Studio</option>
                       <option value="1">1</option>
@@ -1044,11 +1044,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Bathrooms</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Bathrooms</label>
                     <select
                       value={newBathrooms}
                       onChange={(e) => setNewBathrooms(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="1">1</option>
                       <option value="2">2</option>
@@ -1057,21 +1057,21 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Size (sqft)</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Size (sqft)</label>
                     <input
                       type="number"
                       value={newSize}
                       onChange={(e) => setNewSize(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Status</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Status</label>
                     <select
                       value={newStatus}
                       onChange={(e) => setNewStatus(e.target.value as any)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Ready">Ready</option>
                       <option value="Off-plan">Off-plan</option>
@@ -1082,30 +1082,30 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 {/* Date Information */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                   <div>
-                    <label className="text-slate-400 block mb-1">Listing Date</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Listing Date</label>
                     <input
                       type="date"
                       value={newListingDate}
                       onChange={(e) => setNewListingDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Available From</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Available From</label>
                     <input
                       type="date"
                       value={newAvailableDate}
                       onChange={(e) => setNewAvailableDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Expiry Date</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Expiry Date</label>
                     <input
                       type="date"
                       value={newExpiryDate}
                       onChange={(e) => setNewExpiryDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
@@ -1114,22 +1114,22 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 {newStatus === 'Off-plan' && (
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <div>
-                      <label className="text-slate-400 block mb-1">Handover Date</label>
+                      <label className="text-[#5a4835] font-medium block mb-1">Handover Date</label>
                       <input
                         type="date"
                         value={newHandoverDate}
                         onChange={(e) => setNewHandoverDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                        className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       />
                     </div>
                     <div>
-                      <label className="text-slate-400 block mb-1">Payment Plan</label>
+                      <label className="text-[#5a4835] font-medium block mb-1">Payment Plan</label>
                       <input
                         type="text"
                         value={newPaymentPlan}
                         onChange={(e) => setNewPaymentPlan(e.target.value)}
                         placeholder="E.g., 10/20/30/40 or Post-handover"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                        className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       />
                     </div>
                   </div>
@@ -1137,19 +1137,19 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                 {/* RERA ID */}
                 <div>
-                  <label className="text-slate-400 block mb-1">RERA ID (Optional)</label>
+                  <label className="text-[#5a4835] font-medium block mb-1">RERA ID (Optional)</label>
                   <input
                     type="text"
                     value={newReraId}
                     onChange={(e) => setNewReraId(e.target.value)}
                     placeholder="E.g., RERA-12345"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
               {/* Section: Amenities */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">✨ Amenities & Features</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
@@ -1165,7 +1165,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       className={`flex items-center justify-center space-x-1.5 px-2 py-2 rounded-xl border text-[11px] font-semibold transition-all ${
                         value
                           ? 'bg-amber-500/20 border-amber-500 text-amber-700'
-                          : 'bg-slate-950 border-slate-700 text-slate-400 hover:border-slate-500'
+                          : 'bg-white border-[#ebdcc4] text-[#5a4835] hover:border-amber-400'
                       }`}
                     >
                       {value && <Check className="w-3 h-3" />}
@@ -1176,46 +1176,46 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               </div>
 
               {/* Section: Pricing */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">💰 Pricing</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Price (AED)</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Price (AED)</label>
                     <input
                       type="number"
                       value={newPrice}
                       onChange={(e) => setNewPrice(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Expected ROI</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Expected ROI</label>
                     <input
                       type="text"
                       value={newRoi}
                       onChange={(e) => setNewRoi(e.target.value)}
                       placeholder="E.g., 7.8% net ROI"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Section: Description */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">📝 Description</p>
                 <textarea
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   rows={3}
                   placeholder="Describe the property — layout, views, finishing quality, nearby landmarks, payment plan, etc."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500 resize-none"
+                  className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 
               {/* Section: Photo Upload */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-700 font-bold uppercase tracking-wider text-[10px]">📷 Property Photo</p>
 
                 {/* Hidden file input */}
@@ -1275,7 +1275,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl font-semibold"
+                  className="flex-1 bg-[#faf6ec] hover:bg-[#f0e6d2] text-[#5a4835] border border-[#ebdcc4] py-2 rounded-xl font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1304,15 +1304,15 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
       {/* Edit Property Modal */}
       {canAddProperty && showEditModal && editingProperty && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-[#ebdcc4] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-[#2d2216]">
+            <div className="flex items-center justify-between border-b border-[#ebdcc4] pb-3">
               <div className="flex items-center space-x-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
                   <Edit3 className="w-4 h-4 text-amber-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-[#2d2216] flex items-center space-x-2">
                     <span>Edit Property Listing</span>
                     <span className="font-mono text-[10px] text-amber-400 bg-amber-950/70 border border-amber-600/40 px-2 py-0.5 rounded">
                       {editingProperty.id}
@@ -1340,11 +1340,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
             <form onSubmit={handleSaveEditedProperty} className="space-y-4 text-xs">
               {/* Section: 🛡️ Admin Verification Details (Update / Compliance) */}
-              <div className="bg-gradient-to-r from-emerald-950/60 via-slate-800/80 to-amber-950/40 border border-emerald-500/50 rounded-xl p-3.5 space-y-3 shadow-md">
+              <div className="bg-gradient-to-r from-emerald-50 via-[#faf6ec] to-amber-50 border border-emerald-300 rounded-xl p-3.5 space-y-3 shadow-md">
                 <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
                   <div className="flex items-center space-x-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span className="text-emerald-300 font-bold uppercase tracking-wider text-[11px]">
+                    <span className="text-emerald-800 font-bold uppercase tracking-wider text-[11px]">
                       🛡️ Admin Verification & Legal Identity Sign-off
                     </span>
                   </div>
@@ -1361,7 +1361,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                       <User className="w-3.5 h-3.5 text-amber-400" />
                       <span>Admin Verifier Name</span>
                     </label>
@@ -1370,12 +1370,12 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       value={editAdminName}
                       onChange={(e) => setEditAdminName(e.target.value)}
                       placeholder="E.g., Farhan Qureshi (Property Admin)"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      className="w-full bg-white border border-[#ebdcc4] focus:border-amber-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                       <Phone className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Admin Mobile Number</span>
                     </label>
@@ -1384,19 +1384,19 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       value={editAdminMobile}
                       onChange={(e) => setEditAdminMobile(e.target.value)}
                       placeholder="E.g., +971 50 892 4110"
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      className="w-full bg-white border border-[#ebdcc4] focus:border-emerald-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs"
                     />
                   </div>
 
                   <div>
-                    <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                    <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                       <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
                       <span>Admin ID Card Type</span>
                     </label>
                     <select
                       value={editAdminIdType}
                       onChange={(e) => setEditAdminIdType(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs"
+                      className="w-full bg-white border border-[#ebdcc4] focus:border-cyan-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs"
                     >
                       <option value="Emirates ID">Emirates ID (UAE)</option>
                       <option value="Aadhaar Card">Aadhaar Card (India)</option>
@@ -1407,7 +1407,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-300 block mb-1 text-[11px] font-semibold flex items-center space-x-1">
+                  <label className="text-[#2d2216] block mb-1 text-[11px] font-semibold flex items-center space-x-1">
                     <CreditCard className="w-3.5 h-3.5 text-cyan-400" />
                     <span>Admin ID Card Number</span>
                   </label>
@@ -1416,57 +1416,57 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     value={editAdminIdCard}
                     onChange={(e) => setEditAdminIdCard(e.target.value)}
                     placeholder="E.g., 784-1990-1234567-1"
-                    className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-500 rounded-xl px-3 py-2 text-slate-200 outline-none text-xs font-mono"
+                    className="w-full bg-white border border-[#ebdcc4] focus:border-cyan-500 rounded-xl px-3 py-2 text-[#2d2216] outline-none text-xs font-mono"
                   />
                 </div>
               </div>
 
               {/* Section: Public Contact Info */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📞 Public Contact Information</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Contact Person Name</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Contact Person Name</label>
                     <input
                       type="text"
                       value={editContactName}
                       onChange={(e) => setEditContactName(e.target.value)}
                       placeholder="E.g., Ahmed Al Mansouri"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Mobile Number</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Mobile Number</label>
                     <input
                       type="tel"
                       value={editMobile}
                       onChange={(e) => setEditMobile(e.target.value)}
                       placeholder="E.g., +971 50 123 4567"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Section: Property Details */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">🏠 Property Details</p>
 
                 <div>
-                  <label className="text-slate-400 block mb-1">Listing Title <span className="text-rose-400">*</span></label>
+                  <label className="text-[#5a4835] font-medium block mb-1">Listing Title <span className="text-rose-400">*</span></label>
                   <input
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     placeholder="E.g., Marina Gate Luxury 2BR with Yacht Views"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Region / City</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Region / City</label>
                     <select
                       value={editCity}
                       onChange={(e) => {
@@ -1474,18 +1474,18 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                         setEditCity(cityVal);
                         setEditCommunity(cityVal === 'Mumbai' ? 'Worli' : 'Dubai Marina');
                       }}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Dubai">Dubai, UAE</option>
                       <option value="Mumbai">Mumbai, India</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Community</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Community</label>
                     <select
                       value={editCommunity}
                       onChange={(e) => setEditCommunity(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       {editCity === 'Mumbai' ? (
                         <>
@@ -1526,21 +1526,21 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Developer</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Developer</label>
                     <input
                       type="text"
                       value={editDeveloper}
                       onChange={(e) => setEditDeveloper(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Property Type</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Property Type</label>
                     <select
                       value={editType}
                       onChange={(e) => setEditType(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option>Apartment</option>
                       <option>Villa</option>
@@ -1550,11 +1550,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Furnished Status</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Furnished Status</label>
                     <select
                       value={editFurnished}
                       onChange={(e) => setEditFurnished(e.target.value as any)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Furnished">Furnished</option>
                       <option value="Unfurnished">Unfurnished</option>
@@ -1565,15 +1565,15 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               </div>
 
               {/* Section: Rooms, Size & Status */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">🛏 Rooms, Size & Status</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Bedrooms</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Bedrooms</label>
                     <select
                       value={editBeds}
                       onChange={(e) => setEditBeds(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Studio">Studio</option>
                       <option value="1">1</option>
@@ -1584,11 +1584,11 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Bathrooms</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Bathrooms</label>
                     <select
                       value={editBathrooms}
                       onChange={(e) => setEditBathrooms(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="1">1</option>
                       <option value="2">2</option>
@@ -1598,21 +1598,21 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Size (sqft)</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Size (sqft)</label>
                     <input
                       type="number"
                       value={editSize}
                       onChange={(e) => setEditSize(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Status</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Status</label>
                     <select
                       value={editStatus}
                       onChange={(e) => setEditStatus(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     >
                       <option value="Ready">Ready</option>
                       <option value="Off-plan">Off-plan</option>
@@ -1625,30 +1625,30 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 {/* Date Information */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                   <div>
-                    <label className="text-slate-400 block mb-1">Listing Date</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Listing Date</label>
                     <input
                       type="date"
                       value={editListingDate}
                       onChange={(e) => setEditListingDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Available From</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Available From</label>
                     <input
                       type="date"
                       value={editAvailableDate}
                       onChange={(e) => setEditAvailableDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Expiry Date</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Expiry Date</label>
                     <input
                       type="date"
                       value={editExpiryDate}
                       onChange={(e) => setEditExpiryDate(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
@@ -1657,22 +1657,22 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 {editStatus === 'Off-plan' && (
                   <div className="grid grid-cols-2 gap-3 pt-2">
                     <div>
-                      <label className="text-slate-400 block mb-1">Handover Date</label>
+                      <label className="text-[#5a4835] font-medium block mb-1">Handover Date</label>
                       <input
                         type="date"
                         value={editHandoverDate}
                         onChange={(e) => setEditHandoverDate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                        className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       />
                     </div>
                     <div>
-                      <label className="text-slate-400 block mb-1">Payment Plan</label>
+                      <label className="text-[#5a4835] font-medium block mb-1">Payment Plan</label>
                       <input
                         type="text"
                         value={editPaymentPlan}
                         onChange={(e) => setEditPaymentPlan(e.target.value)}
                         placeholder="E.g., 60/40 on handover"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                        className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       />
                     </div>
                   </div>
@@ -1680,19 +1680,19 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
 
                 {/* RERA ID */}
                 <div>
-                  <label className="text-slate-400 block mb-1">RERA ID</label>
+                  <label className="text-[#5a4835] font-medium block mb-1">RERA ID</label>
                   <input
                     type="text"
                     value={editReraId}
                     onChange={(e) => setEditReraId(e.target.value)}
                     placeholder="E.g., RERA-12345"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
 
               {/* Section: Amenities */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">✨ Amenities & Features</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
@@ -1708,7 +1708,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                       className={`flex items-center justify-center space-x-1.5 px-2 py-2 rounded-xl border text-[11px] font-semibold transition-all ${
                         value
                           ? 'bg-amber-500/20 border-amber-500 text-amber-500'
-                          : 'bg-slate-950 border-slate-700 text-slate-400 hover:border-slate-500'
+                          : 'bg-white border-[#ebdcc4] text-[#5a4835] hover:border-amber-400'
                       }`}
                     >
                       {value && <Check className="w-3 h-3" />}
@@ -1719,46 +1719,46 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
               </div>
 
               {/* Section: Pricing */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">💰 Pricing</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-400 block mb-1">Price (AED) <span className="text-rose-400">*</span></label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Price (AED) <span className="text-rose-400">*</span></label>
                     <input
                       type="number"
                       value={editPrice}
                       onChange={(e) => setEditPrice(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                       required
                     />
                   </div>
                   <div>
-                    <label className="text-slate-400 block mb-1">Expected ROI</label>
+                    <label className="text-[#5a4835] font-medium block mb-1">Expected ROI</label>
                     <input
                       type="text"
                       value={editRoi}
                       onChange={(e) => setEditRoi(e.target.value)}
                       placeholder="E.g., 7.8% net ROI"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                      className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Section: Description */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📝 Description</p>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={3}
                   placeholder="Describe the property — layout, views, finishing quality, nearby landmarks, payment plan, etc."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500 resize-none"
+                  className="w-full bg-white border border-[#ebdcc4] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 
               {/* Section: Photo Upload */}
-              <div className="bg-slate-800/50 rounded-xl p-3 space-y-3">
+              <div className="bg-[#faf6ec] border border-[#ebdcc4] rounded-xl p-3 space-y-3">
                 <p className="text-amber-500 font-bold uppercase tracking-wider text-[10px]">📷 Property Photo</p>
                 <input
                   ref={editFileInputRef}
@@ -1822,7 +1822,7 @@ export const PropertyInventory: React.FC<PropertyInventoryProps> = ({
                 <button
                   type="button"
                   onClick={() => { setShowEditModal(false); setEditingProperty(null); }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-semibold transition-colors"
+                  className="flex-1 bg-[#faf6ec] hover:bg-[#f0e6d2] text-[#5a4835] border border-[#ebdcc4] py-2.5 rounded-xl font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>

@@ -1,29 +1,17 @@
-import { csvCell, downloadCSV } from "../lib/csv";
 import React, { useState } from "react";
 import {
-  LeadProfile,
-  LeadStatus,
-  LeadPriority,
-  FollowUpTask,
-} from "../types/crm";
-import {
   Kanban,
+  Download,
   Search,
   Filter,
-  Plus,
-  Calendar,
-  Phone,
-  Mail,
-  UserCheck,
-  Download,
-  Eye,
   CheckCircle2,
-  Clock,
-  Coins,
-  MapPin,
-  AlertTriangle,
+  Calendar,
   X,
+  MapPin,
+  Coins,
 } from "lucide-react";
+import { LeadProfile, FollowUpTask, LeadStatus } from "../types/crm";
+import { exportLeadsToCSV } from "../lib/csv";
 
 interface CrmPipelineProps {
   leads: LeadProfile[];
@@ -34,36 +22,13 @@ interface CrmPipelineProps {
 }
 
 const STAGES: { id: LeadStatus; label: string; color: string }[] = [
-  {
-    id: "Contacted",
-    label: "Contacted",
-    color: "border-blue-500 bg-blue-500/10",
-  },
-  {
-    id: "Interested",
-    label: "Interested",
-    color: "border-amber-500 bg-amber-500/10",
-  },
-  {
-    id: "Qualified",
-    label: "Qualified",
-    color: "border-emerald-500 bg-emerald-500/10",
-  },
-  {
-    id: "Viewing",
-    label: "Viewing Booked",
-    color: "border-purple-500 bg-purple-500/10",
-  },
-  {
-    id: "Negotiation",
-    label: "Negotiation",
-    color: "border-indigo-500 bg-indigo-500/10",
-  },
-  {
-    id: "Converted",
-    label: "Closed / Won",
-    color: "border-teal-500 bg-teal-500/10",
-  },
+  { id: "Contacted", label: "Contacted", color: "bg-blue-500/10 text-blue-800 border-blue-300/40" },
+  { id: "Interested", label: "Interested", color: "bg-cyan-500/10 text-cyan-800 border-cyan-300/40" },
+  { id: "Qualified", label: "Qualified", color: "bg-emerald-500/10 text-emerald-800 border-emerald-300/40" },
+  { id: "Viewing Booked", label: "Viewing Booked", color: "bg-purple-500/10 text-purple-800 border-purple-300/40" },
+  { id: "Negotiation", label: "Negotiation", color: "bg-amber-500/10 text-amber-800 border-amber-300/40" },
+  { id: "Won", label: "Won", color: "bg-emerald-500/20 text-emerald-900 border-emerald-400/50" },
+  { id: "Lost", label: "Lost", color: "bg-rose-500/10 text-rose-800 border-rose-300/40" },
 ];
 
 export const CrmPipeline: React.FC<CrmPipelineProps> = ({
@@ -76,88 +41,57 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIntent, setSelectedIntent] = useState<string>("ALL");
   const [selectedPriority, setSelectedPriority] = useState<string>("ALL");
-  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Modal State for scheduling follow-up
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [targetLeadForTask, setTargetLeadForTask] =
     useState<LeadProfile | null>(null);
-
-  // New follow-up form state
-  const [taskReason, setTaskReason] = useState(
-    "Send matching property brochures",
+  const [taskReason, setTaskReason] = useState("");
+  const [taskAction, setTaskAction] = useState(
+    "Send property brochures & payment plans",
   );
-  const [taskDate, setTaskDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [taskAction, setTaskAction] = useState("Contact customer via WhatsApp");
+  const [taskDate, setTaskDate] = useState("");
 
   const filteredLeads = leads.filter((l) => {
-    // Exclude New Inquiries stage from CRM pipeline
+    // Hide 'New' initial state from Kanban view — only show actively engaged leads
     if (l.lead_status === "New") return false;
 
-    const matchesSearch =
-      l.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    // Search query
+    const matchQuery =
+      searchTerm === "" ||
       (l.full_name &&
         l.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (l.phone && l.phone.includes(searchTerm)) ||
+      (l.id && l.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (l.preferred_communities &&
         l.preferred_communities.some((c) =>
           c.toLowerCase().includes(searchTerm.toLowerCase()),
         ));
 
-    const matchesIntent =
+    // Filter Intent
+    const matchIntent =
       selectedIntent === "ALL" || l.intent === selectedIntent;
-    const matchesPriority =
+
+    // Filter Priority
+    const matchPriority =
       selectedPriority === "ALL" || l.lead_priority === selectedPriority;
 
-    return matchesSearch && matchesIntent && matchesPriority;
+    return matchQuery && matchIntent && matchPriority;
   });
 
-  const handleExportCSV = () => {
-    const listToExport = filteredLeads.length > 0 ? filteredLeads : leads;
-    if (!listToExport || listToExport.length === 0) {
-      alert("No leads available to export.");
-      return;
-    }
-
-    const headers = [
-      "Lead ID",
-      "Full Name",
-      "Phone",
-      "Email",
-      "Intent",
-      "Customer Type",
-      "Budget Max AED",
-      "Communities",
-      "Bedrooms",
-      "Status",
-      "Priority",
-      "Completeness %",
-      "Assigned Agent",
-    ];
-    const rows = listToExport.map((l) =>
-      [
-        l.id,
-        l.full_name || "Prospect",
-        l.phone || "",
-        l.email || "",
-        l.intent || "",
-        l.customer_type || "",
-        l.budget_max || 0,
-        (l.preferred_communities || []).join("; "),
-        l.bedrooms || "",
-        l.lead_status || "",
-        l.lead_priority || "",
-        l.requirement_completeness ? (l.requirement_completeness + "%") : "0%",
-        l.assigned_agent || "",
-      ].map(csvCell),
-    );
-
-    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const dateStr = new Date().toISOString().split("T")[0];
-    const ok = downloadCSV("lyka_realty_crm_leads_" + dateStr + ".csv", csvContent);
-    if (ok) {
-      setIsExporting(true);
-      setTimeout(() => setIsExporting(false), 2500);
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const activeLeads = leads.filter((l) => l.lead_status !== "New");
+      await exportLeadsToCSV(
+        activeLeads.length > 0 ? activeLeads : leads,
+        followUps,
+      );
+      setTimeout(() => setIsExporting(false), 2000);
+    } catch (err) {
+      console.error("Export error:", err);
+      setIsExporting(false);
     }
   };
 
@@ -166,37 +100,37 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
     if (!targetLeadForTask) return;
 
     const newTask: FollowUpTask = {
-      id: "TASK-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      id: "task_" + Math.random().toString(36).substring(2, 9),
       lead_id: targetLeadForTask.id,
-      customer_name:
-        targetLeadForTask.full_name || "Customer " + targetLeadForTask.id,
-      reason: taskReason,
-      date: taskDate,
-      assigned_agent: targetLeadForTask.assigned_agent,
-      action: taskAction,
+      lead_name: targetLeadForTask.full_name || targetLeadForTask.id,
+      assigned_agent: targetLeadForTask.assigned_agent || "Tariq Mansoor",
+      due_date: taskDate || new Date(Date.now() + 86400000).toISOString(),
+      reason: taskReason || "Follow-up discussion on luxury properties",
+      recommended_action: taskAction,
       status: "Pending",
-      priority:
-        targetLeadForTask.lead_priority === "Urgent" ? "High" : "Medium",
-      createdAt: new Date().toISOString(),
     };
 
     onAddFollowUp(newTask);
     setShowFollowUpModal(false);
+    setTaskReason("");
+    setTaskDate("");
+    setTargetLeadForTask(null);
   };
 
   return (
-    <div className="flex-1 bg-slate-950 text-slate-300 flex flex-col h-full overflow-hidden">
+    <div className="flex-1 bg-[#fdfbf5] text-[#2d2216] flex flex-col h-full overflow-hidden select-text">
       {/* Top Filter Bar */}
-      <div className="p-4 sm:p-6 bg-slate-900 border-b border-slate-800 space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="p-4 sm:p-6 bg-[#faf6ec] border-b border-[#f0e6d2] space-y-4 shrink-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto w-full">
           <div>
-            <h2 className="text-lg font-bold text-slate-300 flex items-center space-x-2">
-              <Kanban className="w-5 h-5 text-amber-600" />
+            <h2 className="text-lg sm:text-xl font-extrabold text-[#1c1611] flex items-center space-x-2 tracking-tight">
+              <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-700">
+                <Kanban className="w-5 h-5 text-amber-700" />
+              </div>
               <span>Lyka Realty CRM Pipeline</span>
             </h2>
-            <p className="text-xs text-slate-400">
-              Manage Dubai real estate customer journeys, qualification stages,
-              and follow-ups.
+            <p className="text-xs text-[#6b5843] mt-0.5">
+              Manage Dubai & Mumbai customer journeys, qualification stages, and follow-ups.
             </p>
           </div>
 
@@ -205,19 +139,19 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
               onClick={handleExportCSV}
               className={`flex items-center space-x-1.5 text-xs px-3.5 py-2 rounded-xl transition-all font-semibold shadow-xs cursor-pointer active:scale-95 ${
                 isExporting
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                  : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30"
+                  ? "bg-emerald-600 text-white border border-emerald-600"
+                  : "bg-white hover:bg-[#f7f2e6] text-[#463726] border border-[#e5d8be]"
               }`}
               title="Export leads to CSV file"
             >
               {isExporting ? (
                 <>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 text-white" />
                   <span>Downloaded!</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4 text-amber-500" />
+                  <Download className="w-4 h-4 text-amber-600" />
                   <span>Export CSV</span>
                 </>
               )}
@@ -226,15 +160,15 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
         </div>
 
         {/* Filter Controls */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto w-full">
           <div className="relative col-span-2 sm:col-span-1">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-[#8c7860] absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by ID, name, community..."
-              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#e5d8be] rounded-xl pl-9 pr-3 py-2 text-xs text-[#2d2216] placeholder-[#8c7860] outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
@@ -242,7 +176,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             <select
               value={selectedIntent}
               onChange={(e) => setSelectedIntent(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#e5d8be] rounded-xl px-3 py-2 text-xs text-[#2d2216] outline-none focus:border-amber-600 shadow-2xs cursor-pointer"
             >
               <option value="ALL">All Intents</option>
               <option value="Buy">Buy</option>
@@ -256,7 +190,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             <select
               value={selectedPriority}
               onChange={(e) => setSelectedPriority(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-100 outline-none focus:border-amber-500"
+              className="w-full bg-white border border-[#e5d8be] rounded-xl px-3 py-2 text-xs text-[#2d2216] outline-none focus:border-amber-600 shadow-2xs cursor-pointer"
             >
               <option value="ALL">All Priorities</option>
               <option value="Urgent">Urgent</option>
@@ -266,9 +200,9 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             </select>
           </div>
 
-          <div className="col-span-2 sm:col-span-1 flex items-center justify-between text-xs text-slate-300 bg-slate-950 px-3 py-2 rounded-xl border border-slate-700/80">
+          <div className="col-span-2 sm:col-span-1 flex items-center justify-between text-xs text-[#463726] bg-[#f7f2e6] px-3 py-2 rounded-xl border border-[#e5d8be] shadow-2xs">
             <span>Filtered Leads:</span>
-            <span className="font-bold text-amber-600">
+            <span className="font-bold text-amber-700">
               {filteredLeads.length} of{" "}
               {leads.filter((l) => l.lead_status !== "New").length}
             </span>
@@ -278,7 +212,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
 
       {/* Kanban Board Columns */}
       <div className="flex-1 overflow-x-auto p-3 sm:p-6 scrollbar-thin touch-pan-x">
-        <div className="flex space-x-4 min-w-max h-full">
+        <div className="flex space-x-4 min-w-max h-full max-w-7xl xl:max-w-[1440px] 2xl:max-w-[1680px] mx-auto">
           {STAGES.map((stage) => {
             const stageLeads = filteredLeads.filter(
               (l) => l.lead_status === stage.id,
@@ -286,16 +220,16 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
             return (
               <div
                 key={stage.id}
-                className="w-72 xl:w-80 2xl:w-88 bg-slate-900/70 border border-slate-800 rounded-2xl flex flex-col h-full max-h-[calc(100vh-250px)]"
+                className="w-72 xl:w-80 2xl:w-88 bg-[#faf6ec] border border-[#f0e6d2] rounded-2xl flex flex-col h-full max-h-[calc(100vh-230px)] shadow-xs"
               >
                 {/* Stage Header */}
                 <div
-                  className={`p-3 border-b border-slate-800 flex items-center justify-between rounded-t-2xl ${stage.color}`}
+                  className={`p-3 border-b border-[#f0e6d2] flex items-center justify-between rounded-t-2xl ${stage.color}`}
                 >
-                  <span className="font-bold text-xs text-slate-300">
+                  <span className="font-bold text-xs">
                     {stage.label}
                   </span>
-                  <span className="text-[11px] font-bold bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
+                  <span className="text-[11px] font-bold bg-white text-[#463726] px-2 py-0.5 rounded-full border border-[#e5d8be] shadow-2xs">
                     {stageLeads.length}
                   </span>
                 </div>
@@ -303,7 +237,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                 {/* Cards List */}
                 <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
                   {stageLeads.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500 text-xs italic">
+                    <div className="text-center py-8 text-[#8c7860] text-xs italic">
                       No leads in this stage
                     </div>
                   ) : (
@@ -311,36 +245,36 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                       <div
                         key={lead.id}
                         onClick={() => onSelectLead(lead)}
-                        className="bg-slate-950 p-3 rounded-xl border border-slate-800 hover:border-amber-500/60 cursor-pointer transition-all shadow-sm group"
+                        className="bg-white p-3 rounded-xl border border-[#f0e6d2] hover:border-amber-500/70 cursor-pointer transition-all shadow-2xs hover:shadow-md group"
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-mono text-amber-600 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-mono text-amber-700 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                             {lead.id}
                           </span>
                           <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
                               lead.lead_priority === "Urgent"
-                                ? "bg-rose-500/20 text-rose-300"
+                                ? "bg-rose-50 text-rose-700 border-rose-200"
                                 : lead.lead_priority === "High"
-                                  ? "bg-amber-500/20 text-amber-700"
-                                  : "bg-blue-500/20 text-blue-300"
+                                  ? "bg-amber-50 text-amber-800 border-amber-200"
+                                  : "bg-blue-50 text-blue-700 border-blue-200"
                             }`}
                           >
                             {lead.lead_priority}
                           </span>
                         </div>
 
-                        <h4 className="font-bold text-slate-300 text-xs leading-tight group-hover:text-amber-600 transition-colors">
+                        <h4 className="font-bold text-[#1c1611] text-xs leading-tight group-hover:text-amber-700 transition-colors">
                           {lead.full_name || "Prospect Client"}
                         </h4>
 
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-[#6b5843] mt-0.5">
                           {lead.intent} • {lead.property_type || "Property"} •{" "}
                           {lead.bedrooms ? `${lead.bedrooms}BR` : ""}
                         </p>
 
                         {/* Budget */}
-                        <div className="flex items-center space-x-1 text-[11px] text-slate-300 font-semibold mt-2">
+                        <div className="flex items-center space-x-1 text-[11px] text-[#2d2216] font-bold mt-2">
                           <Coins className="w-3 h-3 text-amber-600" />
                           <span>
                             {lead.budget_max
@@ -352,8 +286,8 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                         {/* Communities */}
                         {lead.preferred_communities &&
                           lead.preferred_communities.length > 0 && (
-                            <div className="flex items-center space-x-1 text-[10px] text-slate-400 mt-1 truncate">
-                              <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                            <div className="flex items-center space-x-1 text-[10px] text-[#6b5843] mt-1 truncate">
+                              <MapPin className="w-3 h-3 text-[#8c7860] shrink-0" />
                               <span className="truncate">
                                 {lead.preferred_communities.join(", ")}
                               </span>
@@ -361,18 +295,18 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                           )}
 
                         {/* Completeness meter */}
-                        <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400">
+                        <div className="mt-2.5 pt-2 border-t border-[#f0e6d2] flex items-center justify-between text-[10px]">
+                          <span className="text-[#6b5843]">
                             Profile Complete
                           </span>
-                          <span className="font-bold text-amber-600">
+                          <span className="font-bold text-amber-700">
                             {lead.requirement_completeness}%
                           </span>
                         </div>
 
                         {/* Quick Action row */}
                         <div className="mt-2 flex items-center justify-between pt-1">
-                          <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                          <span className="text-[10px] text-[#6b5843] font-medium truncate max-w-[120px]">
                             {lead.assigned_agent.split(" ")[0]}
                           </span>
                           <button
@@ -381,7 +315,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                               setTargetLeadForTask(lead);
                               setShowFollowUpModal(true);
                             }}
-                            className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-medium transition-colors"
+                            className="text-[10px] bg-[#f4ede0] hover:bg-[#ebdcc4] text-[#463726] border border-[#e5d8be] px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer"
                           >
                             + Follow-up
                           </button>
@@ -398,10 +332,10 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
 
       {/* Follow-up Creation Modal */}
       {showFollowUpModal && targetLeadForTask && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-300 flex items-center space-x-2">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-[#f0e6d2] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-[#f0e6d2] pb-3">
+              <h3 className="text-sm font-bold text-[#1c1611] flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-amber-600" />
                 <span>
                   Create Follow-up for{" "}
@@ -410,7 +344,7 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
               </h3>
               <button
                 onClick={() => setShowFollowUpModal(false)}
-                className="text-slate-400 hover:text-slate-300"
+                className="text-[#8c7860] hover:text-[#2d2216] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -418,26 +352,27 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
 
             <form onSubmit={handleCreateTask} className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-400 block mb-1">
+                <label className="text-[#463726] font-semibold block mb-1">
                   Follow-up Reason
                 </label>
                 <input
                   type="text"
                   value={taskReason}
                   onChange={(e) => setTaskReason(e.target.value)}
-                  className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  placeholder="e.g. Discuss 2BR payment plan in Dubai Marina"
+                  className="w-full bg-[#faf6ec] border border-[#e5d8be] rounded-xl px-3 py-2 text-[#2d2216] placeholder-[#8c7860] outline-none focus:border-amber-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-slate-400 block mb-1">
+                <label className="text-[#463726] font-semibold block mb-1">
                   Target Action
                 </label>
                 <select
                   value={taskAction}
                   onChange={(e) => setTaskAction(e.target.value)}
-                  className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  className="w-full bg-[#faf6ec] border border-[#e5d8be] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-600 cursor-pointer"
                 >
                   <option value="Contact customer via WhatsApp">
                     Contact customer via WhatsApp
@@ -458,12 +393,12 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
               </div>
 
               <div>
-                <label className="text-slate-400 block mb-1">Due Date</label>
+                <label className="text-[#463726] font-semibold block mb-1">Due Date</label>
                 <input
                   type="date"
                   value={taskDate}
                   onChange={(e) => setTaskDate(e.target.value)}
-                  className="w-full bg-white border border-slate-700 rounded-xl px-3 py-2 text-slate-300 outline-none focus:border-amber-500"
+                  className="w-full bg-[#faf6ec] border border-[#e5d8be] rounded-xl px-3 py-2 text-[#2d2216] outline-none focus:border-amber-600"
                   required
                 />
               </div>
@@ -472,13 +407,13 @@ export const CrmPipeline: React.FC<CrmPipelineProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowFollowUpModal(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl font-semibold"
+                  className="flex-1 bg-[#f4ede0] hover:bg-[#ebdcc4] text-[#463726] border border-[#e5d8be] py-2 rounded-xl font-semibold cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-amber-950 py-2 rounded-xl font-bold shadow-md"
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white py-2 rounded-xl font-bold shadow-md cursor-pointer transition-all"
                 >
                   Schedule Task
                 </button>

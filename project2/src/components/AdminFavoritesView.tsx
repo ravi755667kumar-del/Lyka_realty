@@ -213,10 +213,10 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-slate-950 text-slate-200 font-sans p-4 sm:p-6 space-y-6">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#fdfbf5] text-[#2d2216] font-sans p-4 sm:p-6 space-y-6">
       
       {/* ─── 1. TOP HEADER ─── */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[#ebdcc4] pb-5">
         <div>
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-500 to-rose-700 flex items-center justify-center text-white font-bold shadow-lg shadow-red-500/20">
@@ -224,7 +224,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#1c1611]">
                   Customer Favorites & Wishlists
                 </h1>
                 <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
@@ -232,7 +232,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                   <span>Firestore DB Live Sync</span>
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+              <p className="text-xs sm:text-sm text-[#7d6851] mt-0.5">
                 Real-time stream of properties saved by clients and guest visitors. Identify high-interest residences and convert intent into bookings.
               </p>
             </div>
@@ -270,53 +270,53 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
       {/* ─── 2. KPI METRICS CARDS ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Total Favorites */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Saved</span>
+            <span className="text-[11px] font-semibold text-[#7d6851] uppercase tracking-wider">Total Saved</span>
             <div className="w-7 h-7 rounded-lg bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400">
               <Heart className="w-3.5 h-3.5 fill-current" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xl sm:text-2xl font-black text-white">{metrics.total}</div>
-            <p className="text-[10px] text-slate-500 mt-0.5">Active wishlist records</p>
+            <div className="text-xl sm:text-2xl font-black text-[#1c1611]">{metrics.total}</div>
+            <p className="text-[10px] text-[#8c765c] mt-0.5">Active wishlist records</p>
           </div>
         </div>
 
         {/* Unique Properties */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Unique Homes</span>
+            <span className="text-[11px] font-semibold text-[#7d6851] uppercase tracking-wider">Unique Homes</span>
             <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
               <Building2 className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
             <div className="text-xl sm:text-2xl font-black text-amber-400">{metrics.uniqueProps}</div>
-            <p className="text-[10px] text-slate-500 mt-0.5">Distinct properties favored</p>
+            <p className="text-[10px] text-[#8c765c] mt-0.5">Distinct properties favored</p>
           </div>
         </div>
 
         {/* Registered vs Guests */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">User Mix</span>
+            <span className="text-[11px] font-semibold text-[#7d6851] uppercase tracking-wider">User Mix</span>
             <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <User className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-sm font-bold text-slate-200">
+            <div className="text-sm font-bold text-[#2d2216]">
               <span className="text-emerald-400">{metrics.registeredCount}</span> Clients · <span className="text-amber-400">{metrics.guestCount}</span> Guests
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5">Registered vs guest devices</p>
+            <p className="text-[10px] text-[#8c765c] mt-0.5">Registered vs guest devices</p>
           </div>
         </div>
 
         {/* Pipeline Wishlist Value */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Pipeline Value</span>
+            <span className="text-[11px] font-semibold text-[#7d6851] uppercase tracking-wider">Pipeline Value</span>
             <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Coins className="w-3.5 h-3.5" />
             </div>
@@ -325,20 +325,20 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
             <div className="text-base sm:text-lg font-black text-emerald-400 truncate">
               AED {(metrics.totalPipelineValue / 1_000_000).toFixed(1)}M
             </div>
-            <p className="text-[10px] text-slate-500 mt-0.5">Total favorited inventory</p>
+            <p className="text-[10px] text-[#8c765c] mt-0.5">Total favorited inventory</p>
           </div>
         </div>
 
         {/* Top Residence */}
-        <div className="col-span-2 sm:col-span-1 bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
+        <div className="col-span-2 sm:col-span-1 bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Most Wanted</span>
+            <span className="text-[11px] font-semibold text-[#7d6851] uppercase tracking-wider">Most Wanted</span>
             <div className="w-7 h-7 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
               <Sparkles className="w-3.5 h-3.5" />
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-xs font-bold text-slate-200 truncate" title={metrics.topProp.title}>
+            <div className="text-xs font-bold text-[#2d2216] truncate" title={metrics.topProp.title}>
               {metrics.topProp.title}
             </div>
             <p className="text-[10px] text-violet-400 font-semibold mt-0.5">
@@ -349,21 +349,21 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
       </div>
 
       {/* ─── 3. FILTERS & SEARCH BAR ─── */}
-      <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-[#faf6ec]/70 border border-[#ebdcc4] rounded-2xl p-3 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[220px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#7d6851] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by property, community, user name, or email..."
-            className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 outline-none transition-colors"
+            className="w-full bg-white border border-[#ebdcc4] focus:border-amber-500 rounded-xl pl-9 pr-3 py-2 text-xs text-[#2d2216] placeholder:text-[#8c765c] outline-none transition-colors"
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs font-bold"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8c765c] hover:text-[#2d2216] text-xs font-bold"
             >
               ✕
             </button>
@@ -373,12 +373,12 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
         {/* Filter Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* User Type */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5 text-xs">
+          <div className="flex items-center bg-white border border-[#ebdcc4] rounded-xl p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setUserFilter('all')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                userFilter === 'all' ? 'bg-amber-500 text-amber-950' : 'text-slate-400 hover:text-white'
+                userFilter === 'all' ? 'bg-amber-500 text-amber-950' : 'text-[#7d6851] hover:text-white'
               }`}
             >
               All ({favorites.length})
@@ -387,7 +387,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
               type="button"
               onClick={() => setUserFilter('registered')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                userFilter === 'registered' ? 'bg-amber-500 text-amber-950' : 'text-slate-400 hover:text-white'
+                userFilter === 'registered' ? 'bg-amber-500 text-amber-950' : 'text-[#7d6851] hover:text-white'
               }`}
             >
               Clients ({metrics.registeredCount})
@@ -396,7 +396,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
               type="button"
               onClick={() => setUserFilter('guest')}
               className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                userFilter === 'guest' ? 'bg-amber-500 text-amber-950' : 'text-slate-400 hover:text-white'
+                userFilter === 'guest' ? 'bg-amber-500 text-amber-950' : 'text-[#7d6851] hover:text-white'
               }`}
             >
               Guests ({metrics.guestCount})
@@ -407,7 +407,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
           <select
             value={cityFilter}
             onChange={(e) => setCityFilter(e.target.value as CityFilter)}
-            className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 outline-none focus:border-amber-500 cursor-pointer"
+            className="bg-white border border-[#ebdcc4] rounded-xl px-2.5 py-1.5 text-xs text-[#2d2216] outline-none focus:border-amber-500 cursor-pointer"
           >
             <option value="all">All Cities</option>
             <option value="Dubai">Dubai</option>
@@ -418,7 +418,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
           <select
             value={sortOption}
             onChange={(e) => setSortOption(e.target.value as SortOption)}
-            className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-300 outline-none focus:border-amber-500 cursor-pointer"
+            className="bg-white border border-[#ebdcc4] rounded-xl px-2.5 py-1.5 text-xs text-[#2d2216] outline-none focus:border-amber-500 cursor-pointer"
           >
             <option value="recent">Most Recent</option>
             <option value="price_high">Price: High to Low</option>
@@ -427,12 +427,12 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
           </select>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5 text-xs">
+          <div className="flex items-center bg-white border border-[#ebdcc4] rounded-xl p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setViewMode('table')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === 'table' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'
+                viewMode === 'table' ? 'bg-slate-800 text-white' : 'text-[#8c765c] hover:text-[#2d2216]'
               }`}
               title="Table view"
             >
@@ -442,7 +442,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
               type="button"
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === 'grid' ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-slate-300'
+                viewMode === 'grid' ? 'bg-slate-800 text-white' : 'text-[#8c765c] hover:text-[#2d2216]'
               }`}
               title="Grid card view"
             >
@@ -454,12 +454,12 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
 
       {/* ─── 4. LIST / TABLE CONTENT ─── */}
       {filteredFavorites.length === 0 ? (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
+        <div className="bg-[#faf6ec]/60 border border-[#ebdcc4] rounded-3xl p-12 text-center space-y-3">
           <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-400">
             <Heart className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-white">No Favorite Records Found</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
+          <h3 className="text-base font-bold text-[#1c1611]">No Favorite Records Found</h3>
+          <p className="text-xs text-[#7d6851] max-w-md mx-auto">
             {searchTerm || userFilter !== 'all' || cityFilter !== 'all'
               ? 'No records match your active search and filter criteria. Try adjusting your filters above.'
               : 'When visitors or clients save residences using the heart icon, they are stored directly in Firebase Firestore and will automatically show here in real-time.'}
@@ -480,10 +480,10 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
         </div>
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-[#faf6ec]/90 border border-[#ebdcc4] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
+              <thead className="bg-white/80 border-b border-[#ebdcc4] text-[#7d6851] uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="py-3 px-4">Property</th>
                   <th className="py-3 px-4">Location & Specs</th>
@@ -502,14 +502,14 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                         <img
                           src={fav.property_image_url || '/logo.png'}
                           alt={fav.property_title}
-                          className="w-12 h-10 rounded-lg object-cover border border-slate-700 shrink-0"
+                          className="w-12 h-10 rounded-lg object-cover border border-[#ebdcc4] shrink-0"
                           onError={(e) => { (e.target as HTMLImageElement).src = '/logo.png'; }}
                         />
                         <div className="min-w-0 max-w-[220px]">
-                          <span className="font-bold text-slate-100 truncate block text-xs">
+                          <span className="font-bold text-[#1c1611] truncate block text-xs">
                             {fav.property_title}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
+                          <span className="text-[10px] text-[#7d6851] font-mono">
                             ID: {fav.property_id}
                           </span>
                         </div>
@@ -527,11 +527,11 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                           }`}>
                             {fav.property_city || 'Dubai'}
                           </span>
-                          <span className="font-semibold text-slate-300 truncate max-w-[140px]">
+                          <span className="font-semibold text-[#2d2216] truncate max-w-[140px]">
                             {fav.property_community}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px] text-[#7d6851]">
                           {fav.property_bedrooms ? `${fav.property_bedrooms} BR` : 'Residence'} · {fav.property_type || 'Luxury'}
                         </p>
                       </div>
@@ -544,7 +544,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                           AED {Number(fav.property_price_aed || 0).toLocaleString()}
                         </div>
                         {fav.property_price_inr && (
-                          <div className="text-[10px] text-slate-400">
+                          <div className="text-[10px] text-[#7d6851]">
                             ₹ {(fav.property_price_inr / 10_000_000).toFixed(2)} Cr
                           </div>
                         )}
@@ -555,7 +555,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                     <td className="py-3 px-4">
                       <div className="space-y-0.5 max-w-[200px]">
                         <div className="flex items-center space-x-1.5">
-                          <span className="font-semibold text-slate-200 truncate">
+                          <span className="font-semibold text-[#2d2216] truncate">
                             {fav.user_name || 'Guest User'}
                           </span>
                           <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold shrink-0 ${
@@ -566,7 +566,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                             {fav.is_guest ? 'Guest' : 'Verified'}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 truncate" title={fav.user_email}>
+                        <p className="text-[10px] text-[#7d6851] truncate" title={fav.user_email}>
                           {fav.user_email}
                         </p>
                       </div>
@@ -575,10 +575,10 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                     {/* Timestamp */}
                     <td className="py-3 px-4">
                       <div className="space-y-0.5">
-                        <div className="text-slate-200 font-medium text-[11px]">
+                        <div className="text-[#2d2216] font-medium text-[11px]">
                           {formatDateTime(fav.saved_at)}
                         </div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-[10px] text-[#8c765c]">
                           {getTimeAgo(fav.saved_at)}
                         </div>
                       </div>
@@ -590,7 +590,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleInspect(fav.property_id)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors flex items-center space-x-1 cursor-pointer"
+                          className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[#2d2216] hover:text-white border border-[#ebdcc4] text-xs font-semibold transition-colors flex items-center space-x-1 cursor-pointer"
                           title="Inspect residence specifications & schedule viewing"
                         >
                           <ExternalLink className="w-3 h-3 text-amber-400" />
@@ -612,7 +612,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                             <button
                               type="button"
                               onClick={() => setDeleteConfirmId(null)}
-                              className="px-2 py-1 bg-slate-800 text-slate-300 rounded-lg text-[10px] cursor-pointer"
+                              className="px-2 py-1 bg-slate-800 text-[#2d2216] rounded-lg text-[10px] cursor-pointer"
                             >
                               Cancel
                             </button>
@@ -621,7 +621,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setDeleteConfirmId(fav.id)}
-                            className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-[#8c765c] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                             title="Remove favorite record from database"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -641,7 +641,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
           {filteredFavorites.map((fav) => (
             <div
               key={fav.id}
-              className="bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col shadow-sm group"
+              className="bg-[#faf6ec]/90 border border-[#ebdcc4] hover:border-amber-500/40 rounded-2xl overflow-hidden transition-all duration-200 flex flex-col shadow-sm group"
             >
               {/* Image banner */}
               <div className="relative h-40 overflow-hidden">
@@ -659,7 +659,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                   }`}>
                     {fav.property_city || 'Dubai'}
                   </span>
-                  <span className="bg-slate-900/90 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-amber-400 border border-slate-700">
+                  <span className="bg-[#faf6ec]/90 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-semibold text-amber-400 border border-[#ebdcc4]">
                     {fav.property_community}
                   </span>
                 </div>
@@ -676,19 +676,19 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                     <span className="text-base font-extrabold text-amber-400">
                       AED {Number(fav.property_price_aed || 0).toLocaleString()}
                     </span>
-                    <span className="text-xs text-slate-400">{fav.property_bedrooms} BR</span>
+                    <span className="text-xs text-[#7d6851]">{fav.property_bedrooms} BR</span>
                   </div>
-                  <h4 className="font-bold text-slate-100 text-sm line-clamp-1 mt-1">{fav.property_title}</h4>
+                  <h4 className="font-bold text-[#1c1611] text-sm line-clamp-1 mt-1">{fav.property_title}</h4>
                 </div>
 
                 {/* Customer footer */}
-                <div className="pt-2 border-t border-slate-800 text-[11px] space-y-1">
+                <div className="pt-2 border-t border-[#ebdcc4] text-[11px] space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Saved by:</span>
-                    <span className="font-semibold text-slate-200 truncate max-w-[130px]">{fav.user_name}</span>
+                    <span className="text-[#7d6851]">Saved by:</span>
+                    <span className="font-semibold text-[#2d2216] truncate max-w-[130px]">{fav.user_name}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 text-[10px]">{getTimeAgo(fav.saved_at)}</span>
+                    <span className="text-[#8c765c] text-[10px]">{getTimeAgo(fav.saved_at)}</span>
                     <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
                       fav.is_guest
                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -716,7 +716,7 @@ export const AdminFavoritesView: React.FC<AdminFavoritesViewProps> = ({
                         await onRemoveFavorite(fav.id);
                       }
                     }}
-                    className="p-1.5 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 border border-slate-800 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-xl text-[#8c765c] hover:text-red-400 hover:bg-red-500/10 border border-[#ebdcc4] transition-colors cursor-pointer"
                     title="Delete record from database"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
