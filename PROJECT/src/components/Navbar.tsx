@@ -1,10 +1,9 @@
 import React from 'react';
-import { User } from 'firebase/auth';
 import { Building2, PhoneCall, Settings, BookOpen, Upload, UserPlus, LogIn, LogOut, ShieldCheck } from 'lucide-react';
-import { logout } from '../firebase/config';
+import { AuthUser, logout } from '../lib/supabase';
 
 interface NavbarProps {
-  user: User | null;
+  user: AuthUser | null;
   onOpenUpload: () => void;
   onOpenAddLead: () => void;
   onOpenSettings: () => void;
@@ -92,21 +91,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="pl-2 border-l border-slate-700/80">
             {user ? (
               <div className="flex items-center space-x-2">
-                {user.photoURL ? (
+                {user.user_metadata?.avatar_url ? (
                   <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'Admin'}
+                    src={user.user_metadata.avatar_url}
+                    alt={user.user_metadata?.name || user.email || 'Admin'}
                     className="w-8 h-8 rounded-full border border-amber-400/50"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs">
-                    {(user.displayName || user.email || 'A')[0].toUpperCase()}
+                    {(user.user_metadata?.name || user.email || 'A')[0].toUpperCase()}
                   </div>
                 )}
                 <div className="hidden lg:block text-left">
                   <div className="flex items-center space-x-1">
                     <span className="text-xs font-semibold text-slate-200 truncate max-w-[120px]">
-                      {user.displayName || 'Admin'}
+                      {user.user_metadata?.name || user.email?.split('@')[0] || 'Admin'}
                     </span>
                     {isAdmin && (
                       <span title="Administrator">

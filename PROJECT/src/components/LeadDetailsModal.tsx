@@ -18,6 +18,7 @@ import {
   Trash2,
   Globe,
 } from 'lucide-react';
+import { TalkHistorySection } from './TalkHistorySection';
 
 interface LeadDetailsModalProps {
   lead: Lead | null;
@@ -188,6 +189,15 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
                 {lead.nextAction || 'Pending call completion and automated lead classification.'}
               </p>
             </div>
+          </div>
+
+          {/* User Talk History & Q&A Breakdown Section */}
+          <div className="space-y-2">
+            <TalkHistorySection
+              rawTranscript={lead.transcript}
+              customerName={lead.name}
+              aiName="👧 Priya (Lyka Realty)"
+            />
           </div>
 
           {/* Call Metadata & Recording */}

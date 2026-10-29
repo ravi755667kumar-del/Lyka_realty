@@ -1,12 +1,12 @@
+'use client';
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useState, useEffect } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth, resolveRedirectSignIn } from './firebase/config';
-import { getAuthErrorMessage } from './firebase/authErrors';
+import { AuthUser, onAuthStateChanged, isSupabaseConfigured } from './lib/supabase';
 import { Lead, CampaignState } from './types';
 import { subscribeToLeads, updateLead, deleteLead, bulkCreateLeads } from './services/leadService';
 import {
@@ -31,7 +31,7 @@ import { Sparkles, Phone, Database, CheckCircle2, Building2 } from 'lucide-react
 import { AdminLoginModal } from './components/AdminLoginModal';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [campaignState, setCampaignState] = useState<CampaignState | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
@@ -52,19 +52,10 @@ export default function App() {
 
   // Auth observer
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged((currentUser) => {
       setUser(currentUser);
     });
     return () => unsubscribe();
-  }, []);
-
-  // Complete a Google redirect sign-in (when the popup fallback was used)
-  useEffect(() => {
-    resolveRedirectSignIn().catch((err) => {
-      console.error('Google redirect sign-in failed:', err);
-      setStatusNotification(getAuthErrorMessage(err));
-      window.setTimeout(() => setStatusNotification(null), 8000);
-    });
   }, []);
 
   // Initialize campaign doc
@@ -208,6 +199,21 @@ export default function App() {
         }}
       />
 
+      {/* Supabase Connection Status Banner */}
+      {!isSupabaseConfigured ? (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 text-center text-xs text-amber-300 flex items-center justify-center space-x-2">
+          <Database className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>
+            <strong>Local Preview Mode:</strong> Supabase keys are blank in <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200">.env</code>. You can test freely with sample leads. To connect your live cloud database, paste your <code className="text-amber-200 font-mono">NEXT_PUBLIC_SUPABASE_URL</code> & <code className="text-amber-200 font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> into <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200">.env</code>.
+          </span>
+        </div>
+      ) : (
+        <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-1.5 text-center text-xs text-emerald-300 flex items-center justify-center space-x-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+          <span>Connected to Live Supabase Database</span>
+        </div>
+      )}
+
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8 animate-in fade-in duration-300">
         {/* Floating Notification Toast */}
         {statusNotification && (
@@ -271,7 +277,7 @@ export default function App() {
             <div>
               <h3 className="text-lg font-bold text-white">Lead Qualification Pipeline</h3>
               <p className="text-xs text-slate-400">
-                Live Firestore synchronization • Automated classification after every Vapi call
+                Live Supabase synchronization • Automated classification after every call
               </p>
             </div>
             {leads.length > 0 && (
@@ -298,7 +304,7 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950/80 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Lyka Realty AI Voice Qualification Engine • Vapi & Firebase Firestore</span>
+          <span>Lyka Realty AI Voice Qualification Engine • Next.js, Tailwind CSS & Supabase</span>
           <span>Outbound PSTN Mobile Telephony • Zero Client-Side Secret Exposure</span>
         </div>
       </footer>
@@ -312,7 +318,7 @@ export default function App() {
       <CsvUploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
-        onSuccess={() => notify('CSV leads successfully imported to Firestore!')}
+        onSuccess={() => notify('CSV leads successfully imported to Supabase!')}
       />
 
       <AddLeadModal
@@ -348,7 +354,7 @@ export default function App() {
         onClose={() => setSimulatorModalOpen(false)}
         leads={leads}
         selectedLead={selectedLeadForSimulator}
-        onSuccess={() => notify('Simulation completed and synced to Firestore!')}
+        onSuccess={() => notify('Simulation completed and synced to Supabase!')}
       />
 
       {/* Browser-based AI Voice Call Modal */}
@@ -369,7 +375,7 @@ export default function App() {
               setIsCampaignMode(false);
             }}
             onCallFinished={() => {
-              notify(`Call finished for ${browserCallLead?.name || 'customer'} and stored in Firestore.`);
+              notify(`Call finished for ${browserCallLead?.name || 'customer'} and stored in Supabase.`);
             }}
           />
         );

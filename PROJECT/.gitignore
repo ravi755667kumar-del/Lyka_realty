@@ -14,3 +14,5 @@ groq-config.local.json
 *.key
 *.key.json
 serviceAccountKey.json
+.next/
+*.tsbuildinfo

@@ -4,9 +4,7 @@ import {
   loginWithEmail,
   registerWithEmail,
   loginWithGoogle,
-  loginWithGoogleRedirect,
-} from '../firebase/config';
-import { getAuthErrorMessage } from '../firebase/authErrors';
+} from '../lib/supabase';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -42,16 +40,15 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
       await action();
       // A redirect navigates the page away, so only close on popup/email success.
       if (kind !== 'redirect') onClose();
-    } catch (err) {
-      setError(getAuthErrorMessage(err));
+    } catch (err: any) {
+      setError(err?.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setBusy(null);
     }
   };
 
   const handleGoogleLogin = () => run('google', () => loginWithGoogle());
-
-  const handleGoogleRedirect = () => run('redirect', () => loginWithGoogleRedirect());
+  const handleGoogleRedirect = () => run('redirect', () => loginWithGoogle());
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
