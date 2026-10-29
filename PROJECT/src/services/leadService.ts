@@ -399,6 +399,32 @@ export async function completeBrowserCallSession(params: {
     updatedAt: new Date().toISOString(),
   });
 
+  // 3. Sync Call and Qualification data to Neon DB
+  try {
+    fetch('/api/neon/save-call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: callId,
+        customerId: lead.id,
+        name: lead.name,
+        phone: lead.phone,
+        language: callData.language || lead.language || 'English',
+        status: callData.status,
+        outcome: callData.outcome,
+        startedAt: callData.startedAt,
+        endedAt: callData.endedAt,
+        duration: callData.duration,
+        qualification: callData.qualification,
+        summary: callData.summary,
+        transcript: callData.transcript,
+        noAnswer: Boolean(callData.noAnswer),
+      }),
+    }).catch(() => {});
+  } catch (e) {
+    // non-blocking
+  }
+
   return { callId };
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGroqSettings } from '@/lib/serverConfig';
+import { queryBestPDFAnswer } from '@/lib/neon';
 
 const GROQ_TELECALLER_SYSTEM_PROMPT = `
 You are Priya, a friendly, polite, and energetic female property telecaller from Lyka Realty.
@@ -64,11 +65,9 @@ export async function POST(req: Request) {
 
     const { messages = [], model = 'openai/gpt-oss-20b', leadName = '' } = await req.json();
 
-    // Map common legacy model aliases to available high-speed Groq models
-    let activeModel = model;
-    if (activeModel.includes('llama') || activeModel.includes('versatile')) {
-      activeModel = 'openai/gpt-oss-20b';
-    }
+    // Respect the caller's model choice (selected in the AI Engine Combination picker).
+    // If the chosen model is unavailable, the qwen fallback below keeps the call alive.
+    const activeModel = model;
 
     // Ensure system prompt is present
     let formattedMessages = [...messages];
@@ -78,6 +77,22 @@ export async function POST(req: Request) {
         ? `${GROQ_TELECALLER_SYSTEM_PROMPT}\nNote: Customer name is ${leadName}. Address them respectfully by name.`
         : GROQ_TELECALLER_SYSTEM_PROMPT;
       formattedMessages.unshift({ role: 'system', content: personalizedSystem });
+    }
+
+    // Query Neon Database for best matching PDF knowledge
+    const lastUserMsg = [...formattedMessages].reverse().find((m) => m.role === 'user')?.content || '';
+    if (lastUserMsg) {
+      try {
+        const bestKnowledge = await queryBestPDFAnswer(lastUserMsg);
+        if (bestKnowledge) {
+          formattedMessages.splice(1, 0, {
+            role: 'system',
+            content: `VERIFIED PDF KNOWLEDGE FROM DATABASE: "${bestKnowledge}". Use this exact verified fact to answer the customer's question directly and concisely.`,
+          });
+        }
+      } catch (e) {
+        // non-blocking
+      }
     }
 
     // Call Groq chat completions
