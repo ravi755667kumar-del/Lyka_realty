@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Play, Bot, CheckCircle, AlertCircle, Phone, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { Lead } from '../types';
 import { simulateCallAPI } from '../services/campaignService';
+import { VoiceSphere3D } from './VoiceSphere3D';
 
 interface CallSimulatorModalProps {
   isOpen: boolean;
@@ -171,7 +172,7 @@ export const CallSimulatorModal: React.FC<CallSimulatorModalProps> = ({
           <div className="bg-purple-950/30 border border-purple-800/30 rounded-xl p-3.5 text-purple-300 space-y-1">
             <span className="font-bold text-white text-xs block">End-to-End Logic Verification Tool</span>
             <p className="text-[11px] text-purple-300/90 leading-relaxed">
-              This simulator triggers the full Lyka Realty qualification rules, executes the 5-question script, runs classification logic, and writes real call results, transcripts, and statuses to Firebase Firestore.
+              This simulator triggers the full Lyka Realty qualification rules, executes the 5-question script, runs classification logic, and writes real call results, transcripts, and statuses to Supabase.
             </p>
           </div>
 
@@ -237,13 +238,32 @@ export const CallSimulatorModal: React.FC<CallSimulatorModalProps> = ({
               <div className="flex items-center justify-between text-emerald-400 font-bold text-xs">
                 <span className="flex items-center space-x-1.5">
                   <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  <span>Call Completed & Stored in Firestore!</span>
+                  <span>Call Completed & Stored in Supabase!</span>
                 </span>
                 <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-mono">
                   Outcome: {result.outcome}
                 </span>
               </div>
               <p className="text-slate-300 text-xs">{result.summary}</p>
+
+              {/* 3D Voice Sphere when listening to simulated voice */}
+              {isPlayingAudio && (
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-2 my-2 flex justify-center animate-in fade-in zoom-in-95">
+                  <VoiceSphere3D
+                    isSpeaking={true}
+                    isListening={false}
+                    audioLevel={65}
+                    callState="AI Speaking..."
+                    duration={12}
+                    onSphereClick={() => {
+                      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                        window.speechSynthesis.cancel();
+                        setIsPlayingAudio(false);
+                      }
+                    }}
+                  />
+                </div>
+              )}
 
               {result.transcript && (
                 <div className="pt-1 flex items-center justify-between">
