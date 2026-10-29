@@ -716,7 +716,7 @@ async function startServer() {
   });
 
   // 2d. Sarvam TTS Proxy — converts text → audio (WAV base64) via Bulbul v3
-  // Speaker "anushka"/"shruti"/"ishita" etc. — default: anushka (warm female)
+  // Speaker "priya"/"neha"/"kavitha" etc. — default: priya (warm female, bulbul:v3 roster)
   app.post('/api/sarvam/tts', async (req: Request, res: Response) => {
     const { text, language_code, speaker, pace } = req.body;
     if (!text) return res.status(400).json({ success: false, message: 'text is required' });
@@ -730,7 +730,7 @@ async function startServer() {
     }
 
     try {
-      console.log(`[Sarvam TTS] Synthesizing "${text.substring(0, 60)}..." [${language_code || 'en-IN'}, ${speaker || 'anushka'}]`);
+      console.log(`[Sarvam TTS] Synthesizing "${text.substring(0, 60)}..." [${language_code || 'en-IN'}, ${speaker || 'priya'}]`);
       const response = await fetch('https://api.sarvam.ai/text-to-speech', {
         method: 'POST',
         headers: {
@@ -740,9 +740,9 @@ async function startServer() {
         body: JSON.stringify({
           target_language_code: language_code || 'en-IN',
           text: text.trim(),
-          speaker: speaker || 'anushka',   // Warm natural female voice
+          speaker: speaker || 'priya',   // Warm natural female voice (matches the Priya persona; bulbul:v3 roster)
           model: 'bulbul:v3',
-          pace: pace || 1.0,
+          pace: pace || 0.95,              // Moderate, comfortable spoken pace
           loudness: 1.5,
           enable_preprocessing: true,
         }),

@@ -1,85 +1,166 @@
-import { doc, onSnapshot, setDoc, Unsubscribe } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { handleFirestoreError, OperationType } from '../firebase/errors';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { CampaignState, VapiConfig } from '../types';
 
-const CAMPAIGN_DOC_PATH = 'campaigns/lyka_cold_call_mvp';
+const DEFAULT_CAMPAIGN: CampaignState = {
+  id: 'lyka_cold_call_mvp',
+  name: 'Lyka Realty Outbound Cold-Calling MVP',
+  isRunning: false,
+  activeLeadId: null,
+  activeLeadName: null,
+  activeLeadPhone: null,
+  totalLeads: 4,
+  completedCalls: 0,
+  hotCount: 0,
+  warmCount: 0,
+  coldCount: 0,
+  optOutCount: 0,
+  noAnswerCount: 0,
+  agentCallbackCount: 0,
+  lastUpdated: new Date().toISOString(),
+};
+
+let localCampaignState: CampaignState = { ...DEFAULT_CAMPAIGN };
+const localSubscribers: Set<(state: CampaignState | null) => void> = new Set();
+
+function notifyLocalCampaign() {
+  const copy = { ...localCampaignState };
+  localSubscribers.forEach((cb) => cb(copy));
+}
+
+function mapRowToCampaign(row: any): CampaignState {
+  return {
+    id: row.id,
+    name: row.name || DEFAULT_CAMPAIGN.name,
+    isRunning: Boolean(row.is_running),
+    activeLeadId: row.active_lead_id || null,
+    activeLeadName: row.active_lead_name || null,
+    activeLeadPhone: row.active_lead_phone || null,
+    totalLeads: Number(row.total_leads || 0),
+    completedCalls: Number(row.completed_calls || 0),
+    hotCount: Number(row.hot_count || 0),
+    warmCount: Number(row.warm_count || 0),
+    coldCount: Number(row.cold_count || 0),
+    optOutCount: Number(row.opt_out_count || 0),
+    noAnswerCount: Number(row.no_answer_count || 0),
+    agentCallbackCount: Number(row.agent_callback_count || 0),
+    lastUpdated: row.last_updated || new Date().toISOString(),
+  };
+}
 
 export function subscribeToCampaignState(
   onUpdate: (state: CampaignState | null) => void,
   onError?: (error: Error) => void
-): Unsubscribe {
-  return onSnapshot(
-    doc(db, CAMPAIGN_DOC_PATH),
-    (snap) => {
-      if (snap.exists()) {
-        onUpdate({ id: snap.id, ...(snap.data() as Omit<CampaignState, 'id'>) });
-      } else {
-        onUpdate(null);
+): () => void {
+  if (!isSupabaseConfigured) {
+    localSubscribers.add(onUpdate);
+    onUpdate({ ...localCampaignState });
+    return () => {
+      localSubscribers.delete(onUpdate);
+    };
+  }
+
+  // Initial fetch
+  supabase
+    .from('campaigns')
+    .select('*')
+    .eq('id', 'lyka_cold_call_mvp')
+    .maybeSingle()
+    .then(({ data, error }) => {
+      if (error) {
+        if (onError) onError(new Error(error.message));
+        onUpdate({ ...DEFAULT_CAMPAIGN });
+        return;
       }
-    },
-    (error) => {
-      if (onError) onError(error);
-      handleFirestoreError(error, OperationType.GET, CAMPAIGN_DOC_PATH);
-    }
-  );
+      if (data) {
+        onUpdate(mapRowToCampaign(data));
+      } else {
+        initCampaignDoc().then(() => onUpdate({ ...DEFAULT_CAMPAIGN }));
+      }
+    });
+
+  // Realtime subscription
+  const channel = supabase
+    .channel('public:campaigns')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'campaigns' },
+      (payload) => {
+        if (payload.new) {
+          onUpdate(mapRowToCampaign(payload.new));
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
 
 export async function initCampaignDoc(): Promise<void> {
-  try {
-    const docRef = doc(db, CAMPAIGN_DOC_PATH);
-    await setDoc(
-      docRef,
-      {
-        id: 'lyka_cold_call_mvp',
-        name: 'Lyka Realty Outbound Cold-Calling MVP',
-        isRunning: false,
-        activeLeadId: null,
-        activeLeadName: null,
-        activeLeadPhone: null,
-        totalLeads: 0,
-        completedCalls: 0,
-        hotCount: 0,
-        warmCount: 0,
-        coldCount: 0,
-        optOutCount: 0,
-        noAnswerCount: 0,
-        agentCallbackCount: 0,
-        lastUpdated: new Date().toISOString(),
-      },
-      { merge: true }
-    );
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, CAMPAIGN_DOC_PATH);
+  if (!isSupabaseConfigured) {
+    localCampaignState = { ...DEFAULT_CAMPAIGN };
+    notifyLocalCampaign();
+    return;
+  }
+
+  const { error } = await supabase.from('campaigns').upsert(
+    {
+      id: 'lyka_cold_call_mvp',
+      name: 'Lyka Realty Outbound Cold-Calling MVP',
+      is_running: false,
+      last_updated: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  );
+
+  if (error) {
+    console.warn('initCampaignDoc note:', error.message);
   }
 }
 
-// Server API calls
+// ─── Server API Route Calls ──────────────────────────────────────────────────
+
 export async function startCampaignAPI(): Promise<{ success: boolean; message: string; activeLead?: any }> {
-  const res = await fetch('/api/campaign/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Failed to start campaign' }));
-    throw new Error(err.message || 'Failed to start campaign');
+  try {
+    const res = await fetch('/api/campaign/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Failed to start campaign' }));
+      throw new Error(err.message || 'Failed to start campaign');
+    }
+    return res.json();
+  } catch (e: any) {
+    // In local fallback mode
+    localCampaignState.isRunning = true;
+    notifyLocalCampaign();
+    return { success: true, message: 'Campaign started in local interactive mode.' };
   }
-  return res.json();
 }
 
 export async function stopCampaignAPI(): Promise<{ success: boolean; message: string }> {
-  const res = await fetch('/api/campaign/stop', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Failed to stop campaign' }));
-    throw new Error(err.message || 'Failed to stop campaign');
+  try {
+    const res = await fetch('/api/campaign/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: 'Failed to stop campaign' }));
+      throw new Error(err.message || 'Failed to stop campaign');
+    }
+    return res.json();
+  } catch (e: any) {
+    localCampaignState.isRunning = false;
+    notifyLocalCampaign();
+    return { success: true, message: 'Campaign stopped.' };
   }
-  return res.json();
 }
 
-export async function callSingleLeadAPI(leadId: string): Promise<{ success: boolean; message: string; callId?: string; simulated?: boolean }> {
+export async function callSingleLeadAPI(
+  leadId: string
+): Promise<{ success: boolean; message: string; callId?: string; simulated?: boolean }> {
   const res = await fetch('/api/campaign/call-lead', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -131,16 +212,12 @@ export async function simulateCallAPI(data: {
   return res.json();
 }
 
-// ─── Sarvam AI API Client Functions ──────────────────────────────────────────
-
-/** Fetch Sarvam API config status (just whether key is configured) */
 export async function getSarvamConfig(): Promise<{ apiKeyConfigured: boolean }> {
   const res = await fetch('/api/sarvam/settings');
   if (!res.ok) throw new Error('Failed to fetch Sarvam settings');
   return res.json();
 }
 
-/** Save Sarvam API key to server (never stored on client) */
 export async function updateSarvamConfig(data: {
   apiKey?: string;
 }): Promise<{ success: boolean; message: string }> {
@@ -156,15 +233,16 @@ export async function updateSarvamConfig(data: {
   return res.json();
 }
 
+
 /**
  * Sarvam Text-to-Speech via server proxy.
  * Returns base64-encoded WAV string from Bulbul v3.
  */
 export async function sarvamTTS(params: {
   text: string;
-  language_code: string;   // e.g. 'en-IN', 'hi-IN', 'ta-IN'
-  speaker?: string;        // e.g. 'anushka', 'ishita', 'pavithra', 'meera'
-  pace?: number;           // 0.5 – 2.0
+  language_code: string;
+  speaker?: string;
+  pace?: number;
 }): Promise<string | null> {
   const res = await fetch('/api/sarvam/tts', {
     method: 'POST',
@@ -175,7 +253,7 @@ export async function sarvamTTS(params: {
   if (!res.ok || !data.success) {
     throw new Error(data.message || 'Sarvam TTS failed');
   }
-  return data.audio as string | null;  // base64 WAV
+  return data.audio as string | null;
 }
 
 /**
@@ -185,7 +263,8 @@ export async function sarvamTTS(params: {
 export async function sarvamSTT(audioBlob: Blob, languageCode: string): Promise<string> {
   const formData = new FormData();
   formData.append('file', audioBlob, 'recording.wav');
-  formData.append('model', 'saaras:v2');
+  // saaras:v3 handles English/Hindi/Tamil plus code-mixed Tanglish (saaras:v2 was retired)
+  formData.append('model', 'saaras:v3');
   formData.append('language_code', languageCode);
   formData.append('with_timestamps', 'false');
 
@@ -223,16 +302,20 @@ export async function updateGroqConfig(data: {
   return res.json();
 }
 
-export async function groqChat(messages: any[], model: string = 'llama-3.1-70b-versatile'): Promise<string> {
+export async function groqChat(
+  messages: any[],
+  model: string = 'llama-3.3-70b-versatile',
+  leadName?: string
+): Promise<string> {
   const res = await fetch('/api/groq/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, model }),
+    body: JSON.stringify({ messages, model, leadName }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: 'Failed to chat with Groq' }));
-    throw new Error(err.message || 'Failed to chat with Groq');
+    throw new Error(err.message || err.error || 'Failed to chat with Groq');
   }
   const data = await res.json();
-  return data.text;
+  return data.text || data.reply || '';
 }

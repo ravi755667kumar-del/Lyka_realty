@@ -21,10 +21,14 @@ import {
   Radio,
   ChevronDown,
   Check,
+  MessageSquare,
 } from 'lucide-react';
 import { Lead, LeadOutcome } from '../types';
 import { saveLeadLanguage, completeBrowserCallSession } from '../services/leadService';
-import { sarvamTTS, sarvamSTT } from '../services/campaignService';
+import { sarvamTTS, sarvamSTT, groqChat } from '../services/campaignService';
+import { refineForSpeech } from '../lib/speech';
+import { VoiceSphere3D } from './VoiceSphere3D';
+import { TalkHistorySection } from './TalkHistorySection';
 
 
 interface BrowserCallModalProps {
@@ -181,6 +185,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [dialogue, setDialogue] = useState<ScriptDialogue[]>([]);
   const dialogueRef = useRef<ScriptDialogue[]>([]);
+  const [historyViewTab, setHistoryViewTab] = useState<'qa' | 'bubbles'>('qa');
   const [currentTextInput, setCurrentTextInput] = useState<string>('');
   const [liveSpeechText, setLiveSpeechText] = useState<string>('');
   const [duration, setDuration] = useState<number>(0);
@@ -246,6 +251,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const isRecordingRef = useRef<boolean>(false);
+
+  // Groq AI LLM model integration (STT -> Groq Model -> TTS)
+  const [groqAvailable, setGroqAvailable] = useState<boolean>(false);
+  const [useGroqModel, setUseGroqModel] = useState<boolean>(true);
+  const [selectedGroqModel, setSelectedGroqModel] = useState<string>('llama-3.3-70b-versatile');
+  const [isGroqThinking, setIsGroqThinking] = useState<boolean>(false);
+  const useGroqModelRef = useRef<boolean>(true);
+  const selectedGroqModelRef = useRef<string>('llama-3.3-70b-versatile');
 
 
   // Sync state to refs immediately
@@ -384,7 +397,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const utterance = new SpeechSynthesisUtterance(testText);
     utterance.volume = 1.0;
     utterance.pitch = 1.0;
-    utterance.rate = 1.0;
+    utterance.rate = 0.95;
     if (voice) {
       utterance.voice = voice;
     }
@@ -430,6 +443,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         setSarvamAvailable(Boolean(cfg?.apiKeyConfigured));
       })
       .catch(() => setSarvamAvailable(false));
+
+    fetch('/api/groq/settings')
+      .then((r) => r.json())
+      .then((cfg) => {
+        setGroqAvailable(Boolean(cfg?.apiKeyConfigured));
+      })
+      .catch(() => setGroqAvailable(false));
   }, []);
 
 
@@ -615,11 +635,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return 'en-IN';
   };
 
-  // Map language to Sarvam speaker — using warm female voices for Lyka Realty AI
+  // Map language to Sarvam speaker — warm female voices validated against bulbul:v3
+  // (v3 roster: priya, neha, kavitha, kavya, shruti, … — legacy names like anushka/meera are rejected)
   const getSarvamSpeaker = (lang: LanguageOption | null): string => {
-    if (lang === 'Hindi') return 'meera';       // Warm Hindi female
-    if (lang === 'Tamil-English') return 'pavithra'; // South Indian female
-    return 'anushka';                            // English-IN female (default)
+    if (lang === 'Hindi') return 'neha';        // Warm Hindi female
+    if (lang === 'Tamil-English') return 'kavitha'; // South Indian female
+    return 'priya';                              // English-IN female (matches the Priya persona)
   };
 
   // ── Sarvam TTS: play base64 WAV audio ─────────────────────────────────────
@@ -689,9 +710,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     utterance.lang = effectiveLangCode;
     utterance.volume = 1.0;
     // Pure, natural human female pitch & smooth conversational flow
-    // (pitch: 1.0 eliminates robotic digital distortion and preserves natural vocal cord resonance)
+    // (pitch: 1.0 eliminates robotic digital distortion and preserves natural vocal cord resonance;
+    //  rate: 0.95 keeps a moderate, comfortable pace — slower on important details, never rushed)
     utterance.pitch = 1.0;
-    utterance.rate = 1.0;
+    utterance.rate = 0.95;
 
     const voices = window.speechSynthesis.getVoices();
     let chosenVoice: SpeechSynthesisVoice | undefined;
@@ -771,7 +793,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   };
 
   // ── Master speakAIText: tries Sarvam first, falls back to browser ──────────
-  const speakAIText = (text: string, langCode: string, onEnd?: () => void) => {
+  const speakAIText = (rawText: string, langCode: string, onEnd?: () => void) => {
     // Pause speech recognition while AI is speaking
     if (recognitionRef.current) {
       try {
@@ -779,6 +801,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         recognitionRef.current.stop();
       } catch (e) { /* ignore */ }
     }
+
+    // Speech refinement stage: clean the wording for natural spoken delivery
+    // (markdown, emojis, symbols and shorthand are never read aloud; the
+    // original text stays untouched in the dialogue log and transcript).
+    const text = refineForSpeech(rawText);
 
     // Instant speech turnaround without chime latency
     updateCallState('AI Speaking...');
@@ -1438,7 +1465,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       appendDialogue('Customer', lang);
     }
 
-    // Save selected language immediately to Firestore (Requirement 5)
+    // Save selected language immediately to Supabase (Requirement 5)
     if (lead) {
       try {
         await saveLeadLanguage(lead.id, lang);
@@ -1530,58 +1557,63 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return 'Bank Loan (வங்கி கடன்)';
   };
 
-  // Main Customer Input Parser & Flow Controller (PDF 9-Step Flow)
-  const handleCustomerInput = (input: string) => {
-    appendDialogue('Customer', input);
-    setCurrentTextInput('');
-    setLiveSpeechText('');
+  // Attribute Extractor for Live Lead Qualification Sheet
+  const extractQualificationFromInput = (step: number, input: string, lower: string) => {
+    if (step === 2) {
+      const parsed = parsePurpose(input);
+      updateQualification({
+        purpose: parsed,
+        buyerOrInvestor: parsed.includes('Rent') ? 'Tenant' : parsed.includes('Plot') ? 'Plot Buyer' : 'Home Buyer',
+      });
+    } else if (step === 3) {
+      const area = parseLocation(input);
+      updateQualification({ location: area });
+    } else if (step === 4) {
+      const size = parseSizeBHK(input);
+      updateQualification({ sizeBHK: size });
+    } else if (step === 5) {
+      const budget = parseBudget(input);
+      updateQualification({ budget });
+    } else if (step === 6) {
+      const timeline = parseTimeline(input);
+      updateQualification({ timeline });
+    } else if (step === 7) {
+      const finance = parseFinance(input);
+      const matched = getMatchedListingFromPDF({ ...qualificationRef.current, loanOrCash: finance });
+      updateQualification({
+        loanOrCash: finance,
+        recommendedProperty: `${matched.id} - ${matched.type} (${matched.location})`,
+      });
+    } else if (step === 8) {
+      const isPositive =
+        lower.includes('aama') ||
+        lower.includes('ama') ||
+        lower.includes('yes') ||
+        lower.includes('sure') ||
+        lower.includes('paakkanum') ||
+        lower.includes('varren') ||
+        lower.includes('visit') ||
+        lower.includes('ஆமா') ||
+        lower.includes('பாக்கணும்') ||
+        lower.includes('சரி');
+      if (isPositive) {
+        updateQualification({ siteVisit: 'Yes (Site Visit Requested)' });
+      } else {
+        updateQualification({ siteVisit: 'Brochure only via WhatsApp' });
+      }
+    } else if (step === 9) {
+      updateQualification({ siteVisit: `Yes - Preferred: ${input}` });
+    }
+  };
 
+  // Fallback Rule Engine step execution
+  const runRuleEngineStep = (activeStep: number, input: string) => {
     const lower = input.toLowerCase();
-    const activeStep = currentStepRef.current;
     const activeLang = selectedLanguageRef.current;
 
-    // Check 1: Stop / Opt-out (Requirement 8)
-    if (
-      lower.includes("don't call") ||
-      lower.includes('dont call') ||
-      lower.includes('stop') ||
-      lower.includes('do not contact') ||
-      lower.includes('remove my number') ||
-      lower.includes('opt out') ||
-      lower.includes('opt-out')
-    ) {
-      handleOptOut();
-      return;
-    }
-
-    // Check 2: Human Agent Request (Requirement 9)
-    if (
-      lower.includes('talk to a person') ||
-      lower.includes('talk to someone') ||
-      lower.includes('human') ||
-      lower.includes('real person') ||
-      lower.includes('agent call') ||
-      lower.includes('speak with someone')
-    ) {
-      handleAgentCallback();
-      return;
-    }
-
-    // Check 3: If customer asks a question at ANY step (FAQs from PDF Section 5)
+    // If customer asks a question at ANY step (FAQs from PDF Section 5)
     if (isCustomerAskingQuestion(input)) {
       handleCustomerQuestion(input);
-      return;
-    }
-
-    // STEP 0: Language selection step
-    if (activeStep === 0) {
-      if (lower.includes('hindi') || lower.includes('हिंदी')) {
-        handleSelectLanguage('Hindi', false);
-      } else if (lower.includes('tamil') || lower.includes('tanglish') || lower.includes('தமிழ்')) {
-        handleSelectLanguage('Tamil-English', false);
-      } else {
-        handleSelectLanguage('English', false);
-      }
       return;
     }
 
@@ -1704,6 +1736,112 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       evaluateAndCompleteQualification({ ...qualificationRef.current, siteVisit: `Yes - Preferred: ${input}` });
       return;
     }
+  };
+
+  // Main Customer Input Parser & Flow Controller (STT -> Groq Model / Rule Engine -> TTS)
+  const handleCustomerInput = async (input: string) => {
+    appendDialogue('Customer', input);
+    setCurrentTextInput('');
+    setLiveSpeechText('');
+
+    const lower = input.toLowerCase();
+    const activeStep = currentStepRef.current;
+    const activeLang = selectedLanguageRef.current;
+
+    // Check 1: Stop / Opt-out (Requirement 8)
+    if (
+      lower.includes("don't call") ||
+      lower.includes('dont call') ||
+      lower.includes('stop') ||
+      lower.includes('do not contact') ||
+      lower.includes('remove my number') ||
+      lower.includes('opt out') ||
+      lower.includes('opt-out')
+    ) {
+      handleOptOut();
+      return;
+    }
+
+    // Check 2: Human Agent Request (Requirement 9)
+    if (
+      lower.includes('talk to a person') ||
+      lower.includes('talk to someone') ||
+      lower.includes('human') ||
+      lower.includes('real person') ||
+      lower.includes('agent call') ||
+      lower.includes('speak with someone')
+    ) {
+      handleAgentCallback();
+      return;
+    }
+
+    // STEP 0: Language selection step
+    if (activeStep === 0) {
+      if (lower.includes('hindi') || lower.includes('हिंदी')) {
+        handleSelectLanguage('Hindi', false);
+      } else if (lower.includes('tamil') || lower.includes('tanglish') || lower.includes('தமிழ்')) {
+        handleSelectLanguage('Tamil-English', false);
+      } else {
+        handleSelectLanguage('English', false);
+      }
+      return;
+    }
+
+    // ⚡ Groq AI Conversational Model execution (Live STT -> Groq Reasoning -> TTS)
+    if (groqAvailable && useGroqModelRef.current && activeStep >= 1) {
+      // Step 1: Extract lead qualification details in background
+      extractQualificationFromInput(activeStep, input, lower);
+
+      // Check if user is declining or busy in Step 1
+      if (activeStep === 1 && isDecliningOrBusy(input)) {
+        const politeEnd =
+          activeLang === 'Hindi'
+            ? 'Arrey koi baat nahi, aap busy hain toh main samajh sakti hoon! Free hone ke baad connect karenge. Have a lovely day!'
+            : activeLang === 'English'
+            ? "Oh, no worries at all! I totally understand you're busy right now. We can connect whenever you're free. Have a wonderful day!"
+            : 'அய்யோ, no problem at all! நீங்க busy-ஆ இருக்கீங்க, கண்டிப்பா புரியுது. Free ஆகும் போது பேசலாம். Have a lovely day!';
+        appendDialogue('AI', politeEnd);
+        speakAIText(politeEnd, getVoiceLangCode(), () => {
+          finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
+        });
+        return;
+      }
+
+      // Advance step indicator
+      if (activeStep < 9) {
+        updateCurrentStep(activeStep + 1);
+      }
+
+      setIsGroqThinking(true);
+      updateCallState('AI Speaking...');
+
+      try {
+        const historyMessages = dialogueRef.current.slice(-12).map((d) => ({
+          role: d.speaker === 'AI' ? ('assistant' as const) : ('user' as const),
+          content: d.text,
+        }));
+
+        const aiReply = await groqChat(historyMessages, selectedGroqModelRef.current, lead?.name);
+        setIsGroqThinking(false);
+
+        if (aiReply && aiReply.trim()) {
+          const cleanReply = aiReply.trim();
+          appendDialogue('AI', cleanReply);
+          speakAIText(cleanReply, getVoiceLangCode(), () => {
+            if (activeStep >= 9) {
+              evaluateAndCompleteQualification({ ...qualificationRef.current, siteVisit: `Yes - Preferred: ${input}` });
+            }
+          });
+          return;
+        }
+      } catch (err) {
+        console.warn('[Groq Model] Call error, seamlessly falling back to rule engine:', err);
+        setIsGroqThinking(false);
+      }
+    }
+
+    // Fallback: Run Rule Engine
+    runRuleEngineStep(activeStep, input);
   };
 
   const getVoiceLangCode = () => {
@@ -1876,7 +2014,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     });
   };
 
-  // Finalize call, save to Firestore collections (calls and leads)
+  // Finalize call, save to Supabase collections (calls and leads)
   const finalizeCall = async (
     status: string,
     outcome: LeadOutcome,
@@ -1963,7 +2101,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     } catch (saveErr: any) {
       console.error('Error saving call session:', saveErr);
-      setErrorMessage(`Note saving to Firestore: ${saveErr.message}`);
+      setErrorMessage(`Note saving to Supabase: ${saveErr.message}`);
     }
   };
 
@@ -2137,6 +2275,34 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               )}
             </div>
 
+            {/* Groq AI Model Engine Pill / Badge */}
+            <div className="flex items-center space-x-1.5 px-3 py-0.5 rounded-full border text-[11px] font-semibold bg-violet-500/10 text-violet-300 border-violet-500/30">
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              <span>
+                {isGroqThinking
+                  ? '⚡ Groq Thinking...'
+                  : groqAvailable && useGroqModel
+                  ? '⚡ Groq LLaMA 3.3 Active'
+                  : groqAvailable
+                  ? 'Rule Engine (Groq Paused)'
+                  : 'Rule Engine'}
+              </span>
+              {groqAvailable && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !useGroqModel;
+                    setUseGroqModel(next);
+                    useGroqModelRef.current = next;
+                  }}
+                  className="ml-1 text-[10px] underline text-violet-400 hover:text-violet-200"
+                  title="Toggle Groq AI Model on/off"
+                >
+                  {useGroqModel ? 'Pause' : 'Enable'}
+                </button>
+              )}
+            </div>
+
           </div>
 
           <div className="flex items-center space-x-3">
@@ -2166,6 +2332,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
         {/* Call Body */}
         <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+          {/* 3D Interactive Voice Sphere (Reacts Live while Speaking & Listening) */}
+          {callState !== 'Call Completed' && (
+            <div className="bg-gradient-to-b from-slate-950 via-slate-900/80 to-slate-950 border border-slate-800 rounded-3xl p-3 shadow-2xl relative overflow-hidden flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
+              <VoiceSphere3D
+                isSpeaking={callState === 'AI Speaking...'}
+                isListening={callState === 'Listening...'}
+                audioLevel={micAudioLevel}
+                callState={callState}
+                duration={duration}
+                onSphereClick={() => {
+                  if (callState === 'AI Speaking...') {
+                    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                      window.speechSynthesis.cancel();
+                    }
+                  } else if (callState === 'Listening...') {
+                    testVoiceSample();
+                  }
+                }}
+              />
+            </div>
+          )}
           {/* STEP 0: Language Selection card (Requirement 3 & 4) */}
           {currentStep === 0 && callState !== 'Call Completed' && (
             <div className="bg-gradient-to-r from-amber-950/30 via-slate-900 to-amber-950/30 border border-amber-500/30 rounded-2xl p-4 text-center space-y-3 animate-in fade-in duration-300">
@@ -2674,71 +2861,113 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             </div>
           )}
 
-          {/* Conversation Dialogue Display */}
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3.5 max-h-72 overflow-y-auto">
-            {dialogue.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 flex flex-col items-center space-y-2">
-                <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center animate-spin">
-                  <Phone className="w-4 h-4 text-amber-400" />
-                </div>
-                <span>Connecting browser microphone and AI voice channels...</span>
-              </div>
-            ) : (
-              dialogue.map((item, idx) => (
-                <div
-                  key={idx}
-                  className={`flex items-start space-x-2.5 ${
-                    item.speaker === 'AI' ? 'justify-start' : 'justify-end'
-                  }`}
-                >
-                  {item.speaker === 'AI' && (
-                    <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
-                      <Bot className="w-3.5 h-3.5" />
-                    </div>
-                  )}
+          {/* Conversation History View Mode Selector (Talk History Section) */}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-slate-400 font-semibold text-[11px] flex items-center space-x-1.5">
+              <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+              <span>Talk History View Mode:</span>
+            </span>
+            <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setHistoryViewTab('qa')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  historyViewTab === 'qa'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                📋 What AI Asked vs User Answer
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryViewTab('bubbles')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  historyViewTab === 'bubbles'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                💬 Chat Bubbles
+              </button>
+            </div>
+          </div>
 
+          {historyViewTab === 'qa' ? (
+            <TalkHistorySection
+              dialogue={dialogue}
+              customerName={lead.name}
+              aiName="👧 Priya (Lyka Realty)"
+              liveSpeechText={liveSpeechText}
+              isListening={callState === 'Listening...'}
+              isSpeaking={callState === 'AI Speaking...'}
+            />
+          ) : (
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3.5 max-h-72 overflow-y-auto">
+              {dialogue.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 flex flex-col items-center space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center animate-spin">
+                    <Phone className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <span>Connecting browser microphone and AI voice channels...</span>
+                </div>
+              ) : (
+                dialogue.map((item, idx) => (
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
-                      item.speaker === 'AI'
-                        ? 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-tl-sm'
-                        : 'bg-amber-500/20 text-amber-200 border border-amber-500/30 rounded-tr-sm'
+                    key={idx}
+                    className={`flex items-start space-x-2.5 ${
+                      item.speaker === 'AI' ? 'justify-start' : 'justify-end'
                     }`}
                   >
-                    <div className="flex items-center justify-between space-x-2 mb-0.5">
-                      <span className="text-[10px] font-bold opacity-75">
-                        {item.speaker === 'AI' ? '👧 Priya • Lyka Realty' : lead.name}
-                      </span>
-                      <span className="text-[9px] opacity-40 font-mono">{item.timestamp}</span>
+                    {item.speaker === 'AI' && (
+                      <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+                        <Bot className="w-3.5 h-3.5" />
+                      </div>
+                    )}
+
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                        item.speaker === 'AI'
+                          ? 'bg-slate-800/90 text-slate-100 border border-slate-700/60 rounded-tl-sm'
+                          : 'bg-amber-500/20 text-amber-200 border border-amber-500/30 rounded-tr-sm'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between space-x-2 mb-0.5">
+                        <span className="text-[10px] font-bold opacity-75">
+                          {item.speaker === 'AI' ? '👧 Priya • Lyka Realty' : lead.name}
+                        </span>
+                        <span className="text-[9px] opacity-40 font-mono">{item.timestamp}</span>
+                      </div>
+                      {item.text}
                     </div>
-                    {item.text}
+
+                    {item.speaker === 'Customer' && (
+                      <div className="w-6 h-6 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+                        <User className="w-3.5 h-3.5" />
+                      </div>
+                    )}
                   </div>
+                ))
+              )}
 
-                  {item.speaker === 'Customer' && (
-                    <div className="w-6 h-6 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
-                      <User className="w-3.5 h-3.5" />
-                    </div>
-                  )}
+              {/* Live streaming interim speech indicator */}
+              {liveSpeechText && (
+                <div className="flex items-start space-x-2.5 justify-end animate-in fade-in">
+                  <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-tr-sm italic">
+                    <span className="text-[10px] font-bold opacity-75 block not-italic">
+                      🎙️ Hearing you...
+                    </span>
+                    {liveSpeechText}
+                  </div>
+                  <div className="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+                    <Mic className="w-3.5 h-3.5 animate-pulse" />
+                  </div>
                 </div>
-              ))
-            )}
+              )}
 
-            {/* Live streaming interim speech indicator */}
-            {liveSpeechText && (
-              <div className="flex items-start space-x-2.5 justify-end animate-in fade-in">
-                <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-tr-sm italic">
-                  <span className="text-[10px] font-bold opacity-75 block not-italic">
-                    🎙️ Hearing you...
-                  </span>
-                  {liveSpeechText}
-                </div>
-                <div className="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
-                  <Mic className="w-3.5 h-3.5 animate-pulse" />
-                </div>
-              </div>
-            )}
-
-            <div ref={dialogueEndRef} />
-          </div>
+              <div ref={dialogueEndRef} />
+            </div>
+          )}
 
           {/* Voice Wave Animation when speaking / listening */}
           {callState !== 'Call Completed' && (
@@ -2800,7 +3029,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="flex items-center space-x-2 text-emerald-400 font-bold">
                   <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  <span>Call Finished & Logged in Firestore</span>
+                  <span>Call Finished & Logged in Supabase</span>
                 </span>
                 {finalOutcome && (
                   <span className="px-3 py-1 rounded-full font-bold text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
