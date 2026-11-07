@@ -2748,6 +2748,28 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   ): string => {
     const lower = input.toLowerCase();
 
+    // 00. Repetition Request: Repeat / Once again / Marupadiyum / Enna sonneenga / What did you say
+    if (
+      lower.includes('repeat') || lower.includes('once again') || lower.includes('marupadi') ||
+      lower.includes('marubadi') || lower.includes('enna sonneenga') || lower.includes('what did you say') ||
+      lower.includes('one more time') || lower.includes('phir se bolo') || lower.includes('dobara bolo') ||
+      lower.includes('kekkala') || lower.includes('innum oru thadava')
+    ) {
+      const lastAiEntry = [...dialogueRef.current].reverse().find((d) => d.speaker === 'AI');
+      if (lastAiEntry && lastAiEntry.text) {
+        const cleanLast = lastAiEntry.text
+          .replace(/^\[.*?\]\s*/, '')
+          .replace(/^(once again|marupadiyum solren|ek baar phir se batati hoon)[,\s]*/i, '');
+        if (lang === 'Tamil-English') {
+          return `[warm] Sure sir! Once again solren: ${cleanLast}`;
+        } else if (lang === 'Hindi') {
+          return `[warm] Zaroor sir! Ek baar phir se batati hoon: ${cleanLast}`;
+        } else {
+          return `[warm] Sure! Once again: ${cleanLast}`;
+        }
+      }
+    }
+
     // 0a. In-call Interruption: Wait / Hold on / Oru second
     if (
       lower.includes('wait') || lower.includes('stop') || lower.includes('hold on') ||
@@ -2972,6 +2994,147 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
+    // 0q. Scam / Fraud Concerns (v8 Section 12)
+    if (
+      lower.includes('scam') || lower.includes('fraud') || lower.includes('cheating') ||
+      lower.includes('fake call') || lower.includes('420')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Unga concern puriyudhu sir. Naan Lyka Realty-lendhu pesuren, property-related follow-up-kkaaga mattum. Neenga comfortable illenna, inga stop pannalaam. Venumna official channel-la company details verify pannitu apuram pesalaam.';
+      } else if (lang === 'Hindi') {
+        return 'Aapki concern samajh sakti hoon. Main Lyka Realty se sirf property follow-up ke liye call kar rahi hoon. Agar aap comfortable nahi hain toh abhi call end kar sakte hain aur official website se verify kar sakte hain.';
+      } else {
+        return 'I understand your concern completely. I am calling from Lyka Realty strictly for property assistance. If you are uncomfortable, we can end the call and you may verify through our official channels.';
+      }
+    }
+
+    // 0r. Company Licensed / RERA / DLD Registered (v8 Section 12)
+    if (
+      lower.includes('rera') || lower.includes('dld') || lower.includes('licensed') ||
+      lower.includes('license number') || lower.includes('registration number')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Adhu important sir. Exact licence and registration details authorised team confirm pannuvaanga. Neenga official Dubai authority records-layum company-a check pannalaam. Naan guess panni solla maatten.';
+      } else if (lang === 'Hindi') {
+        return 'Yeh bahut zaroori hai. Hamari team official license aur RERA registration details share kar sakti hai, aur aap Dubai Land Department ke portal par bhi verify kar sakte hain.';
+      } else {
+        return 'That is very important. Our authorised team can share our exact RERA and DLD licence details, which you can also verify directly on the official Dubai Land Department portal.';
+      }
+    }
+
+    // 0s. Advance Payment / Zero Payment on Call (v8 Section 12 & Section 8)
+    if (
+      lower.includes('advance') || lower.includes('booking amount') || lower.includes('pay panna') ||
+      lower.includes('payment kekkureengala') || lower.includes('paise maang')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Illa sir, indha call-la neenga edhuvum pay panna vendaam. Naan payment details, card number or OTP edhuvum kekka maatten. Official accounts moolama mattum dhaan payment proceed aagum.';
+      } else if (lang === 'Hindi') {
+        return 'Nahi sir, is call par aapko koi payment nahi karni hai. Hum kabhi card number ya OTP nahi maangte. Payment sirf developer ke authorised account se hoti hai.';
+      } else {
+        return 'No sir, you do not need to make any payment on this call. We never ask for card details or OTPs; transactions are handled strictly through official escrow accounts.';
+      }
+    }
+
+    // 0t. Handover Delay Concerns (v8 Section 12)
+    if (
+      lower.includes('handover delay') || lower.includes('delay pannuvaangala') ||
+      lower.includes('late handover') || lower.includes('project delay')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Idhu important concern sir. Developer track record, project registration, escrow details and payment milestones-a verify pannanum. Delay illa-nu guarantee panna mudiyadhu; documents-a review pannunga.';
+      } else if (lang === 'Hindi') {
+        return 'Yeh valid concern hai. Developer track record aur escrow account details verify karna zaroori hai. Hum official milestones share kar sakte hain.';
+      } else {
+        return 'That is a valid concern. Reviewing the developer track record and escrow milestones is essential. We always recommend verifying official documents before committing.';
+      }
+    }
+
+    // 0u. Rental Income / ROI (v8 Section 11)
+    if (
+      lower.includes('rental income') || lower.includes('rent evlo') || lower.includes('kiraya') ||
+      lower.includes('roi') || lower.includes('rental yield')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Exact rental income guarantee panna mudiyadhu sir. Area, property type and market-a poruthu maarum. Available verified data team moolama share panren.';
+      } else if (lang === 'Hindi') {
+        return 'Rental income ki guarantee nahi di ja sakti. Yeh area aur market conditions par depend karta hai. Historical verified data hum share kar sakte hain.';
+      } else {
+        return 'We cannot promise guaranteed rental yields as they depend on market trends and property type, but our team can share verified historical rental data.';
+      }
+    }
+
+    // 0v. UAE Visa / Golden Visa (v8 Section 11)
+    if (
+      lower.includes('golden visa') || lower.includes('visa kedaikkuma') || lower.includes('uae visa') ||
+      lower.includes('residency visa')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Visa eligibility pathi naan confirm panna mudiyadhu sir. Adha official sources or qualified immigration adviser-kitta verify pannunga. Property pathi information naan share panren.';
+      } else if (lang === 'Hindi') {
+        return 'Visa eligibility official immigration rules par depend karti hai. Hum property details provide karte hain aur immigration adviser se verify karne ki salah dete hain.';
+      } else {
+        return 'Visa eligibility depends on official government thresholds. While I share property details, legal visa verification should always be confirmed with immigration authorities.';
+      }
+    }
+
+    // 0w. Distance / Location / Where are you now (v8 Section 5B)
+    if (
+      lower.includes('distance evlo') || lower.includes('how far') || lower.includes('travel time') ||
+      lower.includes('enga irukku distance')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Sure sir. Neenga ippo enga irukkeenga? Dubai-la-aa, illa veliyoora? Google Maps-la home area-um property area-um compare panni exact travel time paakalaam.';
+      } else if (lang === 'Hindi') {
+        return 'Sure sir, aap abhi kahan rehte hain? Dubai me ya bahar? Google Maps se aapke area se travel time aasani se check kar sakte hain.';
+      } else {
+        return 'Sure, where are you currently based? In Dubai or elsewhere? We recommend checking Google Maps for live travel times based on peak traffic.';
+      }
+    }
+
+    // 0x. Harmless Compliments & Boundaries (v8 Section 10)
+    if (
+      lower.includes('nice voice') || lower.includes('sweet voice') || lower.includes('super voice') ||
+      lower.includes('sound sweet')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Thank you sir. Ungalukku property pathi enna help venum-nu sollunga.';
+      } else if (lang === 'Hindi') {
+        return 'Shukriya sir. Property ke baare me aapko kya jankari chahiye?';
+      } else {
+        return 'Thank you sir. How can I assist you with your property search today?';
+      }
+    }
+
+    // 0y. Personal questions / Flirty remarks (v8 Section 10)
+    if (
+      lower.includes('single-aa') || lower.includes('are you single') || lower.includes('boyfriend') ||
+      lower.includes('married') || lower.includes('coffee') || lower.includes('meet panlaama') ||
+      lower.includes('personal number') || lower.includes('photo anupunga')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Sir, adhu personal question; adha pathi naan pesa mudiyadhu. Naan Lyka Realty property help-kku mattum. Property pathi edhaavadhu sollunga.';
+      } else if (lang === 'Hindi') {
+        return 'Sir, yeh personal sawaal hai, main sirf Lyka Realty property queries me madad karti hoon.';
+      } else {
+        return 'Sir, that is personal and outside my scope. I am here only to assist with Lyka Realty property inquiries.';
+      }
+    }
+
+    // 0z. Bored or lonely (v8 Section 10)
+    if (
+      lower.includes('bore adikudhu') || lower.includes('bored') || lower.includes('lonely') ||
+      lower.includes('chumma pesunga')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Puriyudhu sir, aana naan property queries-kku mattum dhaan help panna mudiyum. Dubai property pathi enquiry irundhaa pesalaam; illenna, unga time-ku thanks.';
+      } else if (lang === 'Hindi') {
+        return 'Main samajhti hoon sir, par main sirf property queries par hi baat kar sakti hoon. Agar property ke baare me baat karni ho toh zaroor batayein.';
+      } else {
+        return 'I understand sir, but I can only assist with property-related inquiries. If you have property requirements, I would be glad to help.';
+      }
+    }
+
     // 1. Specific Location: Velachery (P101)
     if (lower.includes('velachery') || lower.includes('வேளச்சேரி')) {
       if (lang === 'Tamil-English') {
@@ -3158,6 +3321,69 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
   };
 
+  // "Once again" Repetition Formatter:
+  // When AI gives the same answer again or customer asks to repeat, it prefixes "Once again" / "Marupadiyum solren"
+  const formatRepeatAnswerIfNeeded = (replyText: string, userQuery?: string): string => {
+    if (!replyText || !replyText.trim()) return replyText;
+    const lang = selectedLanguageRef.current;
+    const cleanCurrent = replyText.replace(/\[.*?\]/g, '').replace(/[^a-zA-Z0-9\s]/g, ' ').toLowerCase().trim();
+    const userLower = (userQuery || '').toLowerCase().trim();
+
+    const isUserAskingRepeat =
+      userLower.includes('repeat') ||
+      userLower.includes('once again') ||
+      userLower.includes('marupadi') ||
+      userLower.includes('marubadi') ||
+      userLower.includes('enna sonneenga') ||
+      userLower.includes('what did you say') ||
+      userLower.includes('phir se bolo') ||
+      userLower.includes('dobara bolo') ||
+      userLower.includes('one more time') ||
+      userLower.includes('kekkala') ||
+      userLower.includes('pardon');
+
+    // Check if the AI already spoke this exact or very similar answer earlier in the call
+    const previousAiReplies = dialogueRef.current
+      .filter((d) => d.speaker === 'AI')
+      .map((d) => d.text.replace(/\[.*?\]/g, '').replace(/[^a-zA-Z0-9\s]/g, ' ').toLowerCase().trim())
+      .filter((text) => text.length > 15);
+
+    const alreadySaid = previousAiReplies.some((prev) => {
+      if (prev === cleanCurrent) return true;
+      // High overlap check for repeated answers
+      if (prev.length > 20 && cleanCurrent.length > 20) {
+        const prevWords = prev.split(/\s+/).filter((w) => w.length > 3);
+        const currWords = cleanCurrent.split(/\s+/).filter((w) => w.length > 3);
+        if (prevWords.length >= 3 && currWords.length >= 3) {
+          const matchCount = prevWords.filter((w) => currWords.includes(w)).length;
+          const similarity = matchCount / Math.max(prevWords.length, currWords.length);
+          if (similarity > 0.70) return true;
+        }
+      }
+      return false;
+    });
+
+    const alreadyHasPrefix =
+      cleanCurrent.startsWith('once again') ||
+      cleanCurrent.startsWith('marupadi') ||
+      cleanCurrent.startsWith('marubadi') ||
+      cleanCurrent.startsWith('ek baar phir') ||
+      cleanCurrent.startsWith('innoru vaati');
+
+    if ((alreadySaid || isUserAskingRepeat) && !alreadyHasPrefix) {
+      const strippedReply = replyText.replace(/^\[.*?\]\s*/, '');
+      if (lang === 'Tamil-English') {
+        return `[warm] Marupadiyum solren, ${strippedReply}`;
+      } else if (lang === 'Hindi') {
+        return `[warm] Ek baar phir se batati hoon, ${strippedReply}`;
+      } else {
+        return `[warm] Once again, ${strippedReply}`;
+      }
+    }
+
+    return replyText;
+  };
+
   const handleCustomerQuestion = async (questionText: string) => {
     const activeLang = selectedLanguageRef.current;
     const activeStep = currentStepRef.current;
@@ -3183,8 +3409,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         );
         setIsGeminiThinking(false);
         if (aiAnswer && aiAnswer.trim()) {
-          appendDialogue('AI', aiAnswer.trim());
-          speakAIText(aiAnswer.trim(), getVoiceLangCode());
+          const finalAns = formatRepeatAnswerIfNeeded(aiAnswer.trim(), questionText);
+          appendDialogue('AI', finalAns);
+          speakAIText(finalAns, getVoiceLangCode());
           return;
         }
       } catch (e) {
@@ -3194,8 +3421,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
 
     const answer = getKnowledgeResponse(questionText, activeLang, activeStep);
-    appendDialogue('AI', answer);
-    speakAIText(answer, getVoiceLangCode());
+    const finalAns = formatRepeatAnswerIfNeeded(answer, questionText);
+    appendDialogue('AI', finalAns);
+    speakAIText(finalAns, getVoiceLangCode());
   };
 
 
@@ -3830,7 +4058,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         setIsOpenAiThinking(false);
 
         if (aiReply && aiReply.trim()) {
-          const cleanReply = aiReply.trim();
+          const cleanReply = formatRepeatAnswerIfNeeded(aiReply.trim(), input);
           appendDialogue('AI', cleanReply);
           speakAIText(cleanReply, getVoiceLangCode(), () => {
             if (activeStep >= 9) {
@@ -3960,8 +4188,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    appendDialogue('AI', questionText);
-    speakAIText(questionText, getVoiceLangCode());
+    const finalQuestion = formatRepeatAnswerIfNeeded(questionText);
+    appendDialogue('AI', finalQuestion);
+    speakAIText(finalQuestion, getVoiceLangCode());
   };
 
   // Requirement 8: Opt-Out
