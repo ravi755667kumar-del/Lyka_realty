@@ -387,6 +387,26 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const animFrameRef = useRef<number | null>(null);
   const dialogueEndRef = useRef<HTMLDivElement | null>(null);
 
+  // ── Complete User Speech Collection & Smart Triggering ──────────────────────
+  // 1. END_OF_TURN_SILENCE_MS = 2200ms (2.2 seconds):
+  //    - Accurately captures full user answers across pauses of 0.001, 0.2, 0.5, 1, and 2 seconds.
+  //    - Any resumed user speech within 2.2s resets the silence timer and continues collecting.
+  //    - If the utterance ends on an incomplete thought/word, extended by INCOMPLETE_SENTENCE_EXTRA_MS (1200ms).
+  // 2. INACTIVITY_DISCONNECT_MS = 8000ms (8 consecutive seconds):
+  //    - If the caller remains completely silent for 8 consecutive seconds, automatically disconnects the call.
+  //    - Reset whenever new user speech or VAD activity is detected.
+  const END_OF_TURN_SILENCE_MS = 2200;
+  const INCOMPLETE_SENTENCE_EXTRA_MS = 1200;
+  const INACTIVITY_DISCONNECT_MS = 8000;
+
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const turnCommittedSpeechRef = useRef<string>(''); // Holds all committed finalized words across micro-breaks/restarts in the turn
+  const userAccumulatedSpeechRef = useRef<string>('');
+  const speechSessionPrefixRef = useRef<string>('');
+  const [isUserPausing, setIsUserPausing] = useState<boolean>(false);
+  const [turnStatusLabel, setTurnStatusLabel] = useState<string>('👂 Listening...');
+
   // Voice Gender Persona: 'female' (Priya) vs 'male' (Karthik) with client attraction psychology
   const [voiceGender, setVoiceGender] = useState<VoiceGender>(() =>
     readStoredChoice('lyka_voice_gender', 'female') as VoiceGender
@@ -813,15 +833,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         langCode: 'en-US',
       };
     }
-    // Tanglish Priya Script v2: Name-first opening
+    // Tanglish Priya: Natural Tanglish Property Conversation Guide (Updated PDF)
     if (cleanLeadName) {
       return {
-        text: `[warm] Vanakkam ${cleanLeadName}! Naan ${name}, Lyka Realty-lendhu pesuren. Ippo konjam pesuradhukku convenient-aa irukka?`,
+        text: `[warm, friendly] Vanakkam ${cleanLeadName}! Naan ${name}, Lyka Realty-lendhu pesuren. Ippo oru nimisham pesuradhukku convenient-aa irukka?`,
         langCode: 'ta-IN',
       };
     }
     return {
-      text: `[warm] Vanakkam sir! Naan ${name}, Lyka Realty-lendhu pesuren. Ungaloda name therinjukkalama?`,
+      text: `[warm, friendly] Vanakkam! Naan ${name}, Lyka Realty-lendhu pesuren. Ippo oru nimisham pesuradhukku convenient-aa irukka?`,
       langCode: 'ta-IN',
     };
   };
@@ -999,7 +1019,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (timerRef.current) clearInterval(timerRef.current);
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
     if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
+    if (inactivityTimerRef.current) { clearTimeout(inactivityTimerRef.current); inactivityTimerRef.current = null; }
     if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    userAccumulatedSpeechRef.current = '';
+    turnCommittedSpeechRef.current = '';
+    speechSessionPrefixRef.current = '';
+    setIsUserPausing(false);
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
     isTurnProcessingRef.current = false;
@@ -1229,7 +1255,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     isTurnProcessingRef.current = false;
     setIsGeminiThinking(false);
     setIsGroqThinking(false);
+    setIsOpenAiThinking(false);
+    if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    userAccumulatedSpeechRef.current = '';
+    turnCommittedSpeechRef.current = '';
+    speechSessionPrefixRef.current = '';
+    setIsUserPausing(false);
     updateCallState('Listening...');
+    resetInactivityDisconnectTimer();
 
     // If browser recognition is already active, keep it running smoothly without restarting
     // so the customer's full question is captured with zero missing words!
@@ -1717,28 +1750,205 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
 
 
-  // No answer detection (Requirement 11)
-  const resetNoAnswerTimeout = () => {
-    if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
-    noAnswerTimeoutRef.current = setTimeout(() => {
-      handleNoAnswerTimeout();
-    }, 22000); // 22 seconds of silence -> No Answer
+  // ── Voice Activity Detection (VAD) Helper ─────────────────────────────────
+  const isMicVADActive = (): boolean => {
+    if (!analyserRef.current) return false;
+    try {
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      analyserRef.current.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+      }
+      const avg = sum / dataArray.length;
+      return avg > 11;
+    } catch (e) {
+      return false;
+    }
   };
 
-  const handleNoAnswerTimeout = () => {
+  // ── Complete Speech Transcript Combiner (Appends & Preserves All Words) ──
+  // Combines partial speech transcripts belonging to current user turn without overwriting earlier speech
+  const mergeSpeechTranscripts = (existing: string, incoming: string): string => {
+    const cleanExisting = (existing || '').trim().replace(/[,.-]+$/, '').trim();
+    const cleanIncoming = (incoming || '').trim().replace(/^[,.-]+/, '').trim();
+    if (!cleanExisting) return cleanIncoming;
+    if (!cleanIncoming) return cleanExisting;
+
+    const lowerExisting = cleanExisting.toLowerCase();
+    const lowerIncoming = cleanIncoming.toLowerCase();
+
+    // If incoming already starts with or contains existing
+    if (lowerIncoming.startsWith(lowerExisting)) return cleanIncoming;
+    // If existing already ends with incoming
+    if (lowerExisting.endsWith(lowerIncoming)) return cleanExisting;
+
+    const existingWords = cleanExisting.split(/\s+/);
+    const incomingWords = cleanIncoming.split(/\s+/);
+
+    const maxOverlap = Math.min(existingWords.length, incomingWords.length);
+    let overlapCount = 0;
+
+    for (let n = maxOverlap; n > 0; n--) {
+      const existingTail = existingWords
+        .slice(-n)
+        .map((w) => w.replace(/[^a-zA-Z0-9\u0B80-\u0BFF\u0900-\u097F]/g, '').toLowerCase())
+        .join(' ');
+      const incomingHead = incomingWords
+        .slice(0, n)
+        .map((w) => w.replace(/[^a-zA-Z0-9\u0B80-\u0BFF\u0900-\u097F]/g, '').toLowerCase())
+        .join(' ');
+      if (existingTail && existingTail === incomingHead) {
+        overlapCount = n;
+        break;
+      }
+    }
+
+    if (overlapCount > 0) {
+      return `${cleanExisting} ${incomingWords.slice(overlapCount).join(' ')}`.trim();
+    }
+
+    return `${cleanExisting} ${cleanIncoming}`.trim();
+  };
+
+  // ── Incomplete Thought / Trailing Filler Detector ─────────────────────────
+  const isIncompleteSentence = (text: string): boolean => {
+    const trimmed = (text || '').trim().toLowerCase();
+    if (!trimmed) return true;
+    if (trimmed.endsWith(',') || trimmed.endsWith('...') || trimmed.endsWith('-')) return true;
+
+    const trailingMatch = trimmed.match(/([a-zA-Z\u0B80-\u0BFF\u0900-\u097F]+)[^\w\u0B80-\u0BFF\u0900-\u097F]*$/);
+    if (trailingMatch) {
+      const lastWord = trailingMatch[1].toLowerCase();
+      const incompleteWords = new Set([
+        // English
+        'and', 'or', 'in', 'at', 'for', 'with', 'around', 'near', 'because', 'like', 'uh', 'um', 'the', 'a', 'an', 'to', 'of', 'but', 'so', 'my', 'is', 'have', 'need', 'want', 'looking',
+        // Tamil / Tanglish
+        'naan', 'enakku', 'andha', 'indha', 'oru', 'mattum', 'aana', 'aanal', 'aprom', 'apram', 'kooda', 'romba', 'engalukku', 'inga', 'anga',
+        // Hindi
+        'aur', 'ki', 'mein', 'par', 'se', 'to', 'lekin', 'ya', 'ka', 'ke', 'ko', 'bhi', 'hum', 'mujhe', 'chahiye', 'humein', 'yahan', 'wahan'
+      ]);
+      if (incompleteWords.has(lastWord)) return true;
+    }
+    return false;
+  };
+
+  // ── 8-Second Inactivity Disconnect Management (Requirement 4) ─────────────
+  // If user remains completely silent for 8 consecutive seconds, auto-disconnect call.
+  // Reset whenever any new user speech or VAD activity is detected.
+  const resetInactivityDisconnectTimer = () => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    if (
+      callStateRef.current === 'Call Completed' ||
+      callStateRef.current === 'Calling...' ||
+      isSpeechSynthesisSpeakingRef.current ||
+      isTurnProcessingRef.current
+    ) {
+      return;
+    }
+
+    inactivityTimerRef.current = setTimeout(() => {
+      handleInactivityDisconnect();
+    }, INACTIVITY_DISCONNECT_MS);
+  };
+
+  const handleInactivityDisconnect = () => {
     if (callStateRef.current === 'Call Completed') return;
-    const aiText = "We didn't receive a response. We will retry reaching you at a later time. Thank you.";
-    appendDialogue('AI', aiText);
-    speakAIText(aiText, 'en-US', () => {
-      finalizeCall('No Answer', 'NO_ANSWER', 'No response received from user during call.', true);
+    console.log('[Inactivity Disconnect] Caller remained completely silent for 8 consecutive seconds. Auto-disconnecting call.');
+    const activeLang = selectedLanguageRef.current;
+    const politeClose =
+      activeLang === 'Hindi'
+        ? 'Aapki taraf se koi aawaz nahi aa rahi hai. Hum call disconnect kar rahe hain. Lyka Realty mein call karne ke liye dhanyavad.'
+        : activeLang === 'English'
+        ? 'We did not detect any response for 8 seconds. Disconnecting the call now. Thank you for calling Lyka Realty.'
+        : 'Unga kitta irundhu bathil varala. Call disconnect panrom. Lyka Realty-ku nandri.';
+    appendDialogue('AI', politeClose);
+    speakAIText(politeClose, getVoiceLangCode(), () => {
+      finalizeCall('No Answer', 'NO_ANSWER', 'Caller remained silent for 8 consecutive seconds. Automatically disconnected.', true);
     });
   };
+
+  // Backwards-compatible aliases
+  const resetNoAnswerTimeout = resetInactivityDisconnectTimer;
+  const handleNoAnswerTimeout = handleInactivityDisconnect;
 
   const appendDialogue = (speaker: 'AI' | 'Customer', text: string) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const newEntry = { speaker, text, timestamp: timeStr };
     dialogueRef.current = [...dialogueRef.current, newEntry];
     setDialogue([...dialogueRef.current]);
+  };
+
+
+
+  // ─── Colloquial NLP Intent Helpers (Supports "Free" vs "Not Free" & Tanglish) ─
+  const isDecliningOrBusy = (text: string): boolean => {
+    const lower = text.toLowerCase().trim();
+    // Guard: If the text contains positive signals, property terms or inquiry words, they are NOT declining
+    if (
+      lower.includes('free') || lower.includes('pesalam') || lower.includes('solunga') ||
+      lower.includes('sollunga') || lower.includes('tell') || lower.includes('price') ||
+      lower.includes('bhk') || lower.includes('flat') || lower.includes('villa') ||
+      lower.includes('house') || lower.includes('plot') || lower.includes('know') ||
+      lower.includes('details') || lower.includes('buy') || lower.includes('rent') ||
+      lower.includes('budget') || lower.includes('where') || lower.includes('what') ||
+      lower.includes('how') || lower.includes('aama') || lower.includes('sure') ||
+      lower.includes('yes')
+    ) {
+      return false;
+    }
+
+    // Precise decline phrases with strict word boundaries
+    return (
+      /\b(not free|ippo free illa|free illa|free illai|free nahi|busy|not now|call later|baad me|samay nahi|time nahi|velai irukku|mudiyadhu|call pannadheenga)\b/i.test(lower) ||
+      /^(\bno\b|\bnahi\b|\billa\b|\billai\b|\bvendam\b|\bvenda\b)$/i.test(lower)
+    );
+  };
+
+  const isAgreeingOrFree = (text: string): boolean => {
+    const lower = text.toLowerCase().trim();
+    // Check positive agreement to "Are you free?", "convenient-aa irukka?" or interest
+    const freeWords = [
+      'free', 'free thaan', 'free-ah irukken', 'free ah irukken', 'i am free', 'yes free', 'haan free hoon', 'free hoon',
+      'convenient', 'convenient thaan', 'convenient-aa irukku', 'convenient-a irukku', 'conveniently',
+      'nalla irukken', 'fine', 'good', 'i am good', 'all good',
+      'yes', 'yeah', 'sure', 'yep', 'ok', 'okay', 'interested', 'go ahead', 'speak', 'tell me',
+      'haan', 'theek hai', 'bolo', 'batayein', 'zaroor', 'ha',
+      'aan', 'ah', 'aama', 'aamaa', 'ama', 'sari', 'pesalam', 'pesalaam', 'solunga', 'sollunga', 'solleenga', 'pesunga', 'kandippa',
+      'puriyudhu', 'dharalama', 'kelunga', 'plan irukku'
+    ];
+    return freeWords.some((w) => lower.includes(w));
+  };
+
+  const isNotInterested = (text: string): boolean => {
+    const lower = text.toLowerCase().trim();
+    if (
+      lower.includes('know') || lower.includes('price') || lower.includes('bhk') ||
+      lower.includes('flat') || lower.includes('villa') || lower.includes('house') ||
+      lower.includes('plot') || lower.includes('buy') || lower.includes('rent') ||
+      lower.includes('details') || lower.includes('interested')
+    ) {
+      return false;
+    }
+    return /\b(not interested|no interest|no thanks|not looking|wrong number|interest nahi|nahi chahiye|nahi lena|interest illa|interest illai|thevai illa|idea illa|plan illa)\b/i.test(lower);
+  };
+
+  const isCustomerQuestion = (text: string): boolean => {
+    const lower = text.toLowerCase().trim();
+    if (lower.includes('?')) return true;
+    if (/^(what|where|who|which|how|why|when|can|could|tell|do you|is there|are there|is it|give me|explain)\b/i.test(lower)) {
+      return true;
+    }
+    if (/^(kya|kaha|kaise|kitna|kab|kaun|batao|bataiye|batayein|suno|kyu|kyun)\b/i.test(lower)) {
+      return true;
+    }
+    if (/^(enna|enga|eppadi|evlo|eppo|yaaru|solreenga|solleenga|solunga|sollunga|oru kelvi|oru doubt|edhukku|yen)\b/i.test(lower)) {
+      return true;
+    }
+    return false;
   };
 
   // Helper to detect quick single-phrase answers to trigger instant sub-second turnaround
@@ -1760,37 +1970,25 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     // Step 1: Are you free?
     if (step === 1) {
-      return (
-        lower.includes('free') ||
-        lower.includes('aama') ||
-        lower.includes('ama') ||
-        lower.includes('yes') ||
-        lower.includes('sure') ||
-        lower.includes('pesalam') ||
-        lower.includes('solunga') ||
-        lower.includes('solleenga') ||
-        lower.includes('illa') ||
-        lower.includes('illai') ||
-        lower.includes('busy') ||
-        lower.includes('no') ||
-        lower.includes('not free') ||
-        lower.includes('later') ||
-        lower.includes('aprom') ||
-        lower.includes('apram') ||
-        lower.includes('haan') ||
-        lower.includes('theek hai')
-      );
+      return isAgreeingOrFree(lower) || isDecliningOrBusy(lower);
     }
 
-    // Step 2: Purpose (Buy, Rent, Plot - PDF Question 1)
+    // Step 2: Purpose (Own Use, Investment, Buy, Rent, Plot - PDF Question 1)
     if (step === 2) {
       return (
+        lower.includes('own use') ||
+        lower.includes('own') ||
+        lower.includes('invest') ||
+        lower.includes('investment') ||
         lower.includes('vaanga') ||
         lower.includes('vaanganum') ||
         lower.includes('buy') ||
         lower.includes('veedu') ||
         lower.includes('flat') ||
         lower.includes('house') ||
+        lower.includes('apartment') ||
+        lower.includes('villa') ||
+        lower.includes('townhouse') ||
         lower.includes('vaadagai') ||
         lower.includes('rent') ||
         lower.includes('rental') ||
@@ -1804,9 +2002,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       );
     }
 
-    // Step 3: Area (Velachery, OMR, Tambaram, Porur, Adyar, Chengalpattu - PDF Question 2)
+    // Step 3: Area (Dubai, JVC, Marina, Downtown, Velachery, OMR, Tambaram - PDF Question 2)
     if (step === 3) {
       return (
+        lower.includes('jvc') ||
+        lower.includes('jumeirah') ||
+        lower.includes('marina') ||
+        lower.includes('downtown') ||
+        lower.includes('business bay') ||
+        lower.includes('dubai') ||
         lower.includes('velachery') ||
         lower.includes('வேளச்சேரி') ||
         lower.includes('omr') ||
@@ -1821,19 +2025,28 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('chengalpattu') ||
         lower.includes('செங்கல்பட்டு') ||
         lower.includes('chennai') ||
-        lower.includes('சென்னை')
+        lower.includes('சென்னை') ||
+        lower.includes('medavakkam') ||
+        lower.includes('guindy')
       );
     }
 
-    // Step 4: Size (1 BHK, 2 BHK, 3 BHK, Plot sq ft - PDF Question 3)
+    // Step 4: Size (Studio, 1 BHK, 2 BHK, 3 BHK, Plot sq ft - PDF Question 3)
     if (step === 4) {
       return (
-        lower.includes('1') ||
-        lower.includes('2') ||
-        lower.includes('3') ||
+        lower.includes('studio') ||
+        lower.includes('one bedroom') ||
+        lower.includes('two bedroom') ||
+        lower.includes('three bedroom') ||
+        lower.includes('1 bedroom') ||
+        lower.includes('2 bedroom') ||
+        lower.includes('3 bedroom') ||
+        /\b(1|2|3|4)\s*bhk\b/i.test(lower) ||
         lower.includes('bhk') ||
+        lower.includes('villa') ||
         lower.includes('plot') ||
         lower.includes('sq ft') ||
+        lower.includes('sqft') ||
         lower.includes('1200') ||
         lower.includes('podhum') ||
         lower.includes('போதும்')
@@ -1843,21 +2056,19 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // Step 5: Budget (PDF Question 4)
     if (step === 5) {
       return (
-        lower.includes('72') ||
-        lower.includes('75') ||
-        lower.includes('1.25') ||
-        lower.includes('1.6') ||
-        lower.includes('18') ||
-        lower.includes('20') ||
-        lower.includes('14000') ||
-        lower.includes('14,000') ||
-        lower.includes('28000') ||
-        lower.includes('28,000') ||
-        lower.includes('30000') ||
+        /\b(70|72|75|80|85|90)\b/.test(lower) ||
         lower.includes('lakh') ||
         lower.includes('crore') ||
         lower.includes('kodi') ||
         lower.includes('cr') ||
+        lower.includes('1.25') ||
+        lower.includes('1.6') ||
+        lower.includes('14000') ||
+        lower.includes('14,000') ||
+        lower.includes('25000') ||
+        lower.includes('28000') ||
+        lower.includes('28,000') ||
+        lower.includes('30000') ||
         lower.includes('லட்சம்') ||
         lower.includes('கோடி')
       );
@@ -1866,8 +2077,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // Step 6: Move-in Timeline (PDF Question 5)
     if (step === 6) {
       return (
+        lower.includes('next few months') ||
+        lower.includes('few months') ||
+        lower.includes('compare') ||
+        lower.includes('comparing') ||
         lower.includes('udane') ||
         lower.includes('ready') ||
+        lower.includes('immediate') ||
         lower.includes('1 month') ||
         lower.includes('oru maasam') ||
         lower.includes('maasathula') ||
@@ -1878,12 +2094,17 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       );
     }
 
-    // Step 7: Finance (Loan or Cash - PDF Question 6)
+    // Step 7: Finance (Cash, Mortgage, Developer plan - PDF Question 6)
     if (step === 7) {
       return (
-        lower.includes('loan') ||
         lower.includes('cash') ||
+        lower.includes('full cash') ||
+        lower.includes('developer') ||
+        lower.includes('payment plan') ||
+        lower.includes('mortgage') ||
+        lower.includes('loan') ||
         lower.includes('bank') ||
+        lower.includes('self') ||
         lower.includes('கடன்') ||
         lower.includes('லோன்')
       );
@@ -1914,12 +2135,108 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('weekday') ||
         lower.includes('naalaikku') ||
         lower.includes('day') ||
+        lower.includes('tomorrow') ||
+        lower.includes('today') ||
         lower.includes('ஞாயிறு') ||
         lower.includes('சனி')
       );
     }
 
     return false;
+  };
+
+  // ── Dynamic Turn Triggering Based on User Answer Content ────────────────────
+  // Evaluates the user's answer to determine the natural end-of-turn waiting duration:
+  // 1. Direct answer to current question (or decline): ~750ms (fast conversational response!)
+  // 2. Customer question / inquiry: ~900ms (prompt response to their inquiry!)
+  // 3. Incomplete sentence / trailing preposition or conjunction: ~2800ms (patient listener, never interrupts!)
+  // 4. Multi-detail answer: ~950ms (snappy capture of full requirement!)
+  // 5. Standard conversational turn: ~1350ms (natural human rhythm)
+  const getDynamicSilenceWaitMs = (
+    text: string,
+    step: number
+  ): { waitMs: number; statusLabel: string } => {
+    const clean = text.trim();
+    if (!clean) {
+      return { waitMs: 1400, statusLabel: '🎙️ Listening...' };
+    }
+
+    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation
+    if (isIncompleteSentence(clean)) {
+      return {
+        waitMs: 2800,
+        statusLabel: '👂 Listening... (take your time)',
+      };
+    }
+
+    // B. Direct complete answer to the current qualification step
+    if (isQuickAnswerMatch(clean, step) || (step === 1 && isDecliningOrBusy(clean))) {
+      return {
+        waitMs: 750,
+        statusLabel: '✨ Answer heard, responding...',
+      };
+    }
+
+    // C. Customer asking a question or inquiry (price, location, etc.)
+    if (isCustomerQuestion(clean)) {
+      return {
+        waitMs: 900,
+        statusLabel: '✨ Question heard, answering...',
+      };
+    }
+
+    // D. Multi-attribute qualification statement (e.g. "I want a 2 BHK in Velachery under 80L")
+    const lower = clean.toLowerCase();
+    const hasMultipleDetails =
+      (lower.includes('bhk') || lower.includes('flat') || lower.includes('plot') || lower.includes('house')) &&
+      (lower.includes('velachery') || lower.includes('omr') || lower.includes('porur') || lower.includes('tambaram') || lower.includes('adyar') || lower.includes('chennai') || lower.includes('lakh') || lower.includes('crore'));
+    if (hasMultipleDetails) {
+      return {
+        waitMs: 950,
+        statusLabel: '✨ Details captured, responding...',
+      };
+    }
+
+    // E. Standard conversational turn
+    return {
+      waitMs: 1350,
+      statusLabel: '👂 Listening...',
+    };
+  };
+
+  // Immediate End-of-Turn Trigger: triggers when user clicks 'Respond Now' without waiting for silence window
+  const triggerImmediateTurn = () => {
+    if (isTurnProcessingRef.current || isSpeechSynthesisSpeakingRef.current) return;
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    setIsUserPausing(false);
+
+    if (sttEngineRef.current === 'browser') {
+      const text = (
+        userAccumulatedSpeechRef.current || turnCommittedSpeechRef.current
+      ).trim();
+      userAccumulatedSpeechRef.current = '';
+      turnCommittedSpeechRef.current = '';
+      speechSessionPrefixRef.current = '';
+      if (text.length > 0) {
+        console.log('[Immediate End-of-Turn Triggered by User]:', text);
+        dispatchCustomerSpeech(text);
+      }
+    } else {
+      // Server STT: stop recorder immediately to trigger upload & transcription
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch (e) { /* ignore */ }
+      }
+    }
   };
 
   // Immediate Customer Speech Dispatcher (Bypasses Chrome's 2.5s silence wait & prevents repeating audio)
@@ -1934,13 +2251,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       return;
     }
 
+    // Clear any silence detection timer and inactivity timer
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    setIsUserPausing(false);
+    userAccumulatedSpeechRef.current = '';
+    turnCommittedSpeechRef.current = '';
+    speechSessionPrefixRef.current = '';
+
     const now = Date.now();
-    // Drop exact duplicate speech repeated within 2500ms
+    // Drop immediate duplicate speech fired within 1000ms
     if (
       lastDispatchedTextRef.current.toLowerCase() === cleanText.toLowerCase() &&
-      now - lastDispatchedTimeRef.current < 2500
+      now - lastDispatchedTimeRef.current < 1000
     ) {
-      console.log('[Turn Deduplication] Dropped duplicate speech within 2.5s:', cleanText);
+      console.log('[Turn Deduplication] Dropped duplicate speech within 1s:', cleanText);
       return;
     }
     lastDispatchedTextRef.current = cleanText;
@@ -1991,29 +2322,31 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       return;
     }
 
-    if (isRecognitionRunningRef.current && recognitionRef.current) {
-      return;
-    }
-
     try {
       if (recognitionRef.current) {
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
         recognitionRef.current.onresult = null;
-        recognitionRef.current.stop();
+        try { recognitionRef.current.abort(); } catch (e) { /* ignore */ }
       }
     } catch (e) {
       // ignore
     }
+    recognitionRef.current = null;
+    isRecognitionRunningRef.current = false;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
-    // Set recognition language
+    // Set recognition language:
+    // At Step 0 (Language selection), the caller hasn't picked a language yet (might say "Tamil", "English", "Hindi")
+    // 'en-IN' accurately captures English, Tamil, and Hindi words without dropping speech.
     const currentLang = selectedLanguageRef.current;
-    if (currentLang === 'Hindi') {
+    if (currentStepRef.current === 0) {
+      recognition.lang = 'en-IN';
+    } else if (currentLang === 'Hindi') {
       recognition.lang = 'hi-IN';
     } else if (currentLang === 'Tamil-English') {
       recognition.lang = 'ta-IN';
@@ -2026,74 +2359,103 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     };
 
     recognition.onresult = (event: any) => {
-      let fullTranscript = '';
-      let hasInterim = false;
+      // 1. Reset 8-second inactivity disconnect timer on any detected user speech
+      resetInactivityDisconnectTimer();
 
-      // Accumulate all speech segments from the start of this turn so no words are ever lost or truncated
+      let sessionFinal = '';
+      let sessionInterim = '';
+
+      // Accumulate all speech segments from this recognition session
       for (let i = 0; i < event.results.length; ++i) {
         const item = event.results[i];
         if (item && item[0]) {
-          fullTranscript += (item[0].transcript || '') + ' ';
-          if (!item.isFinal) {
-            hasInterim = true;
+          const text = (item[0].transcript || '').trim();
+          if (text) {
+            if (item.isFinal) {
+              sessionFinal += (sessionFinal ? ' ' : '') + text;
+            } else {
+              sessionInterim += (sessionInterim ? ' ' : '') + text;
+            }
           }
         }
       }
 
-      const spoken = fullTranscript.trim();
-      if (!spoken) return;
+      // If new finalized chunks exist in this session, commit to turnCommittedSpeechRef
+      if (sessionFinal) {
+        turnCommittedSpeechRef.current = mergeSpeechTranscripts(
+          turnCommittedSpeechRef.current,
+          sessionFinal
+        );
+      }
 
-      // 1. Barge-In: If user speaks while AI is talking, immediately stop AI audio!
+      // Combine all committed words with any live interim words (never overwrite earlier speech!)
+      const fullTurnTranscript = (
+        sessionInterim
+          ? mergeSpeechTranscripts(turnCommittedSpeechRef.current, sessionInterim)
+          : turnCommittedSpeechRef.current
+      ).trim();
+
+      if (!fullTurnTranscript) return;
+
+      // 2. Barge-In: If user speaks while AI is talking, immediately stop AI audio!
       if (isSpeechSynthesisSpeakingRef.current) {
-        const spokenLower = spoken.toLowerCase().trim();
+        const spokenLower = fullTurnTranscript.toLowerCase().trim();
         const aiLower = (currentAiSpeechRef.current || '').toLowerCase().trim();
 
         // Check if customer is asking a question, interrupting, or speaking new words
         const isInterruptionIntent =
           spokenLower.includes('?') ||
-          isCustomerAskingQuestion(spoken) ||
+          isCustomerAskingQuestion(fullTurnTranscript) ||
           /^(wait|stop|oru|ek|suno|listen|price|evlo|kitna|enga|enna|solunga|sollunga|tell|what|how|why|when|where|loan|bhk|advance|rent|buy|puriyudhu|aama|illa|kandippa|pesalam|pesunga|edhukku|yaaru)\b/i.test(spokenLower) ||
           (spokenLower.length > 3 && !aiLower.startsWith(spokenLower));
 
         // It is only pure acoustic echo if it's the exact identical string of the AI's words without user interruption intent
         const isPureEcho = !isInterruptionIntent && aiLower.length > 0 && aiLower === spokenLower;
         if (!isPureEcho) {
-          console.log('[BargeIn via SpeechRecognition] User interrupted with:', spoken);
+          console.log('[BargeIn via SpeechRecognition] User interrupted with:', fullTurnTranscript);
           handleBargeIn();
         } else {
           return;
         }
       }
 
-      // 2. LIVE SPEECH WRITING: Display every word in real-time as the user talks (0ms latency!)
-      setLiveSpeechText(spoken);
+      // 3. LIVE SPEECH WRITING: Display every single word in real-time as the user talks
+      setLiveSpeechText(fullTurnTranscript);
+      userAccumulatedSpeechRef.current = fullTurnTranscript;
 
-      // 3. CAPTURE COMPLETE USER QUERY — Smart Fast-Capture Strategy:
-      // The key insight: Chrome fires isFinal=true ONLY when the user pauses or ends a sentence.
-      // So we watch for the LAST result being isFinal (no more interim) = user truly stopped.
-      //
-      // Timings:
-      // - All results finalized (no interim): user paused → commit fast in 350ms
-      // - Interim still flowing (user mid-sentence): keep window open at 700ms
-      // - Very short single-word answers ("yes","no","aama"): snap to 250ms
-      const wordCount = spoken.trim().split(/\s+/).length;
-      const isShortAnswer =
-        wordCount <= 2 &&
-        /^(yes|no|haan|aama|sari|ok|okay|tamil|hindi|english|illa|illai|vendaam|busy|sure|free|interested)$/i.test(spoken.trim());
+      // Reset the silence timer whenever speech continues or resumes
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
 
-      const silenceWindowMs = isShortAnswer
-        ? 100          // single-word quick reply ("yes", "aama", "tamil") → answer in 100ms
-        : hasInterim
-        ? 300          // still speaking (natural breath pause) → wait 300ms for next word
-        : 130;         // full sentence finalized (isFinal=true) → commit instantly in 130ms
+      // 4. DYNAMIC END-OF-TURN DETECTION:
+      // Turn triggering waiting time directly depends on the user's answer!
+      const { waitMs, statusLabel } = getDynamicSilenceWaitMs(
+        fullTurnTranscript,
+        currentStepRef.current
+      );
 
-      if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
-      interimTimerRef.current = setTimeout(() => {
-        if (!isTurnProcessingRef.current && !isSpeechSynthesisSpeakingRef.current && spoken.length > 0) {
-          console.log('[Turn Complete - Full User Query Captured]:', spoken);
-          dispatchCustomerSpeech(spoken);
+      setIsUserPausing(true);
+      setTurnStatusLabel(statusLabel);
+
+      // 5. Trigger response when silence duration matches the completeness of user's answer:
+      silenceTimerRef.current = setTimeout(() => {
+        setIsUserPausing(false);
+
+        const textToDispatch = (
+          userAccumulatedSpeechRef.current || turnCommittedSpeechRef.current
+        ).trim();
+
+        // Clear turn buffers for next turn
+        userAccumulatedSpeechRef.current = '';
+        turnCommittedSpeechRef.current = '';
+
+        if (!isTurnProcessingRef.current && !isSpeechSynthesisSpeakingRef.current && textToDispatch.length > 0) {
+          console.log(`[Turn Complete - Wait: ${waitMs}ms (${statusLabel})]:`, textToDispatch);
+          dispatchCustomerSpeech(textToDispatch);
         }
-      }, silenceWindowMs);
+      }, waitMs);
     };
 
     recognition.onerror = (event: any) => {
@@ -2102,22 +2464,51 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         setErrorMessage(
           'Microphone permission blocked. Please click the icon in your address bar and allow Microphone.'
         );
+      } else if (event.error === 'no-speech' || event.error === 'network') {
+        // Non-fatal transient errors: keep prefix and restart smoothly
+        isRecognitionRunningRef.current = false;
+        setTimeout(() => {
+          if (callStateRef.current === 'Listening...' && !isTurnProcessingRef.current) {
+            try { recognition.start(); } catch (e) { /* ignore */ }
+          }
+        }, 120);
       }
     };
 
     recognition.onend = () => {
       isRecognitionRunningRef.current = false;
-      // If we are still in an active call and not processing a turn, keep recognition alive!
+      // In Chrome, recognition can fire onend on pauses (e.g. 1s - 2s pause).
+      // We NEVER lose previously recognized words: commit userAccumulatedSpeechRef to turnCommittedSpeechRef!
       if (
         callStateRef.current !== 'Call Completed' &&
         callStateRef.current !== 'Calling...' &&
         !isTurnProcessingRef.current
       ) {
-        try {
-          recognition.start();
-        } catch (e) {
-          // ignore
+        if (userAccumulatedSpeechRef.current.trim()) {
+          turnCommittedSpeechRef.current = mergeSpeechTranscripts(
+            turnCommittedSpeechRef.current,
+            userAccumulatedSpeechRef.current.trim()
+          );
         }
+
+        // Restart recognition after 100ms so speech collection remains active throughout
+        setTimeout(() => {
+          if (
+            callStateRef.current === 'Listening...' &&
+            !isRecognitionRunningRef.current &&
+            !isTurnProcessingRef.current &&
+            !isSpeechSynthesisSpeakingRef.current
+          ) {
+            try {
+              recognition.start();
+            } catch (e) {
+              // If restarting instance fails, create a fresh instance to guarantee 100% uptime
+              try {
+                startContinuousSpeechRecognition();
+              } catch (err2) { /* ignore */ }
+            }
+          }
+        }, 100);
       }
     };
 
@@ -2126,6 +2517,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       recognitionRef.current = recognition;
     } catch (e) {
       console.warn('Recognition start error:', e);
+      setTimeout(() => {
+        if (callStateRef.current === 'Listening...' && !isRecognitionRunningRef.current) {
+          try { recognition.start(); } catch (err2) { /* ignore */ }
+        }
+      }, 150);
     }
   };
 
@@ -2194,8 +2590,23 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           }
           setLiveSpeechText('');
           if (transcript && transcript.trim().length > 0) {
-            if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
-            dispatchCustomerSpeech(transcript.trim());
+            resetInactivityDisconnectTimer();
+            const fullTranscript = mergeSpeechTranscripts(
+              turnCommittedSpeechRef.current,
+              transcript.trim()
+            );
+
+            // If user's speech ended on an incomplete sentence or filler, keep collecting without interrupting
+            if (isIncompleteSentence(fullTranscript)) {
+              turnCommittedSpeechRef.current = fullTranscript;
+              setLiveSpeechText(fullTranscript + ' ...');
+              setTurnStatusLabel('👂 Listening... (take your time)');
+              startServerSTTListening();
+              return;
+            }
+
+            turnCommittedSpeechRef.current = '';
+            dispatchCustomerSpeech(fullTranscript);
           } else {
             startServerSTTListening();
           }
@@ -2212,11 +2623,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       let hasSpoken = false;
       let silenceStart = 0;
       let vadInterval: any = null;
+      let maxSpeechSafetyTimer: any = null;
 
       const stopVAD = () => {
         if (vadInterval) {
           clearInterval(vadInterval);
           vadInterval = null;
+        }
+        if (maxSpeechSafetyTimer) {
+          clearTimeout(maxSpeechSafetyTimer);
+          maxSpeechSafetyTimer = null;
         }
       };
 
@@ -2240,39 +2656,50 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           const averageVolume = sum / dataArray.length;
 
           // Dynamically calibrate ambient room and laptop fan noise in first 120ms
-          if (sampleCount < 4) {
+          if (sampleCount < 6) {
             noiseFloorSum += averageVolume;
             sampleCount++;
-            calibratedNoiseFloor = Math.max(5, Math.min(20, noiseFloorSum / sampleCount));
+            calibratedNoiseFloor = Math.max(4, Math.min(18, noiseFloorSum / sampleCount));
           }
 
-          const speechThreshold = Math.max(11, calibratedNoiseFloor + 5);
-          const silenceThreshold = Math.max(7, calibratedNoiseFloor + 2.5);
+          // Ultra-sensitive speech detection with dynamic ambient calibration
+          const speechThreshold = Math.max(5.0, calibratedNoiseFloor + 1.2);
+          const silenceThreshold = Math.max(3.5, calibratedNoiseFloor + 0.5);
 
           if (averageVolume > speechThreshold) {
             hasSpoken = true;
-            silenceStart = 0;
+            silenceStart = 0; // User is speaking or resumed speaking: RESET silence timer!
+            resetInactivityDisconnectTimer(); // Reset 8-second inactivity disconnect timer
+            setIsUserPausing(false);
+            setLiveSpeechText('🎙️ Hearing you speak...');
           } else if (hasSpoken && averageVolume < silenceThreshold) {
             if (!silenceStart) {
               silenceStart = Date.now();
-            } else if (Date.now() - silenceStart > 220) {
-              // 220ms of silence after speech = user finished sentence → stop recording immediately for sub-2s speed
-              stopVAD();
-              if (recorder.state === 'recording') {
-                try { recorder.stop(); } catch (e) { /* ignore */ }
+              setIsUserPausing(true);
+              setLiveSpeechText('👂 Listening...');
+            } else {
+              const elapsedMs = Date.now() - silenceStart;
+              if (elapsedMs >= 1200) {
+                // Natural silence after speech (1.2s) = user completed utterance!
+                stopVAD();
+                setIsUserPausing(false);
+                if (recorder.state === 'recording') {
+                  try { recorder.stop(); } catch (e) { /* ignore */ }
+                }
               }
             }
           }
         }
       }, 20); // Poll every 20ms for fast silence detection
 
-      // 6-second safety cap — captures long queries without getting stuck forever
-      setTimeout(() => {
+      // 120-second emergency safety cap (2 minutes) to ensure user is never interrupted while explaining something
+      maxSpeechSafetyTimer = setTimeout(() => {
         stopVAD();
+        setIsUserPausing(false);
         if (mediaRecorderRef.current === recorder && recorder.state === 'recording') {
           try { recorder.stop(); } catch (e) { /* ignore */ }
         }
-      }, 6000);
+      }, 120000);
 
     } catch (err) {
       console.warn('[STT] MediaRecorder setup error:', err);
@@ -2337,7 +2764,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0b. Why are you calling? / Edhukku call panneenga?
+    // 0b. Why are you calling? / Ethukku call panreenga? (PDF Section 2)
     if (
       lower.includes('why are you calling') || lower.includes('why did you call') ||
       lower.includes('why call') || lower.includes('edhukku call') || lower.includes('edhuku call') ||
@@ -2345,7 +2772,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('kyun call') || lower.includes('purpose of call')
     ) {
       if (lang === 'Tamil-English') {
-        return 'Neenga property enquiry pannirundheenga-nu record-la irukku. Adha follow up panna dhaan call panninen. Ippo property paakka plan irukka?';
+        return 'Sorry, sudden-aa call pannadhukku. Naan Priya, Lyka Realty-lendhu pesuren. Unga contact enga records-la irukku-nu verify pannittu, property-related enquiry irundhucha-nu politely check panna call panninen. Ippo pesuradhukku comfortable illenna, no problem.';
       } else if (lang === 'Hindi') {
         return '[friendly] Haan ji, aapne property ke liye enquiry ki thi, isliye Lyka Realty se call kiya hai taaki sahi options bata sakein. Kya abhi 2 minute baat kar sakte hain?';
       } else {
@@ -2353,28 +2780,100 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0c. Are you AI? (PDF v4 / v5 Friendly Response)
+    // 0c. I don't know you / Enakku ungala theriyadhe (PDF Section 2)
     if (
-      lower.includes('ai-aa') || lower.includes('are you ai') || lower.includes('are you an ai') ||
-      lower.includes('are you robot') || lower.includes('robot-aa') || lower.includes('human or ai') ||
-      lower.includes('real person') || lower.includes('unmaiyave priya-va')
+      lower.includes("don't know you") || lower.includes("dont know you") ||
+      lower.includes('theriyadhe') || lower.includes('theriyathu') || lower.includes('jaanta nahi')
     ) {
       if (lang === 'Tamil-English') {
-        return '[laughing] Hehe! Naan Priya, Lyka Realty-oda virtual property assistant. Aana sollunga… naan AI madhiri pesuren-aa? [playful]';
+        return 'Puriyudhu. Neenga ennai personally therinjirukkanum-nu avasiyam illa. Naan Lyka Realty team-lendhu call panren. Unexpected call-aa irundhaa sorry. Unga contact source-a naan team kitta verify pannikkaren.';
       } else if (lang === 'Hindi') {
-        return '[laughing] Hehe! Main Priya hoon, Lyka Realty ki virtual property assistant. Waise aapko kya lagta hai, main AI lagti hoon? [playful]';
+        return 'Main samajh sakti hoon. Main Lyka Realty team se hoon, unexpected call ke liye sorry. Main contact source check karke verify kar loongi.';
       } else {
-        return "[laughing] Hehe! I'm Priya, Lyka Realty's virtual property assistant. But tell me… do I really sound like an AI? [playful]";
+        return "I understand. You don't need to know me personally; I am calling from the Lyka Realty team. I apologize for the unexpected call and will verify our records.";
       }
     }
 
-    // 0d. Total Cost Question (PDF Section 3): Indha property total evlo aagum?
+    // 0d. I never asked for a call (PDF Section 2)
+    if (
+      lower.includes('never asked') || lower.includes('request pannala') ||
+      lower.includes('call panna sollala') || lower.includes('kabhi call nahi maanga')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Sorry about that. Neenga request pannala-na, naan insist panna maatten. Unga contact eppadi enga records-ku vandhuchu-nu verify pannuren. Neenga virumbina, indha conversation inga stop pannalaam.';
+      } else if (lang === 'Hindi') {
+        return 'Maaf kijiye. Agar aapne request nahi kiya, toh main insist nahi karungi. Records verify karke agar aap chahein toh call yahin end kar sakte hain.';
+      } else {
+        return 'Sorry about that. If you did not request a call, I will not insist. We can end this conversation right here if you prefer.';
+      }
+    }
+
+    // 0e. Who gave you my number / How did you get my number (PDF Section 2)
+    if (
+      lower.includes('who gave you my number') || lower.includes('how did you get my number') ||
+      lower.includes('yaaru number kudutha') || lower.includes('number eppadi kedachudhu') ||
+      lower.includes('number kahan se mila')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Good question. Unga number enga records-la eppadi add aachu-nu naan verify pannanum. Wrong information kudukka virumbala, guess panni solla maatten. Neenga okay-na, team kitta check pannuren.';
+      } else if (lang === 'Hindi') {
+        return 'Sahi sawaal hai. Main bina verify kiye galat information nahi dena chahti. CRM me contact source check karke team se confirm karwa sakti hoon.';
+      } else {
+        return 'Good question. I need to verify how your number was added to our records rather than guessing. I can check with our team if you wish.';
+      }
+    }
+
+    // 0f. Is this a sales call? (PDF Section 2)
+    if (
+      lower.includes('sales call') || lower.includes('marketing call') ||
+      lower.includes('sales-aa') || lower.includes('marketing-aa')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Idhu Lyka Realty-lendhu property-related follow-up call. Aana neenga interested illenna, pressure panna maatten. Unga preference-a sollunga; adhukku respect pannuren.';
+      } else if (lang === 'Hindi') {
+        return 'Yeh Lyka Realty se property follow-up call hai. Lekin aap interested nahi hain toh koi pressure nahi hai. Aapki choice ki respect karti hoon.';
+      } else {
+        return 'This is a property follow-up call from Lyka Realty. If you are not interested, there is absolutely no pressure. We respect your preference.';
+      }
+    }
+
+    // 0g. Are you AI? (PDF Section 3 Transparent AI Identity)
+    if (
+      lower.includes('ai-aa') || lower.includes('are you ai') || lower.includes('are you an ai') ||
+      lower.includes('are you robot') || lower.includes('robot-aa') || lower.includes('human or ai') ||
+      lower.includes('real person') || lower.includes('unmaiyave priya-va') || lower.includes('are you real') ||
+      lower.includes('real human') || lower.includes('human-aa')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Aama, naan Lyka Realty-oda AI virtual assistant Priya. Unga property-related questions-ku help panna, basic requirements understand panna, suitable options pathi guide panna inga irukken.';
+      } else if (lang === 'Hindi') {
+        return 'Haan, main Lyka Realty ki AI virtual assistant Priya hoon. Aapke property sawaalon me madad karne aur basic requirements samajhne ke liye yahan hoon.';
+      } else {
+        return "Yes, I am Lyka Realty's AI virtual assistant Priya. I am here to understand your requirements and help guide you through verified property options.";
+      }
+    }
+
+    // 0h. Why should I trust Lyka Realty? (PDF Section 4)
+    if (
+      lower.includes('trust lyka') || lower.includes('namburadhu') ||
+      lower.includes('why should i trust') || lower.includes('bharosa')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Neenga verify pannitu dhaan proceed pannanum; adhu romba correct. Company details, listing information and relevant documents-a authorised team moolama check pannalaam. Verify pannaadha information-a naan guarantee panna maatten.';
+      } else if (lang === 'Hindi') {
+        return 'Aapka verify karna bilkul sahi hai. Company aur property documents authorised team ke zariye check kiye ja sakte hain.';
+      } else {
+        return 'You should definitely verify before proceeding. Our authorized team can share company details, verified listings, and documentation.';
+      }
+    }
+
+    // 0i. Total Cost Question (PDF Section 6): Indha property total evlo aagum?
     if (
       lower.includes('total evlo') || lower.includes('total cost') || lower.includes('full cost') ||
       lower.includes('total amount') || lower.includes('extra charges')
     ) {
       if (lang === 'Tamil-English') {
-        return '[thinking] Oru second, latest cost details check panren. [break] Property price-kooda DLD/registration fees, agency fee if applicable, service charges and other costs irukkalaam. Exact breakdown verify pannittu share panren.';
+        return 'Oru second, latest cost details verify panren. Property price-kooda registration fees, agency fee if applicable, service charges and other costs irukkalaam. Exact breakdown check pannittu share panren.';
       } else if (lang === 'Hindi') {
         return '[thinking] Ek second, latest cost details check karti hoon. [break] Property price ke saath registration fees, agency charges aur service costs ho sakte hain. Exact breakdown confirm karke batati hoon.';
       } else {
@@ -2382,7 +2881,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0e. Lowest Price Request (PDF Section 3)
+    // 0j. Lowest Price Request (PDF Section 6)
     if (
       lower.includes('lowest price') || lower.includes('kuraivana vilai') || lower.includes('sabse kam') ||
       lower.includes('cheap property') || lower.includes('kam rate')
@@ -2396,13 +2895,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0f. Legal Approval & Safety (PDF Section 4)
+    // 0k. Legal Approval & Safety (PDF Section 7)
     if (
       lower.includes('legal-aa') || lower.includes('legally approved') || lower.includes('rera approved') ||
       lower.includes('legal approval') || lower.includes('legal status')
     ) {
       if (lang === 'Tamil-English') {
-        return '[calm] Idhu romba important question. Project registration, developer details, escrow information if applicable, title or ownership documents, and sale agreement details official records-la verify pannanum. Naan guess panni confirm panna maatten; legal team kitta check panni share panren.';
+        return 'Idhu romba important question. Project registration, developer details, escrow information if applicable, title or ownership documents and sale agreement details official records-la verify pannanum. Naan guess panni confirm panna maatten; legal team kitta check panni share panren.';
       } else if (lang === 'Hindi') {
         return '[calm] Yeh bahut important sawaal hai. Project registration, escrow details aur title documents verify karna zaroori hai. Hamari legal team confirm karke aapko batayegi.';
       } else {
@@ -2410,7 +2909,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0g. Off-plan Property Safety (PDF Section 4)
+    // 0l. Off-plan Property Safety (PDF Section 7)
     if (
       lower.includes('off-plan') || lower.includes('offplan') || lower.includes('under construction safe')
     ) {
@@ -2423,7 +2922,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0h. Profit / Guarantee Question (PDF Section 4)
+    // 0m. Profit / Guarantee Question (PDF Section 7)
     if (
       lower.includes('profit guarantee') || lower.includes('100% safe') || lower.includes('guarantee irukka') ||
       lower.includes('guaranteed return') || lower.includes('guaranteed profit')
@@ -2437,10 +2936,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0i. Specific JVC Area (PDF Section 5)
+    // 0n. Specific JVC Area (PDF Section 7)
     if (lower.includes('jvc') || lower.includes('jumeirah village')) {
       if (lang === 'Tamil-English') {
-        return '[thinking] Oru second, JVC listings and availability check panren. [break] Current inventory-la match aagura options irundha price, size, handover and payment details share panren.';
+        return 'Oru second, JVC listings and availability check panren. Match aagura verified options irundha price, size, handover and payment details share panren.';
       } else if (lang === 'Hindi') {
         return '[thinking] Ek second, JVC listings check karti hoon. [break] Inventory me jo match hoga, uska price, size aur payment plan share kar doongi.';
       } else {
@@ -2448,7 +2947,21 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // 0j. Dubai Freehold Area (PDF Section 4)
+    // 0o. Where are your properties? / Unga property endha place-la irukku? (PDF Section 7)
+    if (
+      lower.includes('where are your properties') || lower.includes('enga place-la irukku') ||
+      lower.includes('endha place-la irukku') || lower.includes('properties kahan hai')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Dubai-la different areas-la options irukkalaam. Neenga preferred area sonna, current approved listings check panni available options shortlist panren.';
+      } else if (lang === 'Hindi') {
+        return 'Dubai me alag-alag locations me options hain. Aap apna preferred area batayein, hum matching approved properties shortlist kar denge.';
+      } else {
+        return 'We have options across various locations in Dubai. If you share your preferred area, I can check approved listings and shortlist options.';
+      }
+    }
+
+    // 0p. Dubai Freehold Area
     if (lower.includes('freehold') || lower.includes('ownership area')) {
       if (lang === 'Tamil-English') {
         return 'Oru important detail kekkalaama? Dubai-la freehold ownership allow pannura area-la property paakureengala? Ungalukku specific area already irukka?';
@@ -2685,41 +3198,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     speakAIText(answer, getVoiceLangCode());
   };
 
-  // ─── Colloquial NLP Intent Helpers (Supports "Free" vs "Not Free" & Tanglish) ─
-  const isDecliningOrBusy = (text: string): boolean => {
-    const lower = text.toLowerCase().trim();
-    const declineWords = [
-      'not free', 'not free right now', 'no free', 'free illa', 'free illai', 'ippo free illa',
-      'free nahi', 'free nahi hoon', 'busy', 'no', 'not now', 'later', 'call later', 'not available',
-      'nahi', 'baad me', 'samay nahi', 'time nahi',
-      'illa', 'illai', 'vendam', 'venda', 'mudiyadhu', 'neram illa', 'velai irukku', 'aprom', 'apram',
-      'busy-aa', 'busy-ah', 'call pannadheenga'
-    ];
-    return declineWords.some((w) => lower.includes(w));
-  };
 
-  const isAgreeingOrFree = (text: string): boolean => {
-    const lower = text.toLowerCase().trim();
-    // Check positive agreement to "Are you free?" or interest
-    const freeWords = [
-      'free', 'free thaan', 'free-ah irukken', 'free ah irukken', 'i am free', 'yes free', 'haan free hoon', 'free hoon',
-      'yes', 'yeah', 'sure', 'yep', 'ok', 'okay', 'interested', 'fine', 'go ahead', 'speak', 'tell me',
-      'haan', 'theek hai', 'bolo', 'batayein', 'zaroor', 'ha',
-      'aan', 'ah', 'aama', 'aamaa', 'ama', 'sari', 'pesalam', 'pesalaam', 'solunga', 'sollunga', 'solleenga', 'pesunga', 'kandippa',
-      'puriyudhu', 'dharalama', 'kelunga', 'plan irukku'
-    ];
-    return freeWords.some((w) => lower.includes(w));
-  };
-
-  const isNotInterested = (text: string): boolean => {
-    const lower = text.toLowerCase().trim();
-    const coldWords = [
-      'not interested', 'no interest', 'no thanks', 'not looking', 'wrong number',
-      'interest nahi', 'nahi chahiye', 'nahi lena',
-      'interest illa', 'interest illai', 'thevai illa', 'vendam', 'venda', 'vangala', 'idea illa', 'plan illa'
-    ];
-    return coldWords.some((w) => lower.includes(w)) || lower === 'no';
-  };
 
   // STEP 0: Language Selection Prompt (Uses the exact selected Agent so each API speaks for itself!)
   const triggerStep0LanguagePrompt = () => {
@@ -2812,7 +3291,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         appendDialogue('AI', text);
         speakAIText(text, 'hi-IN');
       } else if (lang === 'Tamil-English') {
-        const text = `[happy] Romba nandri${honorific}! [break] Ippo oru 2 nimisham pesalaama Sir?`;
+        const text = `[warm, friendly] Vanakkam${honorific}! Naan Priya, Lyka Realty-lendhu pesuren. Ippo oru nimisham pesuradhukku convenient-aa irukka?`;
         appendDialogue('AI', text);
         speakAIText(text, 'ta-IN');
       } else {
@@ -2826,17 +3305,30 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   // ─── Extractors for Knowledge Base (Property AI PDF Sections 2, 4, 6) ──────
   const parsePurpose = (text: string): string => {
     const lower = text.toLowerCase();
+    if (lower.includes('invest') || lower.includes('investment')) {
+      return 'Investment Purpose (முதலீடு)';
+    }
+    if (lower.includes('own use') || lower.includes('own')) {
+      return 'Own Use (சொந்த உபயோகம்)';
+    }
     if (lower.includes('vaadagai') || lower.includes('rent') || lower.includes('rental') || lower.includes('வாடகை')) {
       return 'வாடகைக்கு வேணும் (Rent)';
     }
     if (lower.includes('nilam') || lower.includes('plot') || lower.includes('dtcp') || lower.includes('நிலம்')) {
       return 'நிலம் வாங்கணும் (Plot)';
     }
-    return 'வீடு வாங்கணும் (Buy House)';
+    if (lower.includes('villa')) return 'Villa (வில்லா)';
+    if (lower.includes('townhouse')) return 'Townhouse';
+    return 'வீடு வாங்கணும் (Buy House / Apartment)';
   };
 
   const parseLocation = (text: string): string => {
     const lower = text.toLowerCase();
+    if (lower.includes('jvc') || lower.includes('jumeirah')) return 'JVC (Jumeirah Village Circle)';
+    if (lower.includes('marina')) return 'Dubai Marina';
+    if (lower.includes('downtown')) return 'Downtown Dubai';
+    if (lower.includes('business bay')) return 'Business Bay, Dubai';
+    if (lower.includes('dubai')) return 'Dubai';
     if (lower.includes('velachery') || lower.includes('வேளச்சேரி')) return 'Velachery / வேளச்சேரி';
     if (lower.includes('omr') || lower.includes('sholinganallur') || lower.includes('சோழிங்கநல்லூர்')) return 'OMR, Sholinganallur / சோழிங்கநல்லூர்';
     if (lower.includes('tambaram') || lower.includes('தாம்பரம்')) return 'Tambaram / தாம்பரம்';
@@ -2848,9 +3340,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   const parseSizeBHK = (text: string): string => {
     const lower = text.toLowerCase();
-    if (lower.includes('1') && (lower.includes('bhk') || lower.includes('flat') || lower.includes('room'))) return '1 BHK';
-    if (lower.includes('2') && (lower.includes('bhk') || lower.includes('flat') || lower.includes('room'))) return '2 BHK';
-    if (lower.includes('3') && (lower.includes('bhk') || lower.includes('flat') || lower.includes('room'))) return '3 BHK';
+    if (lower.includes('studio')) return 'Studio Apartment';
+    if (lower.includes('one bedroom') || lower.includes('1 bedroom') || (lower.includes('1') && (lower.includes('bhk') || lower.includes('flat') || lower.includes('room')))) return '1 BHK / 1 Bedroom';
+    if (lower.includes('two bedroom') || lower.includes('2 bedroom') || (lower.includes('2') && (lower.includes('bhk') || lower.includes('flat') || lower.includes('room')))) return '2 BHK / 2 Bedroom';
+    if (lower.includes('three bedroom') || lower.includes('3 bedroom') || (lower.includes('3') && (lower.includes('bhk') || lower.includes('flat') || lower.includes('room')))) return '3 BHK / 3 Bedroom';
     if (lower.includes('plot') || lower.includes('sq ft') || lower.includes('1200') || lower.includes('நிலம்')) return '1200 sq ft Plot';
     if (lower.includes('house') || lower.includes('individual') || lower.includes('தனி')) return 'Individual House (3 BHK)';
     return text.trim();
@@ -2870,68 +3363,107 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const parseTimeline = (text: string): string => {
     const lower = text.toLowerCase();
     if (lower.includes('udane') || lower.includes('ready') || lower.includes('உடனே') || lower.includes('immediate')) {
-      return 'உடனே Ready-to-move';
+      return 'உடனே Ready-to-move / Immediate';
+    }
+    if (lower.includes('next few months') || lower.includes('few months') || lower.includes('adutha sila maasam')) {
+      return 'Next few months';
+    }
+    if (lower.includes('compare') || lower.includes('comparing') || lower.includes('options')) {
+      return 'Just options compare pannitu irukken';
     }
     if (lower.includes('1 month') || lower.includes('oru maasam') || lower.includes('மாசத்துல')) {
       return 'ஒரு மாசத்துல (Within 1 Month)';
     }
-    return 'Dec 2026 / Short wait fine';
+    return 'Next few months / Short wait fine';
   };
 
   const parseFinance = (text: string): string => {
     const lower = text.toLowerCase();
-    if (lower.includes('cash') || lower.includes('கைப்பணம்') || lower.includes('direct')) {
-      return 'Cash';
+    if (lower.includes('full cash') || lower.includes('cash') || lower.includes('கைப்பணம்') || lower.includes('direct')) {
+      return 'Full Cash';
     }
-    return 'Bank Loan (வங்கி கடன்)';
+    if (lower.includes('developer') || lower.includes('payment plan')) {
+      return 'Developer Payment Plan';
+    }
+    if (lower.includes('mortgage') || lower.includes('bank loan') || lower.includes('loan') || lower.includes('bank')) {
+      return 'Bank Mortgage / Loan';
+    }
+    return 'Bank Mortgage / Loan';
   };
 
-  // Attribute Extractor for Live Lead Qualification Sheet
+  // Attribute Extractor for Live Lead Qualification Sheet (Captures all answers from the caller's complete speech)
   const extractQualificationFromInput = (step: number, input: string, lower: string) => {
-    if (step === 2) {
+    const updates: Partial<typeof qualification> = {};
+
+    // 1. Purpose & Buyer Type
+    if (
+      lower.includes('buy') || lower.includes('vaanga') || lower.includes('rent') ||
+      lower.includes('vaadagai') || lower.includes('plot') || lower.includes('nilam') ||
+      lower.includes('flat') || lower.includes('house') || lower.includes('villa') ||
+      step === 2
+    ) {
       const parsed = parsePurpose(input);
-      updateQualification({
-        purpose: parsed,
-        buyerOrInvestor: parsed.includes('Rent') ? 'Tenant' : parsed.includes('Plot') ? 'Plot Buyer' : 'Home Buyer',
-      });
-    } else if (step === 3) {
-      const area = parseLocation(input);
-      updateQualification({ location: area });
-    } else if (step === 4) {
-      const size = parseSizeBHK(input);
-      updateQualification({ sizeBHK: size });
-    } else if (step === 5) {
-      const budget = parseBudget(input);
-      updateQualification({ budget });
-    } else if (step === 6) {
-      const timeline = parseTimeline(input);
-      updateQualification({ timeline });
-    } else if (step === 7) {
+      updates.purpose = parsed;
+      updates.buyerOrInvestor = parsed.includes('Rent') ? 'Tenant' : parsed.includes('Plot') ? 'Plot Buyer' : 'Home Buyer';
+    }
+
+    // 2. Location
+    if (
+      lower.includes('velachery') || lower.includes('omr') || lower.includes('tambaram') ||
+      lower.includes('porur') || lower.includes('adyar') || lower.includes('chengalpattu') ||
+      lower.includes('sholinganallur') || lower.includes('chennai') || step === 3
+    ) {
+      updates.location = parseLocation(input);
+    }
+
+    // 3. Size / BHK
+    if (lower.includes('bhk') || lower.includes('sq ft') || /\b(1|2|3|4)\b/.test(lower) || step === 4) {
+      updates.sizeBHK = parseSizeBHK(input);
+    }
+
+    // 4. Budget
+    if (
+      lower.includes('lakh') || lower.includes('crore') || lower.includes('cr') ||
+      lower.includes('budget') || lower.includes('around') || /\b\d+\s*(k|l|cr)\b/.test(lower) ||
+      step === 5
+    ) {
+      updates.budget = parseBudget(input);
+    }
+
+    // 5. Timeline
+    if (
+      lower.includes('ready') || lower.includes('udane') || lower.includes('month') ||
+      lower.includes('immediate') || lower.includes('2026') || step === 6
+    ) {
+      updates.timeline = parseTimeline(input);
+    }
+
+    // 6. Finance (Loan vs Cash)
+    if (lower.includes('loan') || lower.includes('cash') || lower.includes('bank') || lower.includes('self') || step === 7) {
       const finance = parseFinance(input);
-      const matched = getMatchedListingFromPDF({ ...qualificationRef.current, loanOrCash: finance });
-      updateQualification({
-        loanOrCash: finance,
-        recommendedProperty: `${matched.id} - ${matched.type} (${matched.location})`,
-      });
-    } else if (step === 8) {
+      updates.loanOrCash = finance;
+      const matched = getMatchedListingFromPDF({ ...qualificationRef.current, ...updates, loanOrCash: finance });
+      updates.recommendedProperty = `${matched.id} - ${matched.type} (${matched.location})`;
+    }
+
+    // 7. Site Visit
+    if (
+      lower.includes('visit') || lower.includes('nerla') || lower.includes('paakkanum') ||
+      lower.includes('weekend') || lower.includes('weekday') || step === 8 || step === 9
+    ) {
       const isPositive =
-        lower.includes('aama') ||
-        lower.includes('ama') ||
-        lower.includes('yes') ||
-        lower.includes('sure') ||
-        lower.includes('paakkanum') ||
-        lower.includes('varren') ||
-        lower.includes('visit') ||
-        lower.includes('ஆமா') ||
-        lower.includes('பாக்கணும்') ||
-        lower.includes('சரி');
+        lower.includes('aama') || lower.includes('ama') || lower.includes('yes') ||
+        lower.includes('sure') || lower.includes('paakkanum') || lower.includes('varren') ||
+        lower.includes('visit') || lower.includes('weekend') || lower.includes('saturday') || lower.includes('sunday');
       if (isPositive) {
-        updateQualification({ siteVisit: 'Yes (Site Visit Requested)' });
+        updates.siteVisit = `Yes - Preferred: ${input.slice(0, 50)}`;
       } else {
-        updateQualification({ siteVisit: 'Brochure only via WhatsApp' });
+        updates.siteVisit = 'Brochure only via WhatsApp';
       }
-    } else if (step === 9) {
-      updateQualification({ siteVisit: `Yes - Preferred: ${input}` });
+    }
+
+    if (Object.keys(updates).length > 0) {
+      updateQualification(updates);
     }
   };
 
@@ -2954,7 +3486,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? `[understanding] Ji Sir, koi baat nahi. Aapke liye kab baat karna convenient rahega? Main us time par call kar ${voiceGenderRef.current === 'male' ? 'sakta hoon' : 'sakti hoon'}. Have a lovely day!`
             : activeLang === 'English'
             ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
-            : '[understanding] Seri Sir, puriyudhu. Neenga free-aa irukkumbodhu pesalaam. Eppo call panna convenient-aa irukkum? Have a lovely day!';
+            : 'Of course, no problem. Disturb pannadhukku sorry. Ungalukku eppo call panna comfortable-aa irukkum? Illenna, neenga free-aa irukkumbodhu pesalaam.';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
@@ -2967,7 +3499,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       }
     }
 
-    // STEP 2: PDF Question 1 (Purpose: வாங்கணுமா, வாடகைக்கா, நிலமா?)
+    // STEP 2: PDF Question 1 (Purpose: Own use vs Investment)
     if (activeStep === 2) {
       if (isNotInterested(input)) {
         const politeEnd =
@@ -2975,7 +3507,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? '[calm] Ji Sir, koi problem nahi. Aapke time ke liye thank you. Aapka din achha rahe!'
             : activeLang === 'English'
             ? '[calm] Absolutely Sir, I understand. Thank you for your time. Have a lovely day!'
-            : '[calm] Seri Sir, parava illa. Unga time-ku romba thanks. Have a wonderful day!';
+            : 'Seri, puriyudhu. Ungaloda time-ku thanks. Disturb pannadhukku sorry. Have a nice day!';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer is not interested.');
@@ -3069,6 +3601,19 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   // Main Customer Input Parser & Flow Controller (STT -> Groq Model / Rule Engine -> TTS)
   const handleCustomerInput = async (input: string) => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    userAccumulatedSpeechRef.current = '';
+    turnCommittedSpeechRef.current = '';
+    speechSessionPrefixRef.current = '';
+    setIsUserPausing(false);
+
     appendDialogue('Customer', input);
     setCurrentTextInput('');
     setLiveSpeechText('');
@@ -3188,7 +3733,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? `[understanding] Ji Sir, koi baat nahi. Aapke liye kab baat karna convenient rahega? Main us time par call kar ${voiceGenderRef.current === 'male' ? 'sakta hoon' : 'sakti hoon'}. Have a lovely day!`
             : activeLang === 'English'
             ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
-            : '[understanding] Seri Sir, puriyudhu. Neenga free-aa irukkumbodhu pesalaam. Eppo call panna convenient-aa irukkum? Have a lovely day!';
+            : 'Of course, no problem. Disturb pannadhukku sorry. Ungalukku eppo call panna comfortable-aa irukkum? Illenna, neenga free-aa irukkumbodhu pesalaam.';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
@@ -3326,73 +3871,73 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const customerName = lead?.name || 'சார்';
     const q = qualificationRef.current;
 
-    // PDF Q1: Purpose (வாங்கணுமா, வாடகைக்கா, நிலமா?)
+    // PDF Q1: Purpose (Own use vs Investment - Section 5)
     if (qNum === 1) {
       if (activeLang === 'Hindi') {
         questionText = `[curious] Bahut shukriya ${customerName}! [break] Aap ghar khareedna chahte hain, rent pe lena hai, ya plot khareedna hai?`;
       } else if (activeLang === 'English') {
         questionText = `[curious] Thank you so much ${customerName}! [break] Are you looking to buy a house, rent one, or buy a plot?`;
       } else {
-        questionText = `[curious] Romba sandhosham ${customerName}! [break] Neenga veedu vaanganuma, vaadagaikku venuma, illa nilam (plot) vaanganuma?`;
+        questionText = `Thank you! Ungalukku Dubai-la property vaanguradhu pathi interest irundhucha? [break] Neenga own use-kkaaga property paakureengala, illa investment purpose-kkaaga paakureengala?`;
       }
     }
 
-    // PDF Q2: Area (எந்த ஏரியால பாக்கறீங்க?)
+    // PDF Q2: Property Type & Location (Section 5)
     else if (qNum === 2) {
       if (activeLang === 'Hindi') {
         questionText = '[curious] Super! [break] Aap kaun se area me dekh rahe hain? Jaise Velachery, OMR, Tambaram, Adyar, Porur ya Chengalpattu.';
       } else if (activeLang === 'English') {
         questionText = '[curious] Great! [break] Which area are you looking at? For example Velachery, OMR, Tambaram, Adyar, Porur, or Chengalpattu.';
       } else {
-        questionText = '[curious] Super! [break] Endha area-la paakareenga? Jaise Velachery, OMR, Tambaram, Porur, Adyar, illana Chengalpattu.';
+        questionText = '[curious] Ungalukku apartment comfortable-aa irukkuma, villa venuma, townhouse or plot paakureengala? [break] Dubai-la endha area unga preference?';
       }
     }
 
-    // PDF Q3: Size (எத்தனை BHK வேணும்? 1, 2, இல்ல 3?)
+    // PDF Q3: Bedrooms and Size (Section 5)
     else if (qNum === 3) {
       if (activeLang === 'Hindi') {
         questionText = '[curious] Sahi hai. [break] Kitne BHK chahiye? 1, 2 ya 3? Ya plot ke liye kitna sq ft?';
       } else if (activeLang === 'English') {
         questionText = '[curious] Okay. [break] How many BHK do you need? 1, 2, or 3? (Or how many sq ft for plots?)';
       } else {
-        questionText = '[curious] Seri Sir. [break] Ethanai BHK venum? 1, 2, illa 3? (Plot-na evvalavu sq ft?)';
+        questionText = '[curious] Ethana bedroom venum-nu yosichirukkeenga? [break] Studio, one bedroom, two bedroom… unga usage-ku edhu suitable?';
       }
     }
 
-    // PDF Q4: Budget (உங்க பட்ஜெட் எவ்வளவு?)
+    // PDF Q4: Budget (Section 5 & 6)
     else if (qNum === 4) {
       if (activeLang === 'Hindi') {
         questionText = '[curious] Samajh gaya. [break] Aapka approximate budget kitna hoga?';
       } else if (activeLang === 'English') {
         questionText = '[curious] Got it. [break] What is your approximate budget?';
       } else {
-        questionText = '[curious] Purinjiduchu Sir. [break] Ungaloda approximate budget evvalavu irukkum?';
+        questionText = '[curious] Budget pathi konjam kekkalaama? [break] Ungalukku comfortable-aa irukkura approximate budget range evlo?';
       }
     }
 
-    // PDF Q5: Timeline (எப்போ குடிபோகணும்?)
+    // PDF Q5: Timeline (Section 5)
     else if (qNum === 5) {
       if (activeLang === 'Hindi') {
         questionText = '[curious] Achha! [break] Kab tak shift hona hai? Immediate ready-to-move chahiye ya thoda wait kar sakte hain?';
       } else if (activeLang === 'English') {
         questionText = '[curious] That helps! [break] When do you want to move in? Should it be ready now, or is a short wait fine?';
       } else {
-        questionText = '[curious] Nalla vishayam Sir. [break] Eppo move-in panna plan? Udane ready-aa irukkanuma, illa konjam naal aanaalum paravaallaya?';
+        questionText = '[curious] Eppo vaangalaam-nu plan panreenga? [break] Immediate-aa, next few months-la, illa just options compare pannitu irukkeengala?';
       }
     }
 
-    // PDF Q6: Finance (லோன் போடப் போறீங்களா, இல்ல cash-ஆ?)
+    // PDF Q6: Payment Method (Section 6)
     else if (qNum === 6) {
       if (activeLang === 'Hindi') {
         questionText = '[curious] Sahi hai. [break] Bank loan lenge ya direct cash me pay karenge?';
       } else if (activeLang === 'English') {
         questionText = '[curious] Perfect. [break] Will you take a bank loan, or pay in cash?';
       } else {
-        questionText = '[curious] Correct Sir. [break] Bank loan eduthu vaanga plan-aa, illa direct cash payment-aa?';
+        questionText = '[curious] Payment epdi plan panreenga? [break] Full cash-aa, bank mortgage-aa, illa developer payment plan consider panreengala?';
       }
     }
 
-    // PDF Step 8: Match Recommendation & Site Visit Offer (Page 3 & 6 Stories)
+    // PDF Step 7: Match Recommendation & Confirmation (Section 9)
     else if (qNum === 7) {
       const matched = getMatchedListingFromPDF(q);
       if (activeLang === 'Hindi') {
@@ -3400,30 +3945,18 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else if (activeLang === 'English') {
         questionText = `${customerName}, there is a ${matched.type} (${matched.id}) in ${matched.location} that fits you! ${matched.size}, price ${matched.price}. Features: ${matched.notes}. We assist with loans through partner banks. Would you like to schedule a site visit?`;
       } else {
-        if (matched.id === 'P101') {
-          questionText = `${customerName}, உங்களுக்கு பொருத்தமா வேளச்சேரில 2BHK flat (P101) இருக்கு. 950 sq ft, விலை 72 லட்சம். உடனே குடிபோகலாம், 2 car parking, lift இருக்கு, MRT பக்கத்துலயே இருக்கு. லோன் உதவி partner bank மூலமா பண்ணித் தர்றோம். Site visit போய் பாக்கறீங்களா?`;
-        } else if (matched.id === 'P102') {
-          questionText = `${customerName}, உங்களுக்கு பொருத்தமா OMR சோழிங்கநல்லூர்ல 3BHK flat (P102) இருக்கு! 1450 sq ft, விலை 1.25 கோடி. Gym, pool, CMDA approved! Possession Dec 2026. Site visit போய் பாக்கறீங்களா?`;
-        } else if (matched.id === 'P103') {
-          questionText = `${customerName}, உங்களுக்கு பொருத்தமா தாம்பரம்ல தனி வீடு (P103) இருக்கு! 1800 sq ft, விலை 1.6 கோடி, East facing, 3 bedrooms, new construction. Site visit போய் பாக்கறீங்களா?`;
-        } else if (matched.id === 'P104') {
-          questionText = `${customerName}, உங்களுக்கு பொருத்தமா செங்கல்பட்டுல DTCP plot (P104) இருக்கு! 1200 sq ft, விலை 18 லட்சம், பட்டா clear, highway பக்கத்துல, bank loan கிடைக்கும். Site visit schedule பண்ணலாமா?`;
-        } else if (matched.id === 'P105') {
-          questionText = `${customerName}, உங்களுக்கு பொருத்தமா போரூர்ல 1BHK வாடகை flat (P105) இருக்கு! 550 sq ft, மாசம் 14,000 ரூபாய். Deposit 3 months. Site visit போய் பாக்கறீங்களா?`;
-        } else {
-          questionText = `${customerName}, உங்களுக்கு பொருத்தமா அடையார்ல 2BHK flat (P106) இருக்கு! 900 sq ft, மாசம் 28,000 ரூபாய். Family only, pets allowed. Site visit போய் பாக்கறீங்களா?`;
-        }
+        questionText = `Seri, naan correct-aa note pannirukkena-nu confirm panren. Neenga ${q.location || matched.location} prefer panreenga; ${q.sizeBHK || matched.type} paakureenga; budget approximately ${q.budget || matched.price}; ${q.purpose || 'own use'} purpose; ${q.timeline || 'next few months'}-la decide panna plan. Correct-aa?`;
       }
     }
 
-    // PDF Step 9: Visit Day Schedule
+    // PDF Step 8: Shortlist Request & Closing (Section 9)
     else if (qNum === 8) {
       if (activeLang === 'Hindi') {
         questionText = 'Zaroor! Site visit ke liye kaun sa din convenient hoga? This weekend aana chahenge ya weekday me?';
       } else if (activeLang === 'English') {
         questionText = 'Sure! Which day would be convenient for the site visit? Would you prefer this weekend or on a weekday?';
       } else {
-        questionText = 'சரிங்க! Site visit எந்த நாள் வசதிப்படும்னு சொல்லுங்க, This Weekend வரீங்களா இல்ல Weekday-ஆ?';
+        questionText = 'Super, thanks for sharing. Indha details base panni verified options shortlist panna team-kitta request panren. Price, availability, fees and legal details confirm pannittu dhaan share pannuvom.';
       }
     }
 
@@ -3439,7 +3972,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? 'Haan bilkul, samajh gayi! Main turant aapka number list se remove kar deti hoon. Aage koi call nahi aayega. Thank you, have a good day!'
         : activeLang === 'English'
         ? "I completely understand! I'm removing your number from our list right away so you won't be contacted again. Thank you, have a good day!"
-        : 'கண்டிப்பா, புரிஞ்சிடுச்சு! உங்க number-ஐ உடனே list-லிருந்து remove பண்ணிடுறேன். இனி disturbance இருக்காது. மிக்க நன்றி, good day!';
+        : 'Kandippa, mannichidunga. Unga request-a Do Not Contact-aa update panna team-kku forward pannuren. Inime sales follow-up panna koodaadhu-nu mark pannuvom. Thank you for letting me know.';
     appendDialogue('AI', endMsg);
     speakAIText(endMsg, getVoiceLangCode(), () => {
       finalizeCall('Completed', 'OPT-OUT', 'Customer requested complete opt-out and number blocking.', false, true);
@@ -3454,7 +3987,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? 'Haan zaroor! Lyka Realty ke senior property advisor aapse jald hi direct call pe baat karenge. Thank you so much!'
         : activeLang === 'English'
         ? "Certainly! I'll have our senior property advisor connect with you directly very shortly. Thank you so much!"
-        : 'நிச்சயமாக! Lyka Realty-ஓட senior property advisor உங்களுக்கு direct-ஆ சீக்கிரம் call பண்ணி பேசுவாங்க. ரொம்ப நன்றி!';
+        : 'Kandippa. Ungalukku human team member kooda pesanum-nu puriyudhu. Unga request-a team-kitta pass pannuren. Convenient time edhu-nu sollunga.';
     appendDialogue('AI', agentMsg);
     speakAIText(agentMsg, getVoiceLangCode(), () => {
       finalizeCall('Completed', 'AGENT_CALLBACK', 'Customer specifically requested a senior human advisor callback.');
@@ -3474,7 +4007,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? `Bahut badhiya ${customerName}! Maine ${matched.location} ke ${matched.id} property site visit ke saare details note kar liye hain. Humare senior sales team aapko call karke price aur availability confirm karenge. Shukriya, have a lovely day!`
         : activeLang === 'English'
         ? `Certainly ${customerName}! I have noted down your site visit request for ${matched.id} in ${matched.location}. Our sales team will call you to confirm all details, pricing, and availability. Thank you so much, have a wonderful day!`
-        : `சரிங்க ${customerName}! உங்க ${matched.locationTa} ${matched.id} site visit request note பண்ணிக்கிட்டேன். எங்க sales team உங்கள கூப்பிடுவாங்க. விலை, availability எல்லாம் அவங்க உறுதி பண்ணுவாங்க. மிக்க நன்றி, have a great day!`;
+        : `Super, thanks for sharing. Indha details base panni verified options shortlist panna team-kitta request panren. Price, availability, fees and legal details confirm pannittu dhaan share pannuvom. Unga time-ku romba thanks! Have a nice day!`;
 
     appendDialogue('AI', concludingMessage);
     speakAIText(concludingMessage, getVoiceLangCode(), () => {
@@ -4304,20 +4837,36 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           <div className="flex items-center space-x-2">
             <span className="text-slate-400 font-medium">Status:</span>
             <span
-              className={`font-bold px-2.5 py-0.5 rounded-full border ${
+              className={`font-bold px-2.5 py-0.5 rounded-full border transition-all ${
                 callState === 'Calling...'
                   ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 animate-pulse'
                   : callState === 'AI Speaking...'
                   ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                   : callState === 'Listening...'
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 animate-pulse'
+                  ? isUserPausing
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 animate-pulse'
                   : callState === 'Connected'
                   ? 'bg-blue-500/15 text-blue-300 border-blue-500/30'
                   : 'bg-zinc-800 text-zinc-300 border-zinc-700'
               }`}
             >
-              {callState}
+              {callState === 'Listening...' && isUserPausing
+                ? turnStatusLabel
+                : callState}
             </span>
+
+            {/* Optional instant response button if user has finished speaking and wants immediate answer */}
+            {callState === 'Listening...' && isUserPausing && (
+              <button
+                type="button"
+                onClick={triggerImmediateTurn}
+                className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold transition-all active:scale-95 flex items-center space-x-1 shadow-sm"
+                title="Finished speaking? Click to generate response immediately"
+              >
+                <span>⚡ Respond Now</span>
+              </button>
+            )}
 
             {/* Free AI Natural Voice Selector & Tester */}
             <div className="relative">
@@ -5096,14 +5645,28 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                 ))
               )}
 
-              {/* Live streaming interim speech indicator */}
+              {/* Live streaming speech & patient listener indicator */}
               {liveSpeechText && (
                 <div className="flex items-start space-x-2.5 justify-end animate-in fade-in">
-                  <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-tr-sm italic">
-                    <span className="text-[10px] font-bold opacity-75 block not-italic">
-                      🎙️ Hearing you...
-                    </span>
-                    {liveSpeechText}
+                  <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-tr-sm">
+                    <div className="flex items-center justify-between text-[10px] font-bold opacity-80 mb-1">
+                      <span>
+                        {isUserPausing
+                          ? turnStatusLabel
+                          : '🎙️ Hearing you speak...'}
+                      </span>
+                      {isUserPausing && (
+                        <button
+                          type="button"
+                          onClick={triggerImmediateTurn}
+                          className="ml-2 px-2 py-0.5 rounded bg-emerald-500/30 hover:bg-emerald-500/50 text-emerald-200 border border-emerald-400/40 text-[10px] font-bold transition-all active:scale-95"
+                          title="Click if you have finished speaking"
+                        >
+                          Respond Now ⚡
+                        </button>
+                      )}
+                    </div>
+                    <span className="italic">{liveSpeechText}</span>
                   </div>
                   <div className="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
                     <Mic className="w-3.5 h-3.5 animate-pulse" />
@@ -5112,14 +5675,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               )}
 
               {/* Live AI Thinking / Writing Bubble Indicator */}
-              {(isGroqThinking || isGeminiThinking) && (
+              {(isGroqThinking || isGeminiThinking || isOpenAiThinking) && (
                 <div className="flex items-start space-x-2.5 justify-start animate-in fade-in">
                   <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
                     <Bot className="w-3.5 h-3.5" />
                   </div>
                   <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-slate-800/90 text-slate-300 border border-slate-700/60 rounded-tl-sm flex items-center space-x-2">
                     <span className="text-[10px] font-bold text-amber-400">
-                      {voiceGender === 'female' ? '👧 Priya' : '👦 Karthik'} is writing...
+                      {voiceGender === 'female' ? '👧 Priya' : '👦 Karthik'} is thinking...
                     </span>
                     <span className="flex space-x-1 items-center">
                       <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
