@@ -65,10 +65,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onOpenSettings}
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 transition-colors"
-            title="Vapi Phone & API Configuration"
+            title="AI Voice Engine & Telecalling Settings"
           >
-            <Settings className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Vapi Config</span>
+            <Settings className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">AI Voice Settings</span>
           </button>
 
           <button

@@ -3,6 +3,7 @@ import { X, Play, Bot, CheckCircle, AlertCircle, Phone, Sparkles, Volume2, Volum
 import { Lead } from '../types';
 import { simulateCallAPI } from '../services/campaignService';
 import { VoiceSphere3D } from './VoiceSphere3D';
+import { TalkHistorySection } from './TalkHistorySection';
 
 interface CallSimulatorModalProps {
   isOpen: boolean;
@@ -266,25 +267,34 @@ export const CallSimulatorModal: React.FC<CallSimulatorModalProps> = ({
               )}
 
               {result.transcript && (
-                <div className="pt-1 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => toggleAudio(result.transcript)}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-950/80 text-purple-200 border border-purple-700/60 hover:bg-purple-900/80 transition-colors"
-                  >
-                    {isPlayingAudio ? (
-                      <>
-                        <VolumeX className="w-3.5 h-3.5 text-rose-400" />
-                        <span>Stop Voice Playback</span>
-                      </>
-                    ) : (
-                      <>
-                        <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Listen to Call Audio (Spoken Aloud)</span>
-                      </>
-                    )}
-                  </button>
-                  <span className="text-[11px] text-slate-400">Plays simulated conversation</span>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => toggleAudio(result.transcript)}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-950/80 text-purple-200 border border-purple-700/60 hover:bg-purple-900/80 transition-colors"
+                    >
+                      {isPlayingAudio ? (
+                        <>
+                          <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                          <span>Stop Voice Playback</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Listen to Call Audio (Spoken Aloud)</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[11px] text-slate-400">Plays simulated conversation</span>
+                  </div>
+
+                  <TalkHistorySection
+                    rawTranscript={result.transcript}
+                    customerName={selectedLead?.name || leads.find((l) => l.id === leadId)?.name || 'Customer'}
+                    aiName="👧 Priya (AI Telecaller)"
+                    compact={true}
+                  />
                 </div>
               )}
 

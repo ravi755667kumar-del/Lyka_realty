@@ -16,3 +16,4 @@ groq-config.local.json
 serviceAccountKey.json
 .next/
 *.tsbuildinfo
+test_audio_outputs/

@@ -37,8 +37,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToAdmin }) =
         </div>
         <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 text-center space-y-3">
           <Phone className="w-8 h-8 text-blue-400 mx-auto" />
-          <h3 className="text-lg font-bold text-white">PSTN Calling</h3>
-          <p className="text-sm text-slate-400">Directly calls mobile networks via Vapi to instantly reach real customers.</p>
+          <h3 className="text-lg font-bold text-white">Voice Calling</h3>
+          <p className="text-sm text-slate-400">Directly calls mobile networks or runs real-time voice in-browser to qualify leads.</p>
         </div>
         <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 text-center space-y-3">
           <ShieldCheck className="w-8 h-8 text-emerald-400 mx-auto" />

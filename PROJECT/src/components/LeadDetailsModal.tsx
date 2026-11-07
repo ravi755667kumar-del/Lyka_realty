@@ -195,6 +195,7 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
           <div className="space-y-2">
             <TalkHistorySection
               rawTranscript={lead.transcript}
+              qaHistory={lead.qaHistory}
               customerName={lead.name}
               aiName="👧 Priya (Lyka Realty)"
             />

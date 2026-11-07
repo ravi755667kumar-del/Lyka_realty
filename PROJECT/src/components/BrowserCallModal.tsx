@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X,
   Phone,
@@ -22,13 +22,43 @@ import {
   ChevronDown,
   Check,
   MessageSquare,
+  Settings,
+  Zap,
 } from 'lucide-react';
 import { Lead, LeadOutcome } from '../types';
 import { saveLeadLanguage, completeBrowserCallSession } from '../services/leadService';
-import { sarvamTTS, sarvamSTT, groqChat } from '../services/campaignService';
-import { refineForSpeech } from '../lib/speech';
+import {
+  groqChat,
+  geminiChat,
+  openaiChat,
+  groqSTT,
+  groqTTS,
+  geminiSTT,
+  geminiTTS,
+  openaiSTT,
+  openaiTTS,
+  speechifyTTS,
+  cartesiaTTS,
+  deepgramTTS,
+  deepgramSTT,
+  sarvamTTS,
+  sarvamSTT,
+  murfTTS,
+  getGeminiConfig,
+  getGroqConfig,
+  getOpenAIConfig,
+} from '../services/campaignService';
+import {
+  prepareSpeech,
+  getSpeechDelivery,
+  getDefaultTtsForBrain,
+  SpeechEmotion,
+  SpeechLanguage,
+  detectCustomerEmotion,
+  refineForSpeech,
+} from '../lib/speech';
 import { VoiceSphere3D } from './VoiceSphere3D';
-import { TalkHistorySection } from './TalkHistorySection';
+import { TalkHistorySection, parseTranscriptToQAPairs } from './TalkHistorySection';
 
 
 interface BrowserCallModalProps {
@@ -46,6 +76,65 @@ interface BrowserCallModalProps {
 type CallState = 'Calling...' | 'Connected' | 'AI Speaking...' | 'Listening...' | 'Call Completed';
 
 type LanguageOption = 'English' | 'Hindi' | 'Tamil-English';
+
+type TtsEngineChoice = 'cartesia' | 'deepgram' | 'speechify' | 'groq' | 'sarvam' | 'murf' | 'gemini' | 'openai' | 'browser';
+type SttEngineChoice = 'browser' | 'deepgram' | 'groq' | 'sarvam' | 'gemini' | 'openai';
+type BrainEngineChoice = 'gemini' | 'groq' | 'openai' | 'rules';
+type VoiceGender = 'female' | 'male';
+type ConversationStyle = 'engaging' | 'polite';
+
+const GEMINI_MODEL_OPTIONS = [
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Ultra-fast sub-second telecaller response (Recommended)' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', desc: 'Flagship multimodal speed & accuracy' },
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', desc: 'Fast, lightweight multimodal reasoning' },
+];
+
+const GROQ_MODEL_OPTIONS = [
+  { id: 'qwen/qwen3.8-27b', label: 'Qwen 3.8 27B (Groq)', desc: 'Fast, conversational multilingual reasoning' },
+  { id: 'qwen-2.5-32b', label: 'Qwen 2.5 32B (Groq)', desc: 'High accuracy Tanglish reasoning' },
+  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)', desc: 'Comprehensive reasoning model' },
+];
+
+const OPENAI_TTS_MODELS = [
+  { id: 'tts-1', label: 'OpenAI tts-1', desc: 'Real-time low-latency text-to-speech (Recommended)' },
+  { id: 'tts-1-hd', label: 'OpenAI tts-1-hd', desc: 'High definition studio audio quality' },
+  { id: 'gpt-4o-mini-tts', label: 'OpenAI gpt-4o-mini-tts', desc: 'Next-gen generative voice synthesis' },
+];
+
+const OPENAI_TTS_VOICES = [
+  { id: 'nova', label: 'Nova (Priya — Warm, Natural & Friendly 👧)', gender: 'female' },
+  { id: 'shimmer', label: 'Shimmer (Priya — Clear, Upbeat & Cheerful 👧)', gender: 'female' },
+  { id: 'coral', label: 'Coral (Priya — Expressive & Engaging 👧)', gender: 'female' },
+  { id: 'alloy', label: 'Alloy (Neutral & Balanced 🎙️)', gender: 'neutral' },
+  { id: 'onyx', label: 'Onyx (Karthik — Deep & Authoritative 👦)', gender: 'male' },
+  { id: 'echo', label: 'Echo (Karthik — Smooth & Conversational 👦)', gender: 'male' },
+  { id: 'ash', label: 'Ash (Karthik — Modern & Confident 👦)', gender: 'male' },
+  { id: 'fable', label: 'Fable (British Accent 🇬🇧)', gender: 'neutral' },
+  { id: 'sage', label: 'Sage (Calm & Soothing 🌿)', gender: 'neutral' },
+];
+
+const OPENAI_STT_MODELS = [
+  { id: 'whisper-1', label: 'OpenAI Whisper-1', desc: 'Industry standard robust multilingual STT' },
+  { id: 'gpt-4o-mini-transcribe', label: 'OpenAI GPT-4o Mini Transcribe', desc: 'Fast conversational audio transcription' },
+  { id: 'gpt-4o-transcribe', label: 'OpenAI GPT-4o Transcribe', desc: 'Highest accuracy multimodal transcription' },
+];
+
+const OPENAI_BRAIN_MODELS = [
+  { id: 'gpt-4o-mini', label: 'OpenAI GPT-4o Mini', desc: 'Sub-second fast, smart & cost-effective (Recommended)' },
+  { id: 'gpt-4o', label: 'OpenAI GPT-4o', desc: 'Flagship high-intelligence multimodal model' },
+  { id: 'gpt-4.1-mini', label: 'OpenAI GPT-4.1 Mini', desc: 'Latest generation efficient reasoning' },
+  { id: 'gpt-4.1', label: 'OpenAI GPT-4.1', desc: 'Latest flagship frontier intelligence' },
+];
+
+function readStoredChoice<T extends string>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const val = localStorage.getItem(key);
+    return (val as T) || fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 interface ScriptDialogue {
   speaker: 'AI' | 'Customer';
@@ -168,6 +257,57 @@ const getMatchedListingFromPDF = (q: {
   return PDF_PROPERTY_LISTINGS[0];
 };
 
+// ─── Strict work-focus: politely redirect off-topic chit-chat (never engage) ──
+const OFFTOPIC_TOPICS = [
+  'joke', 'jokes', 'funny', 'cricket', 'ipl', 'movie', 'film', 'cinema', 'song', 'music',
+  'politics', 'election', 'weather', 'football', 'tennis', 'recipe', 'astrology', 'horoscope',
+  'raasi', 'jadhagam', 'your age', 'unga age', 'aapki age', 'girlfriend', 'boyfriend',
+  'propose', 'marry', 'marriage', 'kalyanam', 'coding', 'python', 'homework', 'exam',
+  'syllabus', 'chatgpt', 'birthday', 'dance', 'photo',
+];
+
+// Business words always win over the off-topic list (e.g. "I love this flat" is on-topic)
+const PROPERTY_WORDS = [
+  'property', 'flat', 'house', 'plot', 'land', 'bhk', 'price', 'budget', 'rent', 'buy',
+  'sale', 'visit', 'location', 'velachery', 'omr', 'sholinganallur', 'tambaram', 'adyar',
+  'porur', 'chengalpattu', 'crore', 'lakh', 'booking', 'loan', 'site', 'apartment',
+  'veedu', 'வீடு', 'வாடகை', 'நிலம்', 'பாக்க', 'சொத்து', 'விலை',
+];
+
+const isOffTopicSmallTalk = (text: string): boolean => {
+  const lower = (text || '').toLowerCase().trim();
+  if (!lower || lower.length > 140) return false;
+  if (PROPERTY_WORDS.some((word) => lower.includes(word))) return false;
+  return OFFTOPIC_TOPICS.some((word) => lower.includes(word));
+};
+
+// Rotating polite redirects — wording changes every time so it never sounds robotic
+const OFFTOPIC_REDIRECTS: Record<'English' | 'Hindi' | 'Tamil-English', string[]> = {
+  English: [
+    "I'm sorry, I'm here to help you with property-related queries. How can I assist you with that?",
+    "That's outside my area of assistance. Let's get back to your requirements — I can help with property details, pricing, and bookings.",
+    'I can help you with property details, pricing, and site-visit bookings. Shall we continue with your requirement?',
+  ],
+  Hindi: [
+    'Maaf kijiye, main sirf property se related madad ke liye hoon. Batayein, property me kya assistance chahiye?',
+    'Ye mere kaam ke area se bahar hai. Chaliye aapki requirement pe baat karein — property, price ya booking?',
+    'Main property details, pricing aur site visit booking me help kar sakti hoon. Aapki requirement kya hai?',
+  ],
+  'Tamil-English': [
+    'Sorry Sir, idhu en working area-la illa. Property details, price, booking — idhula naan full-ah help panren!',
+    'Adha naan answer panna mudiyathu Sir, but property-la edhavadhu venumaa? Site visit details sollattuma?',
+    'Naan property assistant dhaan Sir. Unga requirement sollunga — budget illa location?',
+  ],
+};
+
+let offTopicRedirectIndex = 0;
+const getNextOffTopicRedirect = (lang: LanguageOption | null): string => {
+  const lines = OFFTOPIC_REDIRECTS[lang === 'Hindi' ? 'Hindi' : lang === 'Tamil-English' ? 'Tamil-English' : 'English'];
+  const line = lines[offTopicRedirectIndex % lines.length];
+  offTopicRedirectIndex += 1;
+  return line;
+};
+
 export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   lead,
   isOpen,
@@ -181,6 +321,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 }) => {
   // Call States
   const [callState, setCallState] = useState<CallState>('Calling...');
+  const [initialLanguage, setInitialLanguage] = useState<LanguageOption>('Tamil-English');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [dialogue, setDialogue] = useState<ScriptDialogue[]>([]);
@@ -229,6 +370,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const qualificationRef = useRef(qualification);
   const isSpeechSynthesisSpeakingRef = useRef<boolean>(false);
   const isRecognitionRunningRef = useRef<boolean>(false);
+  const currentAiSpeechRef = useRef<string>('');
+  const turnCounterRef = useRef<number>(0);
 
   // System Refs
   const callStartTimeRef = useRef<number>(Date.now());
@@ -244,21 +387,102 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const animFrameRef = useRef<number | null>(null);
   const dialogueEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Sarvam AI — TTS audio element + availability flag
-  const [sarvamAvailable, setSarvamAvailable] = useState<boolean>(false);
-  const sarvamAudioRef = useRef<HTMLAudioElement | null>(null);
-  // For Sarvam STT — MediaRecorder to capture audio chunks for upload
+  // Voice Gender Persona: 'female' (Priya) vs 'male' (Karthik) with client attraction psychology
+  const [voiceGender, setVoiceGender] = useState<VoiceGender>(() =>
+    readStoredChoice('lyka_voice_gender', 'female') as VoiceGender
+  );
+  const voiceGenderRef = useRef<VoiceGender>(voiceGender);
+  const agentName = voiceGender === 'female' ? 'Priya' : 'Karthik';
+  const [conversationStyle, setConversationStyle] = useState<ConversationStyle>(() =>
+    readStoredChoice('lyka_conversation_style', 'polite') as ConversationStyle
+  );
+  const conversationStyleRef = useRef<ConversationStyle>(conversationStyle);
+
+  // AI Engines & Model Selectors
+  const [brainEngine, setBrainEngine] = useState<BrainEngineChoice>(() => {
+    const stored = readStoredChoice('lyka_brain_engine', 'gemini') as BrainEngineChoice;
+    return stored === 'groq' ? 'gemini' : (stored || 'gemini');
+  });
+  const brainEngineRef = useRef<BrainEngineChoice>(brainEngine);
+
+  const [ttsEngine, setTtsEngine] = useState<TtsEngineChoice>(() =>
+    readStoredChoice('lyka_tts_engine', 'cartesia') as TtsEngineChoice
+  );
+  const ttsEngineRef = useRef<TtsEngineChoice>(ttsEngine);
+
+  const [sttEngine, setSttEngine] = useState<SttEngineChoice>(() =>
+    readStoredChoice('lyka_stt_engine', 'browser') as SttEngineChoice
+  );
+  const sttEngineRef = useRef<SttEngineChoice>(sttEngine);
+
+  const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
+    const stored = readStoredChoice<string>('lyka_gemini_model', 'gemini-2.5-flash');
+    return stored === 'gemini-3.8-flash' ? 'gemini-2.5-flash' : (stored || 'gemini-2.5-flash');
+  });
+  const selectedGeminiModelRef = useRef<string>(selectedGeminiModel);
+
+  const [selectedGroqModel, setSelectedGroqModel] = useState<string>(() =>
+    readStoredChoice('lyka_groq_model', 'qwen/qwen3.8-27b')
+  );
+  const selectedGroqModelRef = useRef<string>(selectedGroqModel);
+
+  const [useGroqModel, setUseGroqModel] = useState<boolean>(true);
+  const useGroqModelRef = useRef<boolean>(true);
+  const [isGroqThinking, setIsGroqThinking] = useState<boolean>(false);
+  const [isGeminiThinking, setIsGeminiThinking] = useState<boolean>(false);
+
+  // Multi-Engine Provider Availability States (Gemini, Groq & OpenAI)
+  const [groqAvailable, setGroqAvailable] = useState<boolean>(false);
+  const [geminiAvailable, setGeminiAvailable] = useState<boolean>(false);
+  const [openaiAvailable, setOpenaiAvailable] = useState<boolean>(false);
+
+  // OpenAI Model & Voice Selectors
+  const [selectedOpenAiTtsModel, setSelectedOpenAiTtsModel] = useState<string>(() =>
+    readStoredChoice('lyka_openai_tts_model', 'tts-1')
+  );
+  const selectedOpenAiTtsModelRef = useRef<string>(selectedOpenAiTtsModel);
+
+  const [selectedOpenAiVoice, setSelectedOpenAiVoice] = useState<string>(() =>
+    readStoredChoice('lyka_openai_voice', 'nova')
+  );
+  const selectedOpenAiVoiceRef = useRef<string>(selectedOpenAiVoice);
+
+  const [selectedOpenAiSttModel, setSelectedOpenAiSttModel] = useState<string>(() =>
+    readStoredChoice('lyka_openai_stt_model', 'whisper-1')
+  );
+  const selectedOpenAiSttModelRef = useRef<string>(selectedOpenAiSttModel);
+
+  const [selectedOpenAiBrainModel, setSelectedOpenAiBrainModel] = useState<string>(() =>
+    readStoredChoice('lyka_openai_brain_model', 'gpt-4o-mini')
+  );
+  const selectedOpenAiBrainModelRef = useRef<string>(selectedOpenAiBrainModel);
+
+  const [isOpenAiThinking, setIsOpenAiThinking] = useState<boolean>(false);
+
+  // Pre-Call Engine Setup Screen vs Live In-Call Screen
+  const [callPhase, setCallPhase] = useState<'setup' | 'in_call'>('setup');
+
+  // Turn-Taking, Audio Deduplication & Mutual Exclusion Refs
+  const lastDispatchedTextRef = useRef<string>('');
+  const lastDispatchedTimeRef = useRef<number>(0);
+  const lastCustomerEmotionRef = useRef<SpeechEmotion>('neutral');
+  // Strict work-focus: consecutive off-topic turns (3 → polite close of call)
+  const offTopicTurnsRef = useRef<number>(0);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const bargeInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // High-Speed Startup Audio Pre-Cache (eliminates cold-start latency)
+  const prefetchedGreetingRef = useRef<{
+    key: string;
+    audio: string;
+    format: string;
+    promise?: Promise<void>;
+  } | null>(null);
+
+  // For Gemini & Groq STT — MediaRecorder to capture audio chunks for upload
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const isRecordingRef = useRef<boolean>(false);
-
-  // Groq AI LLM model integration (STT -> Groq Model -> TTS)
-  const [groqAvailable, setGroqAvailable] = useState<boolean>(false);
-  const [useGroqModel, setUseGroqModel] = useState<boolean>(true);
-  const [selectedGroqModel, setSelectedGroqModel] = useState<string>('llama-3.3-70b-versatile');
-  const [isGroqThinking, setIsGroqThinking] = useState<boolean>(false);
-  const useGroqModelRef = useRef<boolean>(true);
-  const selectedGroqModelRef = useRef<string>('llama-3.3-70b-versatile');
 
 
   // Sync state to refs immediately
@@ -275,6 +499,134 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const updateSelectedLanguage = (newLang: LanguageOption) => {
     selectedLanguageRef.current = newLang;
     setSelectedLanguage(newLang);
+    if (newLang) setInitialLanguage(newLang);
+  };
+
+  const updateVoiceGender = (gender: VoiceGender) => {
+    setVoiceGender(gender);
+    voiceGenderRef.current = gender;
+    localStorage.setItem('lyka_voice_gender', gender);
+  };
+
+  const updateConversationStyle = (style: ConversationStyle) => {
+    setConversationStyle(style);
+    conversationStyleRef.current = style;
+    localStorage.setItem('lyka_conversation_style', style);
+  };
+
+  const updateBrainEngine = (engine: BrainEngineChoice) => {
+    setBrainEngine(engine);
+    brainEngineRef.current = engine;
+    localStorage.setItem('lyka_brain_engine', engine);
+  };
+
+  const updateTtsEngine = (engine: TtsEngineChoice) => {
+    setTtsEngine(engine);
+    ttsEngineRef.current = engine;
+    localStorage.setItem('lyka_tts_engine', engine);
+
+    // When choosing TTS, automatically activate that TTS engine's female voice (Priya)
+    updateVoiceGender('female');
+  };
+
+  const updateSttEngine = (engine: SttEngineChoice) => {
+    setSttEngine(engine);
+    sttEngineRef.current = engine;
+    localStorage.setItem('lyka_stt_engine', engine);
+  };
+
+  const updateGeminiModelChoice = (model: string) => {
+    setSelectedGeminiModel(model);
+    selectedGeminiModelRef.current = model;
+    localStorage.setItem('lyka_gemini_model', model);
+  };
+
+  const updateGroqModelChoice = (model: string) => {
+    setSelectedGroqModel(model);
+    selectedGroqModelRef.current = model;
+    localStorage.setItem('lyka_groq_model', model);
+  };
+
+  const updateOpenAiTtsModelChoice = (model: string) => {
+    setSelectedOpenAiTtsModel(model);
+    selectedOpenAiTtsModelRef.current = model;
+    localStorage.setItem('lyka_openai_tts_model', model);
+  };
+
+  const updateOpenAiVoiceChoice = (voice: string) => {
+    setSelectedOpenAiVoice(voice);
+    selectedOpenAiVoiceRef.current = voice;
+    localStorage.setItem('lyka_openai_voice', voice);
+  };
+
+  const updateOpenAiSttModelChoice = (model: string) => {
+    setSelectedOpenAiSttModel(model);
+    selectedOpenAiSttModelRef.current = model;
+    localStorage.setItem('lyka_openai_stt_model', model);
+  };
+
+  const updateOpenAiBrainModelChoice = (model: string) => {
+    setSelectedOpenAiBrainModel(model);
+    selectedOpenAiBrainModelRef.current = model;
+    localStorage.setItem('lyka_openai_brain_model', model);
+  };
+
+  const applyPreset = (preset: string) => {
+    // Automatically set female voice for all presets as requested
+    updateVoiceGender('female');
+
+    if (preset === 'ultrafast') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('cartesia'); // Ultra-low 90ms latency
+      updateSttEngine('browser'); // Fast 0ms real-time speech streaming
+    } else if (preset === 'openai') {
+      updateBrainEngine('openai');
+      updateOpenAiBrainModelChoice('gpt-4o-mini');
+      updateTtsEngine('openai');
+      updateOpenAiTtsModelChoice('tts-1');
+      updateOpenAiVoiceChoice('nova');
+      updateSttEngine('openai');
+      updateOpenAiSttModelChoice('whisper-1');
+    } else if (preset === 'cartesia') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('cartesia');
+      updateSttEngine('browser');
+    } else if (preset === 'deepgram') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('deepgram');
+      updateSttEngine('deepgram');
+    } else if (preset === 'speechify') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('speechify');
+      updateSttEngine('browser');
+    } else if (preset === 'sarvam') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('sarvam');
+      updateSttEngine('sarvam');
+    } else if (preset === 'murf') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('murf');
+      updateSttEngine('browser');
+    } else if (preset === 'groq') {
+      updateBrainEngine('groq');
+      updateTtsEngine('groq');
+      updateSttEngine('groq');
+    } else if (preset === 'gemini') {
+      updateBrainEngine('gemini');
+      updateGeminiModelChoice('gemini-2.5-flash');
+      updateTtsEngine('gemini');
+      updateSttEngine('gemini');
+    } else if (preset === 'free') {
+      updateBrainEngine('rules');
+      updateTtsEngine('browser');
+      updateSttEngine('browser');
+    }
   };
 
   const updateQualification = (updates: Partial<typeof qualification>) => {
@@ -302,36 +654,33 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     };
   }, [callState]);
 
-  // Voice Quality Scorer: Prioritizes hyper-natural neural girl voices and excludes legacy robotic desktop synthesizers
-  const getVoiceQualityScore = (voice: SpeechSynthesisVoice): number => {
+  const isMaleVoiceName = (name: string): boolean => {
+    const lower = name.toLowerCase();
+    const maleNames = ['male', 'david', 'george', 'ravi', 'mark', 'guy', 'stefan', 'james', 'richard', 'daniel', 'sean', 'paul', 'prabhat', 'karthik', 'madhur', 'andrew', 'brian'];
+    return maleNames.some((m) => lower.includes(m));
+  };
+
+  const isFemaleVoiceName = (name: string): boolean => {
+    const lower = name.toLowerCase();
+    const femaleNames = ['female', 'girl', 'woman', 'kavya', 'pooja', 'anushka', 'sangeeta', 'veena', 'neerja', 'swara', 'jenny', 'aria', 'emma', 'ava', 'samantha', 'zira', 'heera'];
+    return femaleNames.some((f) => lower.includes(f));
+  };
+
+  // Voice Quality Scorer: Ranks natural voices for active gender (Girl "Priya" / Boy "Karthik")
+  const getVoiceQualityScore = (voice: SpeechSynthesisVoice, targetGender: VoiceGender = voiceGenderRef.current): number => {
     const name = (voice.name || '').toLowerCase();
     const lang = (voice.lang || '').toLowerCase();
     let score = 0;
 
-    // Disqualify male voices immediately
-    if (
-      name.includes('male') ||
-      name.includes('david') ||
-      name.includes('george') ||
-      name.includes('ravi') ||
-      name.includes('mark') ||
-      name.includes('guy') ||
-      name.includes('stefan') ||
-      name.includes('james') ||
-      name.includes('richard') ||
-      name.includes('daniel') ||
-      name.includes('sean') ||
-      name.includes('paul')
-    ) {
-      return -100;
+    if (targetGender === 'female' && isMaleVoiceName(name)) return -100;
+    if (targetGender === 'male' && isFemaleVoiceName(name)) return -100;
+
+    // Heavy penalty for old robotic desktop SAPI 5 synthesizers
+    if (name.includes('desktop') && !name.includes('natural')) {
+      score -= 80;
     }
 
-    // Heavy penalty for old robotic desktop SAPI 5 synthesizers (Windows legacy Heera / Zira)
-    if (name.includes('desktop') || (name.includes('heera') && !name.includes('natural')) || (name.includes('zira') && !name.includes('natural'))) {
-      score -= 100;
-    }
-
-    // Tier 1: Natural / Online Neural voices (Azure & Edge neural female voices)
+    // Tier 1: Natural / Online Neural voices (Azure & Edge neural voices)
     if (name.includes('natural') || name.includes('online') || name.includes('neural')) {
       score += 180;
     }
@@ -341,70 +690,36 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       score += 140;
     }
 
-    // Premium Indian English & Hindi natural voices
-    if (name.includes('neerja') || (name.includes('swara') && lang.includes('hi'))) {
-      score += 100;
-    } else if (lang.includes('in') && (name.includes('natural') || name.includes('google'))) {
+    // Indian accent voices
+    if (lang.includes('in')) {
       score += 80;
-    }
-
-    // Google UK English Female in Chrome sounds exceptionally smooth, human, and clear
-    if (name.includes('uk english female') || name.includes('british english female')) {
-      score += 90;
-    }
-
-    // Other top-rated realistic female voices
-    if (name.includes('jenny') || name.includes('aria') || name.includes('emma') || name.includes('ava') || name.includes('samantha')) {
-      score += 70;
-    }
-
-    // General female indicator
-    if (
-      name.includes('female') ||
-      name.includes('girl') ||
-      name.includes('woman') ||
-      name.includes('kavya') ||
-      name.includes('pooja') ||
-      name.includes('priya') ||
-      name.includes('anushka') ||
-      name.includes('sangeeta') ||
-      name.includes('veena')
-    ) {
-      score += 40;
     }
 
     return score;
   };
 
-  // Test Voice sample generator
-  const testVoiceSample = (voiceURI?: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-    } catch (e) { /* ignore */ }
-
-    const targetURI = voiceURI || selectedVoiceURIRef.current;
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find((v) => v.voiceURI === targetURI);
+  // Test audio voice sample preview for active persona and TTS engine
+  const testVoiceSample = (voiceURI?: string, genderOverride?: VoiceGender) => {
+    if (genderOverride && genderOverride !== voiceGenderRef.current) {
+      updateVoiceGender(genderOverride);
+    }
+    const activeGender = genderOverride || voiceGenderRef.current;
+    const testName = activeGender === 'male' ? 'Karthik' : 'Priya';
+    const lang = selectedLanguageRef.current || initialLanguage || 'Tamil-English';
 
     const testText =
-      selectedLanguageRef.current === 'Tamil-English'
-        ? 'Hi! Naan Lyka Realty-lendhu, Priya pesuren. How does my voice sound to you?'
-        : selectedLanguageRef.current === 'Hindi'
-        ? 'Namaste! Main Lyka Realty se Priya baat kar rahi hoon. Kya meri aawaz aapko natural lag rahi hai?'
-        : 'Hello! This is Priya from Lyka Realty. How does my natural voice sound to you?';
+      lang === 'Tamil-English'
+        ? `Vanakkam! Naan Lyka Realty-la irundhu ${testName} pesaren. En voice ungalukku natural-a thuliyama kekudhaa?`
+        : lang === 'Hindi'
+        ? (activeGender === 'male'
+            ? `Namaste! Main Lyka Realty se ${testName} baat kar raha hoon. Kya meri aawaaz saaf aur natural lag rahi hai?`
+            : `Namaste! Main Lyka Realty se ${testName} baat kar rahi hoon. Kya meri aawaaz saaf aur natural lag rahi hai?`)
+        : `Hello! This is ${testName} from Lyka Realty. How does my natural voice sound to you?`;
 
-    const utterance = new SpeechSynthesisUtterance(testText);
-    utterance.volume = 1.0;
-    utterance.pitch = 1.0;
-    utterance.rate = 0.95;
-    if (voice) {
-      utterance.voice = voice;
-    }
-    window.speechSynthesis.speak(utterance);
+    speakAIText(testText, lang === 'Hindi' ? 'hi-IN' : lang === 'Tamil-English' ? 'ta-IN' : 'en-US');
   };
 
-  // Preload and rank speech synthesis voices for the most natural girl voice
+  // Preload and rank speech synthesis voices for active gender persona
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const loadAndRankVoices = () => {
@@ -413,7 +728,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           const sorted = [...voices].sort((a, b) => getVoiceQualityScore(b) - getVoiceQualityScore(a));
           setAvailableVoices(sorted);
 
-          // Select top-scoring natural female voice if not already selected
           const storedURI = localStorage.getItem('lyka_ai_voice_uri');
           const matchedStored = sorted.find((v) => v.voiceURI === storedURI);
           if (matchedStored) {
@@ -435,34 +749,251 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
   }, []);
 
-  // Check Sarvam API availability on mount
-  useEffect(() => {
-    fetch('/api/sarvam/settings')
-      .then((r) => r.json())
-      .then((cfg) => {
-        setSarvamAvailable(Boolean(cfg?.apiKeyConfigured));
-      })
-      .catch(() => setSarvamAvailable(false));
-
-    fetch('/api/groq/settings')
-      .then((r) => r.json())
-      .then((cfg) => {
-        setGroqAvailable(Boolean(cfg?.apiKeyConfigured));
-      })
+  // Check Multi-Provider API availability on mount (Gemini, Groq, OpenAI)
+  const refreshProviderConfigs = useCallback(() => {
+    getGroqConfig()
+      .then((cfg) => setGroqAvailable(Boolean(cfg?.apiKeyConfigured)))
       .catch(() => setGroqAvailable(false));
+
+    getGeminiConfig()
+      .then((cfg) => setGeminiAvailable(Boolean(cfg?.apiKeyConfigured)))
+      .catch(() => setGeminiAvailable(false));
+
+    getOpenAIConfig()
+      .then((cfg) => setOpenaiAvailable(Boolean(cfg?.apiKeyConfigured)))
+      .catch(() => setOpenaiAvailable(false));
   }, []);
 
+  useEffect(() => {
+    refreshProviderConfigs();
+    const handleSettingsUpdated = () => refreshProviderConfigs();
+    window.addEventListener('lyka-settings-updated', handleSettingsUpdated);
+    return () => window.removeEventListener('lyka-settings-updated', handleSettingsUpdated);
+  }, [refreshProviderConfigs]);
 
+  // Re-verify provider configs whenever the call modal is opened!
+  useEffect(() => {
+    if (isOpen) {
+      refreshProviderConfigs();
+    }
+  }, [isOpen, refreshProviderConfigs]);
 
-  // Initialize browser call when modal opens
+  // Fast, natural telecaller greeting helper following Lyka_Realty_Tanglish_Priya_Agent_Script_v2_Name_and_Pauses.pdf
+  const getOpeningGreetingPrompt = (
+    lang: string,
+    leadHonorific: string,
+    name: string = agentName,
+    gender: VoiceGender = voiceGenderRef.current
+  ): { text: string; langCode: string } => {
+    const hasKnownName = Boolean(lead?.name && lead.name.trim().length > 1 && !lead.name.toLowerCase().includes('lead') && !lead.name.toLowerCase().includes('customer'));
+    const cleanLeadName = hasKnownName ? lead!.name.trim() : '';
+
+    if (lang === 'Hindi') {
+      const verb = gender === 'male' ? 'bol raha hoon' : 'bol rahi hoon';
+      if (cleanLeadName) {
+        return {
+          text: `[warm] Namaste ${cleanLeadName} ji! Main Lyka Realty se ${name} ${verb}. Kya abhi 2 minute baat karne ka convenient time hai?`,
+          langCode: 'hi-IN',
+        };
+      }
+      return {
+        text: `[warm] Namaste! Main Lyka Realty se ${name} ${verb}. Kya main aapka shubh naam jaan sakti hoon?`,
+        langCode: 'hi-IN',
+      };
+    }
+    if (lang === 'English') {
+      if (cleanLeadName) {
+        return {
+          text: `[warm] Hello ${cleanLeadName}! This is ${name} from Lyka Realty. Is this a convenient time to speak?`,
+          langCode: 'en-US',
+        };
+      }
+      return {
+        text: `[warm] Hello! This is ${name} from Lyka Realty. May I know your name please?`,
+        langCode: 'en-US',
+      };
+    }
+    // Tanglish Priya Script v2: Name-first opening
+    if (cleanLeadName) {
+      return {
+        text: `[warm] Vanakkam ${cleanLeadName}! Naan ${name}, Lyka Realty-lendhu pesuren. Ippo konjam pesuradhukku convenient-aa irukka?`,
+        langCode: 'ta-IN',
+      };
+    }
+    return {
+      text: `[warm] Vanakkam sir! Naan ${name}, Lyka Realty-lendhu pesuren. Ungaloda name therinjukkalama?`,
+      langCode: 'ta-IN',
+    };
+  };
+
+  // Helper to determine the effective TTS engine (resolves 'auto' to preferred provider)
+  const resolveCurrentTtsEngine = (_activeLang?: string): TtsEngineChoice => {
+    return ttsEngineRef.current || 'gemini';
+  };
+
+  // Pre-synthesis engine dispatcher: ensures each API pre-synthesizes with its own native voice
+  const synthesizeAudioForEngine = async (
+    engine: TtsEngineChoice,
+    text: string,
+    langCode: string,
+    activeLang: LanguageOption | string
+  ): Promise<{ audio: string; format: string }> => {
+    const isTamil = activeLang === 'Tamil-English';
+    const prepared = prepareSpeech(text, {
+      language: isTamil ? 'ta-IN' : langCode,
+      emotion: 'neutral',
+    });
+
+    if (engine === 'gemini') {
+      const res = await geminiTTS({
+        text: prepared.text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      return { audio: res.audio, format: res.format || 'audio/wav' };
+    }
+
+    if (engine === 'groq') {
+      const res = await groqTTS({
+        text: prepared.text,
+        voice: voiceGenderRef.current === 'male' ? 'daniel' : 'diana',
+        speed: prepared.delivery.pace,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      return { audio: res.audio, format: res.format || 'audio/wav' };
+    }
+
+    if (engine === 'speechify') {
+      const isMale = voiceGenderRef.current === 'male';
+      const voice = isTamil ? (isMale ? 'aadi' : 'abirami') : (isMale ? 'alton' : 'geffen_32');
+      const res = await speechifyTTS({
+        text: prepared.text,
+        voice,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      return { audio: res.audio, format: res.format || 'audio/mp3' };
+    }
+
+    if (engine === 'cartesia') {
+      const res = await cartesiaTTS({
+        text: prepared.text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      return { audio: res.audio, format: res.format || 'audio/wav' };
+    }
+
+    if (engine === 'deepgram') {
+      const res = await deepgramTTS({
+        text: prepared.text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      return { audio: res.audio, format: res.format || 'audio/mp3' };
+    }
+
+    if (engine === 'sarvam') {
+      const res = await sarvamTTS({
+        text: prepared.text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      return { audio: res.audio, format: res.format || 'audio/wav' };
+    }
+
+    if (engine === 'murf') {
+      const res = await murfTTS({
+        text: prepared.text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+      });
+      if (res.audioUrl) {
+        try {
+          const audioFetch = await fetch(res.audioUrl);
+          const arrayBuf = await audioFetch.arrayBuffer();
+          let binary = '';
+          const bytes = new Uint8Array(arrayBuf);
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64 = btoa(binary);
+          return { audio: base64, format: res.format || 'audio/mp3' };
+        } catch {
+          // If fetch fails, return empty to fall back to stream URL
+        }
+      }
+    }
+
+    if (engine === 'openai') {
+      const isMale = voiceGenderRef.current === 'male';
+      const voice = selectedOpenAiVoiceRef.current || (isMale ? 'onyx' : 'nova');
+      const res = await openaiTTS({
+        text: prepared.text,
+        voice,
+        model: selectedOpenAiTtsModelRef.current,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: 'neutral',
+        speed: prepared.delivery.pace,
+      });
+      return { audio: res.audio, format: res.format || 'audio/mp3' };
+    }
+
+    throw new Error(`Engine ${engine} does not support audio pre-synthesis.`);
+  };
+
+  // Initialize browser call setup screen & pre-synthesize greeting for zero-latency start with the selected agent!
   useEffect(() => {
     if (isOpen && lead) {
-      startBrowserCallSession();
+      setCallPhase('setup');
+
+      const honorific = lead?.name ? ` ${lead.name} Sir` : ' Sir';
+      const activeLang = selectedLanguageRef.current || initialLanguage || 'Tamil-English';
+      const greeting = getOpeningGreetingPrompt(activeLang, honorific, agentName, voiceGenderRef.current);
+      const isTamil = activeLang === 'Tamil-English';
+      const prepared = prepareSpeech(greeting.text, { language: isTamil ? 'ta-IN' : greeting.langCode, emotion: 'neutral' });
+      const targetEngine = resolveCurrentTtsEngine(activeLang);
+
+      if (targetEngine !== 'browser') {
+        const cacheKey = `${targetEngine}:${voiceGenderRef.current}:${isTamil ? 'ta-IN' : prepared.languageCode}:${prepared.text}`;
+
+        if (!prefetchedGreetingRef.current || prefetchedGreetingRef.current.key !== cacheKey) {
+          const fetchPromise = synthesizeAudioForEngine(targetEngine, greeting.text, greeting.langCode, activeLang)
+            .then(({ audio, format }) => {
+              if (audio) {
+                prefetchedGreetingRef.current = {
+                  key: cacheKey,
+                  audio,
+                  format: format || 'audio/wav',
+                };
+                console.log(`[Fast Startup] Pre-synthesized opening audio ready for ${targetEngine.toUpperCase()} agent!`);
+              }
+            })
+            .catch((err) => {
+              console.warn(`[Fast Startup] Preload failed for ${targetEngine}, will synthesize on demand:`, err);
+            });
+
+          prefetchedGreetingRef.current = {
+            key: cacheKey,
+            audio: '',
+            format: 'audio/wav',
+            promise: fetchPromise,
+          };
+        }
+      }
     }
     return () => {
       cleanupAudioSession();
     };
-  }, [isOpen, lead]);
+  }, [isOpen, lead?.id, voiceGender, ttsEngine, brainEngine]);
 
   const cleanupAudioSession = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -470,7 +1001,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
     if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
     isTurnProcessingRef.current = false;
+    currentAiSpeechRef.current = '';
+    turnCounterRef.current++;
+    lastDispatchedTextRef.current = '';
+    lastDispatchedTimeRef.current = 0;
 
     isRecognitionRunningRef.current = false;
     if (recognitionRef.current) {
@@ -485,16 +1021,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       recognitionRef.current = null;
     }
 
-    // Stop Sarvam TTS audio if playing
-    if (sarvamAudioRef.current) {
+    // Stop Remote and Sarvam Audio if playing
+    if (remoteAudioRef.current) {
       try {
-        sarvamAudioRef.current.pause();
-        sarvamAudioRef.current.src = '';
+        remoteAudioRef.current.pause();
+        remoteAudioRef.current.src = '';
       } catch (e) { /* ignore */ }
-      sarvamAudioRef.current = null;
+      remoteAudioRef.current = null;
     }
-
-    // Stop Sarvam STT recording
+    // Stop Server STT recording
     isRecordingRef.current = false;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try { mediaRecorderRef.current.stop(); } catch (e) { /* ignore */ }
@@ -563,7 +1098,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     setDialogue([]);
     dialogueRef.current = [];
     updateCurrentStep(0);
-    updateSelectedLanguage(null as any);
+    const activeStartLang = initialLanguage || selectedLanguageRef.current || 'Tamil-English';
+    updateSelectedLanguage(activeStartLang);
     setFinalSummary(null);
     setFinalOutcome(null);
     setErrorMessage(null);
@@ -586,24 +1122,26 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     callStartTimeRef.current = Date.now();
 
-    // 1. Request microphone permission & start audio meter
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      setMicActive(true);
-      startAudioMeter(stream);
-    } catch (err: any) {
-      console.warn('Microphone permission not granted:', err);
-      setErrorMessage(
-        'Microphone access is needed for voice recognition. Please allow microphone permission in your browser or use the on-screen options.'
-      );
-    }
+    // 1. Parallel Non-Blocking Microphone Setup (runs concurrently without blocking speech start)
+    navigator.mediaDevices
+      ?.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      })
+      .then((stream) => {
+        mediaStreamRef.current = stream;
+        setMicActive(true);
+        startAudioMeter(stream);
+      })
+      .catch((err: any) => {
+        console.warn('Microphone permission not granted:', err);
+        setErrorMessage(
+          'Microphone access is needed for voice recognition. Please allow microphone permission in your browser or use the on-screen options.'
+        );
+      });
 
-    // 2. Play connecting delay (1.2 seconds)
-    setTimeout(() => {
-      updateCallState('Connected');
-      triggerStep0LanguagePrompt();
-    }, 1200);
+    // 2. Connect immediately without arbitrary delays!
+    updateCallState('Connected');
+    triggerStep0LanguagePrompt();
   };
 
   // Play crisp notification chime before speech
@@ -628,60 +1166,231 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
   };
 
-  // Map language option to Sarvam language code
-  const getSarvamLangCode = (lang: LanguageOption | null): string => {
-    if (lang === 'Hindi') return 'hi-IN';
-    if (lang === 'Tamil-English') return 'ta-IN';
-    return 'en-IN';
+  // ── Unified Audio Playback Done Handler ──────────────────────────────────
+  const onAudioPlaybackDone = (onEnd?: () => void) => {
+    isSpeechSynthesisSpeakingRef.current = false;
+    isTurnProcessingRef.current = false; // Turn finished!
+    updateCallState('Listening...');
+    if (onEnd) onEnd();
+
+    // 100ms guard delay before restarting mic — just enough to stop speaker reverb bleed
+    setTimeout(() => {
+      if (
+        callStateRef.current === 'Listening...' &&
+        !isSpeechSynthesisSpeakingRef.current &&
+        !isTurnProcessingRef.current
+      ) {
+        if (sttEngineRef.current !== 'browser') {
+          startServerSTTListening();
+        } else {
+          startContinuousSpeechRecognition();
+        }
+      }
+    }, 100);
+
+    resetNoAnswerTimeout();
   };
 
-  // Map language to Sarvam speaker — warm female voices validated against bulbul:v3
-  // (v3 roster: priya, neha, kavitha, kavya, shruti, … — legacy names like anushka/meera are rejected)
-  const getSarvamSpeaker = (lang: LanguageOption | null): string => {
-    if (lang === 'Hindi') return 'neha';        // Warm Hindi female
-    if (lang === 'Tamil-English') return 'kavitha'; // South Indian female
-    return 'priya';                              // English-IN female (matches the Priya persona)
-  };
-
-  // ── Sarvam TTS: play base64 WAV audio ─────────────────────────────────────
-  const playSarvamAudio = (base64Wav: string, onEnd?: () => void) => {
-    // Stop any previous audio
-    if (sarvamAudioRef.current) {
-      sarvamAudioRef.current.pause();
-      sarvamAudioRef.current.src = '';
+  const reportTtsFailure = (
+    providerName: string,
+    error: unknown,
+    onEnd?: () => void,
+    fallbackText?: string,
+    fallbackLang?: string
+  ) => {
+    const details = error instanceof Error ? error.message : 'The provider could not generate audio.';
+    console.warn(`[TTS] ${providerName} voice failed (${details}). Seamlessly speaking with built-in voice.`);
+    setErrorMessage(`⚠️ ${providerName} voice unavailable: ${details}. Continuing with system voice.`);
+    if (fallbackText) {
+      speakWithBrowserTTS(fallbackText, fallbackLang || 'en-IN', onEnd);
+    } else {
+      onAudioPlaybackDone(onEnd);
     }
-    const audio = new Audio(`data:audio/wav;base64,${base64Wav}`);
+  };
+
+  // ── Barge-In / Interruption Handler ─────────────────────────────────────
+  // Stops AI audio immediately when the user speaks over the agent
+  const handleBargeIn = useCallback(() => {
+    if (!isSpeechSynthesisSpeakingRef.current) return;
+    console.log('[BargeIn] User interrupted — stopping AI audio immediately');
+    currentAiSpeechRef.current = '';
+
+    // Cancel browser TTS
+    try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    // Stop remote (Sarvam, ElevenLabs, Murf, Gemini TTS) audio
+    if (remoteAudioRef.current) {
+      try {
+        remoteAudioRef.current.pause();
+        remoteAudioRef.current.src = '';
+      } catch (e) { /* ignore */ }
+      remoteAudioRef.current = null;
+    }
+    isSpeechSynthesisSpeakingRef.current = false;
+    isTurnProcessingRef.current = false;
+    setIsGeminiThinking(false);
+    setIsGroqThinking(false);
+    updateCallState('Listening...');
+
+    // If browser recognition is already active, keep it running smoothly without restarting
+    // so the customer's full question is captured with zero missing words!
+    if (sttEngineRef.current === 'browser') {
+      if (!isRecognitionRunningRef.current) {
+        startContinuousSpeechRecognition();
+      }
+    } else {
+      if (!isRecordingRef.current) {
+        startServerSTTListening();
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Watch mic level — only trigger raw level barge-in if mic level is exceedingly high (> 75)
+  // to avoid laptop speaker acoustic bleed-through falsely cancelling AI speech
+  useEffect(() => {
+    if (!isSpeechSynthesisSpeakingRef.current) {
+      // Clear any pending barge-in timer when AI is not actively speaking
+      if (bargeInTimerRef.current) {
+        clearTimeout(bargeInTimerRef.current);
+        bargeInTimerRef.current = null;
+      }
+      return;
+    }
+    // High threshold (> 75) ensures laptop speaker volume (usually 20-50) doesn't self-interrupt AI speech
+    if (micAudioLevel > 75) {
+      if (!bargeInTimerRef.current) {
+        bargeInTimerRef.current = setTimeout(() => {
+          bargeInTimerRef.current = null;
+          if (isSpeechSynthesisSpeakingRef.current && micAudioLevel > 75) {
+            handleBargeIn();
+          }
+        }, 300);
+      }
+    } else {
+      if (bargeInTimerRef.current) {
+        clearTimeout(bargeInTimerRef.current);
+        bargeInTimerRef.current = null;
+      }
+    }
+  }, [micAudioLevel, handleBargeIn]);
+
+  // Play Base64 Audio (WAV from Sarvam, MP3 from ElevenLabs / Murf)
+  const playAudioFromBase64 = (
+    base64Data: string,
+    mimeType: string = 'audio/wav',
+    onEnd?: () => void,
+    fallbackText?: string,
+    fallbackLang?: string,
+    providerName?: string
+  ) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    }
+    if (remoteAudioRef.current) {
+      const previousAudio = remoteAudioRef.current;
+      remoteAudioRef.current = null;
+      try {
+        previousAudio.pause();
+        previousAudio.src = '';
+      } catch (e) { /* ignore */ }
+    }
+    const audio = new Audio(`data:${mimeType};base64,${base64Data}`);
     audio.volume = 1.0;
-    sarvamAudioRef.current = audio;
+    // Fast phone telecaller playback rate (1.06x) for lively, natural pacing
+    audio.playbackRate = 1.06;
+    remoteAudioRef.current = audio;
+    let playbackSettled = false;
+    const handlePlaybackError = (reason: unknown) => {
+      if (playbackSettled || remoteAudioRef.current !== audio) return;
+      playbackSettled = true;
+      remoteAudioRef.current = null;
+      audio.pause();
+      audio.src = '';
+      console.warn('[Remote Audio] Playback failed:', reason);
+      if (fallbackText) {
+        speakWithBrowserTTS(fallbackText, fallbackLang || 'en-IN', onEnd);
+      } else {
+        if (providerName) {
+          setErrorMessage(`${providerName} audio could not be played. Check the provider response and try again.`);
+        }
+        onAudioPlaybackDone(onEnd);
+      }
+    };
     audio.onended = () => {
-      isSpeechSynthesisSpeakingRef.current = false;
-      updateCallState('Listening...');
-      if (onEnd) onEnd();
-      startSarvamSTTListening();
-      resetNoAnswerTimeout();
+      if (playbackSettled || remoteAudioRef.current !== audio) return;
+      playbackSettled = true;
+      remoteAudioRef.current = null;
+      onAudioPlaybackDone(onEnd);
     };
     audio.onerror = () => {
-      console.warn('[Sarvam Audio] Playback error, falling back to browser TTS');
-      isSpeechSynthesisSpeakingRef.current = false;
-      updateCallState('Listening...');
-      if (onEnd) onEnd();
-      startSarvamSTTListening();
+      handlePlaybackError('audio element error');
     };
     audio.play().catch((e) => {
-      console.warn('[Sarvam Audio] play() failed:', e);
-      // User interaction required — fallback to browser TTS
-      speakWithBrowserTTS('', 'en-IN', onEnd);
+      handlePlaybackError(e);
     });
   };
 
-  // Speak AI text via SpeechSynthesis with natural young female voice ("Priya" - Free AI)
-  const speakWithBrowserTTS = (text: string, langCode: string, onEnd?: () => void) => {
-    // Pause speech recognition while AI is speaking
-    if (recognitionRef.current) {
+  // Play Audio from direct URL (e.g. Murf AI S3 audioFile)
+  const playAudioFromUrl = (
+    url: string,
+    onEnd?: () => void,
+    fallbackText?: string,
+    fallbackLang?: string,
+    providerName?: string
+  ) => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    }
+    if (remoteAudioRef.current) {
+      const previousAudio = remoteAudioRef.current;
+      remoteAudioRef.current = null;
       try {
-        isRecognitionRunningRef.current = false;
-        recognitionRef.current.stop();
+        previousAudio.pause();
+        previousAudio.src = '';
       } catch (e) { /* ignore */ }
+    }
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    remoteAudioRef.current = audio;
+    let playbackSettled = false;
+    const handlePlaybackError = (reason: unknown) => {
+      if (playbackSettled || remoteAudioRef.current !== audio) return;
+      playbackSettled = true;
+      remoteAudioRef.current = null;
+      audio.pause();
+      audio.src = '';
+      console.warn('[Remote Audio] URL playback failed:', reason);
+      if (fallbackText) {
+        speakWithBrowserTTS(fallbackText, fallbackLang || 'en-IN', onEnd);
+      } else {
+        if (providerName) {
+          setErrorMessage(`${providerName} audio could not be played. Check the provider response and try again.`);
+        }
+        onAudioPlaybackDone(onEnd);
+      }
+    };
+    audio.onended = () => {
+      if (playbackSettled || remoteAudioRef.current !== audio) return;
+      playbackSettled = true;
+      remoteAudioRef.current = null;
+      onAudioPlaybackDone(onEnd);
+    };
+    audio.onerror = () => {
+      handlePlaybackError('audio element error');
+    };
+    audio.play().catch((e) => {
+      handlePlaybackError(e);
+    });
+  };
+
+  // Speak AI text via SpeechSynthesis with natural voice based on active gender (Girl "Priya" / Boy "Karthik")
+  const speakWithBrowserTTS = (text: string, langCode: string, onEnd?: () => void) => {
+    currentAiSpeechRef.current = text;
+    if (remoteAudioRef.current) {
+      try {
+        remoteAudioRef.current.pause();
+        remoteAudioRef.current.src = '';
+      } catch (e) { /* ignore */ }
+      remoteAudioRef.current = null;
     }
 
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -700,81 +1409,71 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     isSpeechSynthesisSpeakingRef.current = true;
 
-    // Use clean Indian English code for Tanglish if needed
+    // Use native Tamil code for Tamil/Tanglish when available, fallback to en-IN
     let effectiveLangCode = langCode;
     if (selectedLanguageRef.current === 'Tamil-English' || langCode.startsWith('ta')) {
-      effectiveLangCode = 'en-IN';
+      effectiveLangCode = 'ta-IN';
     }
 
+    const isMale = voiceGenderRef.current === 'male';
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = effectiveLangCode;
     utterance.volume = 1.0;
-    // Pure, natural human female pitch & smooth conversational flow
-    // (pitch: 1.0 eliminates robotic digital distortion and preserves natural vocal cord resonance;
-    //  rate: 0.95 keeps a moderate, comfortable pace — slower on important details, never rushed)
-    utterance.pitch = 1.0;
-    utterance.rate = 0.95;
+    utterance.pitch = isMale ? 0.96 : 1.08;
+    // Fast lively phone telecaller rate (1.08x)
+    utterance.rate = 1.08;
 
     const voices = window.speechSynthesis.getVoices();
     let chosenVoice: SpeechSynthesisVoice | undefined;
 
-    // 1. If user selected a specific voice from voice picker
     const activeURI = selectedVoiceURIRef.current;
     if (activeURI) {
-      chosenVoice = voices.find((v) => v.voiceURI === activeURI);
+      const candidate = voices.find((v) => v.voiceURI === activeURI);
+      if (candidate && getVoiceQualityScore(candidate, voiceGenderRef.current) > 0) {
+        chosenVoice = candidate;
+      }
     }
 
-    // 2. Fallback to the highest-ranked natural female voice
     if (!chosenVoice) {
-      const candidates = [...voices].sort((a, b) => getVoiceQualityScore(b) - getVoiceQualityScore(a));
+      const genderCandidates = [...voices]
+        .filter((v) => (isMale ? !isFemaleVoiceName(v.name) : !isMaleVoiceName(v.name)))
+        .sort((a, b) => getVoiceQualityScore(b, voiceGenderRef.current) - getVoiceQualityScore(a, voiceGenderRef.current));
       chosenVoice =
-        candidates.find((v) => v.lang.startsWith(effectiveLangCode.substring(0, 2)) && getVoiceQualityScore(v) > 0) ||
-        candidates.find((v) => getVoiceQualityScore(v) > 0) ||
-        candidates[0];
+        genderCandidates.find((v) => v.lang.startsWith(effectiveLangCode.substring(0, 2)) && getVoiceQualityScore(v, voiceGenderRef.current) > 0) ||
+        genderCandidates.find((v) => getVoiceQualityScore(v, voiceGenderRef.current) > 0) ||
+        genderCandidates[0] ||
+        voices[0];
     }
 
     if (chosenVoice) {
       utterance.voice = chosenVoice;
     }
 
-    // Persist global reference to prevent Chrome V8 garbage collection mid-speech
     (window as any).__activeUtterance = utterance;
 
-    // Watchdog safety timer to prevent frozen audio state
     const safetyTimeoutMs = Math.max(3000, text.length * 85 + 2000);
     const safetyTimer = setTimeout(() => {
       if (isSpeechSynthesisSpeakingRef.current) {
         console.warn('[SpeechSynthesis] Safety fallback recovered voice state');
         isSpeechSynthesisSpeakingRef.current = false;
         (window as any).__activeUtterance = null;
-        updateCallState('Listening...');
-        if (onEnd) onEnd();
-        startContinuousSpeechRecognition();
-        resetNoAnswerTimeout();
+        onAudioPlaybackDone(onEnd);
       }
     }, safetyTimeoutMs);
 
     utterance.onend = () => {
       clearTimeout(safetyTimer);
-      isSpeechSynthesisSpeakingRef.current = false;
       (window as any).__activeUtterance = null;
-      updateCallState('Listening...');
-      if (onEnd) onEnd();
-      startContinuousSpeechRecognition();
-      resetNoAnswerTimeout();
+      onAudioPlaybackDone(onEnd);
     };
 
     utterance.onerror = (e) => {
       clearTimeout(safetyTimer);
       console.warn('SpeechSynthesis error:', e);
-      isSpeechSynthesisSpeakingRef.current = false;
       (window as any).__activeUtterance = null;
-      updateCallState('Listening...');
-      if (onEnd) onEnd();
-      startContinuousSpeechRecognition();
+      onAudioPlaybackDone(onEnd);
     };
 
-    // Stagger by 50ms so Chrome audio buffer cleanly resets
     setTimeout(() => {
       try {
         if (window.speechSynthesis.paused) {
@@ -784,60 +1483,236 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } catch (err) {
         console.warn('SpeechSynthesis speak failed:', err);
         clearTimeout(safetyTimer);
-        isSpeechSynthesisSpeakingRef.current = false;
-        updateCallState('Listening...');
-        if (onEnd) onEnd();
-        startContinuousSpeechRecognition();
+        onAudioPlaybackDone(onEnd);
       }
     }, 50);
   };
 
-  // ── Master speakAIText: tries Sarvam first, falls back to browser ──────────
+  // ── Master speakAIText: uses the selected provider and falls back to browser speech ────────
   const speakAIText = (rawText: string, langCode: string, onEnd?: () => void) => {
-    // Pause speech recognition while AI is speaking
-    if (recognitionRef.current) {
+    // 1. Forcefully cancel any currently active audio streams to eliminate duplicate voices
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    }
+    if (remoteAudioRef.current) {
       try {
-        isRecognitionRunningRef.current = false;
-        recognitionRef.current.stop();
+        remoteAudioRef.current.pause();
+        remoteAudioRef.current.src = '';
       } catch (e) { /* ignore */ }
+      remoteAudioRef.current = null;
+    }
+    // If non-browser STT is active, pause browser recognition; otherwise ensure it is actively listening for instant user barge-in!
+    if (sttEngineRef.current !== 'browser') {
+      if (recognitionRef.current) {
+        try {
+          isRecognitionRunningRef.current = false;
+          recognitionRef.current.stop();
+        } catch (e) { /* ignore */ }
+      }
+    } else {
+      if (!isRecognitionRunningRef.current) {
+        startContinuousSpeechRecognition();
+      }
     }
 
-    // Speech refinement stage: clean the wording for natural spoken delivery
-    // (markdown, emojis, symbols and shorthand are never read aloud; the
-    // original text stays untouched in the dialogue log and transcript).
-    const text = refineForSpeech(rawText);
+    const prepared = prepareSpeech(rawText, {
+      language: selectedLanguageRef.current || langCode,
+      emotion: lastCustomerEmotionRef.current,
+    });
+    const text = prepared.text;
+    currentAiSpeechRef.current = text;
 
-    // Instant speech turnaround without chime latency
     updateCallState('AI Speaking...');
     isSpeechSynthesisSpeakingRef.current = true;
 
-    if (sarvamAvailable) {
-      // Determine Sarvam language code from langCode parameter
-      let sarvamLang = 'en-IN';
-      if (langCode.startsWith('hi')) sarvamLang = 'hi-IN';
-      else if (langCode.startsWith('ta')) sarvamLang = 'ta-IN';
+    const currentTts = resolveCurrentTtsEngine(selectedLanguageRef.current || 'English');
 
-      // Pick speaker matching selected language
-      const currentLang = selectedLanguageRef.current;
-      const speaker = getSarvamSpeaker(currentLang);
-
-      sarvamTTS({ text, language_code: sarvamLang, speaker, pace: 0.95 })
-        .then((base64Audio) => {
-          if (base64Audio) {
-            playSarvamAudio(base64Audio, onEnd);
-          } else {
-            // No audio returned — fall back
-            speakWithBrowserTTS(text, langCode, onEnd);
-          }
+    // 1. Gemini Voice (Kore — Multimodal Female Voice)
+    if (currentTts === 'gemini') {
+      geminiTTS({
+        text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audio, format }) => {
+          setGeminiAvailable(true);
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'Gemini');
         })
-        .catch((err) => {
-          console.warn('[Sarvam TTS] Error, falling back to browser TTS:', err);
+        .catch((error) => {
+          console.warn('[Gemini TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ Gemini voice unavailable. Speaking with system voice.');
           speakWithBrowserTTS(text, langCode, onEnd);
         });
-    } else {
-      // Sarvam not configured — use browser SpeechSynthesis
-      speakWithBrowserTTS(text, langCode, onEnd);
+      return;
     }
+
+    // 2. Groq Voice (Diana / Autumn)
+    if (currentTts === 'groq') {
+      const voice = voiceGenderRef.current === 'male' ? 'daniel' : 'diana';
+      groqTTS({
+        text,
+        voice,
+        speed: prepared.delivery.pace,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audio, format }) => {
+          setGroqAvailable(true);
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'Groq');
+        })
+        .catch((error) => {
+          const msg = error instanceof Error ? error.message : String(error);
+          console.warn('[Groq TTS] Voice failed, auto-falling back to Browser voice:', error);
+          if (msg.includes('model_terms_required') || msg.includes('terms')) {
+            setErrorMessage('⚠️ Groq Orpheus terms required on console.groq.com. Speaking with system voice.');
+          } else {
+            setErrorMessage('⚠️ Groq voice unavailable. Speaking with system voice.');
+          }
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 3. Speechify Voice (Abirami / Aaliya / Simba-3.5)
+    if (currentTts === 'speechify') {
+      const isMale = voiceGenderRef.current === 'male';
+      let speechifyVoice = isMale ? 'aadi' : 'abirami';
+      if (selectedLanguageRef.current === 'Hindi') {
+        speechifyVoice = isMale ? 'aadi' : 'aaliya';
+      } else if (selectedLanguageRef.current === 'English') {
+        speechifyVoice = isMale ? 'alton' : 'geffen_32';
+      }
+
+      speechifyTTS({
+        text,
+        voice: speechifyVoice,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audio, format }) => {
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'Speechify');
+        })
+        .catch((error) => {
+          console.warn('[Speechify TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ Speechify voice unavailable. Speaking with system voice.');
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 4. Cartesia Voice (Sonic 3.5 — 90ms Ultra-Low Latency)
+    if (currentTts === 'cartesia') {
+      cartesiaTTS({
+        text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audio, format }) => {
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'Cartesia');
+        })
+        .catch((error) => {
+          console.warn('[Cartesia TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ Cartesia voice unavailable. Speaking with system voice.');
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 5. Deepgram Voice (Aura-2 — 140ms Conversational)
+    if (currentTts === 'deepgram') {
+      deepgramTTS({
+        text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audio, format }) => {
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'Deepgram');
+        })
+        .catch((error) => {
+          console.warn('[Deepgram TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ Deepgram voice unavailable. Speaking with system voice.');
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 6. Sarvam Voice (Bulbul v3 — Native Indian Voice)
+    if (currentTts === 'sarvam') {
+      sarvamTTS({
+        text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audio, format }) => {
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'Sarvam');
+        })
+        .catch((error) => {
+          console.warn('[Sarvam TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ Sarvam voice unavailable. Speaking with system voice.');
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 7. Murf AI Voice (Falcon-2.1 / GEN2 Studio Quality)
+    if (currentTts === 'murf') {
+      murfTTS({
+        text,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+      })
+        .then(({ audioUrl }) => {
+          setErrorMessage(null);
+          playAudioFromUrl(audioUrl, onEnd, text, langCode, 'Murf');
+        })
+        .catch((error) => {
+          console.warn('[Murf TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ Murf voice unavailable. Speaking with system voice.');
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 8. OpenAI Voice (Nova / Shimmer / Onyx / Echo / tts-1 / tts-1-hd)
+    if (currentTts === 'openai') {
+      const isMale = voiceGenderRef.current === 'male';
+      const voice = selectedOpenAiVoiceRef.current || (isMale ? 'onyx' : 'nova');
+      openaiTTS({
+        text,
+        voice,
+        model: selectedOpenAiTtsModelRef.current,
+        gender: voiceGenderRef.current,
+        language: prepared.language,
+        emotion: prepared.emotion,
+        speed: prepared.delivery.pace,
+      })
+        .then(({ audio, format }) => {
+          setOpenaiAvailable(true);
+          setErrorMessage(null);
+          playAudioFromBase64(audio, format, onEnd, text, langCode, 'OpenAI');
+        })
+        .catch((error) => {
+          console.warn('[OpenAI TTS] Voice failed, auto-falling back to Browser voice:', error);
+          setErrorMessage('⚠️ OpenAI voice unavailable (check credit balance). Speaking with system voice.');
+          speakWithBrowserTTS(text, langCode, onEnd);
+        });
+      return;
+    }
+
+    // 9. Browser SpeechSynthesis (Free Client-side Voice)
+    speakWithBrowserTTS(text, langCode, onEnd);
   };
 
 
@@ -1047,9 +1922,30 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return false;
   };
 
-  // Immediate Customer Speech Dispatcher (Bypasses Chrome's 2.5s silence wait)
+  // Immediate Customer Speech Dispatcher (Bypasses Chrome's 2.5s silence wait & prevents repeating audio)
   const dispatchCustomerSpeech = (text: string) => {
-    if (isTurnProcessingRef.current || isSpeechSynthesisSpeakingRef.current || !text.trim()) return;
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    if (isSpeechSynthesisSpeakingRef.current) {
+      console.log('[Interruption Dispatched] User interrupted speaking:', cleanText);
+      handleBargeIn();
+    } else if (isTurnProcessingRef.current) {
+      console.log('[Turn Ignored] Already processing turn:', cleanText);
+      return;
+    }
+
+    const now = Date.now();
+    // Drop exact duplicate speech repeated within 2500ms
+    if (
+      lastDispatchedTextRef.current.toLowerCase() === cleanText.toLowerCase() &&
+      now - lastDispatchedTimeRef.current < 2500
+    ) {
+      console.log('[Turn Deduplication] Dropped duplicate speech within 2.5s:', cleanText);
+      return;
+    }
+    lastDispatchedTextRef.current = cleanText;
+    lastDispatchedTimeRef.current = now;
+
     isTurnProcessingRef.current = true;
     if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
     if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
@@ -1062,11 +1958,25 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } catch (e) { /* ignore */ }
     }
 
-    handleCustomerInput(text.trim());
+    // Safety watchdog: auto-clear turn lock if speech synthesis or API takes more than 10 seconds
+    const turnWatchdog = setTimeout(() => {
+      if (isTurnProcessingRef.current && !isSpeechSynthesisSpeakingRef.current) {
+        console.warn('[Turn Watchdog] Auto-cleared stuck turn processing lock');
+        isTurnProcessingRef.current = false;
+        updateCallState('Listening...');
+      }
+    }, 10000);
 
-    setTimeout(() => {
-      isTurnProcessingRef.current = false;
-    }, 450);
+    // Keep turn lock active while AI answers & speaks; onAudioPlaybackDone will release it.
+    handleCustomerInput(cleanText)
+      .catch((err) => {
+        console.error('[Turn Processing Error]:', err);
+        isTurnProcessingRef.current = false;
+        updateCallState('Listening...');
+      })
+      .finally(() => {
+        clearTimeout(turnWatchdog);
+      });
   };
 
   // Continuous Speech Recognition Engine with Live Streaming Transcript & Fast Debouncer
@@ -1116,42 +2026,74 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     };
 
     recognition.onresult = (event: any) => {
-      if (isTurnProcessingRef.current || isSpeechSynthesisSpeakingRef.current) return;
+      let fullTranscript = '';
+      let hasInterim = false;
 
-      let interim = '';
-      let finalTranscript = '';
-
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        const text = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += text;
-        } else {
-          interim += text;
+      // Accumulate all speech segments from the start of this turn so no words are ever lost or truncated
+      for (let i = 0; i < event.results.length; ++i) {
+        const item = event.results[i];
+        if (item && item[0]) {
+          fullTranscript += (item[0].transcript || '') + ' ';
+          if (!item.isFinal) {
+            hasInterim = true;
+          }
         }
       }
 
-      // If Chrome provided isFinal with content, dispatch immediately!
-      if (finalTranscript && finalTranscript.trim().length > 0) {
-        if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
-        dispatchCustomerSpeech(finalTranscript.trim());
-        return;
+      const spoken = fullTranscript.trim();
+      if (!spoken) return;
+
+      // 1. Barge-In: If user speaks while AI is talking, immediately stop AI audio!
+      if (isSpeechSynthesisSpeakingRef.current) {
+        const spokenLower = spoken.toLowerCase().trim();
+        const aiLower = (currentAiSpeechRef.current || '').toLowerCase().trim();
+
+        // Check if customer is asking a question, interrupting, or speaking new words
+        const isInterruptionIntent =
+          spokenLower.includes('?') ||
+          isCustomerAskingQuestion(spoken) ||
+          /^(wait|stop|oru|ek|suno|listen|price|evlo|kitna|enga|enna|solunga|sollunga|tell|what|how|why|when|where|loan|bhk|advance|rent|buy|puriyudhu|aama|illa|kandippa|pesalam|pesunga|edhukku|yaaru)\b/i.test(spokenLower) ||
+          (spokenLower.length > 3 && !aiLower.startsWith(spokenLower));
+
+        // It is only pure acoustic echo if it's the exact identical string of the AI's words without user interruption intent
+        const isPureEcho = !isInterruptionIntent && aiLower.length > 0 && aiLower === spokenLower;
+        if (!isPureEcho) {
+          console.log('[BargeIn via SpeechRecognition] User interrupted with:', spoken);
+          handleBargeIn();
+        } else {
+          return;
+        }
       }
 
-      // Fast Interim Debounce: if user utters quick match, trigger in 220ms; else 550ms!
-      if (interim && interim.trim().length > 0) {
-        const trimmedInterim = interim.trim();
-        setLiveSpeechText(trimmedInterim);
+      // 2. LIVE SPEECH WRITING: Display every word in real-time as the user talks (0ms latency!)
+      setLiveSpeechText(spoken);
 
-        const isQuick = isQuickAnswerMatch(trimmedInterim, currentStepRef.current);
-        const debounceMs = isQuick ? 220 : 550;
+      // 3. CAPTURE COMPLETE USER QUERY — Smart Fast-Capture Strategy:
+      // The key insight: Chrome fires isFinal=true ONLY when the user pauses or ends a sentence.
+      // So we watch for the LAST result being isFinal (no more interim) = user truly stopped.
+      //
+      // Timings:
+      // - All results finalized (no interim): user paused → commit fast in 350ms
+      // - Interim still flowing (user mid-sentence): keep window open at 700ms
+      // - Very short single-word answers ("yes","no","aama"): snap to 250ms
+      const wordCount = spoken.trim().split(/\s+/).length;
+      const isShortAnswer =
+        wordCount <= 2 &&
+        /^(yes|no|haan|aama|sari|ok|okay|tamil|hindi|english|illa|illai|vendaam|busy|sure|free|interested)$/i.test(spoken.trim());
 
-        if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
-        interimTimerRef.current = setTimeout(() => {
-          if (!isTurnProcessingRef.current && !isSpeechSynthesisSpeakingRef.current && trimmedInterim.length > 0) {
-            dispatchCustomerSpeech(trimmedInterim);
-          }
-        }, debounceMs);
-      }
+      const silenceWindowMs = isShortAnswer
+        ? 100          // single-word quick reply ("yes", "aama", "tamil") → answer in 100ms
+        : hasInterim
+        ? 300          // still speaking (natural breath pause) → wait 300ms for next word
+        : 130;         // full sentence finalized (isFinal=true) → commit instantly in 130ms
+
+      if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
+      interimTimerRef.current = setTimeout(() => {
+        if (!isTurnProcessingRef.current && !isSpeechSynthesisSpeakingRef.current && spoken.length > 0) {
+          console.log('[Turn Complete - Full User Query Captured]:', spoken);
+          dispatchCustomerSpeech(spoken);
+        }
+      }, silenceWindowMs);
     };
 
     recognition.onerror = (event: any) => {
@@ -1165,8 +2107,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     recognition.onend = () => {
       isRecognitionRunningRef.current = false;
-      // If we are still in listening state and AI is not speaking, automatically restart!
-      if (callStateRef.current === 'Listening...' && !isSpeechSynthesisSpeakingRef.current) {
+      // If we are still in an active call and not processing a turn, keep recognition alive!
+      if (
+        callStateRef.current !== 'Call Completed' &&
+        callStateRef.current !== 'Calling...' &&
+        !isTurnProcessingRef.current
+      ) {
         try {
           recognition.start();
         } catch (e) {
@@ -1183,21 +2129,20 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
   };
 
-  // ── Sarvam STT Listening: Record audio → send to /api/sarvam/stt ──────────
-  const startSarvamSTTListening = () => {
-    if (!sarvamAvailable) {
-      // Fall back to browser speech recognition
+  // ── Multi-Engine STT Listening: Gemini / Groq / Browser ─────────────────────
+  const startServerSTTListening = () => {
+    const selectedStt = sttEngineRef.current;
+    if (selectedStt === 'browser') {
       startContinuousSpeechRecognition();
       return;
     }
 
     if (!mediaStreamRef.current) {
-      // No mic stream — fall back
       startContinuousSpeechRecognition();
       return;
     }
 
-    if (isRecordingRef.current) return; // Already recording
+    if (isRecordingRef.current) return;
 
     try {
       audioChunksRef.current = [];
@@ -1224,9 +2169,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
         audioChunksRef.current = [];
 
-        // Skip if blob is too small (silence / near-empty)
-        if (audioBlob.size < 1000) {
-          startSarvamSTTListening(); // Keep listening
+        if (audioBlob.size < 500) {
+          startServerSTTListening();
           return;
         }
 
@@ -1235,34 +2179,103 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           currentLang === 'Hindi' ? 'hi-IN' : currentLang === 'Tamil-English' ? 'ta-IN' : 'en-IN';
 
         try {
-          setLiveSpeechText('🎙️ Processing...');
-          const transcript = await sarvamSTT(audioBlob, langCode);
+          setLiveSpeechText('🎙️ Transcribing...');
+          let transcript = '';
+          if (selectedStt === 'deepgram') {
+            transcript = await deepgramSTT(audioBlob, langCode);
+          } else if (selectedStt === 'openai') {
+            transcript = await openaiSTT(audioBlob, langCode, selectedOpenAiSttModelRef.current);
+          } else if (selectedStt === 'groq') {
+            transcript = await groqSTT(audioBlob, langCode);
+          } else if (selectedStt === 'sarvam') {
+            transcript = await sarvamSTT(audioBlob, langCode);
+          } else if (selectedStt === 'gemini') {
+            transcript = await geminiSTT(audioBlob, langCode);
+          }
           setLiveSpeechText('');
           if (transcript && transcript.trim().length > 0) {
             if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
-            handleCustomerInput(transcript.trim());
+            dispatchCustomerSpeech(transcript.trim());
           } else {
-            // Empty transcript — keep listening
-            startSarvamSTTListening();
+            startServerSTTListening();
           }
         } catch (err) {
-          console.warn('[Sarvam STT] Error, falling back to browser recognition:', err);
+          console.warn(`[${selectedStt} STT] Error, falling back to browser recognition:`, err);
           setLiveSpeechText('');
           startContinuousSpeechRecognition();
         }
       };
 
-      // Record in 4-second chunks
-      recorder.start();
-      // Auto-stop after 6 seconds to send to Sarvam
+      // Start recording with 50ms chunks for fast audio stream delivery
+      recorder.start(50);
+
+      let hasSpoken = false;
+      let silenceStart = 0;
+      let vadInterval: any = null;
+
+      const stopVAD = () => {
+        if (vadInterval) {
+          clearInterval(vadInterval);
+          vadInterval = null;
+        }
+      };
+
+      let sampleCount = 0;
+      let noiseFloorSum = 0;
+      let calibratedNoiseFloor = 8;
+
+      vadInterval = setInterval(() => {
+        if (recorder.state !== 'recording') {
+          stopVAD();
+          return;
+        }
+
+        if (analyserRef.current) {
+          const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const averageVolume = sum / dataArray.length;
+
+          // Dynamically calibrate ambient room and laptop fan noise in first 120ms
+          if (sampleCount < 4) {
+            noiseFloorSum += averageVolume;
+            sampleCount++;
+            calibratedNoiseFloor = Math.max(5, Math.min(20, noiseFloorSum / sampleCount));
+          }
+
+          const speechThreshold = Math.max(11, calibratedNoiseFloor + 5);
+          const silenceThreshold = Math.max(7, calibratedNoiseFloor + 2.5);
+
+          if (averageVolume > speechThreshold) {
+            hasSpoken = true;
+            silenceStart = 0;
+          } else if (hasSpoken && averageVolume < silenceThreshold) {
+            if (!silenceStart) {
+              silenceStart = Date.now();
+            } else if (Date.now() - silenceStart > 220) {
+              // 220ms of silence after speech = user finished sentence → stop recording immediately for sub-2s speed
+              stopVAD();
+              if (recorder.state === 'recording') {
+                try { recorder.stop(); } catch (e) { /* ignore */ }
+              }
+            }
+          }
+        }
+      }, 20); // Poll every 20ms for fast silence detection
+
+      // 6-second safety cap — captures long queries without getting stuck forever
       setTimeout(() => {
+        stopVAD();
         if (mediaRecorderRef.current === recorder && recorder.state === 'recording') {
           try { recorder.stop(); } catch (e) { /* ignore */ }
         }
       }, 6000);
 
     } catch (err) {
-      console.warn('[Sarvam STT] MediaRecorder setup error:', err);
+      console.warn('[STT] MediaRecorder setup error:', err);
       startContinuousSpeechRecognition();
     }
   };
@@ -1273,19 +2286,30 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const isCustomerAskingQuestion = (text: string): boolean => {
     const lower = text.toLowerCase().trim();
     if (lower.includes('?')) return true;
-    if (/^(what|where|who|which|how|why|can you|could you|tell me|do you|is there|are there)\b/i.test(lower)) {
+    if (/^(what|where|who|which|how|why|when|can|could|tell|do you|is there|are there|is it|give me|explain|hold on|wait)\b/i.test(lower)) {
+      return true;
+    }
+    // Hindi question / interruption triggers
+    if (/^(kya|kaha|kaise|kitna|kab|kaun|batao|bataiye|batayein|suno|ek baat|ek question|kyu|kyun|ruko|ek second|ek minute)\b/i.test(lower)) {
+      return true;
+    }
+    // Tamil question / interruption triggers
+    if (/^(enna|enga|eppadi|evlo|eppo|yaaru|solreenga|solleenga|solunga|sollunga|oru kelvi|oru doubt|edhukku|yen|irunga|oru second|oru nimisham)\b/i.test(lower)) {
       return true;
     }
     const inquiryWords = [
       'who are you', 'who is this', 'who is calling', 'which company', 'why are you calling', 'why calling', 'purpose',
-      'project', 'property', 'flat', 'apartment', 'bhk', 'villa', 'amenities', 'facing',
-      'price', 'cost', 'rate', 'pricing', 'budget', 'lakh', 'crore',
-      'location', 'city', 'velachery', 'omr', 'tambaram', 'chengalpattu', 'porur', 'adyar', 'chennai',
-      'brochure', 'catalog', 'whatsapp', 'email', 'send me', 'floor plan',
-      'site visit', 'visit', 'appointment', 'see', 'nerla',
-      'registration', 'stamp duty', 'loan', 'patta', 'booking', 'documents', 'proof',
-      'yaaru', 'enna', 'yenga', 'evlo', 'vilai', 'veedu', 'anuppunga', 'visith', 'nerla',
-      'பதிவு', 'முத்திரை', 'லோன்', 'கடன்', 'பட்டா', 'முன்பணம்', 'சான்று', 'சொத்து'
+      'edhukku call', 'edhuku call', 'yen call', 'kyu call', 'kyun call',
+      'project', 'property', 'flat', 'apartment', 'bhk', 'villa', 'house', 'amenities', 'facing', 'parking', 'lift',
+      'price', 'cost', 'rate', 'rates', 'pricing', 'budget', 'lakh', 'crore', 'sqft', 'square feet',
+      'location', 'city', 'velachery', 'omr', 'tambaram', 'chengalpattu', 'porur', 'adyar', 'chennai', 'sholinganallur',
+      'brochure', 'catalog', 'whatsapp', 'email', 'send me', 'floor plan', 'specifications', 'details',
+      'site visit', 'visit', 'appointment', 'see', 'nerla', 'timing', 'open',
+      'registration', 'stamp duty', 'loan', 'patta', 'booking', 'documents', 'proof', 'advance', 'emi',
+      'dtcp', 'cmda', 'rera', 'approved', 'approval', 'clear title', 'possession', 'handover', 'ready to move',
+      'yaaru', 'enna', 'yenga', 'enga', 'evlo', 'vilai', 'veedu', 'anuppunga', 'visith', 'nerla', 'theriyanum', 'kidaikkuma',
+      'solreenga', 'solleenga', 'sollunga', 'doubt', 'kelvi',
+      'பதிவு', 'முத்திரை', 'லோன்', 'கடன்', 'பட்டா', 'முன்பணம்', 'சான்று', 'சொத்து', 'விலை', 'வீடு', 'எங்கே', 'எப்போ'
     ];
     return inquiryWords.some((w) => lower.includes(w));
   };
@@ -1297,58 +2321,273 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   ): string => {
     const lower = input.toLowerCase();
 
-    // 1. Registration cost / பதிவுக் கட்டணம் (PDF Section 5 FAQ 1)
+    // 0a. In-call Interruption: Wait / Hold on / Oru second
+    if (
+      lower.includes('wait') || lower.includes('stop') || lower.includes('hold on') ||
+      lower.includes('oru second') || lower.includes('oru nimisham') || lower.includes('ek minute') ||
+      lower.includes('ek second') || lower.includes('suno') || lower.includes('listen') ||
+      lower.includes('irunga')
+    ) {
+      if (lang === 'Tamil-English') {
+        return '[warm] Aan, kandippa! [break] Sollunga, naan kekkaren.';
+      } else if (lang === 'Hindi') {
+        return '[warm] Haan ji, bilkul! [break] Boliye, main sun rahi hoon.';
+      } else {
+        return "[warm] Ah, of course! [break] Go ahead, I'm listening.";
+      }
+    }
+
+    // 0b. Why are you calling? / Edhukku call panneenga?
+    if (
+      lower.includes('why are you calling') || lower.includes('why did you call') ||
+      lower.includes('why call') || lower.includes('edhukku call') || lower.includes('edhuku call') ||
+      lower.includes('ethukku call') || lower.includes('yen call') || lower.includes('kyu call') ||
+      lower.includes('kyun call') || lower.includes('purpose of call')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Neenga property enquiry pannirundheenga-nu record-la irukku. Adha follow up panna dhaan call panninen. Ippo property paakka plan irukka?';
+      } else if (lang === 'Hindi') {
+        return '[friendly] Haan ji, aapne property ke liye enquiry ki thi, isliye Lyka Realty se call kiya hai taaki sahi options bata sakein. Kya abhi 2 minute baat kar sakte hain?';
+      } else {
+        return '[friendly] Ah, yes! You had enquired about property options earlier, so I am calling from Lyka Realty to share verified listings. Do you have 2 minutes to talk?';
+      }
+    }
+
+    // 0c. Are you AI? (PDF v4 / v5 Friendly Response)
+    if (
+      lower.includes('ai-aa') || lower.includes('are you ai') || lower.includes('are you an ai') ||
+      lower.includes('are you robot') || lower.includes('robot-aa') || lower.includes('human or ai') ||
+      lower.includes('real person') || lower.includes('unmaiyave priya-va')
+    ) {
+      if (lang === 'Tamil-English') {
+        return '[laughing] Hehe! Naan Priya, Lyka Realty-oda virtual property assistant. Aana sollunga… naan AI madhiri pesuren-aa? [playful]';
+      } else if (lang === 'Hindi') {
+        return '[laughing] Hehe! Main Priya hoon, Lyka Realty ki virtual property assistant. Waise aapko kya lagta hai, main AI lagti hoon? [playful]';
+      } else {
+        return "[laughing] Hehe! I'm Priya, Lyka Realty's virtual property assistant. But tell me… do I really sound like an AI? [playful]";
+      }
+    }
+
+    // 0d. Total Cost Question (PDF Section 3): Indha property total evlo aagum?
+    if (
+      lower.includes('total evlo') || lower.includes('total cost') || lower.includes('full cost') ||
+      lower.includes('total amount') || lower.includes('extra charges')
+    ) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Oru second, latest cost details check panren. [break] Property price-kooda DLD/registration fees, agency fee if applicable, service charges and other costs irukkalaam. Exact breakdown verify pannittu share panren.';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Ek second, latest cost details check karti hoon. [break] Property price ke saath registration fees, agency charges aur service costs ho sakte hain. Exact breakdown confirm karke batati hoon.';
+      } else {
+        return '[thinking] One second, let me check the latest costs. [break] Besides property price, there may be DLD/registration fees, agency fees, and service charges. I will share the exact breakdown.';
+      }
+    }
+
+    // 0e. Lowest Price Request (PDF Section 3)
+    if (
+      lower.includes('lowest price') || lower.includes('kuraivana vilai') || lower.includes('sabse kam') ||
+      lower.includes('cheap property') || lower.includes('kam rate')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Sure, budget-friendly options paakalaam. Aana location, size, handover and extra charges-um compare pannalaama? Lowest price mattum base panni decide panna vendaam.';
+      } else if (lang === 'Hindi') {
+        return 'Sure, budget-friendly options dekh sakte hain. Lekin location, size aur extra charges bhi compare kar lein? Sirf lowest price par decide na karein.';
+      } else {
+        return 'Sure, we can look at budget-friendly options. But shall we also compare location, size, and handover timeline rather than deciding only on lowest price?';
+      }
+    }
+
+    // 0f. Legal Approval & Safety (PDF Section 4)
+    if (
+      lower.includes('legal-aa') || lower.includes('legally approved') || lower.includes('rera approved') ||
+      lower.includes('legal approval') || lower.includes('legal status')
+    ) {
+      if (lang === 'Tamil-English') {
+        return '[calm] Idhu romba important question. Project registration, developer details, escrow information if applicable, title or ownership documents, and sale agreement details official records-la verify pannanum. Naan guess panni confirm panna maatten; legal team kitta check panni share panren.';
+      } else if (lang === 'Hindi') {
+        return '[calm] Yeh bahut important sawaal hai. Project registration, escrow details aur title documents verify karna zaroori hai. Hamari legal team confirm karke aapko batayegi.';
+      } else {
+        return '[calm] That is an important question. Project registration, developer details, and title documents must be verified from official records. Our legal team will confirm directly.';
+      }
+    }
+
+    // 0g. Off-plan Property Safety (PDF Section 4)
+    if (
+      lower.includes('off-plan') || lower.includes('offplan') || lower.includes('under construction safe')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Off-plan-la developer, project registration, escrow details, payment milestones, SPA terms and expected completion date ellam verify pannradhu important. Risk illai-nu guarantee panna mudiyadhu. Qualified advisor kitta documents review pannunga.';
+      } else if (lang === 'Hindi') {
+        return 'Off-plan me developer registration, escrow account aur milestones verify karna zaroori hai. Risk-free guarantee nahi de sakte, qualified advisor se review karwayein.';
+      } else {
+        return 'For off-plan properties, verifying developer escrow, milestones, and SPA terms is vital. We cannot guarantee zero risk, and advise reviewing documents with a qualified advisor.';
+      }
+    }
+
+    // 0h. Profit / Guarantee Question (PDF Section 4)
+    if (
+      lower.includes('profit guarantee') || lower.includes('100% safe') || lower.includes('guarantee irukka') ||
+      lower.includes('guaranteed return') || lower.includes('guaranteed profit')
+    ) {
+      if (lang === 'Tamil-English') {
+        return 'Guarantee-nu naan solla mudiyadhu. Property investment-la risk irukkum. Verified documents and costs share panren; legal and financial decision-ku qualified professional advice eduthukkonga.';
+      } else if (lang === 'Hindi') {
+        return 'Guarantee main nahi de sakti. Property investment me market risk hota hai. Verified documents share kar sakti hoon taaki aap sahi faisla le sakein.';
+      } else {
+        return 'I cannot offer a profit guarantee, as all property investments carry market risk. We share verified documents and costs so you can make an informed decision.';
+      }
+    }
+
+    // 0i. Specific JVC Area (PDF Section 5)
+    if (lower.includes('jvc') || lower.includes('jumeirah village')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Oru second, JVC listings and availability check panren. [break] Current inventory-la match aagura options irundha price, size, handover and payment details share panren.';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Ek second, JVC listings check karti hoon. [break] Inventory me jo match hoga, uska price, size aur payment plan share kar doongi.';
+      } else {
+        return '[thinking] One second, checking JVC listings. [break] If we have matching options in current inventory, I will share the price, size, and payment details.';
+      }
+    }
+
+    // 0j. Dubai Freehold Area (PDF Section 4)
+    if (lower.includes('freehold') || lower.includes('ownership area')) {
+      if (lang === 'Tamil-English') {
+        return 'Oru important detail kekkalaama? Dubai-la freehold ownership allow pannura area-la property paakureengala? Ungalukku specific area already irukka?';
+      } else if (lang === 'Hindi') {
+        return 'Kya aap Dubai me freehold area me property dekh rahe hain? Koi specific area aapke dhyan me hai?';
+      } else {
+        return 'Are you looking for properties in Dubai freehold areas? Do you already have a specific area in mind?';
+      }
+    }
+
+    // 1. Specific Location: Velachery (P101)
+    if (lower.includes('velachery') || lower.includes('வேளச்சேரி')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Aan, oru second! [break] வேளச்சேரில ready-to-move 2 BHK flat இருக்கு Sir, 950 sq ft, 72 Lakhs, lift and 2 car parking-oda. Site visit எப்போ பாக்கலாம்?';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, ek second! [break] Velachery me humara ready-to-move 2 BHK flat hai, 950 square feet 72 Lakhs me, lift aur 2 car parking ke saath. Kya aap site visit dekhna chahenge?';
+      } else {
+        return '[thinking] Ah, let me check that! [break] In Velachery, we have a ready-to-move 2 BHK flat, 950 sq ft for Rs. 72 Lakhs, with 2 car parking and lift. Would you like to schedule a site visit?';
+      }
+    }
+
+    // 2. Specific Location: OMR / Sholinganallur (P102)
+    if (lower.includes('omr') || lower.includes('sholinganallur') || lower.includes('சோழிங்கநல்லூர்')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Aan, OMR-aa? [break] OMR சோழிங்கநல்லூர்ல premium 3 BHK flat இருக்கு Sir, 1450 sq ft, gym மற்றும் swimming pool-oda 1.25 Crore. WhatsApp-ல brochure அனுப்பவா?';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, OMR option! [break] OMR Sholinganallur me premium 3 BHK flat hai, 1450 square feet gym aur swimming pool ke saath 1.25 Crore me. Kya brochure WhatsApp pe bhej doon?';
+      } else {
+        return '[thinking] Ah, OMR! [break] In OMR Sholinganallur, we have a premium 3 BHK flat, 1450 sq ft with gym and pool for Rs. 1.25 Crore. Shall I send the brochure on WhatsApp?';
+      }
+    }
+
+    // 3. Specific Location: Tambaram (P103)
+    if (lower.includes('tambaram') || lower.includes('தாம்பரம்')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Aan, Tambaram individual house! [break] தாம்பரம்ல new individual house இருக்கு Sir, 1800 sq ft, 3 bedrooms, East facing, 1.6 Crore. உங்களுக்கு floor plan பார்க்க விருப்பமா?';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, Tambaram me individual house hai, 1800 square feet, 3 bedrooms, East facing 1.6 Crore me. Kya aapko details chahiye?';
+      } else {
+        return '[thinking] Ah, Tambaram! [break] In Tambaram, we have a newly constructed 3-bedroom individual house, 1800 sq ft, East facing for Rs. 1.6 Crore. Would you like the floor plan?';
+      }
+    }
+
+    // 4. Specific Location: Chengalpattu (P104)
+    if (lower.includes('chengalpattu') || lower.includes('செங்கல்பட்டு')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Aan, Chengalpattu plots! [break] செங்கல்பட்டுல DTCP approved plot இருக்கு Sir, 1200 sq ft, clear patta, 18 Lakhs மட்டும்தான், bank loan support இருக்கு.';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, Chengalpattu me DTCP approved plot hai, 1200 square feet clear patta ke saath 18 Lakhs me, aur bank loan facility bhi available hai.';
+      } else {
+        return '[thinking] Ah, Chengalpattu! [break] In Chengalpattu, we have DTCP approved plots, 1200 sq ft with clear patta for Rs. 18 Lakhs, with bank loan assistance available.';
+      }
+    }
+
+    // 5. Specific Location: Porur (P105)
+    if (lower.includes('porur') || lower.includes('போரூர்')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Aan, Porur rental flat! [break] போரூர்ல 1 BHK வாடகை வீடு இருக்கு Sir, மாதம் 14,000 ரூபாய், 3 மாத முன்பணம்.';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, Porur me 1 BHK rental flat hai, 14,000 per month 3 months deposit ke saath.';
+      } else {
+        return '[thinking] Ah, Porur! [break] In Porur, we have a 1 BHK rental flat for Rs. 14,000 per month with 3 months deposit.';
+      }
+    }
+
+    // 6. Specific Location: Adyar (P106)
+    if (lower.includes('adyar') || lower.includes('அடையார்')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Aan, Adyar rental flat! [break] அடையார்ல 2 BHK வாடகைக்கு இருக்கு Sir, மாதம் 28,000 ரூபாய், குடும்பங்களுக்கு மட்டும், செல்லப்பிராணிகள் அனுமதிக்கப்படும்.';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, Adyar me 2 BHK rental flat hai, 28,000 per month, family aur pet-friendly.';
+      } else {
+        return '[thinking] Ah, Adyar! [break] In Adyar, we have a 2 BHK rental flat for Rs. 28,000 per month, family only and pet-friendly.';
+      }
+    }
+
+    // 7. Pricing / Rate Questions
+    if (lower.includes('price') || lower.includes('cost') || lower.includes('rate') || lower.includes('pricing') || lower.includes('விலை') || lower.includes('evlo') || lower.includes('kitna')) {
+      if (lang === 'Tamil-English') {
+        return '[thinking] Ah, price pathi kekkureengala? [break] செங்கல்பட்டு plot 18 Lakhs, வேளச்சேரி 2BHK 72 Lakhs, OMR 3BHK 1.25 Crore. உங்களுக்கு எந்த ஏரியா பட்ஜெட்டுக்கு ஏத்த மாதிரி இருக்கும்?';
+      } else if (lang === 'Hindi') {
+        return '[thinking] Haan ji, price details! [break] Chengalpattu plot 18 Lakhs, Velachery 2BHK 72 Lakhs, aur OMR 3BHK 1.25 Crore se shuru hota hai. Aapka budget kis area ke liye hai?';
+      } else {
+        return '[thinking] Ah, speaking of pricing! [break] Our properties start from 18 Lakhs for plots in Chengalpattu, 72 Lakhs for 2BHK in Velachery, and 1.25 Crore for 3BHK in OMR. Which area fits your budget?';
+      }
+    }
+
+    // 8. Registration cost / பதிவுக் கட்டணம் (PDF Section 5 FAQ 1)
     if (lower.includes('registration') || lower.includes('stamp duty') || lower.includes('பதிவு') || lower.includes('முத்திரை')) {
       if (lang === 'Tamil-English') {
-        return 'முத்திரைத்தீர்வை, பதிவுக் கட்டணம் guideline value அல்லது விற்பனை விலை, இதுல எது அதிகமோ அதுக்கு கணக்கிடுவாங்க. சரியான தொகைய எங்க sales team சொல்வாங்க.';
+        return '[thinking] Aan, puriyudhu! [break] முத்திரைத்தீர்வை, பதிவுக் கட்டணம் guideline value அல்லது விற்பனை விலை, இதுல எது அதிகமோ அதுக்கு கணக்கிடுவாங்க. சரியான தொகைய எங்க sales team சொல்வாங்க.';
       } else if (lang === 'Hindi') {
-        return 'Stamp duty aur registration guideline value ya sale value me se jo zyada ho, uspe lagta hai. Exact amount sales team confirm karegi.';
+        return '[thinking] Haan ji, samajh gaya! [break] Stamp duty aur registration guideline value ya sale value me se jo zyada ho, uspe lagta hai. Exact amount sales team confirm karegi.';
       } else {
-        return 'Stamp duty and registration are charged on guideline value or sale value, whichever is higher. The sales team will confirm the exact amount.';
+        return '[thinking] Ah, got it! [break] Stamp duty and registration are charged on guideline value or sale value, whichever is higher. The sales team will confirm the exact amount.';
       }
     }
 
     // 2. Loan availability / லோன் கிடைக்குமா? (PDF Section 5 FAQ 2)
     if (lower.includes('loan') || lower.includes('கடன்') || lower.includes('approval') || lower.includes('bank loan')) {
       if (lang === 'Tamil-English') {
-        return 'Partner bank மூலமா கடன் உதவி பண்றோம். வருமானம், credit score பாத்து bank தான் இறுதி முடிவு பண்ணும்.';
+        return '[warm] Aan, loan facility kandippa irukku! [break] Partner bank மூலமா கடன் உதவி பண்றோம். வருமானம், credit score பாத்து bank தான் இறுதி முடிவு பண்ணும்.';
       } else if (lang === 'Hindi') {
-        return 'Hum partner banks ke through loan assist karte hain. Income aur credit score dekh kar bank hi final decision leta hai.';
+        return '[warm] Haan ji, loan facility bilkul available hai! [break] Hum partner banks ke through loan assist karte hain. Income aur credit score dekh kar bank hi final decision leta hai.';
       } else {
-        return 'We assist with bank loans through our partner banks. The bank decides approval based on your income and credit score.';
+        return '[warm] Ah, yes! Bank loan assistance is definitely available! [break] We assist with bank loans through our partner banks. The bank decides approval based on your income and credit score.';
       }
     }
 
     // 3. Site visit timings / Site visit எப்போ பாக்கலாம்? (PDF Section 5 FAQ 3)
     if (lower.includes('site visit') || lower.includes('timing') || lower.includes('visith') || lower.includes('எப்போ பாக்கலாம்') || lower.includes('visit time')) {
       if (lang === 'Tamil-English') {
-        return 'திங்கள் முதல் சனி காலை 10 மணி முதல் மாலை 5 மணி வரை site visit பாக்கலாம். ஞாயிறு appointment மூலமா வரலாம்.';
+        return '[warm] Aan, site visit kandippa paakkalaam! [break] திங்கள் முதல் சனி காலை 10 மணி முதல் மாலை 5 மணி வரை site visit பாக்கலாம். ஞாயிறு appointment மூலமா வரலாம்.';
       } else if (lang === 'Hindi') {
-        return 'Site visit Somwar se Shanivar subah 10 baje se shaam 5 baje tak allowed hai. Ravivar ko appointment ke through aana hota hai.';
+        return '[warm] Haan ji, site visit zaroor plan kar sakte hain! [break] Site visit Somwar se Shanivar subah 10 baje se shaam 5 baje tak allowed hai. Ravivar ko appointment ke through aana hota hai.';
       } else {
-        return 'Site visits are available Monday to Saturday from 10 AM to 5 PM, and Sundays by appointment.';
+        return '[warm] Ah, definitely! [break] Site visits are available Monday to Saturday from 10 AM to 5 PM, and Sundays by appointment.';
       }
     }
 
     // 4. Documents needed / என்ன documents வேணும்? (PDF Section 5 FAQ 4)
     if (lower.includes('document') || lower.includes('documents') || lower.includes('proof') || lower.includes('சான்று') || lower.includes('ஆவணம்')) {
       if (lang === 'Tamil-English') {
-        return 'அடையாள அட்டை, முகவரிச் சான்று, PAN, வருமானச் சான்று (loan-க்கு), மற்றும் photos வேணும். Property documents-ஐ team மற்றும் உங்க வக்கீல் சரிபாக்கணும்.';
+        return '[thinking] Aan, documents list solren! [break] அடையாள அட்டை, முகவரிச் சான்று, PAN, வருமானச் சான்று (loan-க்கு), மற்றும் photos வேணும். Property documents-ஐ team மற்றும் உங்க வக்கீல் சரிபாக்கணும்.';
       } else if (lang === 'Hindi') {
-        return 'ID proof, address proof, PAN card, income proof (loan ke liye), aur photos chahiye. Property documents sales team aur aapke lawyer verify karenge.';
+        return '[thinking] Haan ji, documents list batati hoon! [break] ID proof, address proof, PAN card, income proof (loan ke liye), aur photos chahiye. Property documents sales team aur aapke lawyer verify karenge.';
       } else {
-        return 'You will need ID proof, address proof, PAN, income proof for loans, and photos. Property title documents will be verified by our team and your lawyer.';
+        return '[thinking] Ah, here are the required documents! [break] You will need ID proof, address proof, PAN, income proof for loans, and photos. Property title documents will be verified by our team and your lawyer.';
       }
     }
 
     // 5. Booking amount / Booking amount எவ்வளவு? (PDF Section 5 FAQ 5)
     if (lower.includes('booking') || lower.includes('advance') || lower.includes('முன்பணம்')) {
       if (lang === 'Tamil-English') {
-        return 'பொதுவா சொத்து விலையில 1 முதல் 5 சதவீதம் booking amount இருக்கும். குறிப்பிட்ட project பொறுத்து மாறும்.';
+        return '[thinking] Aan, puriyudhu! [break] பொதுவா சொத்து விலையில 1 முதல் 5 சதவீதம் booking amount இருக்கும். குறிப்பிட்ட project பொறுத்து மாறும்.';
       } else if (lang === 'Hindi') {
-        return 'Aam taur par property value ka 1 se 5 percent booking amount hota hai, project ke hisaab se vary karta hai.';
+        return '[thinking] Haan ji, booking amount aam taur par property value ka 1 se 5 percent hota hai, project ke hisaab se vary karta hai.';
       } else {
-        return 'Booking amount is usually 1 to 5 percent of the property price, depending on the specific project.';
+        return '[thinking] Ah, yes! Booking amount is usually 1 to 5 percent of the property price, depending on the specific project.';
       }
     }
 
@@ -1359,11 +2598,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('yaaru') || lower.includes('நிறுவனம்')
     ) {
       if (lang === 'Tamil-English') {
-        return 'நாங்க Lyka Realty. எங்க Office Anna Nagar, Chennai-ல இருக்கு. வேலை நேரம்: Mon-Sat 9:30 AM to 6:30 PM.';
+        return '[friendly] Aan, naan Priya! [break] நாங்க Lyka Realty. எங்க Office Anna Nagar, Chennai-ல இருக்கு. வேலை நேரம்: Mon-Sat 9:30 AM to 6:30 PM.';
       } else if (lang === 'Hindi') {
-        return 'Main Lyka Realty se Priya hoon. Humara office Anna Nagar, Chennai me hai. Working hours: Mon-Sat 9:30 AM to 6:30 PM.';
+        return '[friendly] Haan ji, main Priya hoon! [break] Main Lyka Realty se hoon. Humara office Anna Nagar, Chennai me hai. Working hours: Mon-Sat 9:30 AM to 6:30 PM.';
       } else {
-        return 'We are Lyka Realty, based in Anna Nagar, Chennai. Open Monday to Saturday, 9:30 AM to 6:30 PM.';
+        return "[friendly] Ah, yes! I'm Priya from Lyka Realty. Our office is in Anna Nagar, Chennai. Open Monday to Saturday, 9:30 AM to 6:30 PM.";
       }
     }
 
@@ -1374,11 +2613,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('veedu') || lower.includes('சொத்து')
     ) {
       if (lang === 'Tamil-English') {
-        return 'எங்க verified சொத்து பட்டியல்: வேளச்சேரில 2BHK flat (72L), OMR சோழிங்கநல்லூர்ல 3BHK flat (1.25 Cr), தாம்பரம்ல தனி வீடு (1.6 Cr), செங்கல்பட்டுல DTCP plot (18L), போரூர்ல 1BHK வாடகை (14,000/m), அடையார்ல 2BHK வாடகை (28,000/m). இதுல உங்களுக்கு எதுல ஆர்வம்?';
+        return '[friendly] Aan, kandippa! [break] எங்க verified சொத்து பட்டியல்: வேளச்சேரில 2BHK flat (72L), OMR சோழிங்கநல்லூர்ல 3BHK flat (1.25 Cr), தாம்பரம்ல தனி வீடு (1.6 Cr), செங்கல்பட்டுல DTCP plot (18L), போரூர்ல 1BHK வாடகை (14,000/m), அடையார்ல 2BHK வாடகை (28,000/m). இதுல உங்களுக்கு எதுல ஆர்வம்?';
       } else if (lang === 'Hindi') {
-        return 'Humare verified listings: Velachery me 2BHK flat (72L), OMR me 3BHK flat (1.25 Cr), Tambaram me individual house (1.6 Cr), Chengalpattu me DTCP plot (18L), Porur me 1BHK rent (14k/m), aur Adyar me 2BHK rent (28k/m). Aap kis me interested hain?';
+        return '[friendly] Haan ji, bilkul! [break] Humare verified listings: Velachery me 2BHK flat (72L), OMR me 3BHK flat (1.25 Cr), Tambaram me individual house (1.6 Cr), Chengalpattu me DTCP plot (18L), Porur me 1BHK rent (14k/m), aur Adyar me 2BHK rent (28k/m). Aap kis me interested hain?';
       } else {
-        return 'Our verified properties include: 2BHK flat in Velachery (72L), 3BHK flat in OMR (1.25 Cr), Individual house in Tambaram (1.6 Cr), DTCP plot in Chengalpattu (18L), 1BHK rental in Porur (14,000/m), and 2BHK rental in Adyar (28,000/m). Which one suits you?';
+        return '[friendly] Ah, certainly! [break] Our verified properties include: 2BHK flat in Velachery (72L), 3BHK flat in OMR (1.25 Cr), Individual house in Tambaram (1.6 Cr), DTCP plot in Chengalpattu (18L), 1BHK rental in Porur (14,000/m), and 2BHK rental in Adyar (28,000/m). Which one suits you?';
       }
     }
 
@@ -1388,27 +2627,59 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('email') || lower.includes('details') || lower.includes('அனுப்பு')
     ) {
       if (lang === 'Tamil-English') {
-        return 'கண்டிப்பா! Complete property brochure, floor plans and pricing details உங்க WhatsApp-க்கு அனுப்பிடுறோம். உங்க preferred ஏரியா மற்றும் பட்ஜெட் சொல்லுங்க.';
+        return '[friendly] Aan, kandippa! [break] Complete property brochure, floor plans and pricing details உங்க WhatsApp-க்கு அனுப்பிடுறோம். உங்க preferred ஏரியா மற்றும் பட்ஜெட் சொல்லுங்க.';
       } else if (lang === 'Hindi') {
-        return 'Zaroor! Complete brochure aur details aapke WhatsApp par share kar denge.';
+        return '[friendly] Haan ji, zaroor! [break] Complete brochure aur details aapke WhatsApp par share kar denge.';
       } else {
-        return 'Certainly! We will share the complete property brochure and pricing directly to your WhatsApp.';
+        return '[friendly] Ah, certainly! [break] We will share the complete property brochure and pricing directly to your WhatsApp.';
       }
     }
 
     // 9. Escalation / Legal / Unlisted (PDF Section 8)
     if (lang === 'Tamil-English') {
-      return 'பட்டியல்ல இல்லாத property, legal கருத்து, discount எல்லாத்துக்கும் எங்க sales team மற்றும் வக்கீல் கிட்ட கேட்டு உறுதி பண்ணி சொல்றோம்.';
+      return '[thinking] Aan, puriyudhu. [break] பட்டியல்ல இல்லாத property, legal கருத்து, discount எல்லாத்துக்கும் எங்க sales team மற்றும் வக்கீல் கிட்ட கேட்டு உறுதி பண்ணி சொல்றோம்.';
     } else if (lang === 'Hindi') {
-      return 'Is baare me humare senior sales team aur lawyer se confirm karke aapko batayenge.';
+      return '[thinking] Haan ji, samajh gaya. [break] Is baare me humare senior sales team aur lawyer se confirm karke aapko batayenge.';
     } else {
-      return 'For legal opinions, unlisted properties, or special discounts, our senior sales team and lawyer will confirm directly with you.';
+      return '[thinking] Ah, understood. [break] For legal opinions, unlisted properties, or special discounts, our senior sales team and lawyer will confirm directly with you.';
     }
   };
 
-  const handleCustomerQuestion = (questionText: string) => {
+  const handleCustomerQuestion = async (questionText: string) => {
     const activeLang = selectedLanguageRef.current;
     const activeStep = currentStepRef.current;
+
+    // Answer according to AI model if available
+    if (geminiAvailable) {
+      try {
+        setIsGeminiThinking(true);
+        updateCallState('AI Speaking...');
+        const historyMessages = dialogueRef.current.slice(-10).map((d) => ({
+          role: d.speaker === 'AI' ? ('assistant' as const) : ('user' as const),
+          content: d.text,
+        }));
+        historyMessages.push({ role: 'user', content: questionText });
+        const aiAnswer = await geminiChat(
+          historyMessages,
+          selectedGeminiModelRef.current,
+          lead?.name,
+          activeLang,
+          agentName,
+          voiceGenderRef.current,
+          lastCustomerEmotionRef.current
+        );
+        setIsGeminiThinking(false);
+        if (aiAnswer && aiAnswer.trim()) {
+          appendDialogue('AI', aiAnswer.trim());
+          speakAIText(aiAnswer.trim(), getVoiceLangCode());
+          return;
+        }
+      } catch (e) {
+        console.warn('[handleCustomerQuestion] Gemini model error, falling back to knowledge base:', e);
+        setIsGeminiThinking(false);
+      }
+    }
+
     const answer = getKnowledgeResponse(questionText, activeLang, activeStep);
     appendDialogue('AI', answer);
     speakAIText(answer, getVoiceLangCode());
@@ -1434,8 +2705,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       'free', 'free thaan', 'free-ah irukken', 'free ah irukken', 'i am free', 'yes free', 'haan free hoon', 'free hoon',
       'yes', 'yeah', 'sure', 'yep', 'ok', 'okay', 'interested', 'fine', 'go ahead', 'speak', 'tell me',
       'haan', 'theek hai', 'bolo', 'batayein', 'zaroor', 'ha',
-      'aama', 'aamaa', 'ama', 'sari', 'pesalam', 'pesalaam', 'solunga', 'solleenga', 'pesunga', 'kandippa',
-      'dharalama', 'kelunga', 'plan irukku'
+      'aan', 'ah', 'aama', 'aamaa', 'ama', 'sari', 'pesalam', 'pesalaam', 'solunga', 'sollunga', 'solleenga', 'pesunga', 'kandippa',
+      'puriyudhu', 'dharalama', 'kelunga', 'plan irukku'
     ];
     return freeWords.some((w) => lower.includes(w));
   };
@@ -1450,12 +2721,71 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return coldWords.some((w) => lower.includes(w)) || lower === 'no';
   };
 
-  // STEP 0: Language Selection Prompt (Friendly Girl Persona - "Priya")
+  // STEP 0: Language Selection Prompt (Uses the exact selected Agent so each API speaks for itself!)
   const triggerStep0LanguagePrompt = () => {
-    const promptText =
-      'Hi! Good day! Naan Lyka Realty-lendhu Priya pesuren. Before we begin, ungalukku English, Hindi, illana Tamil-la pesa comfortable-ah?';
+    const honorific = lead?.name ? ` ${lead.name} Sir` : ' Sir';
+    const lang = selectedLanguageRef.current || initialLanguage || 'Tamil-English';
+    const greeting = getOpeningGreetingPrompt(lang, honorific, agentName, voiceGenderRef.current);
+    const promptText = greeting.text;
+    const langCode = greeting.langCode;
+
     appendDialogue('AI', promptText);
-    speakAIText(promptText, 'en-IN');
+
+    const isTamil = lang === 'Tamil-English';
+    const prepared = prepareSpeech(promptText, { language: isTamil ? 'ta-IN' : langCode, emotion: 'neutral' });
+    const targetEngine = resolveCurrentTtsEngine(lang);
+    const cacheKey = `${targetEngine}:${voiceGenderRef.current}:${isTamil ? 'ta-IN' : prepared.languageCode}:${prepared.text}`;
+
+    // Fast Path 1: Pre-synthesized audio for this specific agent is ready in memory -> play with 0ms delay!
+    if (
+      prefetchedGreetingRef.current &&
+      prefetchedGreetingRef.current.key === cacheKey &&
+      prefetchedGreetingRef.current.audio
+    ) {
+      console.log(`[Fast Startup] Playing pre-cached opening greeting for ${targetEngine.toUpperCase()} agent with 0ms delay!`);
+      updateCallState('AI Speaking...');
+      isSpeechSynthesisSpeakingRef.current = true;
+      playAudioFromBase64(
+        prefetchedGreetingRef.current.audio,
+        prefetchedGreetingRef.current.format || 'audio/wav',
+        undefined,
+        undefined,
+        undefined,
+        `${targetEngine.toUpperCase()} Agent (Opening Greeting)`
+      );
+      return;
+    }
+
+    // Fast Path 2: Pre-fetch promise for this agent is in-flight -> attach listener to play immediately!
+    if (
+      prefetchedGreetingRef.current &&
+      prefetchedGreetingRef.current.key === cacheKey &&
+      prefetchedGreetingRef.current.promise
+    ) {
+      updateCallState('AI Speaking...');
+      isSpeechSynthesisSpeakingRef.current = true;
+      prefetchedGreetingRef.current.promise
+        .then(() => {
+          if (prefetchedGreetingRef.current?.audio) {
+            playAudioFromBase64(
+              prefetchedGreetingRef.current.audio,
+              prefetchedGreetingRef.current.format || 'audio/wav',
+              undefined,
+              undefined,
+              undefined,
+              `${targetEngine.toUpperCase()} Agent (Opening Greeting)`
+            );
+          } else {
+            speakAIText(promptText, langCode);
+          }
+        })
+        .catch(() => {
+          speakAIText(promptText, langCode);
+        });
+      return;
+    }
+
+    speakAIText(promptText, langCode);
   };
 
   // Customer selects language
@@ -1465,33 +2795,32 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       appendDialogue('Customer', lang);
     }
 
-    // Save selected language immediately to Supabase (Requirement 5)
+    // Save selected language in background without blocking live voice playback
     if (lead) {
-      try {
-        await saveLeadLanguage(lead.id, lang);
-      } catch (err) {
-        console.error('Error saving lead language:', err);
-      }
+      saveLeadLanguage(lead.id, lang).catch((err) => {
+        console.error('Error saving lead language in background:', err);
+      });
     }
 
     // Move to Step 1: Specifically ask if they are FREE! ("ask the free")
     updateCurrentStep(1);
 
     setTimeout(() => {
+      const honorific = lead?.name ? ` ${lead.name} Sir` : ' Sir';
       if (lang === 'Hindi') {
-        const text = 'Bahut badhiya! Kya aap abhi thoda free hain? Bas 2 minute aapse baat karni thi.';
+        const text = `[happy] Bahut badhiya${honorific}! [break] Kya aap abhi 2 minute ke liye free hain Sir?`;
         appendDialogue('AI', text);
         speakAIText(text, 'hi-IN');
       } else if (lang === 'Tamil-English') {
-        const text = 'Super! Ippo konjam free-ah irukkeengala? Oru 2 minutes unga kooda pesa mudiyuma?';
+        const text = `[happy] Romba nandri${honorific}! [break] Ippo oru 2 nimisham pesalaama Sir?`;
         appendDialogue('AI', text);
-        speakAIText(text, 'en-IN');
+        speakAIText(text, 'ta-IN');
       } else {
-        const text = 'Awesome! Are you free right now to talk for just a couple of minutes?';
+        const text = `[happy] Thank you so much${honorific}! [break] Are you free to speak for just two minutes right now?`;
         appendDialogue('AI', text);
         speakAIText(text, 'en-US');
       }
-    }, 80);
+    }, 40);
   };
 
   // ─── Extractors for Knowledge Base (Property AI PDF Sections 2, 4, 6) ──────
@@ -1622,10 +2951,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (isDecliningOrBusy(input)) {
         const politeEnd =
           activeLang === 'Hindi'
-            ? 'Arrey koi baat nahi, aap busy hain toh main samajh sakti hoon! Free hone ke baad connect karenge. Have a lovely day!'
+            ? `[understanding] Ji Sir, koi baat nahi. Aapke liye kab baat karna convenient rahega? Main us time par call kar ${voiceGenderRef.current === 'male' ? 'sakta hoon' : 'sakti hoon'}. Have a lovely day!`
             : activeLang === 'English'
-            ? "Oh, no worries at all! I totally understand you're busy right now. We can connect whenever you're free. Have a wonderful day!"
-            : 'அய்யோ, no problem at all! நீங்க busy-ஆ இருக்கீங்க, கண்டிப்பா புரியுது. Free ஆகும் போது பேசலாம். Have a lovely day!';
+            ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
+            : '[understanding] Seri Sir, puriyudhu. Neenga free-aa irukkumbodhu pesalaam. Eppo call panna convenient-aa irukkum? Have a lovely day!';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
@@ -1643,10 +2972,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (isNotInterested(input)) {
         const politeEnd =
           activeLang === 'Hindi'
-            ? 'Bilkul koi baat nahi! Aapka time dene ke liye shukriya. Have a great day!'
+            ? '[calm] Ji Sir, koi problem nahi. Aapke time ke liye thank you. Aapka din achha rahe!'
             : activeLang === 'English'
-            ? 'No problem at all, I completely understand! Thanks so much for your time. Have a wonderful day!'
-            : 'சரிங்க, no issues at all! உங்கள் time-க்கு ரொம்ப thanks. Have a great day!';
+            ? '[calm] Absolutely Sir, I understand. Thank you for your time. Have a lovely day!'
+            : '[calm] Seri Sir, parava illa. Unga time-ku romba thanks. Have a wonderful day!';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer is not interested.');
@@ -1744,9 +3073,19 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     setCurrentTextInput('');
     setLiveSpeechText('');
 
-    const lower = input.toLowerCase();
+    const lower = input.toLowerCase().trim();
     const activeStep = currentStepRef.current;
     const activeLang = selectedLanguageRef.current;
+
+    // Guard: ignore empty or whitespace-only inputs
+    if (!input || lower.length < 2) {
+      return;
+    }
+
+    // Step 0: Real-time Emotional Intelligence Detection
+    // Primary Rule: LISTEN → UNDERSTAND THE EMOTION → SELECT THE APPROPRIATE TONE → RESPOND NATURALLY
+    const detectedEmotion = detectCustomerEmotion(input);
+    lastCustomerEmotionRef.current = detectedEmotion;
 
     // Check 1: Stop / Opt-out (Requirement 8)
     if (
@@ -1756,7 +3095,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('do not contact') ||
       lower.includes('remove my number') ||
       lower.includes('opt out') ||
-      lower.includes('opt-out')
+      lower.includes('opt-out') ||
+      lower.includes('not interested') ||
+      lower.includes('no interest')
     ) {
       handleOptOut();
       return;
@@ -1769,37 +3110,85 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('human') ||
       lower.includes('real person') ||
       lower.includes('agent call') ||
-      lower.includes('speak with someone')
+      lower.includes('speak with someone') ||
+      lower.includes('human agent')
     ) {
       handleAgentCallback();
       return;
     }
 
-    // STEP 0: Language selection step
-    if (activeStep === 0) {
-      if (lower.includes('hindi') || lower.includes('हिंदी')) {
-        handleSelectLanguage('Hindi', false);
-      } else if (lower.includes('tamil') || lower.includes('tanglish') || lower.includes('தமிழ்')) {
-        handleSelectLanguage('Tamil-English', false);
-      } else {
-        handleSelectLanguage('English', false);
+    // Strict work-focus: detect unrelated chit-chat and politely redirect.
+    // Business words always win — property questions are never treated as off-topic.
+    if (isOffTopicSmallTalk(input)) {
+      offTopicTurnsRef.current += 1;
+      // Repeated attempts: after three chit-chat turns, close the call humbly, never rudely
+      if (offTopicTurnsRef.current >= 3) {
+        const politeClose =
+          activeLang === 'Hindi'
+            ? 'Main sirf property madad ke liye yahan hoon. Aapse baat karke accha laga — jab property ki zaroorat ho, humari team hamesha available hai. Have a wonderful day!'
+            : activeLang === 'English'
+            ? "I'm here only to help with property queries. It was lovely talking with you — whenever you need property details, pricing, or bookings, our team is always happy to help. Have a wonderful day!"
+            : 'Naan property vishayam mattum dhaan help panren Sir. Unga time-ku nandri — property venumna eppovum our team ready-la irukkum. Have a wonderful day!';
+        appendDialogue('AI', politeClose);
+        speakAIText(politeClose, getVoiceLangCode(), () => {
+          finalizeCall('Completed', 'COLD', 'Caller repeatedly discussed off-topic subjects; agent closed politely.');
+        });
+        return;
       }
+      const redirect = getNextOffTopicRedirect(activeLang);
+      appendDialogue('AI', redirect);
+      speakAIText(redirect, getVoiceLangCode());
       return;
     }
+    // Back on business — reset the consecutive off-topic counter
+    offTopicTurnsRef.current = 0;
 
-    // ⚡ Groq AI Conversational Model execution (Live STT -> Groq Reasoning -> TTS)
-    if (groqAvailable && useGroqModelRef.current && activeStep >= 1) {
+    // STEP 0: Language selection step
+    if (activeStep === 0) {
+      const isPureLanguageChoice = /^(tamil|tanglish|தமிழ்|english|inglish|hindi|हिंदी)$/i.test(lower.trim());
+
+      if (isPureLanguageChoice) {
+        const chosen = lower.includes('hindi') || lower.includes('हिंदी')
+          ? 'Hindi'
+          : lower.includes('english') || lower.includes('inglish')
+          ? 'English'
+          : 'Tamil-English';
+        handleSelectLanguage(chosen, false);
+        return;
+      }
+
+      // Customer spoke a sentence, question, or requirement right at the start!
+      const detectedLang =
+        lower.includes('hindi') || /[\u0900-\u097F]/.test(input)
+          ? 'Hindi'
+          : /[\u0B80-\u0BFF]/.test(input) || lower.includes('enga') || lower.includes('enna') || lower.includes('solunga') || lower.includes('velachery') || lower.includes('tamil') || lower.includes('tanglish')
+          ? 'Tamil-English'
+          : selectedLanguageRef.current || initialLanguage || 'English';
+      updateSelectedLanguage(detectedLang);
+      updateCurrentStep(1);
+      // Do NOT return — fall through directly to LLM generation below to answer immediately!
+    }
+
+    // ⚡ LLM Conversational Model execution (Gemini / Groq / OpenAI -> STT -> Reasoning -> TTS)
+    const isBrainActive =
+      brainEngineRef.current === 'gemini' ||
+      brainEngineRef.current === 'groq' ||
+      brainEngineRef.current === 'openai';
+
+    const currentEffectiveStep = currentStepRef.current;
+    if (isBrainActive && (activeStep >= 1 || currentEffectiveStep >= 1)) {
+      const stepForProcessing = Math.max(activeStep, currentEffectiveStep);
       // Step 1: Extract lead qualification details in background
-      extractQualificationFromInput(activeStep, input, lower);
+      extractQualificationFromInput(stepForProcessing, input, lower);
 
       // Check if user is declining or busy in Step 1
-      if (activeStep === 1 && isDecliningOrBusy(input)) {
+      if (stepForProcessing === 1 && isDecliningOrBusy(input)) {
         const politeEnd =
           activeLang === 'Hindi'
-            ? 'Arrey koi baat nahi, aap busy hain toh main samajh sakti hoon! Free hone ke baad connect karenge. Have a lovely day!'
+            ? `[understanding] Ji Sir, koi baat nahi. Aapke liye kab baat karna convenient rahega? Main us time par call kar ${voiceGenderRef.current === 'male' ? 'sakta hoon' : 'sakti hoon'}. Have a lovely day!`
             : activeLang === 'English'
-            ? "Oh, no worries at all! I totally understand you're busy right now. We can connect whenever you're free. Have a wonderful day!"
-            : 'அய்யோ, no problem at all! நீங்க busy-ஆ இருக்கீங்க, கண்டிப்பா புரியுது. Free ஆகும் போது பேசலாம். Have a lovely day!';
+            ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
+            : '[understanding] Seri Sir, puriyudhu. Neenga free-aa irukkumbodhu pesalaam. Eppo call panna convenient-aa irukkum? Have a lovely day!';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
@@ -1807,12 +3196,21 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         return;
       }
 
-      // Advance step indicator
-      if (activeStep < 9) {
+      // Check if user is asking a question or interrupting with an in-call inquiry
+      const isAskingQuestion = isCustomerAskingQuestion(input);
+
+      // Advance step indicator ONLY when answering qualification flow (NOT when asking inquiries)
+      if (!isAskingQuestion && activeStep < 9) {
         updateCurrentStep(activeStep + 1);
       }
 
-      setIsGroqThinking(true);
+      if (brainEngineRef.current === 'gemini') {
+        setIsGeminiThinking(true);
+      } else if (brainEngineRef.current === 'openai') {
+        setIsOpenAiThinking(true);
+      } else {
+        setIsGroqThinking(true);
+      }
       updateCallState('AI Speaking...');
 
       try {
@@ -1821,8 +3219,70 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           content: d.text,
         }));
 
-        const aiReply = await groqChat(historyMessages, selectedGroqModelRef.current, lead?.name);
+        let aiReply = '';
+        if (brainEngineRef.current === 'gemini') {
+          aiReply = await geminiChat(
+            historyMessages,
+            selectedGeminiModelRef.current,
+            lead?.name,
+            activeLang,
+            agentName,
+            voiceGenderRef.current,
+            lastCustomerEmotionRef.current
+          );
+        } else if (brainEngineRef.current === 'openai') {
+          try {
+            aiReply = await openaiChat(
+              historyMessages,
+              selectedOpenAiBrainModelRef.current,
+              lead?.name,
+              activeLang,
+              agentName,
+              voiceGenderRef.current,
+              lastCustomerEmotionRef.current
+            );
+          } catch (openAiErr) {
+            console.warn('[AI Model] OpenAI failed, seamlessly falling back to Gemini:', openAiErr);
+            aiReply = await geminiChat(
+              historyMessages,
+              selectedGeminiModelRef.current,
+              lead?.name,
+              activeLang,
+              agentName,
+              voiceGenderRef.current,
+              lastCustomerEmotionRef.current
+            );
+          }
+        } else if (brainEngineRef.current === 'groq') {
+          try {
+            aiReply = await groqChat(
+              historyMessages,
+              selectedGroqModelRef.current,
+              lead?.name,
+              activeLang,
+              agentName,
+              voiceGenderRef.current,
+              lastCustomerEmotionRef.current,
+              undefined,
+              conversationStyleRef.current
+            );
+          } catch (groqErr) {
+            console.warn('[AI Model] Groq failed, seamlessly falling back to Gemini 3.8 Flash:', groqErr);
+            aiReply = await geminiChat(
+              historyMessages,
+              selectedGeminiModelRef.current,
+              lead?.name,
+              activeLang,
+              agentName,
+              voiceGenderRef.current,
+              lastCustomerEmotionRef.current
+            );
+          }
+        }
+
+        setIsGeminiThinking(false);
         setIsGroqThinking(false);
+        setIsOpenAiThinking(false);
 
         if (aiReply && aiReply.trim()) {
           const cleanReply = aiReply.trim();
@@ -1835,18 +3295,26 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           return;
         }
       } catch (err) {
-        console.warn('[Groq Model] Call error, seamlessly falling back to rule engine:', err);
+        console.warn('[AI Model] Call error:', err);
+        setIsGeminiThinking(false);
         setIsGroqThinking(false);
+        setIsOpenAiThinking(false);
       }
     }
 
-    // Fallback: Run Rule Engine
+    // Fallback: If customer is asking a question and Gemini is available, answer via Gemini
+    if (isCustomerAskingQuestion(input) && geminiAvailable) {
+      await handleCustomerQuestion(input);
+      return;
+    }
+
+    // Fallback: Run Rule Engine with outcome determination
     runRuleEngineStep(activeStep, input);
   };
 
   const getVoiceLangCode = () => {
     if (selectedLanguageRef.current === 'Hindi') return 'hi-IN';
-    if (selectedLanguageRef.current === 'Tamil-English') return 'en-IN';
+    if (selectedLanguageRef.current === 'Tamil-English') return 'ta-IN';
     return 'en-US';
   };
 
@@ -1861,66 +3329,66 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Q1: Purpose (வாங்கணுமா, வாடகைக்கா, நிலமா?)
     if (qNum === 1) {
       if (activeLang === 'Hindi') {
-        questionText = `Bahut shukriya ${customerName}! Aap ghar khareedna chahte hain, rent pe lena hai, ya plot khareedna hai?`;
+        questionText = `[curious] Bahut shukriya ${customerName}! [break] Aap ghar khareedna chahte hain, rent pe lena hai, ya plot khareedna hai?`;
       } else if (activeLang === 'English') {
-        questionText = `Thank you so much ${customerName}! Are you looking to buy a house, rent one, or buy a plot?`;
+        questionText = `[curious] Thank you so much ${customerName}! [break] Are you looking to buy a house, rent one, or buy a plot?`;
       } else {
-        questionText = `சந்தோஷம் ${customerName}! நீங்க வீடு வாங்கணுமா, வாடகைக்கு வேணுமா, இல்ல நிலம் (plot) வாங்கணுமா?`;
+        questionText = `[curious] Romba sandhosham ${customerName}! [break] Neenga veedu vaanganuma, vaadagaikku venuma, illa nilam (plot) vaanganuma?`;
       }
     }
 
     // PDF Q2: Area (எந்த ஏரியால பாக்கறீங்க?)
     else if (qNum === 2) {
       if (activeLang === 'Hindi') {
-        questionText = 'Super! Aap kaun se area me dekh rahe hain? Jaise Velachery, OMR, Tambaram, Adyar, Porur ya Chengalpattu.';
+        questionText = '[curious] Super! [break] Aap kaun se area me dekh rahe hain? Jaise Velachery, OMR, Tambaram, Adyar, Porur ya Chengalpattu.';
       } else if (activeLang === 'English') {
-        questionText = 'Great! Which area are you looking at? For example Velachery, OMR, Tambaram, Adyar, Porur, or Chengalpattu.';
+        questionText = '[curious] Great! [break] Which area are you looking at? For example Velachery, OMR, Tambaram, Adyar, Porur, or Chengalpattu.';
       } else {
-        questionText = 'சூப்பர்! எந்த ஏரியால பாக்கறீங்க? உதாரணத்துக்கு வேளச்சேரி, OMR, தாம்பரம், போரூர், அடையார், செங்கல்பட்டு.';
+        questionText = '[curious] Super! [break] Endha area-la paakareenga? Jaise Velachery, OMR, Tambaram, Porur, Adyar, illana Chengalpattu.';
       }
     }
 
     // PDF Q3: Size (எத்தனை BHK வேணும்? 1, 2, இல்ல 3?)
     else if (qNum === 3) {
       if (activeLang === 'Hindi') {
-        questionText = 'Sahi hai. Kitne BHK chahiye? 1, 2 ya 3? Ya plot ke liye kitna sq ft?';
+        questionText = '[curious] Sahi hai. [break] Kitne BHK chahiye? 1, 2 ya 3? Ya plot ke liye kitna sq ft?';
       } else if (activeLang === 'English') {
-        questionText = 'Okay. How many BHK do you need? 1, 2, or 3? (Or how many sq ft for plots?)';
+        questionText = '[curious] Okay. [break] How many BHK do you need? 1, 2, or 3? (Or how many sq ft for plots?)';
       } else {
-        questionText = 'சரிங்க. எத்தனை BHK வேணும்? 1, 2, இல்ல 3? (Plot-னா எவ்வளவு sq ft?)';
+        questionText = '[curious] Seri Sir. [break] Ethanai BHK venum? 1, 2, illa 3? (Plot-na evvalavu sq ft?)';
       }
     }
 
     // PDF Q4: Budget (உங்க பட்ஜெட் எவ்வளவு?)
     else if (qNum === 4) {
       if (activeLang === 'Hindi') {
-        questionText = 'Aapka approximate budget kitna hoga?';
+        questionText = '[curious] Samajh gaya. [break] Aapka approximate budget kitna hoga?';
       } else if (activeLang === 'English') {
-        questionText = 'What is your approximate budget?';
+        questionText = '[curious] Got it. [break] What is your approximate budget?';
       } else {
-        questionText = 'உங்க பட்ஜெட் எவ்வளவு இருக்கும்?';
+        questionText = '[curious] Purinjiduchu Sir. [break] Ungaloda approximate budget evvalavu irukkum?';
       }
     }
 
     // PDF Q5: Timeline (எப்போ குடிபோகணும்?)
     else if (qNum === 5) {
       if (activeLang === 'Hindi') {
-        questionText = 'Kab tak shift hona hai? Immediate ready-to-move chahiye ya thoda wait kar sakte hain?';
+        questionText = '[curious] Achha! [break] Kab tak shift hona hai? Immediate ready-to-move chahiye ya thoda wait kar sakte hain?';
       } else if (activeLang === 'English') {
-        questionText = 'When do you want to move in? Should it be ready now, or is a short wait fine?';
+        questionText = '[curious] That helps! [break] When do you want to move in? Should it be ready now, or is a short wait fine?';
       } else {
-        questionText = 'எப்போ குடிபோகணும்? உடனே ready-ஆ இருக்கணுமா, இல்ல கொஞ்சம் நாள் ஆனாலும் பரவால்லயா?';
+        questionText = '[curious] Nalla vishayam Sir. [break] Eppo move-in panna plan? Udane ready-aa irukkanuma, illa konjam naal aanaalum paravaallaya?';
       }
     }
 
     // PDF Q6: Finance (லோன் போடப் போறீங்களா, இல்ல cash-ஆ?)
     else if (qNum === 6) {
       if (activeLang === 'Hindi') {
-        questionText = 'Bank loan lenge ya cash me pay karenge?';
+        questionText = '[curious] Sahi hai. [break] Bank loan lenge ya direct cash me pay karenge?';
       } else if (activeLang === 'English') {
-        questionText = 'Will you take a bank loan, or pay in cash?';
+        questionText = '[curious] Perfect. [break] Will you take a bank loan, or pay in cash?';
       } else {
-        questionText = 'லோன் போடப் போறீங்களா, இல்ல cash-ஆ?';
+        questionText = '[curious] Correct Sir. [break] Bank loan eduthu vaanga plan-aa, illa direct cash payment-aa?';
       }
     }
 
@@ -2033,6 +3501,19 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       .map((d) => `${d.speaker === 'AI' ? 'AI' : lead.name}: ${d.text}`)
       .join('\n');
 
+    const parsedQA = parseTranscriptToQAPairs(dialogueRef.current, transcriptText);
+    const qaHistory = parsedQA.map((qa) => ({
+      id: qa.id,
+      stepNumber: qa.stepNumber,
+      stepTitle: qa.stepTitle,
+      question: qa.aiQuestion,
+      answer: qa.userAnswer || '',
+      extractedKey: qa.extractedKey,
+      extractedValue: qa.extractedValue,
+      isCustomerQuestion: qa.isCustomerQuestion,
+      timestamp: qa.userTimestamp || qa.aiTimestamp,
+    }));
+
     const endedAtStr = new Date().toISOString();
     const startedAtStr = new Date(callStartTimeRef.current).toISOString();
     const finalDuration = Math.max(duration, Math.floor((Date.now() - callStartTimeRef.current) / 1000));
@@ -2058,6 +3539,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           },
           summary,
           transcript: transcriptText || 'Browser voice session completed.',
+          qaHistory,
           noAnswer,
         },
         leadUpdates: {
@@ -2069,6 +3551,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           budget: q.budget || lead.budget || '',
           location: q.location || lead.location || '',
           timeline: q.timeline || lead.timeline || '',
+          transcript: transcriptText,
+          qaHistory,
           nextAction:
             outcome === 'HOT'
               ? 'High Priority: Assign Senior Property Advisor for immediate site visit.'
@@ -2117,7 +3601,620 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     finalizeCall('Completed', currentOutcome, summary);
   };
 
+  // Start live session when clicking "Start Live Call"
+  const handleStartLiveCall = () => {
+    setCallPhase('in_call');
+    startBrowserCallSession();
+  };
+
+  // Helper to render PDF expression tags nicely in chat without breaking spoken audio
+  const formatDialogueText = (raw: string) => {
+    if (!raw) return '';
+    const parts = raw.split(
+      /(\[(?:excited|laughing|whispering|break|curious|reassuring|empathetic|calm|apologetic|confident|softly|serious|warm|happy|understanding|explaining)\])/gi
+    );
+    if (parts.length === 1) return raw;
+    return parts.map((part, i) => {
+      const match = part.match(/^\[(.*)\]$/i);
+      if (match) {
+        const tag = match[1].toLowerCase();
+        if (tag === 'break') {
+          return (
+            <span
+              key={i}
+              className="inline-block px-1 py-0.2 mx-1 text-[9px] font-mono text-slate-400 bg-slate-800 rounded border border-slate-700/60"
+              title="Pause break"
+            >
+              ⏸ break
+            </span>
+          );
+        }
+        return (
+          <span
+            key={i}
+            className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 align-middle"
+          >
+            {tag}
+          </span>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   if (!isOpen || !lead) return null;
+
+  // ─── Setup Screen Phase: Choose Persona, Models & Combinations ───────
+  if (callPhase === 'setup') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">AI Telecaller Setup</h3>
+                <p className="text-xs text-slate-400">
+                  Ready to call <span className="text-slate-200 font-semibold">{lead.name}</span> ({lead.phone})
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Scrollable Setup Options */}
+          <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+            {/* 1. CHOOSE PERSONA: BOY OR GIRL */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  <span>1. Choose Caller Persona (Boy or Girl)</span>
+                </label>
+                <span className="text-[11px] text-amber-400 font-medium">Select voice gender & style</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Girl: Priya */}
+                <div
+                  onClick={() => updateVoiceGender('female')}
+                  className={`relative p-4 rounded-2xl border cursor-pointer transition-all ${
+                    voiceGender === 'female'
+                      ? 'bg-amber-500/10 border-amber-500 shadow-lg shadow-amber-500/10'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-2xl">👧</span>
+                      <div>
+                        <div className="flex items-center space-x-1.5">
+                          <h4 className="font-extrabold text-white text-sm">Priya (Girl)</h4>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                            Client Favorite
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Warm, Polite & Empathetic</p>
+                      </div>
+                    </div>
+                    {voiceGender === 'female' && (
+                      <div className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2.5 leading-relaxed">
+                    Gentle, warm, and highly persuasive. Best for residential flats, family homes, and first-time buyers.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      testVoiceSample(undefined, 'female');
+                    }}
+                    className="mt-3 w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold flex items-center justify-center space-x-1.5 transition-colors border border-slate-700/60"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>🔊 Preview Priya's Voice</span>
+                  </button>
+                </div>
+
+                {/* Boy: Karthik */}
+                <div
+                  onClick={() => updateVoiceGender('male')}
+                  className={`relative p-4 rounded-2xl border cursor-pointer transition-all ${
+                    voiceGender === 'male'
+                      ? 'bg-amber-500/10 border-amber-500 shadow-lg shadow-amber-500/10'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="text-2xl">👦</span>
+                      <div>
+                        <div className="flex items-center space-x-1.5">
+                          <h4 className="font-extrabold text-white text-sm">Karthik (Boy)</h4>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            Authoritative
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Confident, Professional & Crisp</p>
+                      </div>
+                    </div>
+                    {voiceGender === 'male' && (
+                      <div className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2.5 leading-relaxed">
+                    Confident, analytical, and articulate. Best for luxury villas, commercial plots, NRI investors, and loan queries.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      testVoiceSample(undefined, 'male');
+                    }}
+                    className="mt-3 w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold flex items-center justify-center space-x-1.5 transition-colors border border-slate-700/60"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-blue-400" />
+                    <span>🔊 Preview Karthik's Voice</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                Female voice delivery style
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  aria-pressed={conversationStyle === 'engaging'}
+                  onClick={() => updateConversationStyle('engaging')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    conversationStyle === 'engaging'
+                      ? 'bg-pink-500/10 border-pink-400 text-white'
+                      : 'bg-slate-950/40 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="block text-xs font-bold">Friendly &amp; engaging</span>
+                  <span className="block text-[10px] text-slate-400 mt-1">
+                    Warm, lively, and naturally enthusiastic when it fits.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={conversationStyle === 'polite'}
+                  onClick={() => updateConversationStyle('polite')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    conversationStyle === 'polite'
+                      ? 'bg-pink-500/10 border-pink-400 text-white'
+                      : 'bg-slate-950/40 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="block text-xs font-bold">Polite &amp; gentle</span>
+                  <span className="block text-[10px] text-slate-400 mt-1">
+                    Courteous, calm, and patient without sounding formal.
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. QUICK VOICE PRESETS */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>2. Quick Voice Presets</span>
+                </label>
+                <span className="text-[11px] text-slate-400">Select speaking voice (Brain model remains independent below)</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => applyPreset('cartesia')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'cartesia'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-amber-400">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>⚡ Cartesia (90ms)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Sonic 3.5 Kanmani (Tamil) / Kiara — Ultra-Fast</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('deepgram')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'deepgram'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-blue-400">
+                    <Zap className="w-3.5 h-3.5 text-blue-400" />
+                    <span>⚡ Deepgram (140ms)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Aura-2 Asteria + Nova-2 Multilingual STT</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('speechify')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'speechify'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-purple-400">
+                    <span>🎙️ Speechify Agent</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Simba-3.5 + Abirami Tamil Voice (~500ms)</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('groq')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'groq'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-cyan-400">
+                    <span>🚀 Groq Agent</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Groq Qwen/Llama + Diana + Whisper Turbo STT</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('sarvam')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'sarvam'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-orange-400">
+                    <span>🇮🇳 Sarvam Indian</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Bulbul v3 Kavitha/Gokul + Saaras Indian STT</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('murf')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'murf'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-pink-400">
+                    <span>🎭 Murf AI Studio</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">GEN2 Studio Ananya / Aarav Indian Voice</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('gemini')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'gemini'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-emerald-400">
+                    <span>💎 Gemini Agent</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Gemini 2.5 Flash + Kore Female + Gemini STT</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('openai')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'openai'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-teal-400">
+                    <span>✨ OpenAI All-in-One</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">tts-1 (Nova/Onyx) + Whisper-1 + GPT-4o-mini</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyPreset('free')}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    ttsEngine === 'browser' && brainEngine === 'rules'
+                      ? 'bg-amber-500/15 border-amber-500 text-white shadow-md ring-1 ring-amber-400/50'
+                      : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center space-x-1.5 text-slate-300">
+                    <span>🆓 Free Browser</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">Deterministic Rules + Browser Voice (Zero Cost)</p>
+                </button>
+              </div>
+            </div>
+
+            {/* 3. DETAILED ENGINE CONTROLS: TTS, STT, BRAIN */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-1">
+              {/* Voice Model (TTS) */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1">
+                  <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Voice Model (TTS)</span>
+                </label>
+                <select
+                  value={ttsEngine}
+                  onChange={(e) => updateTtsEngine(e.target.value as TtsEngineChoice)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                >
+                  <option value="openai">✨ OpenAI TTS (tts-1 / tts-1-hd / gpt-4o-mini-tts)</option>
+                  <option value="cartesia">⚡ Cartesia Sonic 3.5 (90ms Ultra-Fast — Kanmani)</option>
+                  <option value="deepgram">⚡ Deepgram Aura-2 (140ms — Asteria)</option>
+                  <option value="speechify">🎙️ Speechify Simba-3.5 (500ms — Abirami Tamil)</option>
+                  <option value="groq">🚀 Groq Voice (200ms — Diana)</option>
+                  <option value="sarvam">🇮🇳 Sarvam AI Bulbul v3 (350ms — Kavitha)</option>
+                  <option value="murf">🎭 Murf AI GEN2 (700ms — Ananya Studio)</option>
+                  <option value="gemini">💎 Gemini 3.8 (1,500ms — Kore Multimodal)</option>
+                  <option value="browser">🆓 Browser Web Speech (System Voice)</option>
+                </select>
+
+                {/* OpenAI TTS Sub-options (Model & Voice) */}
+                {ttsEngine === 'openai' && (
+                  <div className="space-y-1.5 pt-1 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    <div>
+                      <span className="text-[10px] text-teal-300 font-bold block mb-1">OpenAI TTS Model:</span>
+                      <select
+                        value={selectedOpenAiTtsModel}
+                        onChange={(e) => updateOpenAiTtsModelChoice(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-amber-500"
+                      >
+                        {OPENAI_TTS_MODELS.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-teal-300 font-bold block mb-1">OpenAI Voice Persona:</span>
+                      <select
+                        value={selectedOpenAiVoice}
+                        onChange={(e) => updateOpenAiVoiceChoice(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-amber-500"
+                      >
+                        {OPENAI_TTS_VOICES.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-slate-400">
+                  {ttsEngine === 'openai'
+                    ? '✨ OpenAI TTS — High-clarity neural speech with Nova/Shimmer (Priya) and Onyx/Echo (Karthik)'
+                    : ttsEngine === 'cartesia'
+                    ? '⚡ Cartesia Sonic 3.5 — 90ms ultra-low latency with native Tamil Kanmani / Hindi Kavya / English Kiara'
+                    : ttsEngine === 'deepgram'
+                    ? '⚡ Deepgram Aura-2 — 140ms lightning-fast conversational female voice'
+                    : ttsEngine === 'speechify'
+                    ? '🎙️ Speechify Simba-3.5 — Expressive native Indian Tamil (Abirami) & Hindi female voice'
+                    : ttsEngine === 'sarvam'
+                    ? '🇮🇳 Sarvam AI Bulbul v3 — Authentic Indian accent voice (Kavitha / Gokul)'
+                    : ttsEngine === 'murf'
+                    ? '🎭 Murf AI GEN2 — Premium studio-grade Indian English voice (Ananya / Aarav)'
+                    : ttsEngine === 'gemini'
+                    ? '💎 Gemini 3.8 Flash — Expressive neural voice with emotion (Kore)'
+                    : ttsEngine === 'groq'
+                    ? '🚀 Groq Voice — High-speed conversational female voice (Diana)'
+                    : '🆓 System native browser voice (0 API cost, offline fallback)'}
+                </p>
+              </div>
+
+              {/* Listening Model (STT) */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1">
+                  <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Hearing Model (STT)</span>
+                </label>
+                <select
+                  value={sttEngine}
+                  onChange={(e) => updateSttEngine(e.target.value as SttEngineChoice)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                >
+                  <option value="openai">✨ OpenAI Whisper (whisper-1 / gpt-4o-transcribe)</option>
+                  <option value="deepgram">⚡ Deepgram Nova-2 / Nova-3 (~100ms Multilingual)</option>
+                  <option value="groq">🚀 Groq Whisper Large v3 Turbo (~150ms Instant)</option>
+                  <option value="sarvam">🇮🇳 Sarvam Saaras (~300ms Indian Languages)</option>
+                  <option value="gemini">💎 Gemini 3.8 Flash Audio STT (Multimodal)</option>
+                  <option value="browser">🌐 Browser Web Speech API (Free Client-side)</option>
+                </select>
+
+                {/* OpenAI STT Sub-options (Model) */}
+                {sttEngine === 'openai' && (
+                  <div className="space-y-1.5 pt-1 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-[10px] text-teal-300 font-bold block mb-1">OpenAI STT Model:</span>
+                    <select
+                      value={selectedOpenAiSttModel}
+                      onChange={(e) => updateOpenAiSttModelChoice(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-amber-500"
+                    >
+                      {OPENAI_STT_MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-slate-400">
+                  {sttEngine === 'openai'
+                    ? '✨ OpenAI Whisper-1 — World-class multilingual audio transcription with Indian accents & Tamil'
+                    : sttEngine === 'deepgram'
+                    ? '⚡ Deepgram Nova-2 — 100ms instant transcription with robust Tamil & Hindi support'
+                    : sttEngine === 'groq'
+                    ? '🚀 Groq Whisper Large v3 Turbo — 150ms instant high-accuracy transcription'
+                    : sttEngine === 'sarvam'
+                    ? '🇮🇳 Sarvam Saaras v1 — Native benchmark leader for Indian accents & Tamil-English'
+                    : sttEngine === 'gemini'
+                    ? '💎 Gemini 3.8 Flash — Multimodal audio comprehension & noise tolerance'
+                    : '🆓 Free real-time streaming browser speech recognition'}
+                </p>
+              </div>
+
+              {/* Brain Model (LLM) */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1">
+                  <Bot className="w-3.5 h-3.5 text-violet-400" />
+                  <span>Brain Model (LLM)</span>
+                </label>
+                <select
+                  value={brainEngine}
+                  onChange={(e) => updateBrainEngine(e.target.value as BrainEngineChoice)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
+                >
+                  <option value="gemini">Gemini AI (Recommended)</option>
+                  <option value="openai">✨ OpenAI GPT (gpt-4o-mini / gpt-4o)</option>
+                  <option value="groq">Groq AI</option>
+                  <option value="rules">Local Rule Engine (Deterministic)</option>
+                </select>
+                {brainEngine === 'gemini' && (
+                  <select
+                    value={selectedGeminiModel}
+                    onChange={(e) => updateGeminiModelChoice(e.target.value)}
+                    className="w-full mt-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-amber-500"
+                  >
+                    {GEMINI_MODEL_OPTIONS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {brainEngine === 'openai' && (
+                  <select
+                    value={selectedOpenAiBrainModel}
+                    onChange={(e) => updateOpenAiBrainModelChoice(e.target.value)}
+                    className="w-full mt-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-amber-500"
+                  >
+                    {OPENAI_BRAIN_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {brainEngine === 'groq' && (
+                  <select
+                    value={selectedGroqModel}
+                    onChange={(e) => updateGroqModelChoice(e.target.value)}
+                    className="w-full mt-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-200 focus:outline-none focus:border-amber-500"
+                  >
+                    {GROQ_MODEL_OPTIONS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {brainEngine === 'openai'
+                    ? '✨ OpenAI GPT — Industry-standard conversational property advisor'
+                    : brainEngine === 'gemini'
+                    ? '🧠 Multimodal property reasoning & PDF context'
+                    : brainEngine === 'groq'
+                    ? '⚡ Sub-second conversational objection handling'
+                    : '📋 100% deterministic script without API'}
+                  {' '}Brain Model is fully independent from Voice Model (TTS). Choose any reasoning model with any voice.
+                </p>
+              </div>
+            </div>
+
+            {/* 4. PREFERRED INITIAL LANGUAGE */}
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-1.5 mb-2">
+                <Globe className="w-3.5 h-3.5 text-amber-400" />
+                <span>4. Preferred Initial Language</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'Tamil-English', label: '🇮🇳 Tamil / Tanglish' },
+                  { id: 'English', label: '🇬🇧 English' },
+                  { id: 'Hindi', label: '🇮🇳 Hindi (हिंदी)' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setInitialLanguage(item.id as LanguageOption);
+                      updateSelectedLanguage(item.id as LanguageOption);
+                    }}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      (selectedLanguage || initialLanguage) === item.id
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                        : 'bg-slate-950/40 text-slate-300 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Setup Footer: Start Button */}
+          <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleStartLiveCall}
+              className="px-6 py-3 rounded-2xl text-xs font-extrabold bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 hover:brightness-110 shadow-lg shadow-amber-500/25 active:scale-95 transition-all flex items-center space-x-2"
+            >
+              <Phone className="w-4 h-4 fill-current" />
+              <span>
+                Start Live Call with {agentName} ({voiceGender === 'female' ? 'Priya' : 'Karthik'})
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -2151,7 +4248,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               </div>
               <div className="flex items-center space-x-2 mt-0.5">
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-300 border-emerald-500/30 flex items-center space-x-1">
-                  <span>👧 Priya • Free AI Telecaller</span>
+                  <span>
+                    {voiceGender === 'female' ? '👧 Priya' : '👦 Karthik'} •{' '}
+                    {ttsEngine === 'openai'
+                      ? `OpenAI ${selectedOpenAiTtsModel.toUpperCase()} (${selectedOpenAiVoice})`
+                      : ttsEngine === 'cartesia'
+                      ? 'Cartesia Sonic Voice'
+                      : ttsEngine === 'deepgram'
+                      ? 'Deepgram Aura Voice'
+                      : ttsEngine === 'speechify'
+                      ? 'Speechify Voice'
+                      : ttsEngine === 'gemini'
+                      ? 'Gemini Voice'
+                      : ttsEngine === 'groq'
+                      ? 'Groq Voice'
+                      : ttsEngine === 'sarvam'
+                      ? 'Sarvam Voice'
+                      : ttsEngine === 'murf'
+                      ? 'Murf Falcon Voice'
+                      : 'Free Browser Voice'}{' '}
+                    Telecaller
+                  </span>
                 </span>
                 <span className="text-xs text-slate-400 flex items-center">
                   <Clock className="w-3 h-3 mr-1" />
@@ -2161,12 +4278,25 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={handleManualEndCall}
-            className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                cleanupAudioSession();
+                setCallPhase('setup');
+              }}
+              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
+              title="Change Voice Persona / Engine Setup"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleManualEndCall}
+              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Live Call State Bar */}
@@ -2275,32 +4405,44 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               )}
             </div>
 
-            {/* Groq AI Model Engine Pill / Badge */}
+            {/* Active AI Model Engine Pill / Badge */}
             <div className="flex items-center space-x-1.5 px-3 py-0.5 rounded-full border text-[11px] font-semibold bg-violet-500/10 text-violet-300 border-violet-500/30">
               <Sparkles className="w-3.5 h-3.5 text-violet-400" />
               <span>
-                {isGroqThinking
-                  ? '⚡ Groq Thinking...'
-                  : groqAvailable && useGroqModel
-                  ? '⚡ Groq LLaMA 3.3 Active'
-                  : groqAvailable
-                  ? 'Rule Engine (Groq Paused)'
+                {isGroqThinking || isGeminiThinking || isOpenAiThinking
+                  ? '⚡ AI Thinking...'
+                  : brainEngine === 'openai' && openaiAvailable
+                  ? `🧠 OpenAI ${selectedOpenAiBrainModel.replace('gpt-', '').toUpperCase()} Active`
+                  : brainEngine === 'gemini' && geminiAvailable
+                  ? '🧠 Gemini 3.5 Active'
+                  : brainEngine === 'groq' && groqAvailable && useGroqModel
+                  ? '⚡ Groq Active'
                   : 'Rule Engine'}
               </span>
-              {groqAvailable && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = !useGroqModel;
-                    setUseGroqModel(next);
-                    useGroqModelRef.current = next;
-                  }}
-                  className="ml-1 text-[10px] underline text-violet-400 hover:text-violet-200"
-                  title="Toggle Groq AI Model on/off"
-                >
-                  {useGroqModel ? 'Pause' : 'Enable'}
-                </button>
-              )}
+            </div>
+
+            {/* Active Voice Model Pill */}
+            <div className="hidden sm:flex items-center space-x-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold bg-amber-500/10 text-amber-300 border-amber-500/30">
+              <Volume2 className="w-3 h-3 text-amber-400" />
+              <span>Voice: {ttsEngine.toUpperCase()} ({voiceGender === 'female' ? 'Priya 👧' : 'Karthik 👦'})</span>
+            </div>
+
+            {/* Active Hearing Model Pill (On-the-fly STT switcher) */}
+            <div className="hidden sm:flex items-center space-x-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border-emerald-500/30">
+              <Mic className="w-3 h-3 text-emerald-400 shrink-0" />
+              <select
+                value={sttEngine}
+                onChange={(e) => updateSttEngine(e.target.value as SttEngineChoice)}
+                className="bg-transparent text-emerald-300 text-[10px] font-semibold focus:outline-none cursor-pointer"
+                title="Change Speech-to-Text Model"
+              >
+                <option value="openai" className="bg-slate-900 text-white">STT: OpenAI Whisper-1 (~200ms)</option>
+                <option value="deepgram" className="bg-slate-900 text-white">STT: Deepgram Nova-2 (~100ms)</option>
+                <option value="groq" className="bg-slate-900 text-white">STT: Groq Whisper Turbo (~150ms)</option>
+                <option value="sarvam" className="bg-slate-900 text-white">STT: Sarvam Saaras (Indian)</option>
+                <option value="gemini" className="bg-slate-900 text-white">STT: Gemini 3.8 Flash</option>
+                <option value="browser" className="bg-slate-900 text-white">STT: Browser Web Speech</option>
+              </select>
             </div>
 
           </div>
@@ -2361,7 +4503,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                 <span>Select Preferred Language</span>
               </div>
               <p className="text-slate-200 text-sm font-semibold max-w-md mx-auto">
-                "Hi! Good day! Naan Lyka Realty-lendhu Priya pesuren. Before we begin, ungalukku English, Hindi, illana Tamil-la pesa comfortable-ah?"
+                {selectedLanguage === 'Hindi'
+                  ? `"Namaste! Main Lyka Realty se ${agentName} bol rahi hoon. Kya main aapka shubh naam jaan sakti hoon?"`
+                  : selectedLanguage === 'English'
+                  ? `"Hello! This is ${agentName} from Lyka Realty. May I know your name please?"`
+                  : `"Vanakkam sir! Naan ${agentName}, Lyka Realty-lendhu pesuren. Ungaloda name therinjukkalama?"`}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
                 <button
@@ -2934,11 +5080,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                     >
                       <div className="flex items-center justify-between space-x-2 mb-0.5">
                         <span className="text-[10px] font-bold opacity-75">
-                          {item.speaker === 'AI' ? '👧 Priya • Lyka Realty' : lead.name}
+                          {item.speaker === 'AI' ? `${voiceGender === 'female' ? '👧 Priya' : '👦 Karthik'} • Lyka Realty` : lead.name}
                         </span>
                         <span className="text-[9px] opacity-40 font-mono">{item.timestamp}</span>
                       </div>
-                      {item.text}
+                      {formatDialogueText(item.text)}
                     </div>
 
                     {item.speaker === 'Customer' && (
@@ -2961,6 +5107,25 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                   </div>
                   <div className="w-6 h-6 rounded-full bg-emerald-950 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
                     <Mic className="w-3.5 h-3.5 animate-pulse" />
+                  </div>
+                </div>
+              )}
+
+              {/* Live AI Thinking / Writing Bubble Indicator */}
+              {(isGroqThinking || isGeminiThinking) && (
+                <div className="flex items-start space-x-2.5 justify-start animate-in fade-in">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5 font-bold text-[10px]">
+                    <Bot className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed bg-slate-800/90 text-slate-300 border border-slate-700/60 rounded-tl-sm flex items-center space-x-2">
+                    <span className="text-[10px] font-bold text-amber-400">
+                      {voiceGender === 'female' ? '👧 Priya' : '👦 Karthik'} is writing...
+                    </span>
+                    <span className="flex space-x-1 items-center">
+                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                      <span className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-bounce"></span>
+                    </span>
                   </div>
                 </div>
               )}

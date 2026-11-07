@@ -1,8 +1,102 @@
-import React, { useState, useEffect } from 'react';
-import { X, Settings, Key, Phone, Check, Copy, AlertCircle, ShieldCheck, HelpCircle, Sparkles } from 'lucide-react';
-import { getVapiConfig, updateVapiConfig, getSarvamConfig, updateSarvamConfig, getGroqConfig, updateGroqConfig } from '../services/campaignService';
-import { VapiConfig, SarvamConfig, GroqConfig } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  X,
+  Settings,
+  Key,
+  Check,
+  AlertCircle,
+  ShieldCheck,
+  Sparkles,
+  History,
+  Calendar,
+  Clock,
+  Search,
+  Filter,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  User,
+} from 'lucide-react';
+import {
+  getGroqConfig,
+  updateGroqConfig,
+  getGeminiConfig,
+  updateGeminiConfig,
+  getOpenAIConfig,
+  updateOpenAIConfig,
+} from '../services/campaignService';
+import { fetchAllCallHistory } from '../services/leadService';
+import { GroqConfig, GeminiConfig, OpenAIConfig, CallRecord } from '../types';
+import { TalkHistorySection } from './TalkHistorySection';
 
+function formatDateGroup(isoString?: string): string {
+  if (!isoString) return 'Unknown Date';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return 'Unknown Date';
+
+  const today = new Date();
+  const isToday =
+    date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
+
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  const formatted = date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  if (isToday) return `Today — ${formatted}`;
+  if (isYesterday) return `Yesterday — ${formatted}`;
+  return formatted;
+}
+
+function formatTime(isoString?: string): string {
+  if (!isoString) return '--:--';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '--:--';
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+}
+
+function formatDuration(seconds?: number): string {
+  if (!seconds || seconds <= 0) return '0s';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins === 0) return `${secs}s`;
+  return `${mins}m ${secs}s`;
+}
+
+function getOutcomeBadge(outcome?: string) {
+  const norm = (outcome || 'PENDING').toUpperCase();
+  switch (norm) {
+    case 'HOT':
+      return { bg: 'bg-rose-500/15 text-rose-300 border-rose-500/30', label: 'HOT 🔥' };
+    case 'WARM':
+      return { bg: 'bg-amber-500/15 text-amber-300 border-amber-500/30', label: 'WARM ☀️' };
+    case 'COLD':
+      return { bg: 'bg-blue-500/15 text-blue-300 border-blue-500/30', label: 'COLD ❄️' };
+    case 'OPT_OUT':
+    case 'OPT-OUT':
+      return { bg: 'bg-slate-500/15 text-slate-400 border-slate-500/30', label: 'OPT-OUT ⛔' };
+    case 'AGENT_CALLBACK':
+      return { bg: 'bg-purple-500/15 text-purple-300 border-purple-500/30', label: 'CALLBACK 📞' };
+    default:
+      return { bg: 'bg-slate-700/30 text-slate-300 border-slate-600', label: norm };
+  }
+}
 
 interface VapiSettingsModalProps {
   isOpen: boolean;
@@ -10,96 +104,172 @@ interface VapiSettingsModalProps {
 }
 
 export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, onClose }) => {
-  const [config, setConfig] = useState<VapiConfig | null>(null);
-  const [apiKey, setApiKey] = useState('');
-  const [phoneNumberId, setPhoneNumberId] = useState('');
-  const [assistantId, setAssistantId] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Sarvam state
-  const [sarvamConfig, setSarvamConfig] = useState<SarvamConfig | null>(null);
-  const [sarvamApiKey, setSarvamApiKey] = useState('');
-  const [sarvamSaving, setSarvamSaving] = useState(false);
-  const [sarvamSaveSuccess, setSarvamSaveSuccess] = useState(false);
-  const [sarvamErrorMsg, setSarvamErrorMsg] = useState<string | null>(null);
-
   // Groq state
   const [groqConfig, setGroqConfig] = useState<GroqConfig | null>(null);
   const [groqApiKey, setGroqApiKey] = useState('');
   const [groqSaving, setGroqSaving] = useState(false);
   const [groqSaveSuccess, setGroqSaveSuccess] = useState(false);
   const [groqErrorMsg, setGroqErrorMsg] = useState<string | null>(null);
+
+  // Gemini state
+  const [geminiConfig, setGeminiConfig] = useState<GeminiConfig | null>(null);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiSaving, setGeminiSaving] = useState(false);
+  const [geminiSaveSuccess, setGeminiSaveSuccess] = useState(false);
+  const [geminiErrorMsg, setGeminiErrorMsg] = useState<string | null>(null);
+
+  // OpenAI state
+  const [openaiConfig, setOpenaiConfig] = useState<OpenAIConfig | null>(null);
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [openaiSaving, setOpenaiSaving] = useState(false);
+  const [openaiSaveSuccess, setOpenaiSaveSuccess] = useState(false);
+  const [openaiErrorMsg, setOpenaiErrorMsg] = useState<string | null>(null);
+
+  // Tabs & History state
+  const [activeTab, setActiveTab] = useState<'ai' | 'history'>('ai');
+  const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyDateFilter, setHistoryDateFilter] = useState('ALL');
+  const [historyOutcomeFilter, setHistoryOutcomeFilter] = useState('ALL');
+  const [expandedCallIds, setExpandedCallIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (isOpen) {
       loadConfig();
+      loadCallHistory();
     }
   }, [isOpen]);
 
+  const loadCallHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const records = await fetchAllCallHistory();
+      setCallHistory(records);
+      if (records.length > 0) {
+        setExpandedCallIds(new Set([records[0].id]));
+      }
+    } catch (err) {
+      console.error('Failed to load call history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const toggleCallExpand = (id: string) => {
+    setExpandedCallIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>();
+    callHistory.forEach((c) => {
+      const group = formatDateGroup(c.startedAt);
+      if (group && group !== 'Unknown Date') {
+        dates.add(group);
+      }
+    });
+    return Array.from(dates);
+  }, [callHistory]);
+
+  const filteredCalls = useMemo(() => {
+    return callHistory.filter((call) => {
+      if (historySearch.trim()) {
+        const q = historySearch.toLowerCase().trim();
+        const matchName = call.name?.toLowerCase().includes(q);
+        const matchPhone = call.phone?.includes(q);
+        const matchTranscript = call.transcript?.toLowerCase().includes(q);
+        const matchSummary = call.summary?.toLowerCase().includes(q);
+        const matchLocation = call.qualification?.location?.toLowerCase().includes(q);
+        const matchQa = call.qaHistory?.some(
+          (item) =>
+            item.question?.toLowerCase().includes(q) ||
+            item.answer?.toLowerCase().includes(q) ||
+            item.stepTitle?.toLowerCase().includes(q)
+        );
+        if (!matchName && !matchPhone && !matchTranscript && !matchSummary && !matchLocation && !matchQa) {
+          return false;
+        }
+      }
+
+      if (historyOutcomeFilter !== 'ALL') {
+        if ((call.outcome || '').toUpperCase() !== historyOutcomeFilter) {
+          return false;
+        }
+      }
+
+      if (historyDateFilter !== 'ALL') {
+        const group = formatDateGroup(call.startedAt);
+        if (group !== historyDateFilter) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [callHistory, historySearch, historyOutcomeFilter, historyDateFilter]);
+
+  const groupedCalls = useMemo(() => {
+    const groups: { dateGroup: string; isoDate: string; calls: CallRecord[] }[] = [];
+    const map = new Map<string, { dateGroup: string; isoDate: string; calls: CallRecord[] }>();
+
+    for (const call of filteredCalls) {
+      const dateGroup = formatDateGroup(call.startedAt);
+      if (!map.has(dateGroup)) {
+        const entry = { dateGroup, isoDate: call.startedAt, calls: [] };
+        map.set(dateGroup, entry);
+        groups.push(entry);
+      }
+      map.get(dateGroup)!.calls.push(call);
+    }
+
+    return groups;
+  }, [filteredCalls]);
+
   const loadConfig = async () => {
-    try {
-      const cfg = await getVapiConfig();
-      setConfig(cfg);
-      setPhoneNumberId(cfg.phoneNumberId || '');
-      setAssistantId(cfg.assistantId || '');
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to load Vapi settings');
-    }
-    try {
-      const scfg = await getSarvamConfig();
-      setSarvamConfig(scfg);
-    } catch {
-      // Non-fatal — Sarvam may not be configured yet
-    }
     try {
       const gcfg = await getGroqConfig();
       setGroqConfig(gcfg);
     } catch {
-      // Non-fatal — Groq may not be configured yet
+      // Non-fatal
+    }
+    try {
+      const geminiRes = await getGeminiConfig();
+      setGeminiConfig(geminiRes);
+    } catch {
+      // Non-fatal
+    }
+    try {
+      const openAiRes = await getOpenAIConfig();
+      setOpenaiConfig(openAiRes);
+    } catch {
+      // Non-fatal
     }
   };
 
-
-  const handleSave = async (e: React.FormEvent) => {
+  const handleOpenAiSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    setErrorMsg(null);
-    setSaveSuccess(false);
-
+    setOpenaiSaving(true);
+    setOpenaiErrorMsg(null);
+    setOpenaiSaveSuccess(false);
     try {
-      await updateVapiConfig({
-        apiKey: apiKey.trim() || undefined,
-        phoneNumberId: phoneNumberId.trim() || undefined,
-        assistantId: assistantId.trim() || undefined,
-      });
-      setSaveSuccess(true);
-      setApiKey('');
+      await updateOpenAIConfig({ apiKey: openaiApiKey.trim() || undefined });
+      setOpenaiSaveSuccess(true);
+      setOpenaiApiKey('');
       await loadConfig();
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('lyka-settings-updated'));
+      setTimeout(() => setOpenaiSaveSuccess(false), 3000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to save settings');
+      setOpenaiErrorMsg(err.message || 'Failed to save OpenAI key');
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSarvamSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSarvamSaving(true);
-    setSarvamErrorMsg(null);
-    setSarvamSaveSuccess(false);
-    try {
-      await updateSarvamConfig({ apiKey: sarvamApiKey.trim() || undefined });
-      setSarvamSaveSuccess(true);
-      setSarvamApiKey('');
-      await loadConfig();
-      setTimeout(() => setSarvamSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setSarvamErrorMsg(err.message || 'Failed to save Sarvam key');
-    } finally {
-      setSarvamSaving(false);
+      setOpenaiSaving(false);
     }
   };
 
@@ -113,6 +283,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
       setGroqSaveSuccess(true);
       setGroqApiKey('');
       await loadConfig();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('lyka-settings-updated'));
       setTimeout(() => setGroqSaveSuccess(false), 3000);
     } catch (err: any) {
       setGroqErrorMsg(err.message || 'Failed to save Groq key');
@@ -121,25 +292,37 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
     }
   };
 
-  const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/vapi/webhook` : '/api/vapi/webhook';
-
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleGeminiSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGeminiSaving(true);
+    setGeminiErrorMsg(null);
+    setGeminiSaveSuccess(false);
+    try {
+      await updateGeminiConfig({ apiKey: geminiApiKey.trim() || undefined });
+      setGeminiSaveSuccess(true);
+      setGeminiApiKey('');
+      await loadConfig();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('lyka-settings-updated'));
+      setTimeout(() => setGeminiSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setGeminiErrorMsg(err.message || 'Failed to save Gemini key');
+    } finally {
+      setGeminiSaving(false);
+    }
   };
-
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
+      <div className={`bg-slate-900 border border-slate-800 rounded-2xl w-full shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto transition-all duration-200 ${
+        activeTab === 'history' ? 'max-w-4xl' : 'max-w-2xl'
+      }`}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Settings className="w-5 h-5 text-amber-400" />
-            <h3 className="text-base font-bold text-white">Vapi Voice Calling Configuration</h3>
+            <h3 className="text-base font-bold text-white">AI Engine & Model Settings</h3>
           </div>
           <button
             onClick={onClose}
@@ -149,317 +332,486 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
-          {/* Security notice */}
-          <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3.5 flex items-start space-x-3 text-emerald-300">
-            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <span className="font-bold block text-white text-xs">Zero-Exposure Security Architecture</span>
-              <p className="text-[11px] text-emerald-300/90 leading-relaxed">
-                All Vapi API keys remain strictly stored on the secure server. The frontend never accesses or exposes your private key. Outbound calls are executed server-side.
-              </p>
-            </div>
-          </div>
+        {/* Tab Navigation */}
+        <div className="px-6 pt-3 pb-0 border-b border-slate-800 bg-slate-950/40 flex items-center space-x-2 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai')}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+              activeTab === 'ai'
+                ? 'border-amber-400 text-amber-400 bg-slate-800/80'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>AI Models & Engines (OpenAI, Gemini & Groq)</span>
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full border border-emerald-500/30">Active</span>
+          </button>
 
-          {/* Vapi Private Key */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Vapi Private API Key</span>
-              </label>
-              {config?.apiKeyConfigured && (
-                <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  ✓ Configured on Server
-                </span>
-              )}
-            </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={config?.apiKeyConfigured ? '•••••••••••••••••••••••• (Leave blank to keep existing)' : 'Paste your private Vapi key (vapi_...)'}
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
-            />
-            <p className="text-[11px] text-slate-400">
-              Obtain from <a href="https://dashboard.vapi.ai" target="_blank" rel="noreferrer" className="text-amber-400 underline">Vapi Dashboard</a> &gt; API Keys &gt; Private Key.
-            </p>
-          </div>
-
-          {/* Vapi Phone Number ID */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
-                <Phone className="w-3.5 h-3.5 text-blue-400" />
-                <span>Outbound Phone Number ID (Optional for Cellular Calls)</span>
-              </label>
-              {config?.phoneNumberIdConfigured && (
-                <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  ✓ Connected
-                </span>
-              )}
-            </div>
-            <input
-              type="text"
-              value={phoneNumberId}
-              onChange={(e) => setPhoneNumberId(e.target.value)}
-              placeholder="Leave blank for Browser AI Voice Calls (No number needed)"
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
-            />
-            <p className="text-[11px] text-slate-400">
-              Not required for Browser Calls! Only needed if you later decide to place real cellular phone calls.
-            </p>
-          </div>
-
-          {/* Assistant ID (Optional) */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px]">
-              Optional Custom Assistant ID
-            </label>
-            <input
-              type="text"
-              value={assistantId}
-              onChange={(e) => setAssistantId(e.target.value)}
-              placeholder="Leave blank to use Lyka Realty 5-Question Dynamic Agent"
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
-            />
-            <p className="text-[11px] text-slate-400">
-              By default, the server dynamically provisions the exact Lyka Realty script and 5 questions with Sarah 11Labs voice and gpt-4o-mini.
-            </p>
-          </div>
-
-          {/* Webhook URL Card */}
-          <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white text-[11px] uppercase tracking-wider">
-                Vapi Server Webhook URL
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('history');
+              loadCallHistory();
+            }}
+            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+              activeTab === 'history'
+                ? 'border-amber-400 text-amber-400 bg-slate-800/80'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>User Chat & Call History</span>
+            {callHistory.length > 0 && (
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30 font-mono">
+                {callHistory.length}
               </span>
+            )}
+          </button>
+        </div>
+
+        {/* Tab 1: AI Engines (Gemini & Groq) */}
+        {activeTab === 'ai' && (
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+            {/* Active AI Engines Banner */}
+            <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3.5 flex items-start space-x-3 text-emerald-300">
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-bold block text-white text-xs">Dedicated AI Engines: OpenAI, Google Gemini & Groq</span>
+                <p className="text-[11px] text-emerald-300/90 leading-relaxed">
+                  Your telecaller runs cleanly on <strong>OpenAI</strong>, <strong>Google Gemini</strong>, and <strong>Groq</strong> APIs for conversational reasoning (LLM), ultra-fast transcription (STT), and speech synthesis (TTS).
+                </p>
+              </div>
+            </div>
+
+            {/* Google Gemini AI Engine */}
+            <form onSubmit={handleGeminiSave} className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-blue-400" />
+                <h4 className="text-sm font-bold text-white">Google Gemini AI Engine</h4>
+                {geminiConfig?.apiKeyConfigured && (
+                  <span className="text-[10px] text-blue-300 font-semibold bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/30">
+                    ✓ Active
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-blue-950/30 border border-blue-500/20 rounded-xl p-3 flex items-start space-x-3 text-blue-300">
+                <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold block text-white text-xs">Gemini 3.8 Flash, Gemini STT & Voice</span>
+                  <p className="text-[11px] text-blue-300/90 leading-relaxed">
+                    Powers flagship multimodal property reasoning, knowledge dataset Q&A, and voice generation via Google Gemini API.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                    <Key className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Gemini API Key</span>
+                  </label>
+                  {geminiConfig?.apiKeyConfigured && (
+                    <span className="text-[10px] text-blue-400 font-semibold bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/30">
+                      ✓ Configured
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={geminiApiKey}
+                  onChange={(e) => setGeminiApiKey(e.target.value)}
+                  placeholder={
+                    geminiConfig?.apiKeyConfigured
+                      ? '•••••••••••••••••••••••••••• (Leave blank to keep existing)'
+                      : 'Paste your Gemini API key (AIzaSy...)'
+                  }
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Loaded from GEMINI_API_KEY in .env. Enter a new key here to override or update.
+                </p>
+              </div>
+
+              {geminiSaveSuccess && (
+                <div className="p-3 rounded-lg bg-blue-950/50 border border-blue-800 text-blue-300 text-xs flex items-center space-x-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>Gemini API key saved successfully!</span>
+                </div>
+              )}
+
+              {geminiErrorMsg && (
+                <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{geminiErrorMsg}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <button
+                  type="submit"
+                  disabled={geminiSaving}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-md shadow-blue-600/20 active:scale-95 transition-all"
+                >
+                  {geminiSaving ? 'Saving...' : 'Save Gemini Key'}
+                </button>
+              </div>
+            </form>
+
+            {/* Groq AI Inference Engine */}
+            <form onSubmit={handleGroqSave} className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-orange-400" />
+                <h4 className="text-sm font-bold text-white">Groq AI Inference Engine</h4>
+                {groqConfig?.apiKeyConfigured && (
+                  <span className="text-[10px] text-orange-300 font-semibold bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/30">
+                    ✓ Active
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-orange-950/30 border border-orange-500/20 rounded-xl p-3 flex items-start space-x-3 text-orange-300">
+                <ShieldCheck className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold block text-white text-xs">Groq LPU Inference (Qwen 2.5 / Llama 3.3)</span>
+                  <p className="text-[11px] text-orange-300/90 leading-relaxed">
+                    Powers sub-second objection handling, Whisper Large v3 Turbo transcription, and Groq Voice synthesis.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                    <Key className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Groq API Key</span>
+                  </label>
+                  {groqConfig?.apiKeyConfigured && (
+                    <span className="text-[10px] text-orange-400 font-semibold bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/30">
+                      ✓ Configured
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={groqApiKey}
+                  onChange={(e) => setGroqApiKey(e.target.value)}
+                  placeholder={
+                    groqConfig?.apiKeyConfigured
+                      ? '•••••••••••••••••••••••••••• (Leave blank to keep existing)'
+                      : 'Paste your Groq API key (gsk_...)'
+                  }
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Loaded from GROQ_API_KEY in .env. Enter a new key here to override or update.
+                </p>
+              </div>
+
+              {groqSaveSuccess && (
+                <div className="p-3 rounded-lg bg-orange-950/50 border border-orange-800 text-orange-300 text-xs flex items-center space-x-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>Groq API key saved successfully!</span>
+                </div>
+              )}
+
+              {groqErrorMsg && (
+                <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{groqErrorMsg}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <button
+                  type="submit"
+                  disabled={groqSaving}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-orange-600 text-white hover:bg-orange-500 shadow-md shadow-orange-600/20 active:scale-95 transition-all"
+                >
+                  {groqSaving ? 'Saving...' : 'Save Groq Key'}
+                </button>
+              </div>
+            </form>
+
+            {/* OpenAI AI Engine */}
+            <form onSubmit={handleOpenAiSave} className="space-y-4 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-bold text-white">OpenAI AI Engine (Whisper, TTS & GPT)</h4>
+                {openaiConfig?.apiKeyConfigured && (
+                  <span className="text-[10px] text-emerald-300 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    ✓ Active
+                  </span>
+                )}
+              </div>
+
+              <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3 flex items-start space-x-3 text-emerald-300">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-bold block text-white text-xs">GPT-4o Mini / GPT-4o, Whisper STT & OpenAI TTS</span>
+                  <p className="text-[11px] text-emerald-300/90 leading-relaxed">
+                    Powers conversational telecaller intelligence, Whisper-1 real-time voice transcription, and lifelike natural speech synthesis with 9 voices (Nova, Shimmer, Coral, Alloy, Onyx, Echo, Ash, Fable, Sage).
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                    <Key className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>OpenAI API Key</span>
+                  </label>
+                  {openaiConfig?.apiKeyConfigured && (
+                    <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      ✓ Configured
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="password"
+                  value={openaiApiKey}
+                  onChange={(e) => setOpenaiApiKey(e.target.value)}
+                  placeholder={
+                    openaiConfig?.apiKeyConfigured
+                      ? '•••••••••••••••••••••••••••• (Leave blank to keep existing)'
+                      : 'Paste your OpenAI API key (sk-proj-...)'
+                  }
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Loaded from OPENAI_API_KEY in .env or openai-config.local.json. Enter a new key here to override or update.
+                </p>
+              </div>
+
+              {openaiSaveSuccess && (
+                <div className="p-3 rounded-lg bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-xs flex items-center space-x-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>OpenAI API key saved successfully!</span>
+                </div>
+              )}
+
+              {openaiErrorMsg && (
+                <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{openaiErrorMsg}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <button
+                  type="submit"
+                  disabled={openaiSaving}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+                >
+                  {openaiSaving ? 'Saving...' : 'Save OpenAI Key'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Tab 2: User Chat & Call History */}
+        {activeTab === 'history' && (
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <History className="w-4 h-4 text-amber-400" />
+                  <h4 className="text-sm font-bold text-white">Customer Chat & Call History</h4>
+                  <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
+                    {filteredCalls.length} of {callHistory.length} calls
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Chronological history of caller conversations grouped by date and time with Q&A insights.
+                </p>
+              </div>
+
               <button
                 type="button"
-                onClick={handleCopyWebhook}
-                className="text-amber-400 hover:text-amber-300 flex items-center space-x-1 font-semibold"
+                onClick={loadCallHistory}
+                disabled={historyLoading}
+                className="self-start sm:self-auto flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs transition-colors"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Copied!' : 'Copy URL'}</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${historyLoading ? 'animate-spin text-amber-400' : ''}`} />
+                <span>Refresh</span>
               </button>
             </div>
-            <div className="bg-slate-900 px-3 py-2 rounded-lg font-mono text-[11px] text-slate-300 break-all select-all border border-slate-800">
-              {webhookUrl}
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Automatically attached to all outbound calls. Vapi calls this webhook upon conversation completion to save transcript, duration, and classification into Firestore.
-            </p>
-          </div>
 
-          {saveSuccess && (
-            <div className="p-3 rounded-lg bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-xs flex items-center space-x-2">
-              <Check className="w-4 h-4 shrink-0" />
-              <span>Settings updated and saved successfully!</span>
-            </div>
-          )}
-
-          {errorMsg && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          <div className="pt-2 flex items-center justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              Close
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-md shadow-amber-500/20 active:scale-95 transition-all"
-            >
-              {saving ? 'Saving...' : 'Save Vapi Config'}
-            </button>
-          </div>
-        </form>
-
-        {/* ── Sarvam AI Voice Configuration (separate form) ─────────────────── */}
-        <form onSubmit={handleSarvamSave} className="px-6 pb-6 space-y-4 text-xs border-t border-slate-800 pt-5">
-          {/* Sarvam header */}
-          <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-violet-400" />
-            <h4 className="text-sm font-bold text-white">Sarvam AI Voice Engine</h4>
-            {sarvamConfig?.apiKeyConfigured && (
-              <span className="text-[10px] text-violet-300 font-semibold bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/30">
-                ✓ Active
-              </span>
-            )}
-          </div>
-
-          {/* Description */}
-          <div className="bg-violet-950/30 border border-violet-500/20 rounded-xl p-3.5 flex items-start space-x-3 text-violet-300">
-            <ShieldCheck className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <span className="font-bold block text-white text-xs">Sarvam Bulbul v3 — Indian Language Voice AI</span>
-              <p className="text-[11px] text-violet-300/90 leading-relaxed">
-                Replaces browser TTS with <strong>Anushka</strong> (English-IN), <strong>Meera</strong> (Hindi), and <strong>Pavithra</strong> (Tamil) — warm female AI voices with natural Indian accents. Also powers superior Hindi/Tamil speech recognition via <strong>Saaras v2</strong>.
-              </p>
-            </div>
-          </div>
-
-          {/* Voice preview pills */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { name: 'Anushka', lang: 'English-IN', color: 'text-violet-300 border-violet-500/30 bg-violet-500/10' },
-              { name: 'Meera', lang: 'Hindi', color: 'text-pink-300 border-pink-500/30 bg-pink-500/10' },
-              { name: 'Pavithra', lang: 'Tamil-English', color: 'text-cyan-300 border-cyan-500/30 bg-cyan-500/10' },
-            ].map((v) => (
-              <div key={v.name} className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold flex items-center space-x-1 ${v.color}`}>
-                <span>🎙️</span>
-                <span>{v.name}</span>
-                <span className="opacity-60">• {v.lang}</span>
+            {/* Filter Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Search name, phone, question..."
+                  className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+                />
               </div>
-            ))}
-          </div>
 
-          {/* Sarvam API Key input */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
-                <Key className="w-3.5 h-3.5 text-violet-400" />
-                <span>Sarvam API Subscription Key</span>
-              </label>
-              {sarvamConfig?.apiKeyConfigured && (
-                <span className="text-[10px] text-violet-400 font-semibold bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/30">
-                  ✓ Configured
-                </span>
-              )}
+              <div className="relative">
+                <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                <select
+                  value={historyDateFilter}
+                  onChange={(e) => setHistoryDateFilter(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+                >
+                  <option value="ALL">All Dates</option>
+                  {availableDates.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative">
+                <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                <select
+                  value={historyOutcomeFilter}
+                  onChange={(e) => setHistoryOutcomeFilter(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+                >
+                  <option value="ALL">All Outcomes</option>
+                  <option value="HOT">HOT 🔥</option>
+                  <option value="WARM">WARM ☀️</option>
+                  <option value="COLD">COLD ❄️</option>
+                  <option value="OPT-OUT">OPT-OUT ⛔</option>
+                  <option value="AGENT_CALLBACK">CALLBACK 📞</option>
+                </select>
+              </div>
             </div>
-            <input
-              type="password"
-              value={sarvamApiKey}
-              onChange={(e) => setSarvamApiKey(e.target.value)}
-              placeholder={
-                sarvamConfig?.apiKeyConfigured
-                  ? '•••••••••••••••••••••••• (Leave blank to keep existing)'
-                  : 'Paste your Sarvam subscription key...'
-              }
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-400"
-            />
-            <p className="text-[11px] text-slate-400">
-              Get your free API key from{' '}
-              <a
-                href="https://dashboard.sarvam.ai"
-                target="_blank"
-                rel="noreferrer"
-                className="text-violet-400 underline"
-              >
-                dashboard.sarvam.ai
-              </a>{' '}
-              → API Keys. Stored securely on the server only.
-            </p>
-          </div>
 
-          {sarvamSaveSuccess && (
-            <div className="p-3 rounded-lg bg-violet-950/50 border border-violet-800 text-violet-300 text-xs flex items-center space-x-2">
-              <Check className="w-4 h-4 shrink-0" />
-              <span>Sarvam API key saved! Voice calls will now use Bulbul v3.</span>
-            </div>
-          )}
+            {/* Call List Grouped by Date */}
+            {historyLoading ? (
+              <div className="text-center py-12 text-slate-400 space-y-2">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto text-amber-400" />
+                <p>Loading conversation records...</p>
+              </div>
+            ) : groupedCalls.length === 0 ? (
+              <div className="text-center py-12 rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 space-y-2">
+                <Clock className="w-8 h-8 mx-auto text-slate-600" />
+                <p className="text-sm font-semibold text-slate-300">No Call History Found</p>
+                <p className="text-xs text-slate-500">
+                  {historySearch || historyOutcomeFilter !== 'ALL' || historyDateFilter !== 'ALL'
+                    ? 'Try clearing the search or filters.'
+                    : 'Completed browser calls and customer turns will be recorded here.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {groupedCalls.map((group) => (
+                  <div key={group.dateGroup} className="space-y-3">
+                    <div className="flex items-center space-x-2 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-1.5 z-10 border-b border-slate-800/60">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="font-bold text-xs text-amber-300 uppercase tracking-wider">
+                        {group.dateGroup}
+                      </span>
+                      <span className="text-[10px] text-slate-500">({group.calls.length} calls)</span>
+                    </div>
 
-          {sarvamErrorMsg && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{sarvamErrorMsg}</span>
-            </div>
-          )}
+                    <div className="space-y-2.5">
+                      {group.calls.map((call) => {
+                        const isExpanded = expandedCallIds.has(call.id);
+                        const badge = getOutcomeBadge(call.outcome);
+                        return (
+                          <div
+                            key={call.id}
+                            className="rounded-xl border border-slate-800 bg-slate-950/60 hover:border-slate-700 transition-colors overflow-hidden"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleCallExpand(call.id)}
+                              className="w-full text-left p-3.5 flex items-center justify-between gap-3 hover:bg-slate-900/40 transition-colors"
+                            >
+                              <div className="flex items-center space-x-3 min-w-0">
+                                <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300">
+                                  <User className="w-4 h-4 text-amber-400" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-bold text-white text-xs truncate">
+                                      {call.name || 'Anonymous Customer'}
+                                    </span>
+                                    <span className="text-[11px] text-slate-400 font-mono">
+                                      {call.phone || 'No Phone'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-[10px] text-slate-400 mt-0.5">
+                                    <span className="flex items-center space-x-1">
+                                      <Clock className="w-3 h-3 text-slate-500" />
+                                      <span>{formatTime(call.startedAt)}</span>
+                                    </span>
+                                    <span>•</span>
+                                    <span>Duration: {formatDuration(call.duration)}</span>
+                                    {call.language && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="text-slate-300">{call.language}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
 
-          <div className="flex items-center justify-end">
-            <button
-              type="submit"
-              disabled={sarvamSaving}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-violet-600 text-white hover:bg-violet-500 shadow-md shadow-violet-600/20 active:scale-95 transition-all"
-            >
-              {sarvamSaving ? 'Saving...' : 'Save Sarvam Key'}
-            </button>
-          </div>
-        </form>
+                              <div className="flex items-center space-x-2 shrink-0">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.bg}`}>
+                                  {badge.label}
+                                </span>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-slate-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                                )}
+                              </div>
+                            </button>
 
-        {/* ─── Groq AI Configuration (separate form) ───────────────────────── */}
-        <form onSubmit={handleGroqSave} className="px-6 pb-6 space-y-4 text-xs border-t border-slate-800 pt-5">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 text-orange-400" />
-            <h4 className="text-sm font-bold text-white">Groq AI Inference Engine</h4>
-            {groqConfig?.apiKeyConfigured && (
-              <span className="text-[10px] text-orange-300 font-semibold bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/30">
-                ✓ Active
-              </span>
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-1 border-t border-slate-800/60 bg-slate-950/80 space-y-3.5">
+                                {call.summary && (
+                                  <div className="bg-slate-900/80 border border-slate-800 rounded-lg p-2.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                                      Call Summary
+                                    </span>
+                                    <p className="text-xs text-slate-200 leading-relaxed">{call.summary}</p>
+                                  </div>
+                                )}
+
+                                {call.qaHistory && call.qaHistory.length > 0 && (
+                                  <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block mb-2">
+                                      Questions & Answers Log ({call.qaHistory.length})
+                                    </span>
+                                    <TalkHistorySection qaHistory={call.qaHistory} />
+                                  </div>
+                                )}
+
+                                {call.transcript && (
+                                  <div>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                                      Full Dialogue Transcript
+                                    </span>
+                                    <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap bg-slate-900 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto leading-relaxed">
+                                      {call.transcript}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-
-          <div className="bg-orange-950/30 border border-orange-500/20 rounded-xl p-3.5 flex items-start space-x-3 text-orange-300">
-            <ShieldCheck className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <span className="font-bold block text-white text-xs">Groq Llama 3 Inference</span>
-              <p className="text-[11px] text-orange-300/90 leading-relaxed">
-                Powers the conversational brain of the AI assistant using ultra-fast <strong>llama-3.1-70b-versatile</strong> via Groq API.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="font-semibold text-slate-300 uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
-                <Key className="w-3.5 h-3.5 text-orange-400" />
-                <span>Groq API Key</span>
-              </label>
-              {groqConfig?.apiKeyConfigured && (
-                <span className="text-[10px] text-orange-400 font-semibold bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/30">
-                  ✓ Configured
-                </span>
-              )}
-            </div>
-            <input
-              type="password"
-              value={groqApiKey}
-              onChange={(e) => setGroqApiKey(e.target.value)}
-              placeholder={
-                groqConfig?.apiKeyConfigured
-                  ? '•••••••••••••••••••••••••••• (Leave blank to keep existing)'
-                  : 'Paste your Groq API key (gsk_...)'
-              }
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
-            />
-          </div>
-
-          {groqSaveSuccess && (
-            <div className="p-3 rounded-lg bg-orange-950/50 border border-orange-800 text-orange-300 text-xs flex items-center space-x-2">
-              <Check className="w-4 h-4 shrink-0" />
-              <span>Groq API key saved! Calls will now use LLM generation.</span>
-            </div>
-          )}
-
-          {groqErrorMsg && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{groqErrorMsg}</span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-end">
-            <button
-              type="submit"
-              disabled={groqSaving}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-orange-600 text-white hover:bg-orange-500 shadow-md shadow-orange-600/20 active:scale-95 transition-all"
-            >
-              {groqSaving ? 'Saving...' : 'Save Groq Key'}
-            </button>
-          </div>
-        </form>
-
+        )}
       </div>
     </div>
   );
 };
-

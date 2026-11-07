@@ -12,3 +12,8 @@ coverage/
 *.local.json
 *.tsbuildinfo
 serviceAccountKey.json
+
+# Local project workspaces
+project2/
+project3*/
+project_ai_calling/

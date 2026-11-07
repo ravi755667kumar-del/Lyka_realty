@@ -1,0 +1,33 @@
+# Dependencies & Builds
+node_modules
+.next
+out
+build
+dist
+
+# Version Control
+.git
+.gitignore
+
+# Environment & Secrets (Never bake private API keys into Docker images!)
+.env*.local
+.env.development
+.env.test
+
+# Logs & Debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Temporary test directories
+test_audio_outputs
+test
+scratch

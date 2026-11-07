@@ -13,10 +13,12 @@ import {
   ChevronDown,
   ChevronUp,
   Volume2,
+  VolumeX,
   Mic,
   Activity,
   Tag,
 } from 'lucide-react';
+import { LeadQAItem } from '../types';
 
 export interface DialogueItem {
   speaker: 'AI' | 'Customer';
@@ -34,22 +36,25 @@ export interface QAPair {
   userTimestamp?: string;
   extractedKey?: string;
   extractedValue?: string;
+  isCustomerQuestion?: boolean;
   isPending?: boolean;
 }
 
 interface TalkHistorySectionProps {
   dialogue?: DialogueItem[];
   rawTranscript?: string;
+  qaHistory?: LeadQAItem[];
   customerName?: string;
   aiName?: string;
   liveSpeechText?: string;
   isListening?: boolean;
   isSpeaking?: boolean;
   className?: string;
+  compact?: boolean;
 }
 
 // Map common Tamil/English phrases to recognized step titles
-function getStepMetadata(text: string, index: number): { title: string; key: string } {
+export function getStepMetadata(text: string, index: number): { title: string; key: string } {
   const lower = text.toLowerCase();
   if (lower.includes('2 நிமிஷம்') || lower.includes('pesalama') || lower.includes('free') || lower.includes('comfortable')) {
     return { title: 'Step 1: Introduction & Availability Check', key: 'Availability' };
@@ -81,24 +86,51 @@ function getStepMetadata(text: string, index: number): { title: string; key: str
   return { title: `Step ${index + 1}: Qualification Exchange`, key: 'Notes' };
 }
 
-export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
-  dialogue = [],
-  rawTranscript = '',
-  customerName = 'Customer',
-  aiName = '👧 Priya (AI Telecaller)',
-  liveSpeechText = '',
-  isListening = false,
-  isSpeaking = false,
-  className = '',
-}) => {
-  const [copied, setCopied] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'qa' | 'raw'>('qa');
+export function isCustomerQuestion(text?: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase().trim();
+  return (
+    text.includes('?') ||
+    lower.startsWith('what') ||
+    lower.startsWith('how') ||
+    lower.startsWith('where') ||
+    lower.startsWith('when') ||
+    lower.startsWith('why') ||
+    lower.startsWith('is there') ||
+    lower.startsWith('can you') ||
+    lower.includes('evvalavu') ||
+    lower.includes('enna') ||
+    lower.includes('engae') ||
+    lower.includes('eppo') ||
+    lower.includes('irukka') ||
+    lower.includes('price') ||
+    lower.includes('discount')
+  );
+}
 
-  // Convert dialogue items into structured Q&A pairs
+export function parseTranscriptToQAPairs(
+  dialogue?: DialogueItem[],
+  rawTranscript?: string,
+  qaHistory?: LeadQAItem[]
+): QAPair[] {
+  if (qaHistory && qaHistory.length > 0) {
+    return qaHistory.map((item, idx) => ({
+      id: item.id || `qa_${idx + 1}`,
+      stepNumber: item.stepNumber || idx + 1,
+      stepTitle: item.stepTitle || `Step ${idx + 1}: Qualification Question`,
+      aiQuestion: item.question,
+      aiTimestamp: item.timestamp || '',
+      userAnswer: item.answer,
+      userTimestamp: item.timestamp || '',
+      extractedKey: item.extractedKey,
+      extractedValue: item.extractedValue,
+      isCustomerQuestion: item.isCustomerQuestion ?? isCustomerQuestion(item.answer || item.question),
+    }));
+  }
+
   const qaPairs: QAPair[] = [];
 
-  // Parse from structured dialogue array if available
-  if (dialogue.length > 0) {
+  if (dialogue && dialogue.length > 0) {
     let currentPair: Partial<QAPair> | null = null;
     let stepCount = 0;
 
@@ -121,10 +153,10 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
         if (currentPair) {
           currentPair.userAnswer = item.text;
           currentPair.userTimestamp = item.timestamp;
+          currentPair.isCustomerQuestion = isCustomerQuestion(item.text);
           qaPairs.push(currentPair as QAPair);
           currentPair = null;
         } else {
-          // Customer spoke before an AI question
           stepCount++;
           qaPairs.push({
             id: `qa_${stepCount}`,
@@ -134,6 +166,7 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
             aiTimestamp: item.timestamp,
             userAnswer: item.text,
             userTimestamp: item.timestamp,
+            isCustomerQuestion: isCustomerQuestion(item.text),
           });
         }
       }
@@ -142,15 +175,20 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
     if (currentPair && currentPair.aiQuestion) {
       qaPairs.push(currentPair as QAPair);
     }
-  } else if (rawTranscript) {
-    // Parse from raw transcript string
+    return qaPairs;
+  }
+
+  if (rawTranscript) {
     const lines = rawTranscript.split('\n').filter((l) => l.trim().length > 0);
     let stepCount = 0;
     let currentPair: Partial<QAPair> | null = null;
 
     lines.forEach((line) => {
-      const isAI = line.toLowerCase().startsWith('ai:') || line.toLowerCase().startsWith('priya:');
-      const text = line.replace(/^(ai:|priya:|customer:|user:|[^:]+:)\s*/i, '').trim();
+      const isAI =
+        line.toLowerCase().startsWith('ai:') ||
+        line.toLowerCase().startsWith('priya:') ||
+        line.toLowerCase().startsWith('karthik:');
+      const text = line.replace(/^(ai:|priya:|karthik:|customer:|user:|[^:]+:)\s*/i, '').trim();
 
       if (isAI) {
         if (currentPair && currentPair.aiQuestion) {
@@ -169,6 +207,7 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
       } else {
         if (currentPair) {
           currentPair.userAnswer = text;
+          currentPair.isCustomerQuestion = isCustomerQuestion(text);
           qaPairs.push(currentPair as QAPair);
           currentPair = null;
         } else {
@@ -181,6 +220,7 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
             aiTimestamp: '',
             userAnswer: text,
             userTimestamp: '',
+            isCustomerQuestion: isCustomerQuestion(text),
           });
         }
       }
@@ -191,16 +231,77 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
     }
   }
 
+  return qaPairs;
+}
+
+export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
+  dialogue = [],
+  rawTranscript = '',
+  qaHistory,
+  customerName = 'Customer',
+  aiName = '👧 Priya (AI Telecaller)',
+  liveSpeechText = '',
+  isListening = false,
+  isSpeaking = false,
+  className = '',
+  compact = false,
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  // Convert inputs into structured Q&A pairs
+  const qaPairs = parseTranscriptToQAPairs(dialogue, rawTranscript, qaHistory);
+
+  // Handle Voice Playback of Q&A
+  const toggleAudio = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+    if (isPlayingAudio) {
+      window.speechSynthesis.cancel();
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    setIsPlayingAudio(true);
+
+    const utterances: SpeechSynthesisUtterance[] = [];
+    qaPairs.forEach((qa) => {
+      const u1 = new SpeechSynthesisUtterance(`AI asked: ${qa.aiQuestion}`);
+      u1.rate = 1.0;
+      utterances.push(u1);
+
+      if (qa.userAnswer) {
+        const u2 = new SpeechSynthesisUtterance(`${customerName} replied: ${qa.userAnswer}`);
+        u2.rate = 1.0;
+        utterances.push(u2);
+      }
+    });
+
+    if (utterances.length === 0) {
+      setIsPlayingAudio(false);
+      return;
+    }
+
+    utterances.forEach((u, index) => {
+      if (index === utterances.length - 1) {
+        u.onend = () => setIsPlayingAudio(false);
+        u.onerror = () => setIsPlayingAudio(false);
+      }
+      window.speechSynthesis.speak(u);
+    });
+  };
+
   // Handle Copy Full Transcript
   const handleCopy = () => {
     let fullText = '';
     if (qaPairs.length > 0) {
       fullText = qaPairs
         .map(
-          (qa, i) =>
-            `[${qa.stepTitle}]\nAI Asking: ${qa.aiQuestion}\n${customerName} Answer: ${
+          (qa) =>
+            `[${qa.stepTitle}]\nAI Question: "${qa.aiQuestion}"\n${customerName} Told: "${
               qa.userAnswer || '(Awaiting response)'
-            }\n`
+            }"\n`
         )
         .join('\n');
     } else if (rawTranscript) {
@@ -224,18 +325,43 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
           </div>
           <div>
             <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
-              <span>User Talk History & Q&A Breakdown</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 font-mono">
-                {qaPairs.length} {qaPairs.length === 1 ? 'Turn' : 'Turns'}
+              <span>What AI Asked vs What User Told</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/10 text-amber-300 font-mono border border-amber-500/30">
+                {qaPairs.length} {qaPairs.length === 1 ? 'Turn' : 'Turns'} Recorded
               </span>
             </h4>
             <p className="text-[10px] text-slate-400">
-              Clear breakdown: What AI asked vs What {customerName} answered
+              Direct answers & questions captured from {customerName}
             </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-2">
+          {qaPairs.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleAudio}
+              className={`flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                isPlayingAudio
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 animate-pulse'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+              title="Listen to dialogue read aloud"
+            >
+              {isPlayingAudio ? (
+                <>
+                  <VolumeX className="w-3 h-3 text-rose-400" />
+                  <span>Stop</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3 h-3 text-amber-400" />
+                  <span>Listen</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleCopy}
@@ -258,13 +384,13 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
       </div>
 
       {/* ─── Q&A Exchange Cards ─────────────────────────────────────── */}
-      <div className="p-3.5 space-y-3.5 max-h-80 overflow-y-auto">
+      <div className={`p-3.5 space-y-3.5 ${compact ? 'max-h-96' : 'max-h-80'} overflow-y-auto`}>
         {qaPairs.length === 0 ? (
           <div className="text-center py-8 text-slate-400 space-y-2">
             <Activity className="w-6 h-6 text-slate-600 mx-auto animate-pulse" />
             <p className="text-xs">No conversation dialogue recorded yet.</p>
             <p className="text-[11px] text-slate-500">
-              As soon as Priya speaks and {customerName} responds, their talk history will appear here step-by-step.
+              When Priya calls {customerName}, every question asked and what {customerName} tells will automatically be saved and displayed here.
             </p>
           </div>
         ) : (
@@ -285,6 +411,11 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
                     </span>
                     <span className="truncate max-w-[280px] sm:max-w-none">{pair.stepTitle}</span>
                   </div>
+                  {pair.extractedKey && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20 font-semibold">
+                      🏷️ {pair.extractedKey}
+                    </span>
+                  )}
                   {pair.aiTimestamp && (
                     <span className="text-[10px] text-slate-500 font-mono flex items-center space-x-1">
                       <Clock className="w-3 h-3 opacity-60" />
@@ -293,12 +424,12 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
                   )}
                 </div>
 
-                {/* Sub-Card 1: What AI is Asking */}
-                <div className="bg-gradient-to-r from-purple-950/30 via-slate-900 to-purple-950/20 border border-purple-800/30 rounded-lg p-2.5 space-y-1">
+                {/* Sub-Card 1: What AI Asked */}
+                <div className="bg-gradient-to-r from-purple-950/40 via-slate-900 to-purple-950/20 border border-purple-800/30 rounded-lg p-2.5 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-purple-300 uppercase tracking-wider flex items-center space-x-1">
                       <Bot className="w-3 h-3 text-purple-400" />
-                      <span>What AI is Asking ({aiName})</span>
+                      <span>What AI Asked ({aiName})</span>
                     </span>
                     {isSpeaking && isLast && (
                       <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 animate-pulse">
@@ -311,12 +442,22 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
                   </p>
                 </div>
 
-                {/* Sub-Card 2: User Answer */}
-                <div className="bg-gradient-to-r from-emerald-950/30 via-slate-900 to-emerald-950/20 border border-emerald-800/30 rounded-lg p-2.5 space-y-1">
+                {/* Sub-Card 2: What User Told (Answer or Question) */}
+                <div className={`border rounded-lg p-2.5 space-y-1 ${
+                  pair.isCustomerQuestion
+                    ? 'bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/20 border-amber-800/40'
+                    : 'bg-gradient-to-r from-emerald-950/40 via-slate-900 to-emerald-950/20 border-emerald-800/30'
+                }`}>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center space-x-1">
-                      <User className="w-3 h-3 text-emerald-400" />
-                      <span>User Answer ({customerName})</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center space-x-1 ${
+                      pair.isCustomerQuestion ? 'text-amber-400' : 'text-emerald-400'
+                    }`}>
+                      <User className="w-3 h-3" />
+                      <span>
+                        {pair.isCustomerQuestion
+                          ? `❓ Customer Question (${customerName})`
+                          : `🗣️ What User Told (${customerName})`}
+                      </span>
                     </span>
                     {isListening && isLast && (
                       <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse flex items-center space-x-1">
@@ -327,7 +468,9 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
                   </div>
 
                   {pair.userAnswer ? (
-                    <p className="text-emerald-200 text-xs leading-relaxed font-semibold">
+                    <p className={`text-xs leading-relaxed font-semibold ${
+                      pair.isCustomerQuestion ? 'text-amber-200' : 'text-emerald-200'
+                    }`}>
                       "{pair.userAnswer}"
                     </p>
                   ) : isWaitingForAnswer ? (
@@ -360,7 +503,7 @@ export const TalkHistorySection: React.FC<TalkHistorySectionProps> = ({
             Logged Turns: <strong className="text-white">{qaPairs.length}</strong>
           </span>
           <span className="text-emerald-400 font-semibold">
-            ✓ Real-time Speech Sync Active
+            ✓ Auto-Stored in Database & Frontend
           </span>
         </div>
       )}

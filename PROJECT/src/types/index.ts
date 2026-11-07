@@ -17,6 +17,18 @@ export type LeadOutcome =
   | 'AGENT_CALLBACK' 
   | 'PENDING';
 
+export interface LeadQAItem {
+  id?: string;
+  stepNumber?: number;
+  stepTitle?: string;
+  question: string;
+  answer: string;
+  extractedKey?: string;
+  extractedValue?: string;
+  isCustomerQuestion?: boolean;
+  timestamp?: string;
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -39,6 +51,7 @@ export interface Lead {
   nextAction?: string;
   recordingReference?: string;
   vapiCallId?: string;
+  qaHistory?: LeadQAItem[];
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -58,13 +71,14 @@ export interface CallRecord {
   qualification: {
     interested: string;
     buyerOrInvestor: string;
-    budget: string;
-    location: string;
-    timeline: string;
+    budget?: string;
+    location?: string;
+    timeline?: string;
   };
-  summary: string;
-  transcript: string;
-  noAnswer: boolean;
+  summary?: string;
+  transcript?: string;
+  qaHistory?: LeadQAItem[];
+  noAnswer?: boolean;
 }
 
 export interface CampaignState {
@@ -93,27 +107,21 @@ export interface KnowledgeDoc {
   createdAt: string;
 }
 
-export interface VapiConfig {
+export interface GeminiConfig {
   apiKeyConfigured: boolean;
-  phoneNumberIdConfigured: boolean;
-  assistantIdConfigured: boolean;
-  phoneNumberId?: string;
-  assistantId?: string;
-  hasCustomKey?: boolean;
-}
-
-export interface SarvamConfig {
-  apiKeyConfigured: boolean;
+  voice?: string;
 }
 
 export interface GroqConfig {
   apiKeyConfigured: boolean;
+  voice?: string;
 }
 
-export type SarvamVoice =
-  | 'shreya'   // Female - News/Authoritative
-  | 'ishita'   // Female - Entertainment/Dynamic
-  | 'pavithra' // Female - Warm/Conversational
-  | 'manisha'  // Female - Calm/Professional
-  | 'arjun'    // Male   - Confident
-  | 'anand';   // Male   - Friendly
+export interface OpenAIConfig {
+  apiKeyConfigured: boolean;
+  keyPreview?: string;
+  ttsModel?: string;
+  sttModel?: string;
+  chatModel?: string;
+  voice?: string;
+}

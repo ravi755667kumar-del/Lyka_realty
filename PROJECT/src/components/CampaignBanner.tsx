@@ -82,7 +82,7 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
           </h2>
 
           <p className="text-sm text-slate-300 max-w-2xl">
-            Autonomous sequential calling: Calls authorized leads (consent=true, blocked=false) one at a time via Vapi, conducts 5-question property qualification, classifies HOT/WARM/COLD/OPT-OUT in Firestore, and smoothly progresses.
+            Autonomous sequential calling: Calls authorized leads (consent=true, blocked=false) one at a time via Direct AI Voice / Telephony, conducts 5-question property qualification, classifies HOT/WARM/COLD/OPT-OUT in Firestore, and smoothly progresses.
           </p>
 
           {/* Currently Calling Status Card */}
@@ -98,7 +98,7 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
                       Currently Calling (1-at-a-time)
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono">
-                      Vapi Active
+                      AI Active
                     </span>
                   </div>
                   <div className="text-sm font-semibold text-white">

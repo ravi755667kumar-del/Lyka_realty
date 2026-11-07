@@ -8,14 +8,88 @@ const INITIAL_DEMO_LEADS: Lead[] = [
     phone: '+91 98401 23456',
     consent: true,
     blocked: false,
-    status: 'Pending',
+    status: 'Completed',
     language: 'Tamil-English',
-    outcome: 'PENDING',
-    callCount: 0,
+    outcome: 'HOT',
+    callCount: 1,
+    callTime: new Date(Date.now() - 3600000 * 2).toISOString(),
+    duration: 88,
+    summary: 'Ravi Kumar is looking to buy a 2 BHK flat in Velachery with a budget of ₹72 Lakhs. Needs immediate possession and agreed to site visit this weekend.',
+    transcript: `AI: Vanakkam Ravi Kumar Sir! Naan Lyka Realty-la irundhu Priya pesaren. Ungalukku Tamil, English, illana Hindi — edhula pesa vasadhiya irukkum Sir?
+Ravi Kumar: Tamil la pesunga, convenient ah irukkum.
+AI: Romba sandhosham Ravi Kumar Sir! Ippo oru 2 nimisham pesa mudiyuma?
+Ravi Kumar: Aama, free thaan, pesalam.
+AI: Super Sir! Neenga veedu vaanganuma, vaadagaikku venuma, illa nilam (plot) vaanganuma?
+Ravi Kumar: Veedu vaanga plan irukku, 2 BHK flat vaanganum.
+AI: Romba nalladhu Sir! Chennai-la endha location or area-la thedureenga?
+Ravi Kumar: Velachery area la paakuren, main road pakkatula venum.
+AI: Kandippa Sir! Ungaloda budget range approximate-aa evvalavu irukku?
+Ravi Kumar: En budget around 72 lakhs kulla paakaren.
+AI: Velachery-la 72 lakhs-kulla super 2 BHK flats irukku Sir! Move-in eppo plan pandreenga?
+Ravi Kumar: Udane ready to move venum, family oda shift aaganum.
+AI: Direct site visit indha weekend sani yaayiru paaka mudiyuma Sir?
+Ravi Kumar: This weekend sani yaayiru varren, location WhatsApp la anupunga.`,
+    qaHistory: [
+      {
+        id: 'qa_1',
+        stepNumber: 1,
+        stepTitle: 'Step 1: Introduction & Availability Check',
+        question: 'Vanakkam Ravi Kumar Sir! Ippo oru 2 nimisham pesa mudiyuma?',
+        answer: 'Aama, free thaan, pesalam.',
+        extractedKey: 'Availability',
+        extractedValue: 'Available to talk',
+      },
+      {
+        id: 'qa_2',
+        stepNumber: 2,
+        stepTitle: 'Step 2: Property Purpose (Buy / Rent / Plot)',
+        question: 'Neenga veedu vaanganuma, vaadagaikku venuma, illa nilam (plot) vaanganuma?',
+        answer: 'Veedu vaanga plan irukku, 2 BHK flat vaanganum.',
+        extractedKey: 'Purpose',
+        extractedValue: 'Looking to Buy 2 BHK Flat',
+      },
+      {
+        id: 'qa_3',
+        stepNumber: 3,
+        stepTitle: 'Step 3: Preferred Location & Area',
+        question: 'Chennai-la endha location or area-la thedureenga?',
+        answer: 'Velachery area la paakuren, main road pakkatula venum.',
+        extractedKey: 'Location',
+        extractedValue: 'Velachery',
+      },
+      {
+        id: 'qa_4',
+        stepNumber: 4,
+        stepTitle: 'Step 4: Budget Range & Expectation',
+        question: 'Ungaloda budget range approximate-aa evvalavu irukku?',
+        answer: 'En budget around 72 lakhs kulla paakaren.',
+        extractedKey: 'Budget',
+        extractedValue: '₹72 Lakhs',
+      },
+      {
+        id: 'qa_5',
+        stepNumber: 5,
+        stepTitle: 'Step 5: Move-in Timeline',
+        question: 'Move-in eppo plan pandreenga?',
+        answer: 'Udane ready to move venum, family oda shift aaganum.',
+        extractedKey: 'Timeline',
+        extractedValue: 'Immediate Ready-to-Move',
+      },
+      {
+        id: 'qa_6',
+        stepNumber: 6,
+        stepTitle: 'Step 6: Site Visit Day Scheduling',
+        question: 'Direct site visit indha weekend sani yaayiru paaka mudiyuma Sir?',
+        answer: 'This weekend sani yaayiru varren, location WhatsApp la anupunga.',
+        extractedKey: 'Site Visit Schedule',
+        extractedValue: 'Visiting this Weekend (Sat/Sun)',
+      },
+    ],
     budget: '₹72 Lakhs',
     location: 'Velachery',
     timeline: 'Immediate',
     buyerOrInvestor: 'buyer',
+    nextAction: 'High Priority: Assign Senior Property Advisor for immediate site visit.',
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
@@ -73,12 +147,95 @@ const INITIAL_DEMO_LEADS: Lead[] = [
 ];
 
 // Local store fallback for when Supabase keys are blank in .env
-let localLeadsStore: Lead[] = [...INITIAL_DEMO_LEADS];
-let localCallsStore: CallRecord[] = [];
+const LOCAL_STORAGE_LEADS_KEY = 'lyka_local_leads_v2';
+
+function getInitialLeads(): Lead[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_LEADS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  return [...INITIAL_DEMO_LEADS];
+}
+
+let localLeadsStore: Lead[] = getInitialLeads();
+
+const LOCAL_STORAGE_CALLS_KEY = 'lyka_local_calls_v2';
+
+function getInitialCalls(): CallRecord[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_CALLS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Pre-seed demo calls from INITIAL_DEMO_LEADS
+  return INITIAL_DEMO_LEADS
+    .filter((l) => Boolean(l.transcript))
+    .map((l) => ({
+      id: l.lastCallId || `call_${l.id}_demo`,
+      customerId: l.id,
+      name: l.name,
+      phone: l.phone,
+      language: l.language || 'English',
+      status: l.status,
+      outcome: l.outcome || 'HOT',
+      startedAt: l.callTime || new Date(Date.now() - 3600000 * 2).toISOString(),
+      endedAt: l.callTime || new Date(Date.now() - 3600000 * 2 + 88000).toISOString(),
+      duration: l.duration || 88,
+      qualification: {
+        interested: l.outcome === 'COLD' ? 'No' : 'Yes',
+        buyerOrInvestor: l.buyerOrInvestor || 'buyer',
+        budget: l.budget,
+        location: l.location,
+        timeline: l.timeline,
+      },
+      summary: l.summary,
+      transcript: l.transcript,
+      qaHistory: l.qaHistory,
+      noAnswer: false,
+    }));
+}
+
+let localCallsStore: CallRecord[] = getInitialCalls();
+
+function saveLocalCalls() {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_CALLS_KEY, JSON.stringify(localCallsStore));
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
 const localSubscribers: Set<(leads: Lead[]) => void> = new Set();
 
 function notifyLocalSubscribers() {
   const copy = [...localLeadsStore];
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_LEADS_KEY, JSON.stringify(copy));
+    } catch (e) {
+      // ignore
+    }
+  }
   localSubscribers.forEach((cb) => cb(copy));
 }
 
@@ -105,6 +262,11 @@ function mapRowToLead(row: any): Lead {
     nextAction: row.next_action || '',
     recordingReference: row.recording_reference,
     vapiCallId: row.vapi_call_id,
+    qaHistory: typeof row.qa_history === 'string'
+      ? (() => { try { return JSON.parse(row.qa_history); } catch { return []; } })()
+      : Array.isArray(row.qa_history)
+      ? row.qa_history
+      : row.qaHistory || undefined,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -134,6 +296,9 @@ function mapLeadToRow(lead: Partial<Lead>): any {
   if (lead.nextAction !== undefined) row.next_action = lead.nextAction;
   if (lead.recordingReference !== undefined) row.recording_reference = lead.recordingReference;
   if (lead.vapiCallId !== undefined) row.vapi_call_id = lead.vapiCallId;
+  if (lead.qaHistory !== undefined) {
+    row.qa_history = typeof lead.qaHistory === 'string' ? lead.qaHistory : JSON.stringify(lead.qaHistory);
+  }
   if (lead.createdBy !== undefined) row.created_by = lead.createdBy;
   if (lead.createdAt !== undefined) row.created_at = lead.createdAt;
   if (lead.updatedAt !== undefined) row.updated_at = lead.updatedAt;
@@ -319,6 +484,7 @@ export async function createCallRecord(callData: CallRecord): Promise<string> {
 
   if (!isSupabaseConfigured) {
     localCallsStore.unshift(record);
+    saveLocalCalls();
     return callId;
   }
 
@@ -344,6 +510,7 @@ export async function createCallRecord(callData: CallRecord): Promise<string> {
   if (error) {
     console.error('Supabase createCallRecord error:', error);
     localCallsStore.unshift(record);
+    saveLocalCalls();
   }
 
   return callId;
@@ -372,6 +539,7 @@ export async function completeBrowserCallSession(params: {
     qualification: callData.qualification,
     summary: callData.summary,
     transcript: callData.transcript,
+    qaHistory: callData.qaHistory || leadUpdates.qaHistory,
     noAnswer: Boolean(callData.noAnswer),
   });
 
@@ -387,6 +555,7 @@ export async function completeBrowserCallSession(params: {
     duration: callData.duration,
     summary: callData.summary,
     transcript: callData.transcript,
+    qaHistory: leadUpdates.qaHistory || callData.qaHistory,
     buyerOrInvestor: (leadUpdates.buyerOrInvestor || callData.qualification?.buyerOrInvestor || 'unspecified') as any,
     budget: leadUpdates.budget || callData.qualification?.budget || '',
     location: leadUpdates.location || callData.qualification?.location || '',
@@ -457,4 +626,71 @@ export async function fetchCallsForLead(customerId: string): Promise<CallRecord[
     transcript: d.transcript,
     noAnswer: Boolean(d.no_answer),
   }));
+}
+
+export async function fetchAllCallHistory(): Promise<CallRecord[]> {
+  const existingCustomerIds = new Set(localCallsStore.map((c) => c.customerId));
+  const additionalFromLeads: CallRecord[] = localLeadsStore
+    .filter((l) => Boolean(l.transcript) && !existingCustomerIds.has(l.id))
+    .map((l) => ({
+      id: l.lastCallId || `call_${l.id}_auto`,
+      customerId: l.id,
+      name: l.name,
+      phone: l.phone,
+      language: l.language || 'English',
+      status: l.status,
+      outcome: l.outcome || 'PENDING',
+      startedAt: l.callTime || l.updatedAt || l.createdAt || new Date().toISOString(),
+      endedAt: l.callTime || l.updatedAt || l.createdAt || new Date().toISOString(),
+      duration: l.duration || 0,
+      qualification: {
+        interested: l.outcome === 'COLD' ? 'No' : 'Yes',
+        buyerOrInvestor: l.buyerOrInvestor || 'unspecified',
+        budget: l.budget,
+        location: l.location,
+        timeline: l.timeline,
+      },
+      summary: l.summary,
+      transcript: l.transcript,
+      qaHistory: l.qaHistory,
+      noAnswer: Boolean(l.status === 'No Answer'),
+    }));
+
+  const allLocal = [...localCallsStore, ...additionalFromLeads];
+  allLocal.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+
+  if (!isSupabaseConfigured) {
+    return allLocal;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('calls')
+      .select('*')
+      .order('started_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      return allLocal;
+    }
+
+    return data.map((d: any) => ({
+      id: d.id,
+      customerId: d.customer_id,
+      name: d.name,
+      phone: d.phone,
+      language: d.language || 'English',
+      status: d.status,
+      outcome: d.outcome || 'PENDING',
+      startedAt: d.started_at,
+      endedAt: d.ended_at,
+      duration: d.duration || 0,
+      qualification: d.qualification || {},
+      summary: d.summary || '',
+      transcript: d.transcript || '',
+      qaHistory: typeof d.qa_history === 'string' ? JSON.parse(d.qa_history) : d.qa_history,
+      noAnswer: Boolean(d.no_answer),
+    }));
+  } catch (e) {
+    return allLocal;
+  }
 }
