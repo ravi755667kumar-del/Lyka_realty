@@ -383,6 +383,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const interimTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTurnProcessingRef = useRef<boolean>(false);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const filteredStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -1086,6 +1087,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       audioContextRef.current = null;
     }
 
+    if (filteredStreamRef.current) {
+      try {
+        filteredStreamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (e) {
+        // ignore
+      }
+      filteredStreamRef.current = null;
+    }
+
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
@@ -1095,30 +1105,77 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   };
 
 
-  // Start real-time audio volume visualizer from microphone stream
+  // Start real-time audio volume visualizer with Voice-Isolation DSP filter chain
   const startAudioMeter = (stream: MediaStream) => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') {
+        try { audioCtx.resume(); } catch (e) { /* ignore */ }
+      }
       const source = audioCtx.createMediaStreamSource(stream);
+
+      // 1. Highpass filter: cuts sub-bass rumble, laptop fan hum, AC rumble (< 180 Hz)
+      const highpass = audioCtx.createBiquadFilter();
+      highpass.type = 'highpass';
+      highpass.frequency.value = 180;
+      highpass.Q.value = 0.7;
+
+      // 2. Peaking filter: boosts human speech presence & headphone/close-mic vocal clarity (1.5 kHz - 3.5 kHz)
+      const voicePresence = audioCtx.createBiquadFilter();
+      voicePresence.type = 'peaking';
+      voicePresence.frequency.value = 2400; // Human vocal presence peak
+      voicePresence.Q.value = 1.0;
+      voicePresence.gain.value = 4.0; // +4dB boost for direct human speech
+
+      // 3. Lowpass filter: cuts ultra-high ambient hiss and room reflections (> 4200 Hz)
+      const lowpass = audioCtx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 4200;
+      lowpass.Q.value = 0.7;
+
+      // Connect filter DSP chain: source -> highpass -> voicePresence -> lowpass
+      source.connect(highpass);
+      highpass.connect(voicePresence);
+      voicePresence.connect(lowpass);
+
+      // 4. Connect to Analyser for voice activity detection (VAD)
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.4;
-      source.connect(analyser);
+      analyser.fftSize = 256; // 128 bins for high frequency resolution
+      analyser.smoothingTimeConstant = 0.3;
+      lowpass.connect(analyser);
       analyserRef.current = analyser;
 
+      // 5. Create a filtered MediaStream for clean human-voice recording
+      try {
+        const destination = audioCtx.createMediaStreamDestination();
+        lowpass.connect(destination);
+        filteredStreamRef.current = destination.stream;
+      } catch (destErr) {
+        filteredStreamRef.current = stream;
+      }
+
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const sampleRate = audioCtx.sampleRate || 48000;
+      const binWidth = sampleRate / (analyser.frequencyBinCount * 2);
+      const minVocalBin = Math.max(1, Math.floor(280 / binWidth));
+      const maxVocalBin = Math.min(dataArray.length - 1, Math.ceil(3600 / binWidth));
+
       const updateMeter = () => {
         if (!analyserRef.current) return;
         analyserRef.current.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
+
+        // Calculate vocal-band specific energy (ignores background fan & rumble)
+        let vocalSum = 0;
+        let vocalCount = 0;
+        for (let i = minVocalBin; i <= maxVocalBin; i++) {
+          vocalSum += dataArray[i];
+          vocalCount++;
         }
-        const avg = sum / dataArray.length;
-        const normalized = Math.min(100, Math.round(avg * 2.2));
+        const vocalAvg = vocalCount > 0 ? vocalSum / vocalCount : 0;
+        const normalized = Math.min(100, Math.round(vocalAvg * 2.2));
         setMicAudioLevel(normalized);
         animFrameRef.current = requestAnimationFrame(updateMeter);
       };
@@ -1162,7 +1219,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // 1. Parallel Non-Blocking Microphone Setup (runs concurrently without blocking speech start)
     navigator.mediaDevices
       ?.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true },
+          channelCount: 1, // Mono channel to eliminate spatial background summing
+          sampleRate: { ideal: 48000 },
+          ...({ voiceIsolation: { ideal: true } } as any),
+        } as MediaTrackConstraints,
       })
       .then((stream) => {
         mediaStreamRef.current = stream;
@@ -1782,18 +1846,26 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
 
 
-  // ── Voice Activity Detection (VAD) Helper ─────────────────────────────────
+  // ── Voice Activity Detection (VAD) Helper (Human Vocal Frequencies Only) ──
   const isMicVADActive = (): boolean => {
     if (!analyserRef.current) return false;
     try {
       const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
       analyserRef.current.getByteFrequencyData(dataArray);
+
+      const sampleRate = audioContextRef.current?.sampleRate || 48000;
+      const binWidth = sampleRate / (dataArray.length * 2);
+      const minVocalBin = Math.max(1, Math.floor(280 / binWidth));
+      const maxVocalBin = Math.min(dataArray.length - 1, Math.ceil(3600 / binWidth));
+
       let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
+      let count = 0;
+      for (let i = minVocalBin; i <= maxVocalBin; i++) {
         sum += dataArray[i];
+        count++;
       }
-      const avg = sum / dataArray.length;
-      return avg > 11;
+      const vocalAvg = count > 0 ? sum / count : 0;
+      return vocalAvg > 9;
     } catch (e) {
       return false;
     }
@@ -2565,7 +2637,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       return;
     }
 
-    if (!mediaStreamRef.current) {
+    const streamToRecord = filteredStreamRef.current || mediaStreamRef.current;
+    if (!streamToRecord) {
       startContinuousSpeechRecognition();
       return;
     }
@@ -2580,7 +2653,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? 'audio/webm'
         : '';
 
-      const recorder = new MediaRecorder(mediaStreamRef.current, mimeType ? { mimeType } : {});
+      const recorder = new MediaRecorder(streamToRecord, mimeType ? { mimeType } : {});
       mediaRecorderRef.current = recorder;
       isRecordingRef.current = true;
 
@@ -2670,7 +2743,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
       let sampleCount = 0;
       let noiseFloorSum = 0;
-      let calibratedNoiseFloor = 8;
+      let calibratedNoiseFloor = 6;
 
       vadInterval = setInterval(() => {
         if (recorder.state !== 'recording') {
@@ -2681,30 +2754,58 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         if (analyserRef.current) {
           const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
-          }
-          const averageVolume = sum / dataArray.length;
 
-          // Dynamically calibrate ambient room and laptop fan noise in first 60ms (3 samples)
+          const sampleRate = audioContextRef.current?.sampleRate || 48000;
+          const binWidth = sampleRate / (dataArray.length * 2);
+
+          // Human speech frequency range: 280 Hz to 3600 Hz (cuts background AC/fan rumble)
+          const minVocalBin = Math.max(1, Math.floor(280 / binWidth));
+          const maxVocalBin = Math.min(dataArray.length - 1, Math.ceil(3600 / binWidth));
+          // Close-headphone vocal clarity & presence band: 1400 Hz to 3600 Hz
+          const highVocalBin = Math.floor(1400 / binWidth);
+
+          let vocalSum = 0;
+          let vocalCount = 0;
+          let vocalHighSum = 0;
+          let vocalHighCount = 0;
+
+          for (let i = minVocalBin; i <= maxVocalBin; i++) {
+            vocalSum += dataArray[i];
+            vocalCount++;
+            if (i >= highVocalBin) {
+              vocalHighSum += dataArray[i];
+              vocalHighCount++;
+            }
+          }
+
+          const vocalAverage = vocalCount > 0 ? vocalSum / vocalCount : 0;
+          const vocalHighAverage = vocalHighCount > 0 ? vocalHighSum / vocalHighCount : 0;
+
+          // Dynamically calibrate ambient vocal-band background noise in first 60ms (3 samples)
           if (sampleCount < 3) {
-            noiseFloorSum += averageVolume;
+            noiseFloorSum += vocalAverage;
             sampleCount++;
-            calibratedNoiseFloor = Math.max(4, Math.min(12, noiseFloorSum / sampleCount));
+            calibratedNoiseFloor = Math.max(3, Math.min(10, noiseFloorSum / sampleCount));
           }
 
-          // Ultra-sensitive speech detection with dynamic ambient calibration
-          const speechThreshold = Math.max(5.0, calibratedNoiseFloor + 1.2);
-          const silenceThreshold = Math.max(3.5, calibratedNoiseFloor + 0.5);
+          // Focused speech thresholds for close-mic headphone voice:
+          const speechThreshold = Math.max(5.5, calibratedNoiseFloor + 1.6);
+          const silenceThreshold = Math.max(3.8, calibratedNoiseFloor + 0.6);
 
-          if (averageVolume > speechThreshold) {
+          // Distinguish direct human voice from background noise:
+          // 1. Vocal band energy exceeds threshold
+          // 2. High-frequency vocal presence (1.4kHz - 3.6kHz close to headphone mic) confirms human voice
+          const isHumanVoice =
+            vocalAverage > speechThreshold &&
+            (vocalHighAverage > Math.max(2.5, calibratedNoiseFloor * 0.4) || vocalAverage > speechThreshold + 3);
+
+          if (isHumanVoice) {
             hasSpoken = true;
             silenceStart = 0; // User is speaking or resumed speaking: RESET silence timer!
             resetInactivityDisconnectTimer(); // Reset 8-second inactivity disconnect timer
             setIsUserPausing(false);
             setLiveSpeechText('🎙️ Hearing you speak...');
-          } else if (hasSpoken && averageVolume < silenceThreshold) {
+          } else if (hasSpoken && vocalAverage < silenceThreshold) {
             if (!silenceStart) {
               silenceStart = Date.now();
               setIsUserPausing(true);
