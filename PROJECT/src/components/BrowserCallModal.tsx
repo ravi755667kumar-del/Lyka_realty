@@ -1231,7 +1231,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     updateCallState('Listening...');
     if (onEnd) onEnd();
 
-    // 100ms guard delay before restarting mic — just enough to stop speaker reverb bleed
+    // 50ms guard delay before restarting mic — just enough to stop speaker reverb bleed
     setTimeout(() => {
       if (
         callStateRef.current === 'Listening...' &&
@@ -1244,7 +1244,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           startContinuousSpeechRecognition();
         }
       }
-    }, 100);
+    }, 50);
 
     resetNoAnswerTimeout();
   };
@@ -2190,13 +2190,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   ): { waitMs: number; statusLabel: string } => {
     const clean = text.trim();
     if (!clean) {
-      return { waitMs: 1400, statusLabel: '🎙️ Listening...' };
+      return { waitMs: 600, statusLabel: '🎙️ Listening...' };
     }
 
-    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation
+    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation — still give a bit more time
     if (isIncompleteSentence(clean)) {
       return {
-        waitMs: 2800,
+        waitMs: 1200,
         statusLabel: '👂 Listening... (take your time)',
       };
     }
@@ -2204,7 +2204,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // B. Direct complete answer to the current qualification step
     if (isQuickAnswerMatch(clean, step) || (step === 1 && isDecliningOrBusy(clean))) {
       return {
-        waitMs: 750,
+        waitMs: 400,
         statusLabel: '✨ Answer heard, responding...',
       };
     }
@@ -2212,7 +2212,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // C. Customer asking a question or inquiry (price, location, etc.)
     if (isCustomerQuestion(clean)) {
       return {
-        waitMs: 900,
+        waitMs: 500,
         statusLabel: '✨ Question heard, answering...',
       };
     }
@@ -2224,14 +2224,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       (lower.includes('velachery') || lower.includes('omr') || lower.includes('porur') || lower.includes('tambaram') || lower.includes('adyar') || lower.includes('chennai') || lower.includes('lakh') || lower.includes('crore'));
     if (hasMultipleDetails) {
       return {
-        waitMs: 950,
+        waitMs: 600,
         statusLabel: '✨ Details captured, responding...',
       };
     }
 
     // E. Standard conversational turn
     return {
-      waitMs: 1350,
+      waitMs: 700,
       statusLabel: '👂 Listening...',
     };
   };
@@ -2597,7 +2597,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
         audioChunksRef.current = [];
 
-        if (audioBlob.size < 500) {
+        if (audioBlob.size < 100) {
           startServerSTTListening();
           return;
         }
@@ -2687,11 +2687,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           }
           const averageVolume = sum / dataArray.length;
 
-          // Dynamically calibrate ambient room and laptop fan noise in first 120ms
-          if (sampleCount < 6) {
+          // Dynamically calibrate ambient room and laptop fan noise in first 60ms (3 samples)
+          if (sampleCount < 3) {
             noiseFloorSum += averageVolume;
             sampleCount++;
-            calibratedNoiseFloor = Math.max(4, Math.min(18, noiseFloorSum / sampleCount));
+            calibratedNoiseFloor = Math.max(4, Math.min(12, noiseFloorSum / sampleCount));
           }
 
           // Ultra-sensitive speech detection with dynamic ambient calibration
@@ -2711,8 +2711,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               setLiveSpeechText('👂 Listening...');
             } else {
               const elapsedMs = Date.now() - silenceStart;
-              if (elapsedMs >= 1200) {
-                // Natural silence after speech (1.2s) = user completed utterance!
+              if (elapsedMs >= 600) {
+                // Natural silence after speech (0.6s) = user completed utterance!
                 stopVAD();
                 setIsUserPausing(false);
                 if (recorder.state === 'recording') {
