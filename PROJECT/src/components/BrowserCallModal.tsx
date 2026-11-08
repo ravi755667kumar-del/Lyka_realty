@@ -2190,48 +2190,48 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   ): { waitMs: number; statusLabel: string } => {
     const clean = text.trim();
     if (!clean) {
-      return { waitMs: 600, statusLabel: '🎙️ Listening...' };
+      return { waitMs: 400, statusLabel: '🎙️ Listening...' };
     }
 
-    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation — still give a bit more time
+    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation — give a bit more time
     if (isIncompleteSentence(clean)) {
       return {
-        waitMs: 1200,
+        waitMs: 800,
         statusLabel: '👂 Listening... (take your time)',
       };
     }
 
-    // B. Direct complete answer to the current qualification step
+    // B. Direct complete answer to the current qualification step — snap response
     if (isQuickAnswerMatch(clean, step) || (step === 1 && isDecliningOrBusy(clean))) {
       return {
-        waitMs: 400,
+        waitMs: 300,
         statusLabel: '✨ Answer heard, responding...',
       };
     }
 
-    // C. Customer asking a question or inquiry (price, location, etc.)
+    // C. Customer asking a question or inquiry (price, location, etc.) — fast answer
     if (isCustomerQuestion(clean)) {
       return {
-        waitMs: 500,
+        waitMs: 350,
         statusLabel: '✨ Question heard, answering...',
       };
     }
 
-    // D. Multi-attribute qualification statement (e.g. "I want a 2 BHK in Velachery under 80L")
+    // D. Multi-attribute qualification statement (e.g. "2 BHK Velachery under 80L")
     const lower = clean.toLowerCase();
     const hasMultipleDetails =
       (lower.includes('bhk') || lower.includes('flat') || lower.includes('plot') || lower.includes('house')) &&
       (lower.includes('velachery') || lower.includes('omr') || lower.includes('porur') || lower.includes('tambaram') || lower.includes('adyar') || lower.includes('chennai') || lower.includes('lakh') || lower.includes('crore'));
     if (hasMultipleDetails) {
       return {
-        waitMs: 600,
+        waitMs: 400,
         statusLabel: '✨ Details captured, responding...',
       };
     }
 
-    // E. Standard conversational turn
+    // E. Standard conversational turn — sub-second
     return {
-      waitMs: 700,
+      waitMs: 500,
       statusLabel: '👂 Listening...',
     };
   };
@@ -2711,8 +2711,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               setLiveSpeechText('👂 Listening...');
             } else {
               const elapsedMs = Date.now() - silenceStart;
-              if (elapsedMs >= 600) {
-                // Natural silence after speech (0.6s) = user completed utterance!
+              if (elapsedMs >= 400) {
+                // Natural silence after speech (0.4s) = user completed utterance!
                 stopVAD();
                 setIsUserPausing(false);
                 if (recorder.state === 'recording') {
