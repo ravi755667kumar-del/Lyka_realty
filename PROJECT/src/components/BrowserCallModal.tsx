@@ -407,6 +407,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const [isUserPausing, setIsUserPausing] = useState<boolean>(false);
   const [turnStatusLabel, setTurnStatusLabel] = useState<string>('👂 Listening...');
 
+  // Full-Duplex Active Listening Backchannels ("Aan...", "Puriyudhu...", "Mm-hmm...", "Haan...")
+  const backchannelTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastBackchannelTimeRef = useRef<number>(0);
+  const isBackchannelPlayingRef = useRef<boolean>(false);
+
   // Voice Gender Persona: 'female' (Priya) vs 'male' (Karthik) with client attraction psychology
   const [voiceGender, setVoiceGender] = useState<VoiceGender>(() =>
     readStoredChoice('lyka_voice_gender', 'female') as VoiceGender
@@ -1022,6 +1027,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (inactivityTimerRef.current) { clearTimeout(inactivityTimerRef.current); inactivityTimerRef.current = null; }
     if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    if (backchannelTimerRef.current) {
+      clearTimeout(backchannelTimerRef.current);
+      backchannelTimerRef.current = null;
+    }
+    isBackchannelPlayingRef.current = false;
     userAccumulatedSpeechRef.current = '';
     turnCommittedSpeechRef.current = '';
     speechSessionPrefixRef.current = '';
@@ -1523,6 +1533,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   // ── Master speakAIText: uses the selected provider and falls back to browser speech ────────
   const speakAIText = (rawText: string, langCode: string, onEnd?: () => void) => {
+    // Cancel any active backchannel nodding when the agent speaks full turn
+    if (backchannelTimerRef.current) {
+      clearTimeout(backchannelTimerRef.current);
+      backchannelTimerRef.current = null;
+    }
+    isBackchannelPlayingRef.current = false;
+
     // 1. Forcefully cancel any currently active audio streams to eliminate duplicate voices
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
@@ -2145,6 +2162,80 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return false;
   };
 
+  // ── Full-Duplex Active Listening Vocal Nods (Backchannel Interjections) ──────
+  // Plays short, soft verbal nods ("Aan...", "Puriyudhu...", "Sari...", "Mm-hmm...", "Haan...")
+  // while the caller is talking or taking a natural thinking pause mid-explanation.
+  // CRITICAL FULL-DUPLEX RULES:
+  // 1. Never sets `isSpeechSynthesisSpeakingRef.current = true` (which would mute microphone STT).
+  // 2. Ducked volume (0.28) ensures it does not bleed into the laptop mic or trigger false speech input.
+  // 3. Minimum cooldown interval (4.5s) prevents repetitive hyperactive nodding.
+  // 4. Client-side SpeechSynthesis delivers 0ms zero-latency instant backchannel without API delays.
+  const playSoftBackchannelNod = () => {
+    if (
+      isTurnProcessingRef.current ||
+      isSpeechSynthesisSpeakingRef.current ||
+      isBackchannelPlayingRef.current ||
+      callStateRef.current !== 'Listening...'
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastBackchannelTimeRef.current < 4500) {
+      return;
+    }
+    lastBackchannelTimeRef.current = now;
+
+    const lang = (selectedLanguageRef.current || 'Tamil-English').toLowerCase();
+    let nods: string[];
+    let langCode = 'en-IN';
+
+    if (lang.includes('tamil') || lang.includes('tanglish') || lang.startsWith('ta')) {
+      nods = ['Aan...', 'Puriyudhu...', 'Sari...', 'Mm-hmm...', 'Aan...'];
+      langCode = 'ta-IN';
+    } else if (lang.includes('hindi') || lang.includes('hinglish') || lang.startsWith('hi')) {
+      nods = ['Haan...', 'Sahi hai...', 'Achha...', 'Mm-hmm...', 'Haan ji...'];
+      langCode = 'hi-IN';
+    } else {
+      nods = ['Mm-hmm...', 'Right...', 'Got it...', 'Yes...', 'Mm...'];
+      langCode = 'en-US';
+    }
+
+    const nodText = nods[Math.floor(Math.random() * nods.length)];
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        const spokenWord = nodText.replace(/\.\.\./g, '');
+        const utterance = new SpeechSynthesisUtterance(spokenWord);
+        utterance.volume = 0.28; // Ducked soft volume so laptop mic doesn't pick up echo
+        utterance.rate = 1.05;
+
+        // Match appropriate system voice for active language if available
+        const voices = window.speechSynthesis.getVoices();
+        const matchedVoice =
+          voices.find((v) => v.lang === langCode) ||
+          voices.find((v) => v.lang.startsWith(langCode.slice(0, 2))) ||
+          voices.find((v) => v.lang.includes('IN')) ||
+          null;
+        if (matchedVoice) utterance.voice = matchedVoice;
+
+        isBackchannelPlayingRef.current = true;
+        setTurnStatusLabel(`👂 ${nodText} (listening...)`);
+
+        utterance.onend = () => {
+          isBackchannelPlayingRef.current = false;
+        };
+        utterance.onerror = () => {
+          isBackchannelPlayingRef.current = false;
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        isBackchannelPlayingRef.current = false;
+      }
+    }
+  };
+
   // ── Dynamic Turn Triggering Based on User Answer Content ────────────────────
   // Evaluates the user's answer to determine the natural end-of-turn waiting duration:
   // 1. Direct answer to current question (or decline): ~750ms (fast conversational response!)
@@ -2212,6 +2303,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
+    if (backchannelTimerRef.current) {
+      clearTimeout(backchannelTimerRef.current);
+      backchannelTimerRef.current = null;
+    }
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = null;
@@ -2255,6 +2350,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+    if (backchannelTimerRef.current) {
+      clearTimeout(backchannelTimerRef.current);
+      backchannelTimerRef.current = null;
     }
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -2429,6 +2528,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         silenceTimerRef.current = null;
       }
 
+      // If caller continues speaking, cancel any scheduled backchannel nod or active micro-nod
+      if (backchannelTimerRef.current) {
+        clearTimeout(backchannelTimerRef.current);
+        backchannelTimerRef.current = null;
+      }
+      if (isBackchannelPlayingRef.current) {
+        try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+        isBackchannelPlayingRef.current = false;
+      }
+
       // 4. DYNAMIC END-OF-TURN DETECTION:
       // Turn triggering waiting time directly depends on the user's answer!
       const { waitMs, statusLabel } = getDynamicSilenceWaitMs(
@@ -2439,8 +2548,30 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       setIsUserPausing(true);
       setTurnStatusLabel(statusLabel);
 
+      // FULL-DUPLEX ACTIVE LISTENING BACKCHANNEL:
+      // When caller has spoken a substantive phrase (>= 4 words) and is not giving a quick
+      // single-word answer (waitMs >= 1200ms), schedule a soft in-between backchannel nod
+      // ("Aan...", "Puriyudhu...", "Mm-hmm...", "Haan...") after a 600ms micro-pause to let them
+      // know the agent is actively listening without cutting them off.
+      const wordCount = fullTurnTranscript.trim().split(/\s+/).filter(Boolean).length;
+      if (
+        wordCount >= 4 &&
+        waitMs >= 1200 &&
+        Date.now() - lastBackchannelTimeRef.current >= 4500 &&
+        !isSpeechSynthesisSpeakingRef.current &&
+        !isTurnProcessingRef.current
+      ) {
+        backchannelTimerRef.current = setTimeout(() => {
+          playSoftBackchannelNod();
+        }, 600);
+      }
+
       // 5. Trigger response when silence duration matches the completeness of user's answer:
       silenceTimerRef.current = setTimeout(() => {
+        if (backchannelTimerRef.current) {
+          clearTimeout(backchannelTimerRef.current);
+          backchannelTimerRef.current = null;
+        }
         setIsUserPausing(false);
 
         const textToDispatch = (
@@ -2626,6 +2757,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       let maxSpeechSafetyTimer: any = null;
 
       const stopVAD = () => {
+        if (backchannelTimerRef.current) {
+          clearTimeout(backchannelTimerRef.current);
+          backchannelTimerRef.current = null;
+        }
         if (vadInterval) {
           clearInterval(vadInterval);
           vadInterval = null;
@@ -2669,6 +2804,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           if (averageVolume > speechThreshold) {
             hasSpoken = true;
             silenceStart = 0; // User is speaking or resumed speaking: RESET silence timer!
+            if (backchannelTimerRef.current) {
+              clearTimeout(backchannelTimerRef.current);
+              backchannelTimerRef.current = null;
+            }
+            if (isBackchannelPlayingRef.current) {
+              try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+              isBackchannelPlayingRef.current = false;
+            }
             resetInactivityDisconnectTimer(); // Reset 8-second inactivity disconnect timer
             setIsUserPausing(false);
             setLiveSpeechText('🎙️ Hearing you speak...');
@@ -2677,10 +2820,25 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               silenceStart = Date.now();
               setIsUserPausing(true);
               setLiveSpeechText('👂 Listening...');
+              // Schedule soft backchannel nod if user paused mid-speech
+              if (
+                Date.now() - lastBackchannelTimeRef.current >= 4500 &&
+                !isSpeechSynthesisSpeakingRef.current &&
+                !isTurnProcessingRef.current
+              ) {
+                if (backchannelTimerRef.current) clearTimeout(backchannelTimerRef.current);
+                backchannelTimerRef.current = setTimeout(() => {
+                  playSoftBackchannelNod();
+                }, 500);
+              }
             } else {
               const elapsedMs = Date.now() - silenceStart;
               if (elapsedMs >= 1200) {
                 // Natural silence after speech (1.2s) = user completed utterance!
+                if (backchannelTimerRef.current) {
+                  clearTimeout(backchannelTimerRef.current);
+                  backchannelTimerRef.current = null;
+                }
                 stopVAD();
                 setIsUserPausing(false);
                 if (recorder.state === 'recording') {
@@ -3832,6 +3990,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+    if (backchannelTimerRef.current) {
+      clearTimeout(backchannelTimerRef.current);
+      backchannelTimerRef.current = null;
     }
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
