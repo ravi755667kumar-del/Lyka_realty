@@ -77,6 +77,7 @@ export interface CallRecord {
   };
   summary?: string;
   transcript?: string;
+  recordingReference?: string;
   qaHistory?: LeadQAItem[];
   noAnswer?: boolean;
 }

@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Settings,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
 import { Lead, LeadOutcome } from '../types';
 import { saveLeadLanguage, completeBrowserCallSession } from '../services/leadService';
@@ -407,11 +408,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const [isUserPausing, setIsUserPausing] = useState<boolean>(false);
   const [turnStatusLabel, setTurnStatusLabel] = useState<string>('👂 Listening...');
 
-  // Full-Duplex Active Listening Backchannels ("Aan...", "Puriyudhu...", "Mm-hmm...", "Haan...")
-  const backchannelTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastBackchannelTimeRef = useRef<number>(0);
-  const isBackchannelPlayingRef = useRef<boolean>(false);
-
   // Voice Gender Persona: 'female' (Priya) vs 'male' (Karthik) with client attraction psychology
   const [voiceGender, setVoiceGender] = useState<VoiceGender>(() =>
     readStoredChoice('lyka_voice_gender', 'female') as VoiceGender
@@ -508,6 +504,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const isRecordingRef = useRef<boolean>(false);
+
+  // Full Call Session Recording (uploaded to Supabase Storage: voice-recordings)
+  const fullCallRecorderRef = useRef<MediaRecorder | null>(null);
+  const fullCallChunksRef = useRef<Blob[]>([]);
+  const callSessionIdRef = useRef<string>('');
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [isRecordingCall, setIsRecordingCall] = useState<boolean>(false);
+  const [isUploadingRecording, setIsUploadingRecording] = useState<boolean>(false);
 
 
   // Sync state to refs immediately
@@ -1027,11 +1031,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (inactivityTimerRef.current) { clearTimeout(inactivityTimerRef.current); inactivityTimerRef.current = null; }
     if (interimTimerRef.current) clearTimeout(interimTimerRef.current);
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
-    if (backchannelTimerRef.current) {
-      clearTimeout(backchannelTimerRef.current);
-      backchannelTimerRef.current = null;
-    }
-    isBackchannelPlayingRef.current = false;
     userAccumulatedSpeechRef.current = '';
     turnCommittedSpeechRef.current = '';
     speechSessionPrefixRef.current = '';
@@ -1157,6 +1156,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     });
 
     callStartTimeRef.current = Date.now();
+    callSessionIdRef.current = `call_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    setRecordedAudioUrl(null);
 
     // 1. Parallel Non-Blocking Microphone Setup (runs concurrently without blocking speech start)
     navigator.mediaDevices
@@ -1167,6 +1168,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         mediaStreamRef.current = stream;
         setMicActive(true);
         startAudioMeter(stream);
+
+        // Start real-time call recording (uploaded to Supabase Storage: voice-recordings)
+        try {
+          fullCallChunksRef.current = [];
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : MediaRecorder.isTypeSupported('audio/webm')
+            ? 'audio/webm'
+            : '';
+          const fullRec = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+          fullCallRecorderRef.current = fullRec;
+          fullRec.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              fullCallChunksRef.current.push(e.data);
+            }
+          };
+          fullRec.start(1000);
+          setIsRecordingCall(true);
+        } catch (recStartErr) {
+          console.warn('[Call Recording] Failed to start session recorder:', recStartErr);
+        }
       })
       .catch((err: any) => {
         console.warn('Microphone permission not granted:', err);
@@ -1533,13 +1555,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   // ── Master speakAIText: uses the selected provider and falls back to browser speech ────────
   const speakAIText = (rawText: string, langCode: string, onEnd?: () => void) => {
-    // Cancel any active backchannel nodding when the agent speaks full turn
-    if (backchannelTimerRef.current) {
-      clearTimeout(backchannelTimerRef.current);
-      backchannelTimerRef.current = null;
-    }
-    isBackchannelPlayingRef.current = false;
-
     // 1. Forcefully cancel any currently active audio streams to eliminate duplicate voices
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
@@ -2162,80 +2177,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return false;
   };
 
-  // ── Full-Duplex Active Listening Vocal Nods (Backchannel Interjections) ──────
-  // Plays short, soft verbal nods ("Aan...", "Puriyudhu...", "Sari...", "Mm-hmm...", "Haan...")
-  // while the caller is talking or taking a natural thinking pause mid-explanation.
-  // CRITICAL FULL-DUPLEX RULES:
-  // 1. Never sets `isSpeechSynthesisSpeakingRef.current = true` (which would mute microphone STT).
-  // 2. Ducked volume (0.28) ensures it does not bleed into the laptop mic or trigger false speech input.
-  // 3. Minimum cooldown interval (4.5s) prevents repetitive hyperactive nodding.
-  // 4. Client-side SpeechSynthesis delivers 0ms zero-latency instant backchannel without API delays.
-  const playSoftBackchannelNod = () => {
-    if (
-      isTurnProcessingRef.current ||
-      isSpeechSynthesisSpeakingRef.current ||
-      isBackchannelPlayingRef.current ||
-      callStateRef.current !== 'Listening...'
-    ) {
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastBackchannelTimeRef.current < 4500) {
-      return;
-    }
-    lastBackchannelTimeRef.current = now;
-
-    const lang = (selectedLanguageRef.current || 'Tamil-English').toLowerCase();
-    let nods: string[];
-    let langCode = 'en-IN';
-
-    if (lang.includes('tamil') || lang.includes('tanglish') || lang.startsWith('ta')) {
-      nods = ['Aan...', 'Puriyudhu...', 'Sari...', 'Mm-hmm...', 'Aan...'];
-      langCode = 'ta-IN';
-    } else if (lang.includes('hindi') || lang.includes('hinglish') || lang.startsWith('hi')) {
-      nods = ['Haan...', 'Sahi hai...', 'Achha...', 'Mm-hmm...', 'Haan ji...'];
-      langCode = 'hi-IN';
-    } else {
-      nods = ['Mm-hmm...', 'Right...', 'Got it...', 'Yes...', 'Mm...'];
-      langCode = 'en-US';
-    }
-
-    const nodText = nods[Math.floor(Math.random() * nods.length)];
-
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        const spokenWord = nodText.replace(/\.\.\./g, '');
-        const utterance = new SpeechSynthesisUtterance(spokenWord);
-        utterance.volume = 0.28; // Ducked soft volume so laptop mic doesn't pick up echo
-        utterance.rate = 1.05;
-
-        // Match appropriate system voice for active language if available
-        const voices = window.speechSynthesis.getVoices();
-        const matchedVoice =
-          voices.find((v) => v.lang === langCode) ||
-          voices.find((v) => v.lang.startsWith(langCode.slice(0, 2))) ||
-          voices.find((v) => v.lang.includes('IN')) ||
-          null;
-        if (matchedVoice) utterance.voice = matchedVoice;
-
-        isBackchannelPlayingRef.current = true;
-        setTurnStatusLabel(`👂 ${nodText} (listening...)`);
-
-        utterance.onend = () => {
-          isBackchannelPlayingRef.current = false;
-        };
-        utterance.onerror = () => {
-          isBackchannelPlayingRef.current = false;
-        };
-
-        window.speechSynthesis.speak(utterance);
-      } catch (e) {
-        isBackchannelPlayingRef.current = false;
-      }
-    }
-  };
-
   // ── Dynamic Turn Triggering Based on User Answer Content ────────────────────
   // Evaluates the user's answer to determine the natural end-of-turn waiting duration:
   // 1. Direct answer to current question (or decline): ~750ms (fast conversational response!)
@@ -2303,10 +2244,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
-    if (backchannelTimerRef.current) {
-      clearTimeout(backchannelTimerRef.current);
-      backchannelTimerRef.current = null;
-    }
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = null;
@@ -2350,10 +2287,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
-    }
-    if (backchannelTimerRef.current) {
-      clearTimeout(backchannelTimerRef.current);
-      backchannelTimerRef.current = null;
     }
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
@@ -2528,16 +2461,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         silenceTimerRef.current = null;
       }
 
-      // If caller continues speaking, cancel any scheduled backchannel nod or active micro-nod
-      if (backchannelTimerRef.current) {
-        clearTimeout(backchannelTimerRef.current);
-        backchannelTimerRef.current = null;
-      }
-      if (isBackchannelPlayingRef.current) {
-        try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
-        isBackchannelPlayingRef.current = false;
-      }
-
       // 4. DYNAMIC END-OF-TURN DETECTION:
       // Turn triggering waiting time directly depends on the user's answer!
       const { waitMs, statusLabel } = getDynamicSilenceWaitMs(
@@ -2548,30 +2471,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       setIsUserPausing(true);
       setTurnStatusLabel(statusLabel);
 
-      // FULL-DUPLEX ACTIVE LISTENING BACKCHANNEL:
-      // When caller has spoken a substantive phrase (>= 4 words) and is not giving a quick
-      // single-word answer (waitMs >= 1200ms), schedule a soft in-between backchannel nod
-      // ("Aan...", "Puriyudhu...", "Mm-hmm...", "Haan...") after a 600ms micro-pause to let them
-      // know the agent is actively listening without cutting them off.
-      const wordCount = fullTurnTranscript.trim().split(/\s+/).filter(Boolean).length;
-      if (
-        wordCount >= 4 &&
-        waitMs >= 1200 &&
-        Date.now() - lastBackchannelTimeRef.current >= 4500 &&
-        !isSpeechSynthesisSpeakingRef.current &&
-        !isTurnProcessingRef.current
-      ) {
-        backchannelTimerRef.current = setTimeout(() => {
-          playSoftBackchannelNod();
-        }, 600);
-      }
-
       // 5. Trigger response when silence duration matches the completeness of user's answer:
       silenceTimerRef.current = setTimeout(() => {
-        if (backchannelTimerRef.current) {
-          clearTimeout(backchannelTimerRef.current);
-          backchannelTimerRef.current = null;
-        }
         setIsUserPausing(false);
 
         const textToDispatch = (
@@ -2757,10 +2658,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       let maxSpeechSafetyTimer: any = null;
 
       const stopVAD = () => {
-        if (backchannelTimerRef.current) {
-          clearTimeout(backchannelTimerRef.current);
-          backchannelTimerRef.current = null;
-        }
         if (vadInterval) {
           clearInterval(vadInterval);
           vadInterval = null;
@@ -2804,14 +2701,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           if (averageVolume > speechThreshold) {
             hasSpoken = true;
             silenceStart = 0; // User is speaking or resumed speaking: RESET silence timer!
-            if (backchannelTimerRef.current) {
-              clearTimeout(backchannelTimerRef.current);
-              backchannelTimerRef.current = null;
-            }
-            if (isBackchannelPlayingRef.current) {
-              try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
-              isBackchannelPlayingRef.current = false;
-            }
             resetInactivityDisconnectTimer(); // Reset 8-second inactivity disconnect timer
             setIsUserPausing(false);
             setLiveSpeechText('🎙️ Hearing you speak...');
@@ -2820,25 +2709,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               silenceStart = Date.now();
               setIsUserPausing(true);
               setLiveSpeechText('👂 Listening...');
-              // Schedule soft backchannel nod if user paused mid-speech
-              if (
-                Date.now() - lastBackchannelTimeRef.current >= 4500 &&
-                !isSpeechSynthesisSpeakingRef.current &&
-                !isTurnProcessingRef.current
-              ) {
-                if (backchannelTimerRef.current) clearTimeout(backchannelTimerRef.current);
-                backchannelTimerRef.current = setTimeout(() => {
-                  playSoftBackchannelNod();
-                }, 500);
-              }
             } else {
               const elapsedMs = Date.now() - silenceStart;
               if (elapsedMs >= 1200) {
                 // Natural silence after speech (1.2s) = user completed utterance!
-                if (backchannelTimerRef.current) {
-                  clearTimeout(backchannelTimerRef.current);
-                  backchannelTimerRef.current = null;
-                }
                 stopVAD();
                 setIsUserPausing(false);
                 if (recorder.state === 'recording') {
@@ -3991,10 +3865,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
     }
-    if (backchannelTimerRef.current) {
-      clearTimeout(backchannelTimerRef.current);
-      backchannelTimerRef.current = null;
-    }
     if (inactivityTimerRef.current) {
       clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = null;
@@ -4444,6 +4314,67 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const activeLang = selectedLanguageRef.current || lead.language || 'English';
     const q = qualificationRef.current;
 
+    // Stop recording and upload to Supabase Storage bucket 'voice-recordings'
+    let recordingUrl: string | undefined = undefined;
+    if (fullCallRecorderRef.current && fullCallRecorderRef.current.state !== 'inactive') {
+      try {
+        recordingUrl = await new Promise<string | undefined>((resolve) => {
+          const rec = fullCallRecorderRef.current!;
+          rec.onstop = async () => {
+            setIsRecordingCall(false);
+            const chunks = fullCallChunksRef.current;
+            if (!chunks || chunks.length === 0) {
+              resolve(undefined);
+              return;
+            }
+            const mimeType = rec.mimeType || 'audio/webm';
+            const audioBlob = new Blob(chunks, { type: mimeType });
+            if (audioBlob.size < 500) {
+              resolve(undefined);
+              return;
+            }
+            try {
+              setIsUploadingRecording(true);
+              const formData = new FormData();
+              const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('wav') ? 'wav' : 'webm';
+              formData.append('file', audioBlob, `call_session.${ext}`);
+              formData.append('leadId', lead.id || 'lead_general');
+              formData.append('callId', callSessionIdRef.current || `call_${Date.now()}`);
+              formData.append('name', lead.name || '');
+              formData.append('phone', lead.phone || '');
+
+              const res = await fetch('/api/recording/upload', {
+                method: 'POST',
+                body: formData,
+              });
+
+              if (res.ok) {
+                const data = await res.json();
+                if (data.recordingUrl) {
+                  setRecordedAudioUrl(data.recordingUrl);
+                  resolve(data.recordingUrl);
+                  return;
+                }
+              }
+              resolve(undefined);
+            } catch (err) {
+              console.warn('[Call Recording] Upload failed:', err);
+              resolve(undefined);
+            } finally {
+              setIsUploadingRecording(false);
+            }
+          };
+          try {
+            rec.stop();
+          } catch (e) {
+            resolve(undefined);
+          }
+        });
+      } catch (err) {
+        console.warn('[Call Recording] Error stopping recorder:', err);
+      }
+    }
+
     try {
       await completeBrowserCallSession({
         lead,
@@ -4463,6 +4394,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           },
           summary,
           transcript: transcriptText || 'Browser voice session completed.',
+          recordingReference: recordingUrl,
           qaHistory,
           noAnswer,
         },
@@ -4476,6 +4408,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           location: q.location || lead.location || '',
           timeline: q.timeline || lead.timeline || '',
           transcript: transcriptText,
+          recordingReference: recordingUrl,
           qaHistory,
           nextAction:
             outcome === 'HOT'
@@ -5246,6 +5179,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                 ? turnStatusLabel
                 : callState}
             </span>
+
+            {/* Live Call Recording Indicator */}
+            {isRecordingCall && (
+              <span className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                <span>REC • voice-recordings</span>
+              </span>
+            )}
 
             {/* Optional instant response button if user has finished speaking and wants immediate answer */}
             {callState === 'Listening...' && isUserPausing && (
@@ -6162,6 +6103,34 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                   {finalSummary}
                 </div>
               )}
+
+              {/* Call Audio Recording (Uploaded to Supabase Storage: voice-recordings) */}
+              {isUploadingRecording ? (
+                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex items-center space-x-2 text-xs text-amber-300">
+                  <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <span>Saving call recording to Supabase Storage (voice-recordings)...</span>
+                </div>
+              ) : recordedAudioUrl ? (
+                <div className="p-3 bg-slate-900/90 border border-emerald-500/30 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5 text-xs font-semibold text-emerald-400">
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Call Recording Saved (Supabase Storage: voice-recordings)</span>
+                    </div>
+                    <a
+                      href={recordedAudioUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      className="text-[11px] text-blue-400 hover:text-blue-300 underline font-mono flex items-center space-x-1"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Download audio</span>
+                    </a>
+                  </div>
+                  <audio controls src={recordedAudioUrl} className="w-full h-8" />
+                </div>
+              ) : null}
 
               {/* Qualification summary highlights (Property AI PDF Specification) */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">

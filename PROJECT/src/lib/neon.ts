@@ -118,6 +118,39 @@ export async function initNeonSchema(): Promise<boolean> {
       ALTER TABLE public.pdf_knowledge ADD COLUMN IF NOT EXISTS next_step TEXT;
     `;
 
+    await sql`
+      ALTER TABLE public.calls ADD COLUMN IF NOT EXISTS recording_reference TEXT;
+    `;
+
+    await sql`
+      ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS recording_reference TEXT;
+    `;
+
+    // 4. User History Table (Pure TEXT cumulative history grouped by Name and Mobile No)
+    await sql`
+      CREATE TABLE IF NOT EXISTS public.user_history (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        total_calls INTEGER DEFAULT 1,
+        last_call_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        history_text TEXT NOT NULL,
+        latest_transcript TEXT,
+        qa_pairs_text TEXT,
+        summary TEXT,
+        qualification_text TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_user_history_phone ON public.user_history(phone);
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_user_history_name_phone ON public.user_history(name, phone);
+    `;
+
     return true;
   } catch (err) {
     console.error('[Neon DB] Schema initialization error:', err);
@@ -541,8 +574,318 @@ export async function queryBestPDFAnswer(userQuestion: string, preferredLanguage
   }
 }
 
+// ─── Pure Text User History Management (Grouped by Name & Mobile No) ──────────
+
+export interface UserHistoryRecord {
+  id: string;
+  name: string;
+  phone: string;
+  total_calls: number;
+  last_call_at: string;
+  history_text: string;
+  latest_transcript?: string;
+  qa_pairs_text?: string;
+  summary?: string;
+  qualification_text?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserHistoryInput {
+  name: string;
+  phone: string;
+  transcript?: string;
+  qaHistory?: any[];
+  summary?: string;
+  qualification?: any;
+  duration?: number;
+  outcome?: string;
+  status?: string;
+  language?: string;
+  callTime?: string;
+}
+
+/**
+ * Normalizes phone number into raw string, clean digits, and last 10 digits.
+ */
+export function normalizePhone(phone: string) {
+  const raw = (phone || '').trim();
+  const cleanDigits = raw.replace(/[^0-9]/g, '');
+  const last10 = cleanDigits.slice(-10);
+  return { raw, cleanDigits, last10 };
+}
+
+/**
+ * Formats a single call session into clean human-readable plain text (pure text, no binary).
+ */
+export function formatSessionText(session: {
+  sessionNumber: number;
+  dateStr: string;
+  duration?: number;
+  outcome?: string;
+  status?: string;
+  language?: string;
+  transcript?: string;
+  summary?: string;
+  qualificationText?: string;
+}): string {
+  const lines: string[] = [
+    `================================================================================`,
+    `CALL SESSION #${session.sessionNumber} - ${session.dateStr}`,
+    `Duration: ${session.duration ?? 0}s | Status: ${session.status || 'Completed'} | Outcome: ${session.outcome || 'PENDING'} | Language: ${session.language || 'English'}`,
+    `================================================================================`,
+  ];
+
+  if (session.transcript && session.transcript.trim()) {
+    lines.push(`--- CALL TRANSCRIPT ---`);
+    lines.push(session.transcript.trim());
+  }
+
+  if (session.summary && session.summary.trim()) {
+    lines.push(`\n--- CALL SUMMARY ---`);
+    lines.push(session.summary.trim());
+  }
+
+  if (session.qualificationText && session.qualificationText.trim()) {
+    lines.push(`\n--- QUALIFICATION & CRITERIA ---`);
+    lines.push(session.qualificationText.trim());
+  }
+
+  lines.push(`================================================================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Formats structured Q&A interaction pairs into human-readable plain text.
+ */
+export function formatQaPairsText(sessionNumber: number, dateStr: string, qaHistory?: any[]): string {
+  if (!Array.isArray(qaHistory) || qaHistory.length === 0) {
+    return '';
+  }
+  const lines: string[] = [`[Session #${sessionNumber} - ${dateStr}]`];
+  qaHistory.forEach((item, idx) => {
+    const q = item.question || item.aiQuestion || item.stepTitle || `Question ${idx + 1}`;
+    const a = item.answer || item.userAnswer || 'No answer recorded';
+    const tag = item.extractedKey ? ` (${item.extractedKey}: ${item.extractedValue || ''})` : '';
+    lines.push(`${idx + 1}. Q: ${q}`);
+    lines.push(`   A: ${a}${tag}`);
+  });
+  return lines.join('\n');
+}
+
+/**
+ * Formats qualification object into single-line readable text.
+ */
+export function formatQualificationText(qualification: any): string {
+  if (!qualification) return '';
+  if (typeof qualification === 'string') return qualification;
+  const parts: string[] = [];
+  if (qualification.interested) parts.push(`Interested: ${qualification.interested}`);
+  if (qualification.buyerOrInvestor) parts.push(`Profile: ${qualification.buyerOrInvestor}`);
+  if (qualification.budget) parts.push(`Budget: ${qualification.budget}`);
+  if (qualification.location) parts.push(`Location: ${qualification.location}`);
+  if (qualification.timeline) parts.push(`Timeline: ${qualification.timeline}`);
+  return parts.join(' | ');
+}
+
+/**
+ * Accumulates and saves user history in Neon DB in pure text format (NO binary blobs).
+ * Groups by user's mobile number and name:
+ * - If user exists: appends new session to `history_text`, increments total_calls, updates latest info.
+ * - If user is new: creates a new record with total_calls = 1.
+ */
+export async function saveUserHistoryToNeon(data: UserHistoryInput): Promise<{
+  success: boolean;
+  id?: string;
+  totalCalls?: number;
+  error?: string;
+}> {
+  const sql = getNeonClient();
+  if (!sql) {
+    return { success: false, error: 'Neon database not configured' };
+  }
+
+  const name = (data.name || '').trim();
+  const phone = (data.phone || '').trim();
+  if (!phone && !name) {
+    return { success: false, error: 'Name or phone required' };
+  }
+
+  const { cleanDigits, last10 } = normalizePhone(phone);
+  const nowIso = data.callTime || new Date().toISOString();
+  const qualificationText = formatQualificationText(data.qualification);
+
+  try {
+    await initNeonSchema();
+
+    // Query existing record for this user based on phone and name
+    const existingRows = await sql`
+      SELECT id, name, phone, total_calls, history_text, qa_pairs_text, summary, qualification_text
+      FROM public.user_history
+      WHERE 
+        phone = ${phone}
+        OR (${last10.length >= 7 ? sql`regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + last10}` : sql`FALSE`})
+        OR (${name.length >= 2 ? sql`LOWER(TRIM(name)) = LOWER(TRIM(${name}))` : sql`FALSE`})
+      ORDER BY last_call_at DESC
+      LIMIT 1;
+    `;
+
+    if (existingRows && existingRows.length > 0) {
+      const existing = existingRows[0];
+      const nextSessionNumber = (Number(existing.total_calls) || 1) + 1;
+
+      const newSessionText = formatSessionText({
+        sessionNumber: nextSessionNumber,
+        dateStr: nowIso,
+        duration: data.duration,
+        outcome: data.outcome,
+        status: data.status,
+        language: data.language,
+        transcript: data.transcript,
+        summary: data.summary,
+        qualificationText,
+      });
+
+      const updatedHistoryText = existing.history_text
+        ? `${existing.history_text}\n\n${newSessionText}`
+        : newSessionText;
+
+      const newQaText = formatQaPairsText(nextSessionNumber, nowIso, data.qaHistory);
+      const updatedQaPairs = existing.qa_pairs_text
+        ? (newQaText ? `${existing.qa_pairs_text}\n\n${newQaText}` : existing.qa_pairs_text)
+        : (newQaText || '');
+
+      const updatedSummary = data.summary || existing.summary || '';
+      const updatedQualText = qualificationText || existing.qualification_text || '';
+      const bestName = existing.name || name;
+      const bestPhone = existing.phone || phone;
+
+      await sql`
+        UPDATE public.user_history
+        SET
+          name = ${bestName},
+          phone = ${bestPhone},
+          total_calls = ${nextSessionNumber},
+          last_call_at = NOW(),
+          history_text = ${updatedHistoryText},
+          latest_transcript = ${data.transcript || existing.latest_transcript || ''},
+          qa_pairs_text = ${updatedQaPairs},
+          summary = ${updatedSummary},
+          qualification_text = ${updatedQualText},
+          updated_at = NOW()
+        WHERE id = ${existing.id};
+      `;
+
+      return {
+        success: true,
+        id: existing.id,
+        totalCalls: nextSessionNumber,
+      };
+    } else {
+      // Create a brand new record for this user
+      const newId = `uh_${Date.now()}_${cleanDigits.slice(-6) || Math.random().toString(36).substring(2, 7)}`;
+      const firstSessionText = formatSessionText({
+        sessionNumber: 1,
+        dateStr: nowIso,
+        duration: data.duration,
+        outcome: data.outcome,
+        status: data.status,
+        language: data.language,
+        transcript: data.transcript,
+        summary: data.summary,
+        qualificationText,
+      });
+
+      const firstQaText = formatQaPairsText(1, nowIso, data.qaHistory);
+
+      await sql`
+        INSERT INTO public.user_history (
+          id, name, phone, total_calls, last_call_at,
+          history_text, latest_transcript, qa_pairs_text,
+          summary, qualification_text, created_at, updated_at
+        ) VALUES (
+          ${newId},
+          ${name || 'Anonymous User'},
+          ${phone || 'Unknown Phone'},
+          1,
+          NOW(),
+          ${firstSessionText},
+          ${data.transcript || ''},
+          ${firstQaText},
+          ${data.summary || ''},
+          ${qualificationText || ''},
+          NOW(),
+          NOW()
+        );
+      `;
+
+      return {
+        success: true,
+        id: newId,
+        totalCalls: 1,
+      };
+    }
+  } catch (err: any) {
+    console.error('[Neon DB] saveUserHistoryToNeon error:', err);
+    return { success: false, error: err.message || 'Failed to save user history' };
+  }
+}
+
+/**
+ * Retrieves the full accumulated plain-text user history by phone or name.
+ */
+export async function getUserHistoryByPhoneAndName(
+  phone: string,
+  name?: string
+): Promise<UserHistoryRecord | null> {
+  const sql = getNeonClient();
+  if (!sql) return null;
+
+  const cleanName = (name || '').trim();
+  const { last10 } = normalizePhone(phone);
+
+  try {
+    const rows = await sql`
+      SELECT *
+      FROM public.user_history
+      WHERE
+        phone = ${phone.trim()}
+        OR (${last10.length >= 7 ? sql`regexp_replace(phone, '[^0-9]', '', 'g') LIKE ${'%' + last10}` : sql`FALSE`})
+        OR (${cleanName.length >= 2 ? sql`LOWER(TRIM(name)) = LOWER(TRIM(${cleanName}))` : sql`FALSE`})
+      ORDER BY last_call_at DESC
+      LIMIT 1;
+    `;
+    return (rows && rows.length > 0 ? rows[0] : null) as UserHistoryRecord | null;
+  } catch (err) {
+    console.error('[Neon DB] getUserHistoryByPhoneAndName error:', err);
+    return null;
+  }
+}
+
+/**
+ * Retrieves all user history records (sorted with most recently active users first).
+ */
+export async function getAllUserHistories(limit = 100): Promise<UserHistoryRecord[]> {
+  const sql = getNeonClient();
+  if (!sql) return [];
+
+  try {
+    const rows = await sql`
+      SELECT id, name, phone, total_calls, last_call_at, history_text, latest_transcript, qa_pairs_text, summary, qualification_text, created_at, updated_at
+      FROM public.user_history
+      ORDER BY last_call_at DESC
+      LIMIT ${limit};
+    `;
+    return (rows || []) as UserHistoryRecord[];
+  } catch (err) {
+    console.error('[Neon DB] getAllUserHistories error:', err);
+    return [];
+  }
+}
+
 /**
  * Persists a completed call session (including full talk history & qualification) into Neon DB.
+ * Automatically updates both calls/leads tables AND accumulates the user history in pure text form.
  */
 export async function saveCallToNeon(callData: {
   id: string;
@@ -558,6 +901,8 @@ export async function saveCallToNeon(callData: {
   qualification?: any;
   summary?: string;
   transcript?: string;
+  recordingReference?: string;
+  qaHistory?: any[];
   noAnswer?: boolean;
 }): Promise<boolean> {
   const sql = getNeonClient();
@@ -569,7 +914,8 @@ export async function saveCallToNeon(callData: {
     await sql`
       INSERT INTO public.calls (
         id, customer_id, name, phone, language, status, outcome,
-        started_at, ended_at, duration, qualification, summary, transcript, no_answer
+        started_at, ended_at, duration, qualification, summary, transcript,
+        recording_reference, no_answer
       ) VALUES (
         ${callData.id},
         ${callData.customerId},
@@ -584,6 +930,7 @@ export async function saveCallToNeon(callData: {
         ${JSON.stringify(callData.qualification || {})},
         ${callData.summary || ''},
         ${callData.transcript || ''},
+        ${callData.recordingReference || null},
         ${Boolean(callData.noAnswer)}
       )
       ON CONFLICT (id) DO UPDATE SET
@@ -592,14 +939,15 @@ export async function saveCallToNeon(callData: {
         duration = EXCLUDED.duration,
         qualification = EXCLUDED.qualification,
         summary = EXCLUDED.summary,
-        transcript = EXCLUDED.transcript;
+        transcript = EXCLUDED.transcript,
+        recording_reference = COALESCE(EXCLUDED.recording_reference, public.calls.recording_reference);
     `;
 
     // Also update or insert lead
     await sql`
       INSERT INTO public.leads (
         id, name, phone, status, outcome, duration, transcript, summary,
-        language, updated_at
+        language, recording_reference, updated_at
       ) VALUES (
         ${callData.customerId},
         ${callData.name},
@@ -610,6 +958,7 @@ export async function saveCallToNeon(callData: {
         ${callData.transcript || ''},
         ${callData.summary || ''},
         ${callData.language || 'English'},
+        ${callData.recordingReference || null},
         NOW()
       )
       ON CONFLICT (id) DO UPDATE SET
@@ -618,8 +967,28 @@ export async function saveCallToNeon(callData: {
         duration = EXCLUDED.duration,
         transcript = EXCLUDED.transcript,
         summary = EXCLUDED.summary,
+        recording_reference = COALESCE(EXCLUDED.recording_reference, public.leads.recording_reference),
         updated_at = NOW();
     `;
+
+    // Automatically accumulate user history in pure text form under the user's name & phone
+    try {
+      await saveUserHistoryToNeon({
+        name: callData.name,
+        phone: callData.phone,
+        transcript: callData.transcript,
+        qaHistory: callData.qaHistory,
+        summary: callData.summary,
+        qualification: callData.qualification,
+        duration: callData.duration,
+        outcome: callData.outcome,
+        status: callData.status,
+        language: callData.language,
+        callTime: callData.endedAt || callData.startedAt,
+      });
+    } catch (historyErr) {
+      console.warn('[Neon DB] Non-blocking user history update note:', historyErr);
+    }
 
     return true;
   } catch (err) {

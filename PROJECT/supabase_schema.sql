@@ -114,3 +114,34 @@ create policy "Allow all operations for anon and authenticated on campaigns"
 alter publication supabase_realtime add table public.leads;
 alter publication supabase_realtime add table public.calls;
 alter publication supabase_realtime add table public.campaigns;
+
+-- 7. Create 'user_history' Table (Pure TEXT cumulative history grouped by Name and Mobile No)
+create table if not exists public.user_history (
+  id text primary key,
+  name text not null,
+  phone text not null,
+  total_calls integer default 1,
+  last_call_at timestamp with time zone default timezone('utc'::text, now()),
+  history_text text not null,
+  latest_transcript text,
+  qa_pairs_text text,
+  summary text,
+  qualification_text text,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- Indexing for user_history (Fast lookups by phone and name)
+create index if not exists idx_user_history_phone on public.user_history(phone);
+create index if not exists idx_user_history_name_phone on public.user_history(name, phone);
+create index if not exists idx_user_history_last_call_at on public.user_history(last_call_at desc);
+
+-- RLS Configuration for user_history
+alter table public.user_history enable row level security;
+
+create policy "Allow all operations for anon and authenticated on user_history"
+  on public.user_history for all
+  using (true)
+  with check (true);
+
+alter publication supabase_realtime add table public.user_history;

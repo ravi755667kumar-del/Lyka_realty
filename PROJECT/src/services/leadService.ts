@@ -502,6 +502,7 @@ export async function createCallRecord(callData: CallRecord): Promise<string> {
     qualification: record.qualification,
     summary: record.summary,
     transcript: record.transcript,
+    recording_reference: record.recordingReference || null,
     no_answer: Boolean(record.noAnswer),
     created_at: new Date().toISOString(),
   };
@@ -539,6 +540,7 @@ export async function completeBrowserCallSession(params: {
     qualification: callData.qualification,
     summary: callData.summary,
     transcript: callData.transcript,
+    recordingReference: callData.recordingReference || leadUpdates.recordingReference,
     qaHistory: callData.qaHistory || leadUpdates.qaHistory,
     noAnswer: Boolean(callData.noAnswer),
   });
@@ -555,6 +557,7 @@ export async function completeBrowserCallSession(params: {
     duration: callData.duration,
     summary: callData.summary,
     transcript: callData.transcript,
+    recordingReference: leadUpdates.recordingReference || callData.recordingReference || lead.recordingReference,
     qaHistory: leadUpdates.qaHistory || callData.qaHistory,
     buyerOrInvestor: (leadUpdates.buyerOrInvestor || callData.qualification?.buyerOrInvestor || 'unspecified') as any,
     budget: leadUpdates.budget || callData.qualification?.budget || '',
@@ -568,8 +571,28 @@ export async function completeBrowserCallSession(params: {
     updatedAt: new Date().toISOString(),
   });
 
-  // 3. Sync Call and Qualification data to Neon DB
+  // 3. Sync User History to Supabase DB and Neon DB
   try {
+    // Record user history in pure text form
+    fetch('/api/user-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: lead.name,
+        phone: lead.phone,
+        language: callData.language || lead.language || 'English',
+        status: callData.status,
+        outcome: callData.outcome,
+        duration: callData.duration,
+        transcript: callData.transcript,
+        qaHistory: callData.qaHistory || leadUpdates.qaHistory,
+        summary: callData.summary,
+        qualification: callData.qualification,
+        callTime: callData.endedAt || callData.startedAt,
+      }),
+    }).catch(() => {});
+
+    // Save call record
     fetch('/api/neon/save-call', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -587,6 +610,8 @@ export async function completeBrowserCallSession(params: {
         qualification: callData.qualification,
         summary: callData.summary,
         transcript: callData.transcript,
+        recordingReference: callData.recordingReference || leadUpdates.recordingReference,
+        qaHistory: callData.qaHistory || leadUpdates.qaHistory,
         noAnswer: Boolean(callData.noAnswer),
       }),
     }).catch(() => {});
@@ -692,5 +717,35 @@ export async function fetchAllCallHistory(): Promise<CallRecord[]> {
     }));
   } catch (e) {
     return allLocal;
+  }
+}
+
+/**
+ * Fetches the accumulated pure text user history from the database for a given phone or name.
+ */
+export async function fetchUserHistory(phone: string, name?: string): Promise<{
+  id: string;
+  name: string;
+  phone: string;
+  total_calls: number;
+  last_call_at: string;
+  history_text: string;
+  latest_transcript?: string;
+  qa_pairs_text?: string;
+  summary?: string;
+  qualification_text?: string;
+} | null> {
+  try {
+    const params = new URLSearchParams();
+    if (phone) params.set('phone', phone);
+    if (name) params.set('name', name);
+
+    const res = await fetch(`/api/user-history?${params.toString()}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.userHistory || null;
+  } catch (err) {
+    console.warn('[leadService] fetchUserHistory warning:', err);
+    return null;
   }
 }

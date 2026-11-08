@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lead } from '../types';
 import {
   X,
@@ -17,8 +17,15 @@ import {
   User,
   Trash2,
   Globe,
+  Database,
+  Copy,
+  Check,
+  History,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { TalkHistorySection } from './TalkHistorySection';
+import { fetchUserHistory } from '../services/leadService';
 
 interface LeadDetailsModalProps {
   lead: Lead | null;
@@ -37,6 +44,32 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
   onToggleBlock,
   onDeleteLead,
 }) => {
+  const [dbHistory, setDbHistory] = useState<any | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<'current' | 'database'>('current');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && lead && (lead.phone || lead.name)) {
+      setIsLoadingHistory(true);
+      fetchUserHistory(lead.phone, lead.name)
+        .then((hist) => {
+          setDbHistory(hist);
+        })
+        .catch(() => setDbHistory(null))
+        .finally(() => setIsLoadingHistory(false));
+    } else {
+      setDbHistory(null);
+    }
+  }, [isOpen, lead]);
+
+  const handleCopyHistory = () => {
+    if (!dbHistory?.history_text) return;
+    navigator.clipboard.writeText(dbHistory.history_text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   if (!isOpen || !lead) return null;
 
   return (
@@ -191,17 +224,195 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* User Talk History & Q&A Breakdown Section */}
-          <div className="space-y-2">
-            <TalkHistorySection
-              rawTranscript={lead.transcript}
-              qaHistory={lead.qaHistory}
-              customerName={lead.name}
-              aiName="👧 Priya (Lyka Realty)"
-            />
+          {/* User History Tabs: Current Call vs Database Cumulative History */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('current')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    activeTab === 'current'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Current Call</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('database')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    activeTab === 'database'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <Database className="w-3.5 h-3.5 text-blue-400" />
+                  <span>DB User History (Text)</span>
+                  {dbHistory?.total_calls ? (
+                    <span className="px-1.5 py-0.2 bg-blue-500/30 text-blue-200 rounded-full text-[10px] font-mono">
+                      {dbHistory.total_calls} {dbHistory.total_calls === 1 ? 'call' : 'calls'}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
+
+              {activeTab === 'database' && dbHistory?.history_text && (
+                <button
+                  type="button"
+                  onClick={handleCopyHistory}
+                  className="flex items-center space-x-1 px-2.5 py-1 text-[11px] font-medium rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700"
+                  title="Copy full accumulated plain text history"
+                >
+                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copied ? 'Copied' : 'Copy Text'}</span>
+                </button>
+              )}
+            </div>
+
+            {activeTab === 'current' ? (
+              <TalkHistorySection
+                rawTranscript={lead.transcript}
+                qaHistory={lead.qaHistory}
+                customerName={lead.name}
+                aiName="👧 Priya (Lyka Realty)"
+              />
+            ) : (
+              <div className="bg-slate-950/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                {isLoadingHistory ? (
+                  <div className="py-8 text-center text-slate-400 flex items-center justify-center space-x-2">
+                    <History className="w-4 h-4 animate-spin text-blue-400" />
+                    <span>Loading database history for {lead.name}...</span>
+                  </div>
+                ) : dbHistory ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-[11px]">
+                      <div className="flex items-center space-x-3 text-slate-300">
+                        <span>
+                          User:{' '}
+                          <strong className="text-white">{dbHistory.name}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Mobile:{' '}
+                          <strong className="text-white font-mono">{dbHistory.phone}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Total Calls:{' '}
+                          <strong className="text-amber-400 font-bold">{dbHistory.total_calls}</strong>
+                        </span>
+                      </div>
+                      <div className="text-slate-400 text-[10px]">
+                        Last call:{' '}
+                        <span className="text-slate-300 font-mono">
+                          {dbHistory.last_call_at
+                            ? new Date(dbHistory.last_call_at).toLocaleString()
+                            : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {dbHistory.qualification_text && (
+                      <div className="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/20 text-emerald-200 text-xs font-mono">
+                        <strong className="text-emerald-400">Latest Qualification: </strong>
+                        {dbHistory.qualification_text}
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400">
+                        <span>Cumulative Call History (Stored in Pure Text)</span>
+                        <span className="text-emerald-400 font-mono">Format: TEXT (No Binary)</span>
+                      </div>
+                      <div className="max-h-[360px] overflow-y-auto rounded-lg bg-slate-900 border border-slate-800/80 p-3.5 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed selection:bg-blue-500/30 selection:text-white">
+                        {dbHistory.history_text}
+                      </div>
+                    </div>
+
+                    {dbHistory.qa_pairs_text && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                          Aggregated Q&A Exchange Breakdown (Plain Text)
+                        </span>
+                        <div className="max-h-[220px] overflow-y-auto rounded-lg bg-slate-900/60 border border-slate-800 p-3 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+                          {dbHistory.qa_pairs_text}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-400">
+                    <Database className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+                    <p className="text-sm font-semibold text-slate-300">No previous call history found in DB</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      When this lead completes calls, their history will automatically accumulate here in pure text format under {lead.name} ({lead.phone}).
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Call Metadata & Recording */}
+          {/* Call Recording Section (Supabase Storage: voice-recordings) */}
+          <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Volume2 className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Call Recording
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  Supabase Storage: voice-recordings
+                </span>
+              </div>
+              {lead.recordingReference && (
+                <a
+                  href={lead.recordingReference}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  className="flex items-center space-x-1 text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open Audio File</span>
+                </a>
+              )}
+            </div>
+
+            {lead.recordingReference ? (
+              <div className="space-y-2 p-3 rounded-lg bg-slate-900 border border-slate-800">
+                <audio
+                  controls
+                  src={lead.recordingReference}
+                  className="w-full h-9 rounded-lg"
+                />
+                <div className="text-[10px] text-slate-400 font-mono truncate">
+                  File URL:{' '}
+                  <a
+                    href={lead.recordingReference}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline"
+                  >
+                    {lead.recordingReference}
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-slate-400 text-xs flex items-center space-x-2">
+                <VolumeX className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                <span>
+                  No call recording file found. When an outbound call is placed, the session is recorded in real-time and stored in your Supabase Storage bucket <code>voice-recordings</code>.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Call Metadata */}
           <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-slate-950/40 rounded-xl border border-slate-800 text-[11px] text-slate-400">
             <div className="flex items-center space-x-4">
               <span>

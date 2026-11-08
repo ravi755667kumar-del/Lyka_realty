@@ -17,6 +17,7 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronUp,
+  Volume2,
 } from 'lucide-react';
 import { TalkHistorySection, parseTranscriptToQAPairs } from './TalkHistorySection';
 
@@ -248,6 +249,15 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                               Calls: {lead.callCount} {lead.duration ? `• ${lead.duration}s` : ''}
                             </span>
                           ) : null}
+                          {lead.recordingReference && (
+                            <span
+                              className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                              title="Call recording available in Supabase Storage"
+                            >
+                              <Volume2 className="w-2.5 h-2.5 mr-0.5" />
+                              <span>Audio</span>
+                            </span>
+                          )}
                         </div>
                       </td>
 
