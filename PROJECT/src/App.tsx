@@ -200,17 +200,12 @@ export default function App() {
       />
 
       {/* Supabase Connection Status Banner */}
-      {!isSupabaseConfigured ? (
+      {!isSupabaseConfigured && (
         <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 text-center text-xs text-amber-300 flex items-center justify-center space-x-2">
           <Database className="w-4 h-4 text-amber-400 shrink-0" />
           <span>
             <strong>Local Preview Mode:</strong> Supabase keys are blank in <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200">.env</code>. You can test freely with sample leads. To connect your live cloud database, paste your <code className="text-amber-200 font-mono">NEXT_PUBLIC_SUPABASE_URL</code> & <code className="text-amber-200 font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> into <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200">.env</code>.
           </span>
-        </div>
-      ) : (
-        <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-1.5 text-center text-xs text-emerald-300 flex items-center justify-center space-x-2">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>Connected to Live Supabase Database</span>
         </div>
       )}
 

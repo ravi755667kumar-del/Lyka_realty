@@ -116,7 +116,7 @@ tanglish_scenarios = [
         "language": "Tanglish",
         "category": "2. Interested",
         "title": "Customer gives location and type",
-        "trigger": "Dubai-la apartment paakuren / Velachery-la flat / OMR-la 3BHK",
+        "trigger": "Chennai-la apartment paakuren / Velachery-la flat / OMR-la 3BHK",
         "agent_reply": "Nalladhu! Ungaloda budget range konjam sollunga. Adhukku match aagura verified options irundha share panren.",
         "next_step": "Ask approximate budget range and whether they prefer ready-to-move or under-construction.",
         "keywords": "apartment paakuren, budget range konjam sollunga, ready-to-move, verified options, tanglish"

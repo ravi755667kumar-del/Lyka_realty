@@ -237,8 +237,10 @@ function prewarmPDFQueryCache(rows: any[]) {
     { q: '100% safe-aa profit guarantee irukka', id: 'tanglish_v5_08_profit_guarantee' },
     { q: 'profit guarantee irukka', id: 'tanglish_v5_08_profit_guarantee' },
     { q: 'enna documents venum', id: 'tanglish_v5_08_documents_list' },
-    { q: 'freehold area-va', id: 'tanglish_v5_08_dubai_freehold' },
-    { q: 'jvc-la apartment irukka', id: 'tanglish_v5_09_jvc_2bhk' },
+    { q: 'cmda patta approved-aa', id: 'tanglish_v5_08_legal_approval' },
+    { q: 'velachery-la apartment irukka', id: 'pdf_listing_p101' },
+    { q: 'omr-la 3bhk irukka', id: 'pdf_listing_p102' },
+    { q: 'tambaram-la veedu irukka', id: 'pdf_listing_p103' },
     { q: 'inime call pannaadheenga', id: 'tanglish_v5_09_dnc' },
     { q: 'enakku indha call vendaam', id: 'tanglish_v5_09_customer_refuses' },
     { q: '2 minute pesalaama', id: 'tanglish_2min_01_permission_and_opening' },
@@ -248,6 +250,12 @@ function prewarmPDFQueryCache(rows: any[]) {
     { q: '2 minute call', id: 'tanglish_2min_02_dynamic_pronunciation_variety' },
     { q: '2 minutes call', id: 'tanglish_2min_02_dynamic_pronunciation_variety' },
     { q: '2 minute wrap up', id: 'tanglish_2min_03_wrapup' },
+    { q: 'hi how are you eppadi irukkeenga', id: 'v14_01_required_opening' },
+    { q: 'edhu nalla property suggest', id: 'v14_05a_property_suggestion_rule' },
+    { q: 'distance evlo travel time', id: 'v14_05b_distance_measure_maps' },
+    { q: 'edhu ok va', id: 'v14_05c_edhu_ok_va_checkin' },
+    { q: 'innoru thadava sollunga', id: 'v14_14a_explain_again_politely' },
+    { q: 'chill-aa pesalaam', id: 'v14_14b_friendly_agent_style' },
   ];
 
   for (const seed of v5Seeds) {
