@@ -464,7 +464,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const selectedOpenAiTtsModelRef = useRef<string>(selectedOpenAiTtsModel);
 
   const [selectedOpenAiVoice, setSelectedOpenAiVoice] = useState<string>(() =>
-    readStoredChoice('lyka_openai_voice', 'nova')
+    readStoredChoice('lyka_openai_voice', 'shimmer')
   );
   const selectedOpenAiVoiceRef = useRef<string>(selectedOpenAiVoice);
 
@@ -821,36 +821,36 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       const verb = gender === 'male' ? 'bol raha hoon' : 'bol rahi hoon';
       if (cleanLeadName) {
         return {
-          text: `[warm] Namaste ${cleanLeadName} ji! Main Lyka Realty se ${name} ${verb}.`,
+          text: `[happy] Namaste ${cleanLeadName} ji! Main Lyka Realty se ${name} ${verb}. Kaise hain aap?`,
           langCode: 'hi-IN',
         };
       }
       return {
-        text: `[warm] Namaste! Main Lyka Realty se ${name} ${verb}.`,
+        text: `[happy] Namaste! Main Lyka Realty se ${name} ${verb}. Kaise hain aap?`,
         langCode: 'hi-IN',
       };
     }
     if (lang === 'English') {
       if (cleanLeadName) {
         return {
-          text: `[warm] Hello ${cleanLeadName}! This is ${name} from Lyka Realty.`,
+          text: `[happy] Hello ${cleanLeadName}! This is ${name} from Lyka Realty. How are you doing today?`,
           langCode: 'en-US',
         };
       }
       return {
-        text: `[warm] Hello! This is ${name} from Lyka Realty.`,
+        text: `[happy] Hello! This is ${name} from Lyka Realty. How are you doing today?`,
         langCode: 'en-US',
       };
     }
     // Tanglish Priya: Natural Tanglish Property Conversation Guide (v14 PDF)
     if (cleanLeadName) {
       return {
-        text: `[warm, friendly] Hi! How are you ${cleanLeadName}? Naan ${name}, Lyka Realty-lendhu pesuren.`,
+        text: `[happy] Hi! How are you ${cleanLeadName}? Naan ${name}, Lyka Realty-lendhu pesuren!`,
         langCode: 'ta-IN',
       };
     }
     return {
-      text: `[warm, friendly] Hi! How are you? Eppadi irukkeenga? Naan ${name}, Lyka Realty-lendhu pesuren.`,
+      text: `[happy] Hi! How are you? Eppadi irukkeenga! Naan ${name}, Lyka Realty-lendhu pesuren!`,
       langCode: 'ta-IN',
     };
   };
@@ -1374,8 +1374,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
     const audio = new Audio(`data:${mimeType};base64,${base64Data}`);
     audio.volume = 1.0;
-    // Fast phone telecaller playback rate (1.06x) for lively, natural pacing
-    audio.playbackRate = 1.06;
+    // Fast phone telecaller playback rate (1.10x) for joyful, engaging pacing
+    audio.playbackRate = 1.10;
     remoteAudioRef.current = audio;
     let playbackSettled = false;
     const handlePlaybackError = (reason: unknown) => {
@@ -1498,9 +1498,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = effectiveLangCode;
     utterance.volume = 1.0;
-    utterance.pitch = isMale ? 0.96 : 1.08;
-    // Fast lively phone telecaller rate (1.08x)
-    utterance.rate = 1.08;
+    // Radiant, attractive, happy tone pitch
+    utterance.pitch = isMale ? 1.02 : 1.16;
+    // Energetic, attractive phone telecaller rate (1.10x)
+    utterance.rate = 1.10;
 
     const voices = window.speechSynthesis.getVoices();
     let chosenVoice: SpeechSynthesisVoice | undefined;
@@ -2818,11 +2819,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           .replace(/^\[.*?\]\s*/, '')
           .replace(/^(once again|marupadiyum solren|ek baar phir se batati hoon)[,\s]*/i, '');
         if (lang === 'Tamil-English') {
-          return `[warm] Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren: ${cleanLast} Ippo ungalukku clear-aa puriyudhaa sir?`;
+          return `[happy] Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren: ${cleanLast} Ippo ungalukku clear-aa puriyudhaa sir?`;
         } else if (lang === 'Hindi') {
-          return `[warm] Zaroor sir! Ek baar phir se batati hoon: ${cleanLast}`;
+          return `[happy] Zaroor sir! Ek baar phir se batati hoon: ${cleanLast}`;
         } else {
-          return `[warm] Sure! Once again: ${cleanLast}`;
+          return `[happy] Sure! Once again: ${cleanLast}`;
         }
       }
     }
@@ -2835,11 +2836,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('irunga')
     ) {
       if (lang === 'Tamil-English') {
-        return '[warm] Aan, kandippa! [break] Sollunga, naan kekkaren.';
+        return '[happy] Aan, kandippa! [break] Sollunga, naan kekkaren.';
       } else if (lang === 'Hindi') {
-        return '[warm] Haan ji, bilkul! [break] Boliye, main sun rahi hoon.';
+        return '[happy] Haan ji, bilkul! [break] Boliye, main sun rahi hoon.';
       } else {
-        return "[warm] Ah, of course! [break] Go ahead, I'm listening.";
+        return "[happy] Ah, of course! [break] Go ahead, I'm listening.";
       }
     }
 
@@ -3430,11 +3431,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if ((alreadySaid || isUserAskingRepeat) && !alreadyHasPrefix) {
       const strippedReply = replyText.replace(/^\[.*?\]\s*/, '');
       if (lang === 'Tamil-English') {
-        return `[warm] Marupadiyum solren, ${strippedReply}`;
+        return `[happy] Marupadiyum solren, ${strippedReply}`;
       } else if (lang === 'Hindi') {
-        return `[warm] Ek baar phir se batati hoon, ${strippedReply}`;
+        return `[happy] Ek baar phir se batati hoon, ${strippedReply}`;
       } else {
-        return `[warm] Once again, ${strippedReply}`;
+        return `[happy] Once again, ${strippedReply}`;
       }
     }
 

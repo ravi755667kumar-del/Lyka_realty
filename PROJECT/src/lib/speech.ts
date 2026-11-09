@@ -311,9 +311,9 @@ export function refineForSpeech(text: string): string {
   // 4b. Turn [break] into a natural pause comma without stray leading whitespace
   out = out.replace(/[.!?]*\s*\[break\]\s*/gi, ', ');
 
-  // 4c. Strip all other bracketed delivery and performance tags so TTS engines never read them aloud literally
+  // 4c. Strip all bracketed delivery and performance tags so TTS engines never read them aloud literally
   out = out.replace(
-    /\[(excited|whispering|curious|reassuring|empathetic|calm|apologetic|confident|softly|serious|warm|happy|understanding|explaining|sad|neutral|cheerful)\]\s*/gi,
+    /\[(?:excited|whispering|curious|reassuring|empathetic|calm|apologetic|confident|softly|serious|warm|happy|cheerful|joyful|bubbly|enthusiastic|understanding|explaining|sad|neutral|friendly)(?:[,\s]+(?:excited|whispering|curious|reassuring|empathetic|calm|apologetic|confident|softly|serious|warm|happy|cheerful|joyful|bubbly|enthusiastic|understanding|explaining|sad|neutral|friendly))*\]\s*/gi,
     ''
   );
 
@@ -401,8 +401,8 @@ export function detectCustomerEmotion(text: string): SpeechEmotion {
   // 1. Sadness, Grief, Illness, Medical Emergencies or Personal Tragedy
   //    (Must be gentle, empathetic, respectful; never cheerful or laughing)
   if (
-    /\b(?:passed away|died|death|demise|funeral|hospital|sick|illness|critical|cancer|accident|grief|tragedy|depressed|unfortunate|lost my (?:job|father|mother|husband|wife|son|daughter|brother|sister|parent|family)|heavy loss|financial crisis|bad news)\b/i.test(lower) ||
-    /\b(?:guzar gaye|dehaant|hospital me|tabiyat kharab|beemar|nuksan|chale gaye|bahut dukh|kashtama irukku|udambu sari illa|hospital-la|erandhutaanga|irandhutaanga|thirundhittaanga|periya loss)\b/i.test(lower)
+    /\b(?:passed away|died|death|demise|funeral|critical condition|cancer|hospitalized|accident|grief|tragedy|lost my (?:father|mother|husband|wife|son|daughter|brother|sister|parent|family))\b/i.test(lower) ||
+    /\b(?:guzar gaye|dehaant|hospital me admit|tabiyat bahut kharab|chale gaye|bahut dukh|hospital-la admit|udambu mudiyala|erandhutaanga|irandhutaanga|thirundhittaanga)\b/i.test(lower)
   ) {
     return 'sad';
   }
@@ -434,12 +434,12 @@ export function detectCustomerEmotion(text: string): SpeechEmotion {
     return 'amused';
   }
 
-  // 5. Excitement, Good News, Celebration or High Interest
-  //    (AI responds with genuine excitement and enthusiastic, welcoming girl voice)
+  // 5. Excitement, Good News, Celebration or High Interest & Positive Engagement
+  //    (AI responds with genuine excitement, attractive charm, and cheerful, welcoming girl voice)
   if (
-    /\b(?:awesome|superb|fantastic|excellent|congratulations|congrats|got promoted|got a promotion|got a bonus|loan approved|booked|bought|dream home|so happy|wonderful|amazing|perfect|great news|good news|love it|really excited)\b/i.test(lower) ||
-    /\b(?:bahut badiya|shandaar|kamaal|badhai|bahut khush|ekdum sahi|super|sema|arumai|sandhosham|romba nalla irukku|kandippa vaanganum)\b/i.test(lower) ||
-    /[🎉👏🥳❤️]/u.test(trimmed)
+    /\b(?:awesome|superb|fantastic|excellent|congratulations|congrats|got promoted|got a promotion|got a bonus|loan approved|booked|bought|dream home|so happy|wonderful|amazing|perfect|great news|good news|love it|really excited|nice|good|interested|sure|yes|yeah|happy|glad)\b/i.test(lower) ||
+    /\b(?:bahut badiya|shandaar|kamaal|badhai|bahut khush|ekdum sahi|super|sema|arumai|sandhosham|romba nalla irukku|kandippa vaanganum|nalladhu|pidichurukku|super-aa irukku)\b/i.test(lower) ||
+    /[🎉👏🥳❤️✨😊👍]/u.test(trimmed)
   ) {
     return 'positive';
   }
@@ -569,41 +569,41 @@ export function getSpeechDelivery(
     };
   }
 
-  // 5. Excitement & Happiness: energetic, cheerful, welcoming girl telecaller
-  if (emotion === 'positive' || deliveryCue === 'excited' || deliveryCue === 'happy') {
+  // 5. Excitement, Radiant Happiness & Cheerful Delivery:
+  if (emotion === 'positive' || deliveryCue === 'excited' || deliveryCue === 'happy' || deliveryCue === 'cheerful' || deliveryCue === 'joyful') {
     return {
       pace: 1.12,
-      loudness: 1.08,
-      sarvamTemperature,
-      stability: 0.45,
-      style: 0.30,
-      similarityBoost: 0.82,
-      geminiStyle: 'warm and naturally upbeat conversational delivery, without exaggeration',
+      loudness: 1.10,
+      sarvamTemperature: 0.88,
+      stability: 0.35,
+      style: 0.42,
+      similarityBoost: 0.85,
+      geminiStyle: 'joyful, smiling, bubbly, attractive, and highly engaging voice with infectious happy energy',
     };
   }
 
   // 6. Thinking & Processing / Explaining Complex Details: articulate, measured, clear
   if (emotion === 'curious' || deliveryCue === 'explaining' || deliveryCue === 'serious') {
     return {
-      pace: 1.04,
-      loudness: 1.02,
+      pace: 1.05,
+      loudness: 1.04,
       sarvamTemperature,
-      stability: 0.58,
-      style: 0.18,
+      stability: 0.55,
+      style: 0.22,
       similarityBoost: 0.82,
-      geminiStyle: 'confident, clear, thoughtful, and professional explanatory tone',
+      geminiStyle: 'confident, pleasant, clear, and engaging explanatory tone',
     };
   }
 
-  // 7. Confident Professional / Warm Greeting (Default)
+  // 7. Radiant Happiness, Attractive Charisma & Engaging Delivery (Default)
   return {
-    pace: 1.08,
-    loudness: 1.05,
-    sarvamTemperature,
-    stability: 0.50,
-    style: 0.22,
-    similarityBoost: 0.82,
-    geminiStyle: 'warm, clear, natural conversational delivery',
+    pace: 1.10,
+    loudness: 1.08,
+    sarvamTemperature: 0.85,
+    stability: 0.40,
+    style: 0.35,
+    similarityBoost: 0.85,
+    geminiStyle: 'joyful, cheerful, attractive, enthusiastic, smiling voice with lively engaging cadence and radiant warmth',
   };
 }
 
@@ -614,18 +614,18 @@ export function prepareSpeech(
   const language = resolveSpeechLanguage(text, context.language);
   const requestedEmotion = context.emotion || 'neutral';
   const deliveryCue = text.match(
-    /\[(warm|calm|empathetic|understanding|reassuring|apologetic|softly|serious|excited|happy|laughing|whispering|curious|explaining)\]/i
+    /\[([a-z\s,-]+)\]/i
   )?.[1]?.toLowerCase();
 
   let emotion: SpeechEmotion = requestedEmotion;
   if (emotion === 'neutral') {
-    if (deliveryCue === 'laughing' || /\[laughing\]/i.test(text)) {
+    if (deliveryCue && /laughing|chuckle/i.test(deliveryCue)) {
       emotion = 'amused';
-    } else if (deliveryCue === 'excited' || deliveryCue === 'happy' || /\[(?:excited|happy)\]/i.test(text)) {
+    } else if (deliveryCue && /excited|happy|cheerful|joyful|bubbly|enthusiastic/i.test(deliveryCue)) {
       emotion = 'positive';
-    } else if (deliveryCue === 'empathetic' || deliveryCue === 'apologetic' || /\[(?:empathetic|apologetic)\]/i.test(text)) {
+    } else if (deliveryCue && /empathetic|apologetic/i.test(deliveryCue)) {
       emotion = 'empathetic';
-    } else if (deliveryCue === 'curious' || deliveryCue === 'explaining' || /\[(?:curious|explaining)\]/i.test(text)) {
+    } else if (deliveryCue && /curious|explaining/i.test(deliveryCue)) {
       emotion = 'curious';
     }
   }
