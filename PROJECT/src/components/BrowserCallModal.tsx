@@ -25,8 +25,10 @@ import {
   Settings,
   Zap,
   ExternalLink,
+  Brain,
 } from 'lucide-react';
-import { Lead, LeadOutcome } from '../types';
+import { Lead, LeadOutcome, SessionMemory } from '../types';
+import { extractSessionMemory, isMemoryFactKnown } from '../lib/sessionMemory';
 import { saveLeadLanguage, completeBrowserCallSession } from '../services/leadService';
 import {
   groqChat,
@@ -364,6 +366,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     buyerOrInvestor: '',
   });
 
+  // Active Session Memory Brain state & ref
+  const [sessionMemory, setSessionMemory] = useState<SessionMemory>(() =>
+    extractSessionMemory([], { leadName: lead?.name || '' })
+  );
+  const sessionMemoryRef = useRef<SessionMemory>(sessionMemory);
+
   // State Refs to completely eliminate React closure staleness
   const callStateRef = useRef<CallState>('Calling...');
   const currentStepRef = useRef<number>(0);
@@ -664,6 +672,20 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       qualificationRef.current = next;
       return next;
     });
+
+    // Keep Session Memory Brain in sync with qualification facts
+    if (sessionMemoryRef.current) {
+      const m = sessionMemoryRef.current;
+      if (updates.budget) m.budget = updates.budget;
+      if (updates.location) m.location = updates.location;
+      if (updates.sizeBHK) m.bhk = updates.sizeBHK;
+      if (updates.purpose) m.purpose = updates.purpose;
+      if (updates.loanOrCash) m.loanOrCash = updates.loanOrCash;
+      if (updates.timeline) m.timeline = updates.timeline;
+      if (updates.siteVisit) m.siteVisitPreference = updates.siteVisit;
+      m.lastUpdated = new Date().toISOString();
+      setSessionMemory({ ...m });
+    }
   };
 
   // Auto scroll dialogue
@@ -2065,6 +2087,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const newEntry = { speaker, text, timestamp: timeStr };
     dialogueRef.current = [...dialogueRef.current, newEntry];
     setDialogue([...dialogueRef.current]);
+
+    // Live Session Memory Brain extraction on every dialogue event
+    const updatedMem = extractSessionMemory(dialogueRef.current, sessionMemoryRef.current);
+    sessionMemoryRef.current = updatedMem;
+    setSessionMemory({ ...updatedMem });
   };
 
 
@@ -2819,11 +2846,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           .replace(/^\[.*?\]\s*/, '')
           .replace(/^(once again|marupadiyum solren|ek baar phir se batati hoon)[,\s]*/i, '');
         if (lang === 'Tamil-English') {
-          return `[happy] Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren: ${cleanLast} Ippo ungalukku clear-aa puriyudhaa sir?`;
+          return `[understanding] Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren: ${cleanLast} Ippo ungalukku clear-aa puriyudhaa sir?`;
         } else if (lang === 'Hindi') {
-          return `[happy] Zaroor sir! Ek baar phir se batati hoon: ${cleanLast}`;
+          return `[understanding] Zaroor sir! Ek baar phir se batati hoon: ${cleanLast}`;
         } else {
-          return `[happy] Sure! Once again: ${cleanLast}`;
+          return `[understanding] Sure! Once again: ${cleanLast}`;
         }
       }
     }
@@ -2836,11 +2863,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('irunga')
     ) {
       if (lang === 'Tamil-English') {
-        return '[happy] Aan, kandippa! [break] Sollunga, naan kekkaren.';
+        return '[warm] Aan, kandippa! [break] Sollunga, naan kekkaren.';
       } else if (lang === 'Hindi') {
-        return '[happy] Haan ji, bilkul! [break] Boliye, main sun rahi hoon.';
+        return '[warm] Haan ji, bilkul! [break] Boliye, main sun rahi hoon.';
       } else {
-        return "[happy] Ah, of course! [break] Go ahead, I'm listening.";
+        return "[warm] Ah, of course! [break] Go ahead, I'm listening.";
       }
     }
 
@@ -3431,11 +3458,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if ((alreadySaid || isUserAskingRepeat) && !alreadyHasPrefix) {
       const strippedReply = replyText.replace(/^\[.*?\]\s*/, '');
       if (lang === 'Tamil-English') {
-        return `[happy] Marupadiyum solren, ${strippedReply}`;
+        return `[explaining] Marupadiyum solren, ${strippedReply}`;
       } else if (lang === 'Hindi') {
-        return `[happy] Ek baar phir se batati hoon, ${strippedReply}`;
+        return `[explaining] Ek baar phir se batati hoon, ${strippedReply}`;
       } else {
-        return `[happy] Once again, ${strippedReply}`;
+        return `[explaining] Once again, ${strippedReply}`;
       }
     }
 
@@ -3451,7 +3478,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       try {
         setIsGeminiThinking(true);
         updateCallState('AI Speaking...');
-        const historyMessages = dialogueRef.current.slice(-10).map((d) => ({
+        const historyMessages = dialogueRef.current.map((d) => ({
           role: d.speaker === 'AI' ? ('assistant' as const) : ('user' as const),
           content: d.text,
         }));
@@ -3463,7 +3490,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           activeLang,
           agentName,
           voiceGenderRef.current,
-          lastCustomerEmotionRef.current
+          lastCustomerEmotionRef.current,
+          sessionMemoryRef.current
         );
         setIsGeminiThinking(false);
         if (aiAnswer && aiAnswer.trim()) {
@@ -4114,7 +4142,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       updateCallState('AI Speaking...');
 
       try {
-        const historyMessages = dialogueRef.current.slice(-12).map((d) => ({
+        const historyMessages = dialogueRef.current.map((d) => ({
           role: d.speaker === 'AI' ? ('assistant' as const) : ('user' as const),
           content: d.text,
         }));
@@ -4128,7 +4156,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             activeLang,
             agentName,
             voiceGenderRef.current,
-            lastCustomerEmotionRef.current
+            lastCustomerEmotionRef.current,
+            sessionMemoryRef.current
           );
         } else if (brainEngineRef.current === 'openai') {
           try {
@@ -4139,7 +4168,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               activeLang,
               agentName,
               voiceGenderRef.current,
-              lastCustomerEmotionRef.current
+              lastCustomerEmotionRef.current,
+              sessionMemoryRef.current
             );
           } catch (openAiErr) {
             console.warn('[AI Model] OpenAI failed, seamlessly falling back to Gemini:', openAiErr);
@@ -4150,7 +4180,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               activeLang,
               agentName,
               voiceGenderRef.current,
-              lastCustomerEmotionRef.current
+              lastCustomerEmotionRef.current,
+              sessionMemoryRef.current
             );
           }
         } else if (brainEngineRef.current === 'groq') {
@@ -4164,7 +4195,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
               undefined,
-              conversationStyleRef.current
+              conversationStyleRef.current,
+              sessionMemoryRef.current
             );
           } catch (groqErr) {
             console.warn('[AI Model] Groq failed, seamlessly falling back to Gemini 3.8 Flash:', groqErr);
@@ -4175,7 +4207,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               activeLang,
               agentName,
               voiceGenderRef.current,
-              lastCustomerEmotionRef.current
+              lastCustomerEmotionRef.current,
+              sessionMemoryRef.current
             );
           }
         }
@@ -4355,15 +4388,21 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const activeLang = selectedLanguageRef.current;
     const matched = getMatchedListingFromPDF(q);
     const customerName = lead?.name || 'சார்';
+    const mem = sessionMemoryRef.current;
 
-    const summary = `Lead qualified via Property AI Knowledge Base (PDF). Name: ${customerName}, Purpose: ${q.purpose || 'Buy'}, Area: ${q.location || matched.location}, Size: ${q.sizeBHK || matched.size}, Budget: ${q.budget || matched.price}, Timeline: ${q.timeline || 'Immediate'}, Finance: ${q.loanOrCash || 'Loan'}, Matched Listing: ${matched.id} (${matched.type} - ${matched.location}), Site Visit: ${q.siteVisit || 'Requested'}.`;
+    const recalledBhk = mem.bhk || q.sizeBHK || matched.type || 'property';
+    const recalledLoc = mem.location || q.location || matched.location;
+    const recalledBudget = mem.budget || q.budget ? `around ${mem.budget || q.budget}` : '';
+    const recalledVisit = mem.siteVisitPreference || q.siteVisit || 'site visit';
+
+    const summary = `Lead qualified via Property AI Knowledge Base (PDF). Name: ${customerName}, Purpose: ${q.purpose || mem.purpose || 'Buy'}, Area: ${recalledLoc}, Size: ${recalledBhk}, Budget: ${mem.budget || q.budget || matched.price}, Timeline: ${q.timeline || mem.timeline || 'Immediate'}, Finance: ${q.loanOrCash || mem.loanOrCash || 'Loan'}, Matched Listing: ${matched.id} (${matched.type} - ${matched.location}), Site Visit: ${recalledVisit}.`;
 
     const concludingMessage =
       activeLang === 'Hindi'
-        ? `Bahut badhiya ${customerName}! Maine ${matched.location} ke ${matched.id} property site visit ke saare details note kar liye hain. Humare senior sales team aapko call karke price aur availability confirm karenge. Shukriya, have a lovely day!`
+        ? `Bahut badhiya ${customerName}! Humne aapki poori baat note kar li hai: ${recalledLoc} me ${recalledBhk} ${recalledBudget}, aur ${recalledVisit}. Main WhatsApp par brochure aur location bhej rahi hoon. Shukriya, have a lovely day!`
         : activeLang === 'English'
-        ? `Certainly ${customerName}! I have noted down your site visit request for ${matched.id} in ${matched.location}. Our sales team will call you to confirm all details, pricing, and availability. Thank you so much, have a wonderful day!`
-        : `Super, thanks for sharing. Indha details base panni verified options shortlist panna team-kitta request panren. Price, availability, fees and legal details confirm pannittu dhaan share pannuvom. Unga time-ku romba thanks! Have a nice day!`;
+        ? `Certainly ${customerName}! To recap our conversation: you are looking for ${recalledBhk} in ${recalledLoc} ${recalledBudget}, and we have noted your ${recalledVisit}. I'll send the brochure and details on WhatsApp right away. Thank you so much, have a wonderful day!`
+        : `Super ${customerName}! Namma inaikki pesina maadhiri: neenga ${recalledLoc}-la ${recalledBhk} ${recalledBudget} paakureenga, and ${recalledVisit} arrange panna note panniten. WhatsApp-la brochure and verified details share panren Sir! Romba nandri, have a great day!`;
 
     appendDialogue('AI', concludingMessage);
     speakAIText(concludingMessage, getVoiceLangCode(), () => {
@@ -6002,6 +6041,87 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                 )}</div>
             </div>
           )}
+
+          {/* Active Session Memory Brain Card */}
+          <div className="bg-gradient-to-r from-purple-950/40 via-slate-900 to-amber-950/20 border border-purple-500/30 rounded-2xl p-3.5 space-y-2 shadow-sm">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                  <Brain className="w-3.5 h-3.5 animate-pulse text-purple-300" />
+                </div>
+                <div>
+                  <span className="font-bold text-white text-xs">🧠 Agent Memory Brain</span>
+                  <span className="text-[10px] text-purple-300/80 ml-2">Active Session Context</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                {(sessionMemory.confirmedFacts?.length || 0)} Facts Retained
+              </span>
+            </div>
+
+            {/* Pill tags of remembered attributes */}
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              {sessionMemory.location && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-emerald-300 flex items-center space-x-1">
+                  <span>📍 Area:</span>
+                  <strong className="text-white">{sessionMemory.location}</strong>
+                </span>
+              )}
+              {sessionMemory.bhk && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-blue-300 flex items-center space-x-1">
+                  <span>🏢 BHK:</span>
+                  <strong className="text-white">{sessionMemory.bhk}</strong>
+                </span>
+              )}
+              {sessionMemory.budget && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-amber-300 flex items-center space-x-1">
+                  <span>💰 Budget:</span>
+                  <strong className="text-white">{sessionMemory.budget}</strong>
+                </span>
+              )}
+              {sessionMemory.purpose && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-purple-300 flex items-center space-x-1">
+                  <span>🎯 Purpose:</span>
+                  <strong className="text-white">{sessionMemory.purpose}</strong>
+                </span>
+              )}
+              {sessionMemory.propertyType && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-cyan-300 flex items-center space-x-1">
+                  <span>🏠 Type:</span>
+                  <strong className="text-white">{sessionMemory.propertyType}</strong>
+                </span>
+              )}
+              {sessionMemory.loanOrCash && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-teal-300 flex items-center space-x-1">
+                  <span>🏦 Finance:</span>
+                  <strong className="text-white">{sessionMemory.loanOrCash}</strong>
+                </span>
+              )}
+              {sessionMemory.timeline && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-rose-300 flex items-center space-x-1">
+                  <span>📅 Timeline:</span>
+                  <strong className="text-white">{sessionMemory.timeline}</strong>
+                </span>
+              )}
+              {sessionMemory.nearbyLandmarks && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-indigo-300 flex items-center space-x-1">
+                  <span>🧭 Nearby:</span>
+                  <strong className="text-white">{sessionMemory.nearbyLandmarks}</strong>
+                </span>
+              )}
+              {sessionMemory.siteVisitPreference && (
+                <span className="bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded-lg text-green-300 flex items-center space-x-1">
+                  <span>🚗 Visit:</span>
+                  <strong className="text-white">{sessionMemory.siteVisitPreference}</strong>
+                </span>
+              )}
+              {(!sessionMemory.confirmedFacts || sessionMemory.confirmedFacts.length === 0) && (
+                <span className="text-[11px] text-slate-500 italic">
+                  Listening to conversation... Stated budget, location, BHK, and purpose will be captured here in real time.
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* Conversation History View Mode Selector (Talk History Section) */}
           <div className="flex items-center justify-between pt-1">

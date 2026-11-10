@@ -180,11 +180,11 @@ function normalizeCacheKey(text: string, lang?: string): string {
 function formatPDFAnswerResponse(bestRow: any): string {
   const nextQ = bestRow.next_step || 'Ask one gentle follow-up question to guide the customer to the next step.';
 
-  if (bestRow.id?.startsWith('pdf_listing_')) {
+  if (bestRow.id?.startsWith('pdf_listing_') || bestRow.id?.startsWith('custom_')) {
     return `[SIMILAR PROPERTY MATCH - ${bestRow.title}]:
 Verified Fact: ${bestRow.agent_reply}
 NEXT QUESTION TO ASK: "${nextQ}"
-Instruction: Acknowledge politely, state the verified property details, and ask the next question to offer a site visit.`;
+Instruction: Acknowledge politely, state the verified property details including location, nearby landmarks and description, and ask the next question to offer a site visit.`;
   } else if (bestRow.id?.startsWith('scenario_') || bestRow.id?.startsWith('tanglish_')) {
     return `[SIMILAR CONVERSATION SCENARIO - ${bestRow.language} (${bestRow.title})]:
 Customer Trigger: "${bestRow.scenario_trigger}"
@@ -293,25 +293,31 @@ export function invalidatePdfKnowledgeCache() {
  * Searches Neon DB for the most similar conversation scenario or property listing.
  * Retrieves verified facts, recommended humble agent phrasing from the updated guides, and the NEXT QUESTION TO ASK.
  */
-export async function queryBestPDFAnswer(userQuestion: string, preferredLanguage?: string): Promise<string | null> {
+export async function queryBestPDFAnswer(
+  userQuestion: string,
+  preferredLanguage?: string,
+  sessionMemoryContext?: any
+): Promise<string | null> {
   const sql = getNeonClient();
 
   try {
     const q = (userQuestion || '').toLowerCase().trim();
     if (!q || q.length < 2) return null;
 
-    // 1. FAST PATH: Check Instant Cache Memory (O(1) 0.001ms RAM lookup)
+    // Fast-path instant cache only if no custom memory context is overriding
     const cacheKey = normalizeCacheKey(userQuestion, preferredLanguage);
     const anyKey = normalizeCacheKey(userQuestion, 'any');
     pdfCacheStats.total++;
 
-    if (pdfQueryAnswerCache.has(cacheKey)) {
-      pdfCacheStats.hits++;
-      return pdfQueryAnswerCache.get(cacheKey)!;
-    }
-    if (pdfQueryAnswerCache.has(anyKey)) {
-      pdfCacheStats.hits++;
-      return pdfQueryAnswerCache.get(anyKey)!;
+    if (!sessionMemoryContext) {
+      if (pdfQueryAnswerCache.has(cacheKey)) {
+        pdfCacheStats.hits++;
+        return pdfQueryAnswerCache.get(cacheKey)!;
+      }
+      if (pdfQueryAnswerCache.has(anyKey)) {
+        pdfCacheStats.hits++;
+        return pdfQueryAnswerCache.get(anyKey)!;
+      }
     }
     pdfCacheStats.misses++;
 
@@ -341,6 +347,37 @@ export async function queryBestPDFAnswer(userQuestion: string, preferredLanguage
             keywords: item.keywords,
             raw_content: item.agent_reply,
           }));
+        }
+
+        // Load custom properties with description & nearby location into live agent knowledge
+        const customPropsPath = path.resolve(process.cwd(), 'datasets', 'custom_properties.json');
+        if (fs.existsSync(customPropsPath)) {
+          try {
+            const customRaw = fs.readFileSync(customPropsPath, 'utf8');
+            const customItems = JSON.parse(customRaw);
+            if (Array.isArray(customItems) && customItems.length > 0) {
+              const customRows = customItems.map((p: any) => ({
+                id: `custom_${p.id}`,
+                document_source: 'Lyka Custom Properties',
+                language: 'Tamil-English / English',
+                category: `${p.bhk || ''} ${p.propertyType || ''} ${p.listingType || ''}`,
+                title: `${p.title} (${p.location})`,
+                scenario_trigger: `${p.title} / ${p.location} / ${p.nearbyLocation || ''} / ${p.bhk || ''} / ${p.price}`,
+                agent_reply: `${p.title} in ${p.location}. Price: ${p.price}. Size: ${p.size || 'Spacious'}. Nearby: ${p.nearbyLocation || 'Prime connectivity'}. Description: ${p.description}. ${p.possession ? `Possession: ${p.possession}.` : ''}`,
+                next_step: p.nextStep || 'Site visit arrange pannalaama this weekend?',
+                keywords: `${p.title}, ${p.location}, ${p.nearbyLocation || ''}, ${p.bhk || ''}, ${p.price}, ${p.description}, ${p.propertyType || ''}`.toLowerCase(),
+                raw_content: `Property: ${p.title}\nLocation: ${p.location}\nNearby: ${p.nearbyLocation || ''}\nPrice: ${p.price}\nSize: ${p.size || ''}\nType: ${p.propertyType || ''}\nDescription: ${p.description}`,
+                location: p.location,
+                nearby_location: p.nearbyLocation,
+              }));
+              rows.unshift(...customRows);
+            }
+          } catch (customErr) {
+            console.warn('[Neon DB] Custom properties load note:', customErr);
+          }
+        }
+
+        if (rows.length > 0) {
           cachedPdfKnowledgeRows = rows;
           lastPdfCacheTime = now;
           prewarmPDFQueryCache(rows);
@@ -450,8 +487,32 @@ export async function queryBestPDFAnswer(userQuestion: string, preferredLanguage
       const agentReplyLower = String(row.agent_reply || '').toLowerCase();
       const rowLang = String(row.language || '').toLowerCase();
 
-      // 1. Property Listing Matching (P101-P106)
-      if (rowId.startsWith('pdf_listing_')) {
+      // 1. Property Listing Matching (P101-P106 and Custom Added Properties)
+      if (rowId.startsWith('pdf_listing_') || rowId.startsWith('custom_')) {
+        // Direct location match in query
+        const rowLoc = String(row.location || '').toLowerCase();
+        if (rowLoc && rowLoc.length > 2 && q.includes(rowLoc)) {
+          score += 120;
+        }
+
+        // Direct nearby landmark match in query
+        const rowNearby = String(row.nearby_location || '').toLowerCase();
+        if (rowNearby) {
+          const landmarks = rowNearby.split(/[,;\s]+/).filter((t: string) => t.length > 3);
+          for (const lm of landmarks) {
+            if (q.includes(lm)) {
+              score += 65;
+            }
+          }
+        }
+
+        // Title and description match
+        for (const token of rawTokens) {
+          if (titleLower.includes(token)) score += 40;
+          if (keywordsLower.includes(token)) score += 25;
+          if (contentLower.includes(token)) score += 15;
+        }
+
         if (hasVelachery && keywordsLower.includes('velachery')) score += 80;
         if (hasOmr && keywordsLower.includes('omr')) score += 80;
         if (hasTambaram && keywordsLower.includes('tambaram')) score += 80;
@@ -471,6 +532,24 @@ export async function queryBestPDFAnswer(userQuestion: string, preferredLanguage
           const code = `p${num}`;
           if (q.includes(code) && (rowId.includes(code) || titleLower.includes(code))) {
             score += 150;
+          }
+        }
+
+        // Active Session Memory Brain Context Matching:
+        // When customer asks "What is the price?", "Is loan available?", "Does it have parking?" without repeating the city/area,
+        // automatically ground it against the property location and BHK remembered from the current session.
+        if (sessionMemoryContext) {
+          const memLoc = typeof sessionMemoryContext === 'string'
+            ? sessionMemoryContext.toLowerCase()
+            : String(sessionMemoryContext?.location || '').toLowerCase();
+          const memBhk = typeof sessionMemoryContext === 'object'
+            ? String(sessionMemoryContext?.bhk || '').toLowerCase()
+            : '';
+          if (memLoc && memLoc.length > 2 && (rowLoc.includes(memLoc) || keywordsLower.includes(memLoc))) {
+            score += 95;
+          }
+          if (memBhk && (titleLower.includes(memBhk) || keywordsLower.includes(memBhk))) {
+            score += 45;
           }
         }
       }

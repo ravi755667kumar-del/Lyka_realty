@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { AuthUser, onAuthStateChanged, isSupabaseConfigured } from './lib/supabase';
+import { AuthUser, onAuthStateChanged } from './lib/supabase';
 import { Lead, CampaignState } from './types';
 import { subscribeToLeads, updateLead, deleteLead, bulkCreateLeads } from './services/leadService';
 import {
@@ -25,6 +25,7 @@ import { AddLeadModal } from './components/AddLeadModal';
 import { LeadDetailsModal } from './components/LeadDetailsModal';
 import { VapiSettingsModal } from './components/VapiSettingsModal';
 import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
+import { AddPropertyModal } from './components/AddPropertyModal';
 import { CallSimulatorModal } from './components/CallSimulatorModal';
 import { BrowserCallModal } from './components/BrowserCallModal';
 import { Sparkles, Phone, Database, CheckCircle2, Building2 } from 'lucide-react';
@@ -43,6 +44,7 @@ export default function App() {
   const [addLeadModalOpen, setAddLeadModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [knowledgeModalOpen, setKnowledgeModalOpen] = useState(false);
+  const [addPropertyModalOpen, setAddPropertyModalOpen] = useState(false);
   const [simulatorModalOpen, setSimulatorModalOpen] = useState(false);
   const [browserCallModalOpen, setBrowserCallModalOpen] = useState(false);
   const [browserCallLead, setBrowserCallLead] = useState<Lead | null>(null);
@@ -191,6 +193,7 @@ export default function App() {
         onOpenLogin={() => setLoginModalOpen(true)}
         onOpenUpload={() => setUploadModalOpen(true)}
         onOpenAddLead={() => setAddLeadModalOpen(true)}
+        onOpenAddProperty={() => setAddPropertyModalOpen(true)}
         onOpenSettings={() => setSettingsModalOpen(true)}
         onOpenKnowledge={() => setKnowledgeModalOpen(true)}
         onOpenSimulator={() => {
@@ -198,16 +201,6 @@ export default function App() {
           setSimulatorModalOpen(true);
         }}
       />
-
-      {/* Supabase Connection Status Banner */}
-      {!isSupabaseConfigured && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 text-center text-xs text-amber-300 flex items-center justify-center space-x-2">
-          <Database className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>
-            <strong>Local Preview Mode:</strong> Supabase keys are blank in <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200">.env</code>. You can test freely with sample leads. To connect your live cloud database, paste your <code className="text-amber-200 font-mono">NEXT_PUBLIC_SUPABASE_URL</code> & <code className="text-amber-200 font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> into <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-amber-200">.env</code>.
-          </span>
-        </div>
-      )}
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8 animate-in fade-in duration-300">
         {/* Floating Notification Toast */}
@@ -342,6 +335,15 @@ export default function App() {
       <KnowledgeBaseModal
         isOpen={knowledgeModalOpen}
         onClose={() => setKnowledgeModalOpen(false)}
+        onOpenAddProperty={() => setAddPropertyModalOpen(true)}
+      />
+
+      <AddPropertyModal
+        isOpen={addPropertyModalOpen}
+        onClose={() => setAddPropertyModalOpen(false)}
+        onPropertyAdded={(newProp) => {
+          notify(`Property "${newProp.title}" added & synced with AI Agent!`);
+        }}
       />
 
       <CallSimulatorModal

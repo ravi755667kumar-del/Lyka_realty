@@ -1,11 +1,12 @@
 import React from 'react';
-import { Building2, PhoneCall, Settings, BookOpen, Upload, UserPlus, LogIn, LogOut, ShieldCheck } from 'lucide-react';
+import { Building2, PhoneCall, Settings, BookOpen, Upload, UserPlus, LogIn, LogOut, ShieldCheck, Plus } from 'lucide-react';
 import { AuthUser, logout } from '../lib/supabase';
 
 interface NavbarProps {
   user: AuthUser | null;
   onOpenUpload: () => void;
   onOpenAddLead: () => void;
+  onOpenAddProperty: () => void;
   onOpenSettings: () => void;
   onOpenKnowledge: () => void;
   onOpenSimulator: () => void;
@@ -16,6 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   user,
   onOpenUpload,
   onOpenAddLead,
+  onOpenAddProperty,
   onOpenSettings,
   onOpenKnowledge,
   onOpenSimulator,
@@ -69,6 +71,15 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Settings className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden md:inline">AI Voice Settings</span>
+          </button>
+
+          <button
+            onClick={onOpenAddProperty}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all shadow-sm"
+            title="Add Property with Description and Nearby Location to AI Knowledge"
+          >
+            <Plus className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Add Property</span>
           </button>
 
           <button

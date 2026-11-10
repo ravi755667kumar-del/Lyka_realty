@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { CampaignState } from '../types';
+import { CampaignState, SessionMemory } from '../types';
 import type { SpeechEmotion } from '../lib/speech';
 
 const DEFAULT_CAMPAIGN: CampaignState = {
@@ -237,12 +237,13 @@ export async function geminiChat(
   language?: string,
   agentName?: string,
   agentGender?: string,
-  customerEmotion?: string
+  customerEmotion?: string,
+  sessionMemory?: SessionMemory
 ): Promise<string> {
   const res = await fetch('/api/gemini/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, model, leadName, language, agentName, agentGender, customerEmotion }),
+    body: JSON.stringify({ messages, model, leadName, language, agentName, agentGender, customerEmotion, sessionMemory }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: 'Failed to chat with Gemini' }));
@@ -312,7 +313,8 @@ export async function groqChat(
   agentGender?: string,
   customerEmotion?: string,
   temperature?: number,
-  conversationStyle?: 'engaging' | 'polite'
+  conversationStyle?: 'engaging' | 'polite',
+  sessionMemory?: SessionMemory
 ): Promise<string> {
   const res = await fetch('/api/groq/chat', {
     method: 'POST',
@@ -327,6 +329,7 @@ export async function groqChat(
       customerEmotion,
       temperature,
       conversationStyle,
+      sessionMemory,
     }),
   });
   if (!res.ok) {
@@ -545,7 +548,8 @@ export async function openaiChat(
   language?: string,
   agentName?: string,
   agentGender?: string,
-  customerEmotion?: string
+  customerEmotion?: string,
+  sessionMemory?: SessionMemory
 ): Promise<string> {
   const res = await fetch('/api/openai/chat', {
     method: 'POST',
@@ -558,6 +562,7 @@ export async function openaiChat(
       agentName,
       agentGender,
       customerEmotion,
+      sessionMemory,
     }),
   });
   if (!res.ok) {

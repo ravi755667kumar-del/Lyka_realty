@@ -100,6 +100,22 @@ export interface CampaignState {
   lastUpdated?: string;
 }
 
+export interface PropertyItem {
+  id: string;
+  title: string;
+  propertyType: 'Apartment' | 'Villa' | 'Individual House' | 'Plot' | 'Commercial' | string;
+  bhk?: string;
+  listingType: 'Buy' | 'Rent' | 'Plot' | string;
+  price: string;
+  size?: string;
+  location: string;
+  nearbyLocation: string; // Landmarks, metro, schools, hospitals, distance
+  description: string;    // Detailed amenities, approvals, facing, parking
+  possession?: string;    // e.g. "Ready to Move" or "Dec 2026"
+  nextStep?: string;      // Question agent asks customer, e.g. "Site visit arrange pannalaama?"
+  createdAt?: string;
+}
+
 export interface KnowledgeDoc {
   id: string;
   title: string;
@@ -125,4 +141,23 @@ export interface OpenAIConfig {
   sttModel?: string;
   chatModel?: string;
   voice?: string;
+}
+
+export interface SessionMemory {
+  leadName?: string;
+  firstUserMessage?: string;    // Verbatim first customer statement/enquiry
+  purpose?: string;             // 'Buy' | 'Rent' | 'Investment' | 'Own Use'
+  propertyType?: string;        // 'Apartment' | 'Villa' | 'Individual House' | 'Plot' | 'Commercial'
+  bhk?: string;                 // '1 BHK' | '2 BHK' | '3 BHK' | '4 BHK'
+  budget?: string;              // e.g. 'Rs. 72 Lakhs', 'Under 80L'
+  location?: string;            // 'Velachery', 'OMR', 'Tambaram', etc.
+  nearbyLandmarks?: string;     // 'Near MRTS', 'Near beach', 'Near ELCOT SEZ'
+  timeline?: string;            // 'Ready to Move', 'Immediate', 'Dec 2026'
+  loanOrCash?: string;          // 'Home Loan / Bank Loan', 'Self-funded / Cash'
+  mustHaves?: string;           // 'Car parking, lift, CMDA approved'
+  siteVisitPreference?: string; // 'Saturday 11 AM', 'This weekend'
+  callerSentiment?: string;     // 'Interested', 'In a hurry', 'Comparing prices'
+  discussedProperties?: string[]; // ['P101 - 2BHK Apartment (Velachery)']
+  confirmedFacts?: string[];    // Bullet points of user statements
+  lastUpdated?: string;
 }
