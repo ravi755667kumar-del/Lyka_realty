@@ -145,6 +145,7 @@ export interface OpenAIConfig {
 
 export interface SessionMemory {
   leadName?: string;
+  preferredLanguage?: string;   // 'English' | 'Tamil-English' | 'Hindi'
   firstUserMessage?: string;    // Verbatim first customer statement/enquiry
   purpose?: string;             // 'Buy' | 'Rent' | 'Investment' | 'Own Use'
   propertyType?: string;        // 'Apartment' | 'Villa' | 'Individual House' | 'Plot' | 'Commercial'

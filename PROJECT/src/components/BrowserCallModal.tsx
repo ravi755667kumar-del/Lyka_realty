@@ -1897,9 +1897,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       [/\b(சனி\s*ஞாயிறு)\b/gi, 'Sani yaayiru'],
       [/\b(உடனே)\b/gi, 'Udane'],
       [/\b(வங்கி\s*கடன்|லோன்)\b/gi, 'Bank loan'],
-      [/\b(தமிழ்)\b/gi, 'Tamil'],
-      [/\b(இங்கிலீஷ்)\b/gi, 'English'],
-      [/\b(இந்தி)\b/gi, 'Hindi']
+      [/\b(தமிழ்|தமிழ்ல|தமிழில்)\b/gi, 'Tamil'],
+      [/\b(இங்கிலீஷ்|ஆங்கிலம்|இங்லிஷ்|இங்கிலீஷ்ல|ஆங்கிலத்தில்)\b/gi, 'English'],
+      [/\b(ஹிந்தி|இந்தி|ஹிந்தில|இந்தில|ஹிந்தியில்|இந்தியில்|ஹிந்தில\s*பேசுங்க|இந்தில\s*பேசுங்க|ஹிந்தி\s*பேசுங்க|இந்தி\s*பேசுங்க)\b/gi, 'Hindi']
     ];
 
     for (const [pattern, replacement] of tamilToTanglishMap) {
@@ -2586,18 +2586,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     recognition.maxAlternatives = 1;
 
     // Set recognition language:
-    // 'ta-IN' accurately captures Tamil & Tanglish sounds ("Aama", "Velachery", "Venum", "Puriyudhu", "Sari")
+    // 'en-IN' accurately captures English words in clean English script ("1 BHK", "Velachery", "crores", "lakhs", "rent", "buy")
     // 'hi-IN' captures Hindi words
-    // 'en-IN' captures English words
+    // 'ta-IN' captures Tamil & Tanglish sounds ("Aama", "Velachery", "Venum", "Puriyudhu", "Sari")
     const currentLang = selectedLanguageRef.current || initialLanguage;
-    if (currentStepRef.current === 0) {
-      recognition.lang = currentLang === 'Hindi' ? 'hi-IN' : currentLang === 'English' ? 'en-IN' : 'ta-IN';
+    if (currentLang === 'English') {
+      recognition.lang = 'en-IN';
     } else if (currentLang === 'Hindi') {
       recognition.lang = 'hi-IN';
-    } else if (currentLang === 'Tamil-English') {
-      recognition.lang = 'ta-IN';
     } else {
-      recognition.lang = 'en-IN';
+      recognition.lang = 'ta-IN';
     }
 
     recognition.onstart = () => {
@@ -3581,18 +3579,166 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     speakAIText(promptText, langCode);
   };
 
-  // Customer selects language
-  const handleSelectLanguage = async (lang: LanguageOption, fromInteraction = true) => {
-    updateSelectedLanguage(lang);
-    if (fromInteraction) {
-      appendDialogue('Customer', lang);
-    }
+  // Detects if the caller is speaking directly in Hindi (property inquiry, question, or statement)
+  const isHindiPropertyOrConversationQuery = (text: string): boolean => {
+    const lower = (text || '').toLowerCase().trim();
+    if (!lower || lower.length < 2) return false;
+
+    // 1. Devanagari script presence
+    if (/[\u0900-\u097F]/.test(lower)) return true;
+
+    // 2. Hindi conversational grammar and question structures in Roman script
+    const isRomanHindi =
+      /\b(kya\s*(price|rate|cost|hai|milega|hoga|options|budget|details))\b/i.test(lower) ||
+      /\b(kitna|kitne|kitni)\s*(price|rate|budget|bhk|lakh|crore|hoga|lagega|milega)\b/i.test(lower) ||
+      /\b(chahiye|chahie|chahta|chahte|chahti|khareedna|khareedne|dekhna)\b/i.test(lower) ||
+      /\b(batao|bataiye|batayein|suno|boliye|bolo)\b/i.test(lower) ||
+      /\b(mein|me)\s*(kya|hai|hain|chahiye|dekh|milega|kitna|kaun)\b/i.test(lower) ||
+      /\b(mujhe|humein|aapka|aapke|aapki)\s*(batao|chahiye|bataiye|paas)\b/i.test(lower) ||
+      /\b(kaha|kahan|kaise|kab)\s*(hai|milega|chalna|aana|hoga|kar\s*sakte)\b/i.test(lower) ||
+      /\b(baat\s*(karo|kijiye|karein|kar\s*sakte))\b/i.test(lower) ||
+      /\b(nahi\s*(samajh|aata|aati|aa\s*raha))\b/i.test(lower) ||
+      /\b(kaun\s*bol\s*raha|kaun\s*hai)\b/i.test(lower);
+
+    return isRomanHindi;
+  };
+
+  // Language Switch Intent Detector: detects if the user wants to speak in English, Hindi, or Tamil
+  // Handles all variants: "i don't know which language are you can you talk in hindi", "can we speak in english",
+  // "hindi please", "talk in hindi", "hindi me baat karo", "இங்கிலீஷ்", "ஹிந்தி", "இந்தி", etc.
+  const detectLanguageSwitchIntent = (text: string): LanguageOption | null => {
+    const lower = (text || '').toLowerCase().trim();
+    if (!lower) return null;
+
+    // Negative guards to prevent false positives (e.g. "not hindi", "no hindi", "don't know hindi", "hindi nahi")
+    const isNegativeForHindi =
+      /\b(no|not|don'?t\s+know|don'?t\s+speak|don'?t\s+want|never|nahi\s+aati|nahi\s+aata|theriyadhu|vendam|venaam)\s+hindi\b/i.test(lower) ||
+      /\bhindi\s+(nahi\s*aati|nahi\s*aata|nahi|theriyadhu|vendam|venaam|illa)\b/i.test(lower);
+
+    const isNegativeForEnglish =
+      /\b(no|not|don'?t\s+know|don'?t\s+speak|don'?t\s+want|never|nahi\s+aati|theriyadhu|vendam|venaam)\s+english\b/i.test(lower) ||
+      /\benglish\s+(nahi\s*aati|nahi|theriyadhu|vendam|venaam|illa)\b/i.test(lower);
+
+    const isNegativeForTamil =
+      /\b(no|not|don'?t\s+know|don'?t\s+speak|don'?t\s+want|never|nahi\s+aati|nahi\s+samajh|illa)\s+tamil\b/i.test(lower) ||
+      /\btamil\s+(nahi\s*aati|nahi\s*samajh|nahi|illa)\b/i.test(lower);
+
+    // 1. Hindi switch triggers:
+    const isHindi =
+      !isNegativeForHindi &&
+      (
+        /\bhindi\b/i.test(lower) ||
+        lower.includes('हिंदी') ||
+        lower.includes('ஹிந்தி') ||
+        lower.includes('இந்தி') ||
+        /\b(talk|speak|switch|change|continue|prefer)\s*(in|to)?\s*hindi\b/i.test(lower) ||
+        /\bcan\s*(we|you)\s*(talk|speak)\s*(in)?\s*hindi\b/i.test(lower) ||
+        /\b(could|please)\s*(we|you)?\s*(talk|speak)\s*(in)?\s*hindi\b/i.test(lower) ||
+        /\bi\s*(want|would like|prefer)\s*(to\s*)?(talk|speak)\s*in\s*hindi\b/i.test(lower) ||
+        /\bi\s*want\s*hindi\b/i.test(lower) ||
+        /\bhindi[-\s]*(please|la|lae|laa|pesalaam|pesalam|pesunga|mattum|only|language)\b/i.test(lower) ||
+        /\bhindi[-\s]*(mein|me)\s*(baat|bolo|boliye|karo|karein|kijiye)\b/i.test(lower) ||
+        /\b(in\s+hindi|only\s+hindi)\b/i.test(lower)
+      );
+
+    // 2. English switch triggers:
+    const isEnglish =
+      !isNegativeForEnglish &&
+      (
+        /\b(talk|speak|switch|change|continue|prefer)\s*(in|to)?\s*english\b/i.test(lower) ||
+        /\bcan\s*(we|you)\s*(talk|speak)\s*(in)?\s*english\b/i.test(lower) ||
+        /\b(could|please)\s*(we|you)?\s*(talk|speak)\s*(in)?\s*english\b/i.test(lower) ||
+        /\bi\s*(want|would like|prefer)\s*(to\s*)?(talk|speak)\s*in\s*english\b/i.test(lower) ||
+        /\bi\s*want\s*english\b/i.test(lower) ||
+        /\benglish[-\s]*(please|la|lae|laa|pesalaam|pesalam|pesunga|mattum|only|language)\b/i.test(lower) ||
+        /\benglish[-\s]*(mein|me)\s*(baat|bolo|karo|karein)\b/i.test(lower) ||
+        /\b(in\s+english|only\s+english)\b/i.test(lower) ||
+        /^(english|inglish|இங்கிலீஷ்|ஆங்கிலம்|இங்லிஷ்)$/i.test(lower) ||
+        lower.includes('இங்கிலீஷ்') ||
+        lower.includes('ஆங்கிலம்') ||
+        (/\benglish\b/i.test(lower) && !lower.includes('tamil') && !lower.includes('hindi'))
+      );
+
+    // 3. Tamil / Tanglish switch triggers:
+    const isTamil =
+      !isNegativeForTamil &&
+      (
+        /\b(talk|speak|switch|change|continue)\s*(in|to)?\s*(tamil|tanglish)\b/i.test(lower) ||
+        /\bcan\s*(we|you)\s*(talk|speak)\s*(in)?\s*tamil\b/i.test(lower) ||
+        /\btamil[-\s]*(please|la|lae|laa|pesalaam|pesalam|pesunga|mattum|only|language)\b/i.test(lower) ||
+        /\btamil[-\s]*(mein|me)\s*(baat|bolo)\b/i.test(lower) ||
+        /^(tamil|tanglish|தமிழ்)$/i.test(lower) ||
+        lower.includes('தமிழ்')
+      );
+
+    if (isHindi) return 'Hindi';
+    if (isEnglish) return 'English';
+    if (isTamil) return 'Tamil-English';
+
+    return null;
+  };
+
+  // Language switch applier: dynamically reconfigures STT engine, Session Memory Brain, Lead & Voice
+  const applyLanguageSwitch = (newLang: LanguageOption) => {
+    updateSelectedLanguage(newLang);
+    try {
+      localStorage.setItem('lyka_voice_lang', newLang);
+    } catch (e) {}
 
     // Save selected language in background without blocking live voice playback
     if (lead) {
-      saveLeadLanguage(lead.id, lang).catch((err) => {
+      saveLeadLanguage(lead.id, newLang).catch((err) => {
         console.error('Error saving lead language in background:', err);
       });
+    }
+
+    // Update active Session Memory Brain
+    if (sessionMemoryRef.current) {
+      sessionMemoryRef.current.preferredLanguage = newLang;
+      sessionMemoryRef.current.confirmedFacts = [
+        ...(sessionMemoryRef.current.confirmedFacts || []).filter((n) => !n.toLowerCase().includes('language:')),
+        `Customer preferred language: ${newLang}`,
+      ];
+    }
+
+    // Immediately re-target STT engine so live speech recognition writes in the chosen language!
+    const targetLangCode = newLang === 'Hindi' ? 'hi-IN' : newLang === 'English' ? 'en-IN' : 'ta-IN';
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.lang = targetLangCode;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.abort();
+      } catch (e) {
+        // ignore
+      }
+      recognitionRef.current = null;
+      isRecognitionRunningRef.current = false;
+    }
+
+    // Reset turn speech buffers so no previous-language text leaks
+    userAccumulatedSpeechRef.current = '';
+    speechSessionPrefixRef.current = '';
+    turnCommittedSpeechRef.current = '';
+    setLiveSpeechText('');
+
+    // Spin up fresh speech recognition with the new target language
+    setTimeout(() => {
+      if (
+        callStateRef.current !== 'Call Completed' &&
+        callStateRef.current !== 'Calling...' &&
+        !isSpeechSynthesisSpeakingRef.current
+      ) {
+        startContinuousSpeechRecognition();
+      }
+    }, 40);
+  };
+
+  // Customer selects language
+  const handleSelectLanguage = async (lang: LanguageOption, fromInteraction = true) => {
+    applyLanguageSwitch(lang);
+    if (fromInteraction) {
+      appendDialogue('Customer', lang);
     }
 
     // Move to Step 1 and proceed to first qualification question directly
@@ -3795,10 +3941,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
         });
         return;
+      }
       // Customer responded to opening greeting -> Ask first property question directly!
       askQuestion(1);
       return;
-      }
     }
 
     // STEP 2: PDF Question 1 (Purpose: Own use vs Investment)
@@ -4063,39 +4209,111 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // Back on business — reset the consecutive off-topic counter
     offTopicTurnsRef.current = 0;
 
+    // Detect Language Switch Request at ANY point (Step 0 or mid-conversation)
+    const detectedLangSwitch = detectLanguageSwitchIntent(input);
+
     // STEP 0: Language selection step
     if (activeStep === 0) {
-      const isPureLanguageChoice = /^(tamil|tanglish|தமிழ்|english|inglish|hindi|हिंदी)$/i.test(lower.trim());
-
-      if (isPureLanguageChoice) {
-        const chosen = lower.includes('hindi') || lower.includes('हिंदी')
+      const chosenLang: LanguageOption =
+        detectedLangSwitch ||
+        (lower.includes('hindi') || lower.includes('हिंदी') || lower.includes('ஹிந்தி') || lower.includes('இந்தி') || isHindiPropertyOrConversationQuery(input)
           ? 'Hindi'
-          : lower.includes('english') || lower.includes('inglish')
+          : lower.includes('english') || lower.includes('inglish') || lower.includes('இங்கிலீஷ்') || lower.includes('ஆங்கிலம்')
           ? 'English'
-          : 'Tamil-English';
-        handleSelectLanguage(chosen, false);
-        return;
+          : 'Tamil-English');
+
+      applyLanguageSwitch(chosenLang);
+      updateCurrentStep(1);
+
+      if (chosenLang === 'English') {
+        const customerName = lead?.name ? ` ${lead.name}` : '';
+        const openingEnglish = `[warm] Sure, absolutely! We can talk in English.${customerName ? ` Welcome${customerName}!` : ''} [break] [curious] Are you looking to buy a flat or house in Chennai, or looking to rent?`;
+        appendDialogue('AI', openingEnglish);
+        speakAIText(openingEnglish, 'en-US');
+      } else if (chosenLang === 'Hindi') {
+        const customerName = lead?.name ? ` ${lead.name} ji` : ' Sir';
+        const openingHindi = `[warm] Haan zaroor! Hum Hindi me baat kar sakte hain. [break] [curious] ${customerName}, aap Chennai me ghar khareedna chahte hain, ya rent pe dekh rahe hain?`;
+        appendDialogue('AI', openingHindi);
+        speakAIText(openingHindi, 'hi-IN');
+      } else {
+        const customerName = lead?.name ? ` ${lead.name} Sir` : ' Sir';
+        const openingTamil = `[warm] Romba sandhosham! [break] [curious] Neenga Chennai-la veedu vaanga paakureengala, illa rent-ku paakureengala${customerName}?`;
+        appendDialogue('AI', openingTamil);
+        speakAIText(openingTamil, 'ta-IN');
       }
-
-      // Check if caller explicitly chose a language
-      const hasLanguageSignal =
-        lower.includes('tamil') || lower.includes('tanglish') || lower.includes('தமிழ்') ||
-        lower.includes('english') || lower.includes('inglish') ||
-        lower.includes('hindi') || lower.includes('हिंदी');
-
-      if (hasLanguageSignal) {
-        const chosen = lower.includes('hindi') || lower.includes('हिंदी')
-          ? 'Hindi'
-          : lower.includes('english') || lower.includes('inglish')
-          ? 'English'
-          : 'Tamil-English';
-        handleSelectLanguage(chosen, false);
-        return;
-      }
-
-      // If no language specified, default to Tamil-English and proceed directly to first property question
-      handleSelectLanguage('Tamil-English', false);
       return;
+    }
+
+    // MID-CONVERSATION DYNAMIC LANGUAGE SWITCH & HINDI QUERY HANDLER (Step >= 1)
+    const PROPERTY_INQUIRY_TERMS = [
+      'price', 'rate', 'cost', 'budget', 'vilai', 'kimat', 'keemat',
+      '1 bhk', '2 bhk', '3 bhk', '4 bhk', '1bhk', '2bhk', '3bhk', '4bhk', 'bhk',
+      'sq ft', 'sqft', 'square feet',
+      'flat', 'apartment', 'house', 'villa', 'plot', 'land',
+      'velachery', 'omr', 'tambaram', 'porur', 'adyar', 'chengalpattu', 'sholinganallur', 'guindy', 'medavakkam', 'madipakkam',
+      'loan', 'emi', 'advance', 'deposit',
+      'site visit', 'visit', 'booking', 'registration', 'patta', 'cmda', 'rera'
+    ];
+    const hasPropertyInquiry = PROPERTY_INQUIRY_TERMS.some((term) => lower.includes(term));
+
+    let targetLanguageSwitch = detectedLangSwitch;
+    if (!targetLanguageSwitch && selectedLanguageRef.current !== 'Hindi' && isHindiPropertyOrConversationQuery(input)) {
+      targetLanguageSwitch = 'Hindi';
+    }
+
+    if (targetLanguageSwitch) {
+      const isSwitching = targetLanguageSwitch !== selectedLanguageRef.current;
+      if (isSwitching) {
+        applyLanguageSwitch(targetLanguageSwitch);
+      }
+
+      // If user's input solely requests the language switch without a specific property inquiry,
+      // respond immediately with the step-appropriate prompt in that language and return!
+      if (!hasPropertyInquiry) {
+        let switchResponse = '';
+        if (targetLanguageSwitch === 'English') {
+          const customerName = lead?.name ? ` ${lead.name}` : ' Sir';
+          if (activeStep <= 1) {
+            switchResponse = `[warm] Sure, absolutely! We can continue our conversation in English. [curious] Are you looking to buy a flat or house in Chennai, or looking to rent${customerName}?`;
+          } else if (activeStep === 2) {
+            switchResponse = `[warm] Sure, absolutely! Let's continue in English. [curious] Which area in Chennai is your preference? For example Velachery, OMR, Tambaram, Adyar, or Porur?`;
+          } else if (activeStep === 3) {
+            switchResponse = `[warm] Definitely! Continuing in English. [curious] How many BHK are you looking for? 1 BHK, 2 BHK, or 3 BHK?`;
+          } else if (activeStep === 4) {
+            switchResponse = `[warm] Of course! [curious] What is your comfortable approximate budget range${customerName}?`;
+          } else if (activeStep === 5) {
+            switchResponse = `[warm] Certainly! [curious] Would you be interested in scheduling a site visit this weekend, Saturday or Sunday?`;
+          } else {
+            switchResponse = `[warm] Sure, absolutely! We can talk in English. How can I help you with your property search in Chennai today${customerName}?`;
+          }
+          appendDialogue('AI', switchResponse);
+          speakAIText(switchResponse, 'en-US');
+          return;
+        } else if (targetLanguageSwitch === 'Hindi') {
+          const customerName = lead?.name ? ` ${lead.name} ji` : ' Sir';
+          if (activeStep <= 1) {
+            switchResponse = `[warm] Haan bilkul! Hum Hindi me baat kar sakte hain. [break] [curious] ${customerName}, aap Chennai me ghar khareedna chahte hain, ya rent pe dekh rahe hain?`;
+          } else if (activeStep === 2) {
+            switchResponse = `[warm] Zaroor! Hum Hindi me baat karenge. [break] [curious] ${customerName}, aap Chennai ke kaun se area me property dekh rahe hain? Jaise Velachery, OMR, Tambaram ya Porur?`;
+          } else if (activeStep === 3) {
+            switchResponse = `[warm] Bilkul! [break] [curious] Aapko kitne BHK ki requirement hai? 1 BHK, 2 BHK, ya 3 BHK?`;
+          } else if (activeStep === 4) {
+            switchResponse = `[warm] Samajh gaya. [break] [curious] ${customerName}, aapka approximate budget kitna hoga?`;
+          } else if (activeStep === 5) {
+            switchResponse = `[warm] Haan zaroor! [break] [curious] Kya aap iss weekend Saturday ya Sunday site visit ke liye aa sakte hain?`;
+          } else {
+            switchResponse = `[warm] Haan bilkul! Hum Hindi me baat kar sakte hain. [break] [curious] ${customerName}, aap Chennai me kis tarah ki property dekh rahe hain?`;
+          }
+          appendDialogue('AI', switchResponse);
+          speakAIText(switchResponse, 'hi-IN');
+          return;
+        } else {
+          switchResponse = `[warm] Kandippa! Namma Tamil-laye pesalaam Sir. Ungalukku Chennai property pathi enna details thevai?`;
+          appendDialogue('AI', switchResponse);
+          speakAIText(switchResponse, 'ta-IN');
+          return;
+        }
+      }
     }
 
     // ⚡ LLM Conversational Model execution (Gemini / Groq / OpenAI -> STT -> Reasoning -> TTS)
@@ -4147,13 +4365,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           content: d.text,
         }));
 
+        const currentEffectiveLang = selectedLanguageRef.current || activeLang;
+
         let aiReply = '';
         if (brainEngineRef.current === 'gemini') {
           aiReply = await geminiChat(
             historyMessages,
             selectedGeminiModelRef.current,
             lead?.name,
-            activeLang,
+            currentEffectiveLang,
             agentName,
             voiceGenderRef.current,
             lastCustomerEmotionRef.current,
@@ -4165,7 +4385,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               historyMessages,
               selectedOpenAiBrainModelRef.current,
               lead?.name,
-              activeLang,
+              currentEffectiveLang,
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
@@ -4177,7 +4397,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               historyMessages,
               selectedGeminiModelRef.current,
               lead?.name,
-              activeLang,
+              currentEffectiveLang,
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
@@ -4190,7 +4410,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               historyMessages,
               selectedGroqModelRef.current,
               lead?.name,
-              activeLang,
+              currentEffectiveLang,
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
@@ -4204,7 +4424,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               historyMessages,
               selectedGeminiModelRef.current,
               lead?.name,
-              activeLang,
+              currentEffectiveLang,
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
@@ -5484,17 +5704,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                 value={selectedLanguage || initialLanguage || 'Tamil-English'}
                 onChange={(e) => {
                   const newLang = e.target.value as LanguageOption;
-                  updateSelectedLanguage(newLang);
-                  if (recognitionRef.current) {
-                    try {
-                      recognitionRef.current.abort();
-                    } catch (err) {}
-                  }
-                  setTimeout(() => {
-                    if (callStateRef.current === 'Listening...' && !isTurnProcessingRef.current) {
-                      startContinuousSpeechRecognition();
-                    }
-                  }, 50);
+                  applyLanguageSwitch(newLang);
                 }}
                 className="bg-transparent text-amber-400 font-bold focus:outline-none cursor-pointer text-[11px]"
                 title="Change Speech Recognition Language"

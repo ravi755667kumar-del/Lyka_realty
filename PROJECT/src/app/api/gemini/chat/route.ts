@@ -135,20 +135,55 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
    - Never use Hindi words in Tanglish mode. Greet in Tamil/English naturally.
    - Speak politely, naturally and warmly. Ask one question at a time.
    - Keep answers punchy: 1 to 2 short sentences (strictly 15 to 25 words).`;
+  } else if (language === 'English') {
+    roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (ENGLISH ONLY):
+- The customer has chosen ENGLISH. You MUST speak EXCLUSIVELY in warm, natural, engaging Indian English.
+- NEVER speak in Tamil, Tanglish, or Hindi.
+- If previous dialogue messages have Tamil or Tanglish words, ignore them and continue purely in English.
+- Use natural Indian English property terms: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, CMDA approved, RERA registered, site visit.
+- Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
+  } else if (language === 'Hindi') {
+    roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (HINDI ONLY):
+- The customer has chosen HINDI. You MUST speak EXCLUSIVELY in warm, polite, and natural conversational Hindi.
+- NEVER speak in Tamil or Tanglish under any circumstances.
+- If previous dialogue messages have Tamil or Tanglish words, completely ignore them and respond purely in Hindi.
+- Greet and converse in Hindi naturally: "Namaste", "Haan ji", "Aap Chennai me ghar khareedna chahte hain ya rent pe dekh rahe hain?", "Aapka approximate budget kitna hoga?".
+- ${isMale ? 'Use masculine verbs: "bol raha hoon", "karta hoon", "samajh gaya", "bata sakta hoon".' : 'Use feminine verbs: "bol rahi hoon", "karti hoon", "samajh gayi", "bata sakti hoon".'}
+- Real estate terminology in Chennai: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, site visit, booking.
+- Always translate any property information or verified facts into natural, fluent Hindi!
+- Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
   }
 
   // Emotion-aware guidance: feel the customer's mood, and ALWAYS maintain cheerful happiness, attractive charisma, and lively engagement
-  let emotionGuidance = `
+  const isHindiMode = language === 'Hindi';
+  const isEnglishMode = language === 'English';
+
+  let emotionGuidance = isHindiMode
+    ? `
+CORE VIBE — RADIANT HAPPINESS, ATTRACTIVE CHARISMA & LIVELY ENGAGEMENT:
+- Unmistakable Smiling Voice: Speak with a radiant, natural smile in your voice! Sound delightful, welcoming, lively, charming, and attractive in Hindi.
+- Attractive & Captivating Tone: Sound sweet, charming, charismatic, energetic, and engaging. Your voice should be bright, pleasant, and magnetic.
+- Enthusiastic & Engaging: Use lively positive words in Hindi ("Super!", "Bahut badhiya!", "Haan ji!", "Khushi se batati hoon!", "Bilkul!"). Ask your questions with cheerful interest and curiosity.
+- ZERO SADNESS POLICY: Never sound sad, dull, depressed, tired, gloomy, or apologetic. Do NOT say repetitive or sad "sorry" loops. Keep the vibe bright, sunny, attractive, and positive!
+`
+    : `
 CORE VIBE — RADIANT HAPPINESS, ATTRACTIVE CHARISMA & LIVELY ENGAGEMENT:
 - Unmistakable Smiling Voice: Speak with a radiant, natural smile in your voice! Sound delightful, welcoming, lively, charming, and attractive.
 - Attractive & Captivating Tone: Sound sweet, charming, charismatic, energetic, and engaging. Your voice should be bright, pleasant, and magnetic.
-- Enthusiastic & Engaging: Use lively positive words ("Super!", "Awesome!", "Kandippa!", "Happy-aa share panren!", "Great choice!"). Ask your questions with cheerful interest and curiosity.
+- Enthusiastic & Engaging: Use lively positive words (${isEnglishMode ? '"Super!", "Awesome!", "Definitely!", "Glad to share!", "Great choice!"' : '"Super!", "Awesome!", "Kandippa!", "Happy-aa share panren!", "Great choice!"'}). Ask your questions with cheerful interest and curiosity.
 - ZERO SADNESS POLICY: Never sound sad, dull, depressed, tired, gloomy, or apologetic. Do NOT say repetitive or sad "sorry" loops. Keep the vibe bright, sunny, attractive, and positive!
 `;
+
   if (customerEmotion === 'sad') {
-    emotionGuidance = `
+    emotionGuidance = isHindiMode
+      ? `
 EMOTIONAL CONTEXT — GRIEF OR PERSONAL BEREAVEMENT:
-- The customer mentioned a personal bereavement or severe medical tragedy. Respond with gentle, caring empathy: "[empathetic] Romba sorry Sir, puriyudhu. Take care."
+- The customer mentioned a personal bereavement or severe medical tragedy. Respond with gentle, caring empathy in Hindi: "[empathetic] Bahut afsos hua sunkar Sir, main samajh sakti hoon. Take care."
+- Keep it brief, respectful, and allow them to end the call respectfully.
+`
+      : `
+EMOTIONAL CONTEXT — GRIEF OR PERSONAL BEREAVEMENT:
+- The customer mentioned a personal bereavement or severe medical tragedy. Respond with gentle, caring empathy: ${isEnglishMode ? '"[empathetic] I am very sorry to hear that Sir, I completely understand. Take care."' : '"[empathetic] Romba sorry Sir, puriyudhu. Take care."'}
 - Keep it brief, respectful, and allow them to end the call respectfully.
 `;
   } else if (customerEmotion === 'angry') {
@@ -171,17 +206,31 @@ EMOTIONAL CONTEXT — AMUSED / JOKING / HUMOUR:
 - Keep the response lighthearted and transition smoothly back to property assistance.
 `;
   } else if (customerEmotion === 'positive') {
-    emotionGuidance = `
+    emotionGuidance = isHindiMode
+      ? `
 EMOTIONAL CONTEXT — EXCITED / GOOD NEWS / HIGH INTEREST:
-- Express genuine excitement with a joyful, energetic, smiling, and wonderfully welcoming girl voice!
-- Celebrate their milestone or interest (e.g., "[happy] Super choice Sir! Romba sandhosham!").
+- Express genuine excitement with a joyful, energetic, smiling voice!
+- Celebrate their milestone or interest (e.g., "[happy] Super choice Sir! Bahut badhiya selection!").
+- Keep it charming, attractive, and deeply engaging!
+`
+      : `
+EMOTIONAL CONTEXT — EXCITED / GOOD NEWS / HIGH INTEREST:
+- Express genuine excitement with a joyful, energetic, smiling, and wonderfully welcoming voice!
+- Celebrate their milestone or interest (e.g., ${isEnglishMode ? '"[happy] Wonderful choice Sir! So glad to hear that!"' : '"[happy] Super choice Sir! Romba sandhosham!"'}).
 - Keep it charming, attractive, and deeply engaging!
 `;
   } else if (customerEmotion === 'curious') {
-    emotionGuidance = `
+    emotionGuidance = isHindiMode
+      ? `
+EMOTIONAL CONTEXT — CURIOUS / EXPLORING OPTIONS:
+- Respond with enthusiastic interest and clear, pleasant guidance in Hindi:
+  * "[happy] Bahut achha sawaal hai Sir! Ek second check karke batati hoon!"
+  * "[happy] Khushi hui aapne poochha! Main clearly explain karti hoon!"
+`
+      : `
 EMOTIONAL CONTEXT — CURIOUS / EXPLORING OPTIONS:
 - Respond with enthusiastic interest and clear, pleasant guidance:
-  * "[happy] Super question Sir! Oru second check panni solren!"
+  * ${isEnglishMode ? '"[happy] Great question Sir! Let me check and share the details right away!"' : '"[happy] Super question Sir! Oru second check panni solren!"'}
   * "[happy] Glad you asked! Let me explain that clearly for you!"
 `;
   }
@@ -357,7 +406,7 @@ export async function POST(req: Request) {
       try {
         const bestKnowledge = await queryBestPDFAnswer(lastUserMsg, language, activeMemory);
         if (bestKnowledge) {
-          systemInstruction += `\n\nVERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Use verified facts only when they answer the customer's actual question.\n- Explain only as much as needed, in natural spoken language.\n- Do not force the dataset's next question into the reply. Ask one optional follow-up only if it is useful and welcome.`;
+          systemInstruction += `\n\nVERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Use verified facts only when they answer the customer's actual question.\n- Explain only as much as needed, in natural spoken language.\n${language === 'Hindi' ? '- CRITICAL: You must explain these facts EXCLUSIVELY in natural spoken HINDI. Never use Tamil words.\n' : ''}- Do not force the dataset's next question into the reply. Ask one optional follow-up only if it is useful and welcome.`;
         }
       } catch (e) {
         console.warn('[Gemini Chat] queryBestPDFAnswer warning:', e);

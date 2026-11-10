@@ -41,6 +41,7 @@ export function extractSessionMemory(
 ): SessionMemory {
   const memory: SessionMemory = {
     leadName: existingMemory?.leadName || '',
+    preferredLanguage: existingMemory?.preferredLanguage || '',
     firstUserMessage: existingMemory?.firstUserMessage || '',
     purpose: existingMemory?.purpose || '',
     propertyType: existingMemory?.propertyType || '',
