@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Lead, LeadOutcome, CallRecord } from '../types';
+import { writeReportBackToFirebaseCRM } from './firebaseSyncService';
 
 const INITIAL_DEMO_LEADS: Lead[] = [
   {
@@ -571,7 +572,28 @@ export async function completeBrowserCallSession(params: {
     updatedAt: new Date().toISOString(),
   });
 
-  // 3. Sync User History to Supabase DB and Neon DB
+  // 3. Sync completed report to Firebase Firestore CRM (updates Super Admin & Sales Manager live)
+  try {
+    writeReportBackToFirebaseCRM({
+      leadId: lead.id,
+      lead,
+      callReport: {
+        status: leadUpdates.status || (callData.noAnswer ? 'No Answer' : 'Completed'),
+        outcome: (leadUpdates.outcome || callData.outcome) as string,
+        duration: callData.duration,
+        summary: callData.summary,
+        transcript: callData.transcript,
+        qaHistory: callData.qaHistory || leadUpdates.qaHistory,
+        qualification: callData.qualification,
+        recordingReference: leadUpdates.recordingReference || callData.recordingReference,
+        callTime: callData.startedAt,
+      },
+    }).catch((err) => console.log('Firebase CRM sync non-blocking note:', err));
+  } catch (err) {
+    // non-blocking
+  }
+
+  // 4. Sync User History to Supabase DB and Neon DB
   try {
     // Record user history in pure text form
     fetch('/api/user-history', {

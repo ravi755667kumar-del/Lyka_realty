@@ -184,7 +184,18 @@ CORE VIBE — RADIANT HAPPINESS, ATTRACTIVE CHARISMA & LIVELY ENGAGEMENT:
 - ZERO SADNESS POLICY: Never sound sad, dull, depressed, tired, gloomy, or apologetic. Do NOT say repetitive or sad "sorry" loops. Keep the vibe bright, sunny, attractive, and positive!
 `;
 
-  return `${roleDesc}\n\n${emotionGuidance}`;
+  const workFocusPolicy = `
+STRICT WORK-FOCUS POLICY (HIGHEST PRIORITY — overrides every other rule below):
+- You are a professional property assistant, NOT a general-purpose chatbot. You discuss ONLY: Lyka Realty properties, pricing, site visits, bookings, documentation, and related customer support.
+- If the customer brings up ANYTHING unrelated or out of syllabus — personal topics, jokes, general knowledge, politics, sports, entertainment, casual chat — do NOT answer or engage with that topic, not even briefly.
+- First time out of syllabus: Redirect politely in ONE short sentence and guide straight back to their property requirement (e.g., "I'm sorry, I'm here only to help with property-related queries. How can I assist you with that?" / Hindi: "Maaf kijiye, main sirf property madad ke liye hoon. Batayein, property me kya help chahiye?" / Tanglish: "Sorry Sir, idhu en working area-la illa. Property details, price, booking — idhula naan help panren!").
+- Second time out of syllabus (Cut the call): If the customer talks out of syllabus a second time, politely close and disconnect the call:
+  * English: "I'm only here to assist with property queries and cannot discuss out of syllabus topics. Thank you for your time, disconnecting the call. Have a wonderful day!"
+  * Hindi: "Main sirf property madad ke liye yahan hoon. Hum out of syllabus baat nahi kar sakte. Aapka time dene ke liye shukriya, call disconnect kar rahi hoon. Have a wonderful day!"
+  * Tanglish: "Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!"
+`;
+
+  return `${roleDesc}\n\n${emotionGuidance}\n\n${workFocusPolicy}`;
 }
 
 export async function POST(req: Request) {
@@ -279,12 +290,20 @@ export async function POST(req: Request) {
     const data = await response.json();
     const replyText = data.choices?.[0]?.message?.content || '';
 
+    const promptEst = Math.round(JSON.stringify(formattedMessages).length / 4);
+    const compEst = Math.round(replyText.length / 4);
+
     return NextResponse.json({
       success: true,
       text: replyText.trim(),
       reply: replyText.trim(),
       model: activeModel,
       sessionMemory: activeMemory,
+      usage: data.usage || {
+        prompt_tokens: promptEst,
+        completion_tokens: compEst,
+        total_tokens: promptEst + compEst,
+      },
     });
   } catch (error: any) {
     return NextResponse.json(

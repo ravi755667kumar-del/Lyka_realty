@@ -163,3 +163,49 @@ export function saveOpenAISettings(settings: {
   fs.writeFileSync(OPENAI_CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf8');
   return updated;
 }
+
+// ─── Twilio Config ───────────────────────────────────────────────────────────
+const TWILIO_CONFIG_FILE = path.resolve(process.cwd(), 'twilio-config.local.json');
+
+export function getTwilioSettings() {
+  let fileConfig: any = {};
+  if (fs.existsSync(TWILIO_CONFIG_FILE)) {
+    try {
+      fileConfig = JSON.parse(fs.readFileSync(TWILIO_CONFIG_FILE, 'utf8'));
+    } catch (e) {
+      // ignore
+    }
+  }
+  return {
+    accountSid:
+      fileConfig.accountSid ||
+      process.env.TWILIO_ACCOUNT_SID ||
+      getEnvValue('TWILIO_ACCOUNT_SID') ||
+      '',
+    authToken:
+      fileConfig.authToken ||
+      process.env.TWILIO_AUTH_TOKEN ||
+      getEnvValue('TWILIO_AUTH_TOKEN') ||
+      '',
+    phoneNumber:
+      fileConfig.phoneNumber ||
+      process.env.TWILIO_PHONE_NUMBER ||
+      getEnvValue('TWILIO_PHONE_NUMBER') ||
+      '',
+  };
+}
+
+export function saveTwilioSettings(settings: {
+  accountSid?: string;
+  authToken?: string;
+  phoneNumber?: string;
+}) {
+  const current = getTwilioSettings();
+  const updated = {
+    accountSid: settings.accountSid !== undefined ? settings.accountSid.trim() : current.accountSid,
+    authToken: settings.authToken !== undefined ? settings.authToken.trim() : current.authToken,
+    phoneNumber: settings.phoneNumber !== undefined ? settings.phoneNumber.trim() : current.phoneNumber,
+  };
+  fs.writeFileSync(TWILIO_CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf8');
+  return updated;
+}

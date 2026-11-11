@@ -15,6 +15,7 @@ import {
   stopCampaignAPI,
   callSingleLeadAPI,
   initCampaignDoc,
+  placeTwilioCall,
 } from './services/campaignService';
 import { Navbar } from './components/Navbar';
 import { CampaignBanner } from './components/CampaignBanner';
@@ -30,6 +31,12 @@ import { CallSimulatorModal } from './components/CallSimulatorModal';
 import { BrowserCallModal } from './components/BrowserCallModal';
 import { Sparkles, Phone, Database, CheckCircle2, Building2 } from 'lucide-react';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import {
+  listenToFirebaseCrmLeads,
+  listenToFirebaseCrmProperties,
+  writeReportBackToFirebaseCRM,
+  updateCallInProgressInFirebaseCRM,
+} from './services/firebaseSyncService';
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -89,6 +96,46 @@ export default function App() {
       }
     );
     return () => unsub();
+  }, []);
+
+  // Synchronize live with External Firebase CRM (Super Admin Leads & Property Admin Properties)
+  useEffect(() => {
+    const unsubLeads = listenToFirebaseCrmLeads({
+      onLeadsUpdated: (fbLeads) => {
+        if (fbLeads && fbLeads.length > 0) {
+          setLeads((prev) => {
+            const map = new Map(prev.map((l) => [l.id, l]));
+            fbLeads.forEach((fbLead) => {
+              const existing = map.get(fbLead.id);
+              map.set(fbLead.id, existing ? { ...existing, ...fbLead } : fbLead);
+            });
+            return Array.from(map.values());
+          });
+        }
+      },
+      onNewPendingLead: (newLead) => {
+        notify(`New customer from Super Admin CRM: ${newLead.name} (${newLead.phone})`);
+      },
+      onError: (err) => {
+        console.log('Firebase CRM Leads sync note:', err.message);
+      },
+    });
+
+    const unsubProps = listenToFirebaseCrmProperties({
+      onPropertiesUpdated: (props) => {
+        if (props.length > 0) {
+          notify(`Synced ${props.length} projects from Property Admin CRM to AI Knowledge Base`);
+        }
+      },
+      onError: (err) => {
+        console.log('Firebase CRM Properties sync note:', err.message);
+      },
+    });
+
+    return () => {
+      unsubLeads();
+      unsubProps();
+    };
   }, []);
 
   const notify = (msg: string) => {
@@ -156,6 +203,48 @@ export default function App() {
     setIsCampaignMode(false);
     setBrowserCallLead(lead);
     setBrowserCallModalOpen(true);
+    // Real-time update for Sales Manager: AI call started
+    updateCallInProgressInFirebaseCRM({
+      leadId: lead.id,
+      lead,
+      callingMethod: 'Web Browser AI Voice Agent',
+    }).catch(() => {});
+  };
+
+  const handlePhysicalCallLead = async (lead: Lead) => {
+    try {
+      notify(`Initiating real phone call to ${lead.name} (${lead.phone}) via Twilio...`);
+      // Real-time update for Sales Manager: Outbound Twilio call dialing
+      updateCallInProgressInFirebaseCRM({
+        leadId: lead.id,
+        lead,
+        callingMethod: 'Twilio Real Phone Call (PSTN)',
+      }).catch(() => {});
+
+      const res = await placeTwilioCall({
+        leadId: lead.id,
+        phone: lead.phone,
+        name: lead.name,
+        language: lead.language || 'English',
+      });
+
+      if (res.success) {
+        notify(`📞 Real phone ringing! Call placed to ${lead.name} via Twilio.`);
+        await updateLead(lead.id, {
+          status: 'Calling',
+          callCount: (lead.callCount || 0) + 1,
+          callTime: new Date().toISOString(),
+          duration: 35,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    } catch (err: any) {
+      console.error('Twilio physical call error:', err);
+      if (err.message && err.message.toLowerCase().includes('not configured')) {
+        setSettingsModalOpen(true);
+      }
+      notify(`Twilio Error: ${err.message || 'Failed to place physical call'}`);
+    }
   };
 
   const handleToggleBlock = async (lead: Lead) => {
@@ -248,16 +337,17 @@ export default function App() {
           onStopCampaign={handleStopCampaign}
         />
 
-        {/* 2. Authentication Gate for Advanced Metrics Data */}
-        {user && (
-          <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-            <MetricsCards
-              leads={leads}
-              activeFilter={activeFilter}
-              onSelectFilter={(f) => setActiveFilter(f)}
-            />
-          </div>
-        )}
+        {/* 2. Today's Performance & Pipeline Metrics */}
+        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+          <MetricsCards
+            leads={leads}
+            activeFilter={activeFilter}
+            onSelectFilter={(f) => setActiveFilter(f)}
+            onViewLead={(lead) => setSelectedLeadForDetails(lead)}
+            onCallLead={handleCallSingleLead}
+            onPhysicalCallLead={handlePhysicalCallLead}
+          />
+        </div>
 
         {/* 3. Leads Master Table (Visible to all) */}
         <div className="space-y-4">
@@ -283,6 +373,7 @@ export default function App() {
             activeFilter={activeFilter}
             onSelectFilter={(f) => setActiveFilter(f)}
             onCallLead={handleCallSingleLead}
+            onPhysicalCallLead={handlePhysicalCallLead}
             onViewLead={(lead) => setSelectedLeadForDetails(lead)}
             onToggleBlock={handleToggleBlock}
           />

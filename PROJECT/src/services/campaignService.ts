@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { CampaignState, SessionMemory } from '../types';
 import type { SpeechEmotion } from '../lib/speech';
+import { recordLlmTurnUsage, recordSttUsage, recordTtsUsage, estimateTokens } from './aiUsageTracker';
 
 const DEFAULT_CAMPAIGN: CampaignState = {
   id: 'lyka_cold_call_mvp',
@@ -250,6 +251,13 @@ export async function geminiChat(
     throw new Error(err.message || err.error || 'Failed to chat with Gemini');
   }
   const data = await res.json();
+  try {
+    recordLlmTurnUsage({
+      modelName: model || 'Google Gemini 2.5 Flash',
+      promptTokens: data.usage?.prompt_tokens || estimateTokens(JSON.stringify(messages)),
+      completionTokens: data.usage?.completion_tokens || estimateTokens(data.text || ''),
+    });
+  } catch (e) {}
   return data.text || data.reply || '';
 }
 
@@ -261,6 +269,13 @@ export async function geminiSTT(audioBlob: Blob, languageCode: string): Promise<
   const res = await fetch('/api/gemini/stt', { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Gemini STT failed');
+  try {
+    recordSttUsage({
+      provider: 'Google Gemini STT',
+      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
+      transcriptText: data.transcript as string,
+    });
+  } catch (e) {}
   return data.transcript as string;
 }
 
@@ -277,6 +292,12 @@ export async function geminiTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Gemini TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Google Gemini TTS',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/wav' };
 }
 
@@ -337,6 +358,13 @@ export async function groqChat(
     throw new Error(err.message || err.error || 'Failed to chat with Groq');
   }
   const data = await res.json();
+  try {
+    recordLlmTurnUsage({
+      modelName: model ? `Groq (${model})` : 'Groq Llama 3.3 70B',
+      promptTokens: data.usage?.prompt_tokens || estimateTokens(JSON.stringify(messages)),
+      completionTokens: data.usage?.completion_tokens || estimateTokens(data.text || ''),
+    });
+  } catch (e) {}
   return data.text || data.reply || '';
 }
 
@@ -348,6 +376,13 @@ export async function groqSTT(audioBlob: Blob, languageCode: string): Promise<st
   const res = await fetch('/api/groq/stt', { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Groq STT failed');
+  try {
+    recordSttUsage({
+      provider: 'Groq Whisper-large-v3',
+      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
+      transcriptText: data.transcript as string,
+    });
+  } catch (e) {}
   return data.transcript as string;
 }
 
@@ -365,6 +400,12 @@ export async function groqTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Groq TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Groq Voice',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/wav' };
 }
 
@@ -383,6 +424,12 @@ export async function speechifyTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Speechify TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Speechify',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/mp3', voice: data.voice };
 }
 
@@ -400,6 +447,12 @@ export async function cartesiaTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Cartesia TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Cartesia Sonic',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/wav', voice: data.voice };
 }
 
@@ -417,6 +470,12 @@ export async function deepgramTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Deepgram TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Deepgram Aura',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/mp3', voice: data.voice };
 }
 
@@ -428,6 +487,13 @@ export async function deepgramSTT(audioBlob: Blob, languageCode: string): Promis
   const res = await fetch('/api/deepgram/stt', { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Deepgram STT failed');
+  try {
+    recordSttUsage({
+      provider: 'Deepgram Nova-2',
+      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
+      transcriptText: data.transcript as string,
+    });
+  } catch (e) {}
   return data.transcript as string;
 }
 
@@ -445,6 +511,12 @@ export async function sarvamTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Sarvam TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Sarvam Bulbul v3',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/wav', speaker: data.speaker };
 }
 
@@ -456,6 +528,13 @@ export async function sarvamSTT(audioBlob: Blob, languageCode: string): Promise<
   const res = await fetch('/api/sarvam/stt', { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Sarvam STT failed');
+  try {
+    recordSttUsage({
+      provider: 'Sarvam Saaras v2',
+      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
+      transcriptText: data.transcript as string,
+    });
+  } catch (e) {}
   return data.transcript as string;
 }
 
@@ -473,6 +552,12 @@ export async function murfTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'Murf TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'Murf Falcon',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audioUrl: data.audioUrl, format: data.format || 'audio/mp3', voice: data.voice };
 }
 
@@ -522,6 +607,12 @@ export async function openaiTTS(params: {
   });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'OpenAI TTS failed');
+  try {
+    recordTtsUsage({
+      provider: 'OpenAI TTS-1',
+      text: params.text,
+    });
+  } catch (e) {}
   return { audio: data.audio, format: data.format || 'audio/mp3', voice: data.voice, model: data.model };
 }
 
@@ -538,6 +629,13 @@ export async function openaiSTT(
   const res = await fetch('/api/openai/stt', { method: 'POST', body: formData });
   const data = await res.json();
   if (!res.ok || !data.success) throw new Error(data.message || 'OpenAI STT failed');
+  try {
+    recordSttUsage({
+      provider: 'OpenAI Whisper-1',
+      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
+      transcriptText: data.transcript as string,
+    });
+  } catch (e) {}
   return data.transcript as string;
 }
 
@@ -570,5 +668,63 @@ export async function openaiChat(
     throw new Error(err.message || 'Failed to chat with OpenAI');
   }
   const data = await res.json();
+  try {
+    recordLlmTurnUsage({
+      modelName: model ? `OpenAI (${model})` : 'OpenAI GPT-4o-mini',
+      promptTokens: data.usage?.prompt_tokens || estimateTokens(JSON.stringify(messages)),
+      completionTokens: data.usage?.completion_tokens || estimateTokens(data.text || ''),
+    });
+  } catch (e) {}
   return data.text || data.reply || '';
+}
+
+// ─── Twilio Physical Calling API Client Functions ───────────────────────────
+
+export interface TwilioConfig {
+  configured: boolean;
+  accountSid: string;
+  accountSidMasked?: string;
+  phoneNumber: string;
+  hasAuthToken: boolean;
+}
+
+export async function getTwilioConfig(): Promise<TwilioConfig> {
+  const res = await fetch('/api/twilio/settings');
+  if (!res.ok) throw new Error('Failed to fetch Twilio configuration');
+  return res.json();
+}
+
+export async function updateTwilioConfig(data: {
+  accountSid: string;
+  authToken: string;
+  phoneNumber: string;
+}): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/twilio/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const json = await res.json().catch(() => ({ message: 'Failed to update Twilio settings' }));
+  if (!res.ok) {
+    throw new Error(json.message || 'Failed to update Twilio settings');
+  }
+  return json;
+}
+
+export async function placeTwilioCall(data: {
+  leadId: string;
+  phone: string;
+  name: string;
+  language?: string;
+}): Promise<{ success: boolean; callSid?: string; status?: string; message: string }> {
+  const res = await fetch('/api/twilio/call', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const json = await res.json().catch(() => ({ message: 'Physical call request failed' }));
+  if (!res.ok) {
+    throw new Error(json.message || 'Physical call request failed');
+  }
+  return json;
 }

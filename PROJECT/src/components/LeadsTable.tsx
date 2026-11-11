@@ -18,14 +18,17 @@ import {
   ChevronDown,
   ChevronUp,
   Volume2,
+  Radio,
 } from 'lucide-react';
 import { TalkHistorySection, parseTranscriptToQAPairs } from './TalkHistorySection';
+import { isDateToday, formatDurationDetailed } from './MetricsCards';
 
 interface LeadsTableProps {
   leads: Lead[];
   activeFilter: string;
   onSelectFilter: (filter: string) => void;
   onCallLead: (lead: Lead) => void;
+  onPhysicalCallLead?: (lead: Lead) => void;
   onViewLead: (lead: Lead) => void;
   onToggleBlock: (lead: Lead) => void;
 }
@@ -35,6 +38,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
   activeFilter,
   onSelectFilter,
   onCallLead,
+  onPhysicalCallLead,
   onViewLead,
   onToggleBlock,
 }) => {
@@ -68,6 +72,24 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
 
     // 2. Tab Filter
     if (activeFilter === 'ALL') return true;
+    if (activeFilter === 'SALES_ACTION') {
+      return (
+        lead.outcome === 'HOT' ||
+        lead.outcome === 'WARM' ||
+        lead.outcome === 'AGENT_CALLBACK' ||
+        Boolean(lead.nextAction && lead.nextAction.length > 5)
+      );
+    }
+    if (activeFilter === 'TODAY') {
+      return (
+        isDateToday(lead.callTime) ||
+        (isDateToday(lead.updatedAt) &&
+          (lead.status === 'Completed' ||
+            lead.status === 'COMPLETED' ||
+            lead.status === 'Calling' ||
+            Boolean(lead.callCount && lead.callCount > 0)))
+      );
+    }
     if (activeFilter === 'CALLED' || activeFilter === 'COMPLETED')
       return lead.status === 'Completed' || lead.status === 'COMPLETED';
     if (activeFilter === 'PENDING')
@@ -160,6 +182,8 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
         <div className="flex items-center space-x-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           {[
             { id: 'ALL', label: 'All Leads' },
+            { id: 'SALES_ACTION', label: '🎯 Sales Action Queue' },
+            { id: 'TODAY', label: "📅 Today's Calls" },
             { id: 'HOT', label: '🔥 HOT' },
             { id: 'WARM', label: '🟡 WARM' },
             { id: 'COLD', label: '🔵 COLD' },
@@ -246,7 +270,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                           )}
                           {lead.callCount && lead.callCount > 0 ? (
                             <span className="text-[10px] text-slate-400">
-                              Calls: {lead.callCount} {lead.duration ? `• ${lead.duration}s` : ''}
+                              Calls: {lead.callCount} {lead.duration ? `• ${formatDurationDetailed(lead.duration)}` : ''}
                             </span>
                           ) : null}
                           {lead.recordingReference && (
@@ -360,7 +384,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                       {/* Action buttons */}
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end space-x-1.5">
-                          {/* Call Now button */}
+                          {/* Browser Call button */}
                           <button
                             onClick={() => onCallLead(lead)}
                             disabled={!isCallable}
@@ -371,15 +395,36 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                             }`}
                             title={
                               isCallable
-                                ? 'Trigger outbound AI voice call'
+                                ? 'Start in-browser AI voice call'
                                 : lead.blocked
                                 ? 'Blocked: Number requested opt-out'
                                 : 'Not callable'
                             }
                           >
                             <Phone className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Call</span>
+                            <span className="hidden sm:inline">Web Call</span>
                           </button>
+
+                          {/* Twilio Physical Phone Call button */}
+                          {onPhysicalCallLead && (
+                            <button
+                              onClick={() => onPhysicalCallLead(lead)}
+                              disabled={!isCallable}
+                              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all ${
+                                isCallable
+                                  ? 'bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/40 shadow-sm'
+                                  : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
+                              }`}
+                              title={
+                                isCallable
+                                  ? "Make real physical telephone call to customer's mobile phone via Twilio"
+                                  : 'Not callable'
+                              }
+                            >
+                              <Radio className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="hidden sm:inline">Twilio Real Call</span>
+                            </button>
+                          )}
 
                           {/* View Q&A Toggle button */}
                           <button

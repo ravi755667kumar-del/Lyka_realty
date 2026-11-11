@@ -224,6 +224,47 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
             </div>
           </div>
 
+          {/* Sales Manager Live Dispatch Status (Firebase Synchronized) */}
+          <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-purple-950/40 p-4 rounded-xl border border-blue-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300 flex items-center space-x-1.5">
+                <span>🎯</span>
+                <span>Sales Manager Live Dispatch &amp; Firebase Sync</span>
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-semibold flex items-center space-x-1">
+                <Check className="w-3 h-3 text-emerald-400" />
+                <span>Auto-Synced to Firebase CRM</span>
+              </span>
+            </div>
+            <div className="text-xs text-slate-200 flex flex-wrap items-center gap-3">
+              {lead.outcome === 'HOT' && (
+                <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                  🔥 Hot Lead — Immediate Site Visit Follow-up
+                </span>
+              )}
+              {lead.outcome === 'WARM' && (
+                <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  🟡 Warm Lead — Send WhatsApp Brochure
+                </span>
+              )}
+              {lead.outcome === 'AGENT_CALLBACK' && (
+                <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                  👤 Human Callback Requested
+                </span>
+              )}
+              {lead.callTime && (
+                <span className="text-slate-400 text-[11px]">
+                  Called at: <strong className="text-white">{new Date(lead.callTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                </span>
+              )}
+              {lead.duration !== undefined && (
+                <span className="text-slate-400 text-[11px]">
+                  Spoke for: <strong className="text-emerald-400">{Math.floor(lead.duration / 60)}m {lead.duration % 60}s ({lead.duration}s)</strong>
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* User History Tabs: Current Call vs Database Cumulative History */}
           <div className="space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">

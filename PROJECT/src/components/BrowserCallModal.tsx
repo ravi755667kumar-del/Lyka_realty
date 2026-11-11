@@ -260,13 +260,30 @@ const getMatchedListingFromPDF = (q: {
   return PDF_PROPERTY_LISTINGS[0];
 };
 
-// ─── Strict work-focus: politely redirect off-topic chit-chat (never engage) ──
+// ─── Strict work-focus: politely redirect out of syllabus / off-topic chit-chat (never engage) ──
 const OFFTOPIC_TOPICS = [
-  'joke', 'jokes', 'funny', 'cricket', 'ipl', 'movie', 'film', 'cinema', 'song', 'music',
-  'politics', 'election', 'weather', 'football', 'tennis', 'recipe', 'astrology', 'horoscope',
-  'raasi', 'jadhagam', 'your age', 'unga age', 'aapki age', 'girlfriend', 'boyfriend',
-  'propose', 'marry', 'marriage', 'kalyanam', 'coding', 'python', 'homework', 'exam',
-  'syllabus', 'chatgpt', 'birthday', 'dance', 'photo',
+  // Out of syllabus explicit markers
+  'syllabus', 'out of syllabus', 'out-of-syllabus', 'out of subject', 'not in syllabus',
+  // Jokes & comedy
+  'joke', 'jokes', 'funny', 'chutkula', 'chutkule', 'comedy', 'standup',
+  // Entertainment, music & movies
+  'movie', 'film', 'cinema', 'song', 'songs', 'music', 'gaana', 'gana', 'paatu', 'paattu', 'dance', 'photo',
+  'actor', 'actress', 'hero', 'heroine', 'rajini', 'vijay', 'kamal', 'ajith', 'shahrukh', 'salman',
+  // Sports
+  'cricket', 'ipl', 'match', 'football', 'tennis', 'world cup', 'score',
+  // Politics
+  'politics', 'election', 'modi', 'bjp', 'congress', 'dmk', 'aiadmk', 'minister',
+  // Weather
+  'weather', 'climate', 'temperature', 'rain', 'mausam', 'barish', 'mazhai',
+  // Dating, personal life & food
+  'your age', 'unga age', 'aapki age', 'girlfriend', 'boyfriend', 'bf', 'gf',
+  'propose', 'marry', 'marriage', 'shaadi', 'shadi', 'kalyanam', 'single', 'single ho', 'single ah',
+  'love you', 'i love you', 'pyaar', 'kadhal', 'recipe', 'cooking',
+  'khana khaya', 'saapteengala', 'saaptingala', 'breakfast', 'dinner', 'lunch',
+  // Astrology & tech/school
+  'astrology', 'horoscope', 'raasi', 'jadhagam', 'birthday',
+  'coding', 'python', 'java', 'javascript', 'chatgpt', 'ai model', 'homework', 'exam', 'college', 'school',
+  'kadhai', 'kahani', 'story',
 ];
 
 // Business words always win over the off-topic list (e.g. "I love this flat" is on-topic)
@@ -275,11 +292,13 @@ const PROPERTY_WORDS = [
   'sale', 'visit', 'location', 'velachery', 'omr', 'sholinganallur', 'tambaram', 'adyar',
   'porur', 'chengalpattu', 'crore', 'lakh', 'booking', 'loan', 'site', 'apartment',
   'veedu', 'வீடு', 'வாடகை', 'நிலம்', 'பாக்க', 'சொத்து', 'விலை',
+  'ghar', 'makaan', 'zameen', 'kiraya', 'rate', 'keemat', 'kimat', 'sq ft', 'sqft', 'square feet',
+  'site visit', 'patta', 'cmda', 'rera', 'advance', 'deposit',
 ];
 
 const isOffTopicSmallTalk = (text: string): boolean => {
   const lower = (text || '').toLowerCase().trim();
-  if (!lower || lower.length > 140) return false;
+  if (!lower || lower.length > 180) return false;
   if (PROPERTY_WORDS.some((word) => lower.includes(word))) return false;
   return OFFTOPIC_TOPICS.some((word) => lower.includes(word));
 };
@@ -287,17 +306,17 @@ const isOffTopicSmallTalk = (text: string): boolean => {
 // Rotating polite redirects — wording changes every time so it never sounds robotic
 const OFFTOPIC_REDIRECTS: Record<'English' | 'Hindi' | 'Tamil-English', string[]> = {
   English: [
-    "I'm sorry, I'm here to help you with property-related queries. How can I assist you with that?",
+    "I'm sorry, I'm here only to help you with property-related queries. We can discuss Chennai properties, pricing, and bookings. How can I assist you with that?",
     "That's outside my area of assistance. Let's get back to your requirements — I can help with property details, pricing, and bookings.",
-    'I can help you with property details, pricing, and site-visit bookings. Shall we continue with your requirement?',
+    'I can help you with property details, pricing, and site-visit bookings. Shall we continue with your property requirement?',
   ],
   Hindi: [
-    'Maaf kijiye, main sirf property se related madad ke liye hoon. Batayein, property me kya assistance chahiye?',
+    'Maaf kijiye, main sirf property se related madad ke liye hoon, out of syllabus baat nahi kar sakte. Batayein, property me kya requirement hai?',
     'Ye mere kaam ke area se bahar hai. Chaliye aapki requirement pe baat karein — property, price ya booking?',
-    'Main property details, pricing aur site visit booking me help kar sakti hoon. Aapki requirement kya hai?',
+    'Main property details, pricing aur site visit booking me help kar sakti hoon. Aapki property requirement kya hai?',
   ],
   'Tamil-English': [
-    'Sorry Sir, idhu en working area-la illa. Property details, price, booking — idhula naan full-ah help panren!',
+    'Sorry Sir, idhu en working area-la illa, out of syllabus pesa mudiyadhu. Property details, price, booking — idhula naan full-ah help panren!',
     'Adha naan answer panna mudiyathu Sir, but property-la edhavadhu venumaa? Site visit details sollattuma?',
     'Naan property assistant dhaan Sir. Unga requirement sollunga — budget illa location?',
   ],
@@ -1193,6 +1212,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     setDialogue([]);
     dialogueRef.current = [];
     updateCurrentStep(1);
+    offTopicTurnsRef.current = 0; // Reset out-of-syllabus turn counter for fresh call
     const activeStartLang = initialLanguage || selectedLanguageRef.current || 'Tamil-English';
     updateSelectedLanguage(activeStartLang);
     setFinalSummary(null);
@@ -4183,21 +4203,21 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       return;
     }
 
-    // Strict work-focus: detect unrelated chit-chat and politely redirect.
+    // Strict work-focus: detect unrelated chit-chat / out of syllabus and politely redirect.
     // Business words always win — property questions are never treated as off-topic.
     if (isOffTopicSmallTalk(input)) {
       offTopicTurnsRef.current += 1;
-      // Repeated attempts: after three chit-chat turns, close the call humbly, never rudely
-      if (offTopicTurnsRef.current >= 3) {
+      // Repeated attempts: after two out of syllabus turns, cut the call
+      if (offTopicTurnsRef.current >= 2) {
         const politeClose =
           activeLang === 'Hindi'
-            ? 'Main sirf property madad ke liye yahan hoon. Aapse baat karke accha laga — jab property ki zaroorat ho, humari team hamesha available hai. Have a wonderful day!'
+            ? 'Main sirf property madad ke liye yahan hoon. Hum out of syllabus baat nahi kar sakte. Aapka time dene ke liye shukriya, call disconnect kar rahi hoon. Have a wonderful day!'
             : activeLang === 'English'
-            ? "I'm here only to help with property queries. It was lovely talking with you — whenever you need property details, pricing, or bookings, our team is always happy to help. Have a wonderful day!"
-            : 'Naan property vishayam mattum dhaan help panren Sir. Unga time-ku nandri — property venumna eppovum our team ready-la irukkum. Have a wonderful day!';
+            ? "I am only here to assist with property queries and cannot discuss out of syllabus topics. Thank you for your time, disconnecting the call. Have a wonderful day!"
+            : 'Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!';
         appendDialogue('AI', politeClose);
         speakAIText(politeClose, getVoiceLangCode(), () => {
-          finalizeCall('Completed', 'COLD', 'Caller repeatedly discussed off-topic subjects; agent closed politely.');
+          finalizeCall('Completed', 'COLD', 'Caller talked out of syllabus twice; agent cut the call.');
         });
         return;
       }
@@ -4206,8 +4226,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       speakAIText(redirect, getVoiceLangCode());
       return;
     }
-    // Back on business — reset the consecutive off-topic counter
-    offTopicTurnsRef.current = 0;
 
     // Detect Language Switch Request at ANY point (Step 0 or mid-conversation)
     const detectedLangSwitch = detectLanguageSwitchIntent(input);

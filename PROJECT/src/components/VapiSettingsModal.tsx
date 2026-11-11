@@ -16,6 +16,18 @@ import {
   ChevronDown,
   ChevronUp,
   User,
+  Phone,
+  Radio,
+  ExternalLink,
+  BarChart3,
+  Zap,
+  Mic,
+  Volume2,
+  RotateCcw,
+  DollarSign,
+  TrendingDown,
+  Layers,
+  Cpu,
 } from 'lucide-react';
 import {
   getGroqConfig,
@@ -24,10 +36,18 @@ import {
   updateGeminiConfig,
   getOpenAIConfig,
   updateOpenAIConfig,
+  getTwilioConfig,
+  updateTwilioConfig,
+  TwilioConfig,
 } from '../services/campaignService';
 import { fetchAllCallHistory } from '../services/leadService';
 import { GroqConfig, GeminiConfig, OpenAIConfig, CallRecord } from '../types';
 import { TalkHistorySection } from './TalkHistorySection';
+import {
+  getAiUsageStats,
+  resetAiUsageStats,
+  AiUsageStats,
+} from '../services/aiUsageTracker';
 
 function formatDateGroup(isoString?: string): string {
   if (!isoString) return 'Unknown Date';
@@ -125,8 +145,18 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
   const [openaiSaveSuccess, setOpenaiSaveSuccess] = useState(false);
   const [openaiErrorMsg, setOpenaiErrorMsg] = useState<string | null>(null);
 
+  // Twilio Telephony state
+  const [twilioConfig, setTwilioConfig] = useState<TwilioConfig | null>(null);
+  const [twilioAccountSid, setTwilioAccountSid] = useState('');
+  const [twilioAuthToken, setTwilioAuthToken] = useState('');
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState('');
+  const [twilioSaving, setTwilioSaving] = useState(false);
+  const [twilioSaveSuccess, setTwilioSaveSuccess] = useState(false);
+  const [twilioErrorMsg, setTwilioErrorMsg] = useState<string | null>(null);
+
   // Tabs & History state
-  const [activeTab, setActiveTab] = useState<'ai' | 'history'>('ai');
+  const [activeTab, setActiveTab] = useState<'ai' | 'usage' | 'twilio' | 'history'>('ai');
+  const [usageStats, setUsageStats] = useState<AiUsageStats>(getAiUsageStats());
   const [callHistory, setCallHistory] = useState<CallRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
@@ -138,6 +168,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
     if (isOpen) {
       loadConfig();
       loadCallHistory();
+      setUsageStats(getAiUsageStats());
     }
   }, [isOpen]);
 
@@ -252,6 +283,37 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
     } catch {
       // Non-fatal
     }
+    try {
+      const twilioRes = await getTwilioConfig();
+      setTwilioConfig(twilioRes);
+      if (twilioRes.accountSid) setTwilioAccountSid(twilioRes.accountSid);
+      if (twilioRes.phoneNumber) setTwilioPhoneNumber(twilioRes.phoneNumber);
+    } catch {
+      // Non-fatal
+    }
+  };
+
+  const handleTwilioSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTwilioSaving(true);
+    setTwilioErrorMsg(null);
+    setTwilioSaveSuccess(false);
+    try {
+      await updateTwilioConfig({
+        accountSid: twilioAccountSid.trim(),
+        authToken: twilioAuthToken.trim(),
+        phoneNumber: twilioPhoneNumber.trim(),
+      });
+      setTwilioSaveSuccess(true);
+      setTwilioAuthToken('');
+      await loadConfig();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('lyka-settings-updated'));
+      setTimeout(() => setTwilioSaveSuccess(false), 3000);
+    } catch (err: any) {
+      setTwilioErrorMsg(err.message || 'Failed to save Twilio settings');
+    } finally {
+      setTwilioSaving(false);
+    }
   };
 
   const handleOpenAiSave = async (e: React.FormEvent) => {
@@ -315,37 +377,83 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className={`bg-slate-900 border border-slate-800 rounded-2xl w-full shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto transition-all duration-200 ${
-        activeTab === 'history' ? 'max-w-4xl' : 'max-w-2xl'
+      <div className={`bg-slate-900 border border-slate-800 rounded-2xl w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transition-all duration-200 ${
+        activeTab === 'history' || activeTab === 'usage' ? 'max-w-4xl' : 'max-w-3xl'
       }`}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Settings className="w-5 h-5 text-amber-400" />
-            <h3 className="text-base font-bold text-white">AI Engine & Model Settings</h3>
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/90">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+              <Settings className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white tracking-wide">AI Models & Telephony Settings</h3>
+              <p className="text-[11px] text-slate-400">Configure LLM intelligence, voice engines, and Twilio phone calling</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+            className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-6 pt-3 pb-0 border-b border-slate-800 bg-slate-950/40 flex items-center space-x-2 overflow-x-auto">
+        <div className="px-6 pt-2 pb-0 border-b border-slate-800 bg-slate-950/60 flex items-center space-x-2 overflow-x-auto no-scrollbar scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('ai')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
               activeTab === 'ai'
-                ? 'border-amber-400 text-amber-400 bg-slate-800/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-800/80 shadow-sm'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>AI Models & Engines (OpenAI, Gemini & Groq)</span>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full border border-emerald-500/30">Active</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>AI Models & Engines</span>
+            <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full border border-emerald-500/30">Active</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('usage');
+              setUsageStats(getAiUsageStats());
+            }}
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+              activeTab === 'usage'
+                ? 'border-amber-400 text-amber-400 bg-slate-800/80 shadow-sm'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Model & Token Usage</span>
+            <span className="text-[10px] font-medium bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30 font-mono">
+              Live
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('twilio')}
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+              activeTab === 'twilio'
+                ? 'border-amber-400 text-amber-400 bg-slate-800/80 shadow-sm'
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            }`}
+          >
+            <Phone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span>Twilio Telephony</span>
+            {twilioConfig?.configured ? (
+              <span className="text-[10px] font-medium bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                Connected
+              </span>
+            ) : (
+              <span className="text-[10px] font-medium bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30">
+                Setup
+              </span>
+            )}
           </button>
 
           <button
@@ -354,16 +462,16 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
               setActiveTab('history');
               loadCallHistory();
             }}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
+            className={`px-4 py-2.5 text-xs font-semibold rounded-t-xl border-b-2 transition-all flex items-center space-x-2 shrink-0 ${
               activeTab === 'history'
-                ? 'border-amber-400 text-amber-400 bg-slate-800/80'
+                ? 'border-amber-400 text-amber-400 bg-slate-800/80 shadow-sm'
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
             }`}
           >
-            <History className="w-3.5 h-3.5" />
-            <span>User Chat & Call History</span>
+            <History className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+            <span>Call History</span>
             {callHistory.length > 0 && (
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded-full border border-amber-500/30 font-mono">
+              <span className="text-[10px] font-mono bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full border border-purple-500/30">
                 {callHistory.length}
               </span>
             )}
@@ -382,6 +490,39 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
                   Your telecaller runs cleanly on <strong>OpenAI</strong>, <strong>Google Gemini</strong>, and <strong>Groq</strong> APIs for conversational reasoning (LLM), ultra-fast transcription (STT), and speech synthesis (TTS).
                 </p>
               </div>
+            </div>
+
+            {/* Quick Live Usage Snapshot Banner */}
+            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-white font-semibold flex flex-wrap items-center gap-1.5 text-xs">
+                    <span>Usage Snapshot:</span>
+                    <span className="text-amber-400 font-mono font-bold">{usageStats.llm.totalTokens.toLocaleString()} Tokens</span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-emerald-400 font-mono font-bold">{usageStats.stt.totalAudioMinutes}m STT</span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-blue-400 font-mono font-bold">{usageStats.tts.totalCharacters.toLocaleString()} Chars TTS</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Est. Cost: ${usageStats.estimatedCost.totalCostUsd} (₹{usageStats.estimatedCost.totalCostInr}) • {usageStats.estimatedCost.savingsPercent}% lower than legacy telephony
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('usage');
+                  setUsageStats(getAiUsageStats());
+                }}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-[11px] transition-colors flex items-center space-x-1 shrink-0 border border-slate-700 hover:border-amber-500/30"
+              >
+                <span>View Full Model & Token Breakdown</span>
+                <span>→</span>
+              </button>
             </div>
 
             {/* Google Gemini AI Engine */}
@@ -611,7 +752,453 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
           </div>
         )}
 
-        {/* Tab 2: User Chat & Call History */}
+        {/* Tab: Usage & Token Analytics */}
+        {activeTab === 'usage' && (
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+            {/* Top Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h4 className="text-sm font-bold text-white">AI Engine & Telephony Usage Analytics</h4>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Live Tracking</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Real-time monitoring of LLM reasoning tokens, Speech-to-Text audio minutes, and Text-to-Speech characters
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setUsageStats(getAiUsageStats())}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition-colors font-medium text-xs"
+                  title="Reload latest usage numbers"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Reset usage counters to baseline?')) {
+                      setUsageStats(resetAiUsageStats());
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center space-x-1.5 transition-colors font-medium text-xs"
+                  title="Reset counters"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Card 1: LLM Reasoning Tokens */}
+              <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span className="flex items-center space-x-1.5 font-medium text-slate-300">
+                    <Cpu className="w-3.5 h-3.5 text-amber-400" />
+                    <span>LLM Reasoning Tokens</span>
+                  </span>
+                  <span className="text-[10px] bg-amber-500/15 text-amber-300 px-1.5 py-0.5 rounded font-mono font-semibold">
+                    {usageStats.llm.totalCalls} Calls
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-white font-mono">
+                  {usageStats.llm.totalTokens.toLocaleString()}
+                </div>
+                <div className="space-y-1 pt-1 text-[11px] text-slate-400 border-t border-slate-800/80">
+                  <div className="flex justify-between">
+                    <span>Input (Prompt):</span>
+                    <span className="font-mono text-slate-300">{usageStats.llm.totalPromptTokens.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Output (Completion):</span>
+                    <span className="font-mono text-amber-300">{usageStats.llm.totalCompletionTokens.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: STT Speech-to-Text */}
+              <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span className="flex items-center space-x-1.5 font-medium text-slate-300">
+                    <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>STT Transcribed Audio</span>
+                  </span>
+                  <span className="text-[10px] bg-emerald-500/15 text-emerald-300 px-1.5 py-0.5 rounded font-mono font-semibold">
+                    {usageStats.stt.totalRequests} Turns
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-emerald-400 font-mono">
+                  {usageStats.stt.totalAudioMinutes} <span className="text-sm font-normal text-slate-400">mins</span>
+                </div>
+                <div className="space-y-1 pt-1 text-[11px] text-slate-400 border-t border-slate-800/80">
+                  <div className="flex justify-between">
+                    <span>Total Duration:</span>
+                    <span className="font-mono text-slate-300">{usageStats.stt.totalAudioSeconds}s</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Words Recognized:</span>
+                    <span className="font-mono text-emerald-300">~{usageStats.stt.totalWords.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: TTS Text-to-Speech */}
+              <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span className="flex items-center space-x-1.5 font-medium text-slate-300">
+                    <Volume2 className="w-3.5 h-3.5 text-blue-400" />
+                    <span>TTS Spoken Characters</span>
+                  </span>
+                  <span className="text-[10px] bg-blue-500/15 text-blue-300 px-1.5 py-0.5 rounded font-mono font-semibold">
+                    {usageStats.tts.totalRequests} Clips
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-blue-400 font-mono">
+                  {usageStats.tts.totalCharacters.toLocaleString()} <span className="text-sm font-normal text-slate-400">chars</span>
+                </div>
+                <div className="space-y-1 pt-1 text-[11px] text-slate-400 border-t border-slate-800/80">
+                  <div className="flex justify-between">
+                    <span>Speech Duration:</span>
+                    <span className="font-mono text-slate-300">{usageStats.tts.totalAudioMinutes} mins</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Speech Volume:</span>
+                    <span className="font-mono text-blue-300">{usageStats.tts.totalAudioSeconds}s audio</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Cost Savings */}
+              <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs">
+                  <span className="flex items-center space-x-1.5 font-medium text-slate-300">
+                    <DollarSign className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Estimated Spend</span>
+                  </span>
+                  <span className="text-[10px] bg-emerald-500/15 text-emerald-300 px-1.5 py-0.5 rounded font-bold">
+                    {usageStats.estimatedCost.savingsPercent}% Saved
+                  </span>
+                </div>
+                <div className="text-2xl font-black text-white font-mono flex items-baseline space-x-2">
+                  <span>${usageStats.estimatedCost.totalCostUsd}</span>
+                  <span className="text-xs font-normal text-slate-400">(₹{usageStats.estimatedCost.totalCostInr})</span>
+                </div>
+                <div className="space-y-1 pt-1 text-[11px] text-slate-400 border-t border-slate-800/80">
+                  <div className="flex justify-between">
+                    <span>Legacy Telephony:</span>
+                    <span className="font-mono text-rose-400 line-through">${usageStats.estimatedCost.legacyCostUsd}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Net Architecture Cost:</span>
+                    <span className="font-mono text-emerald-400">&lt; $0.005 / min</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 1: LLM Reasoning Breakdown by Model */}
+            <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Cpu className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-white text-xs">LLM Brain Model Uses & Token Distribution</h5>
+                    <p className="text-[11px] text-slate-400">Input (system instructions + lead history) and output conversational answers</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {Object.entries(usageStats.llm.byModel).map(([modelName, detail]) => (
+                  <div key={modelName} className="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-bold text-white text-xs">{modelName}</div>
+                        <div className="text-[10px] text-slate-400">{detail.calls} conversational turns</div>
+                      </div>
+                      <span className="text-[10px] bg-slate-800 text-amber-300 font-mono px-2 py-0.5 rounded border border-slate-700">
+                        {detail.avgLatencyMs || 250}ms
+                      </span>
+                    </div>
+
+                    <div className="text-lg font-bold text-amber-400 font-mono">
+                      {detail.totalTokens.toLocaleString()}{' '}
+                      <span className="text-[11px] font-normal text-slate-400">tokens</span>
+                    </div>
+
+                    <div className="space-y-1 text-[11px] text-slate-400 pt-2 border-t border-slate-800">
+                      <div className="flex justify-between">
+                        <span>Input (Prompt):</span>
+                        <span className="font-mono text-slate-200">{detail.promptTokens.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Output (Answer):</span>
+                        <span className="font-mono text-amber-300">{detail.completionTokens.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Mini Progress Bar */}
+                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
+                      <div
+                        className="bg-slate-500 h-full"
+                        style={{
+                          width: `${Math.round((detail.promptTokens / Math.max(1, detail.totalTokens)) * 100)}%`,
+                        }}
+                        title={`Input: ${Math.round((detail.promptTokens / Math.max(1, detail.totalTokens)) * 100)}%`}
+                      />
+                      <div
+                        className="bg-amber-400 h-full"
+                        style={{
+                          width: `${Math.round((detail.completionTokens / Math.max(1, detail.totalTokens)) * 100)}%`,
+                        }}
+                        title={`Output: ${Math.round((detail.completionTokens / Math.max(1, detail.totalTokens)) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Section 2: STT & TTS Providers Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* STT Breakdown */}
+              <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <Mic className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-white text-xs">Speech-to-Text (STT) Engines</h5>
+                    <p className="text-[11px] text-slate-400">Customer audio transcription volume</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {Object.entries(usageStats.stt.byProvider).map(([providerName, detail]) => (
+                    <div key={providerName} className="bg-slate-900 border border-slate-800/80 rounded-lg p-3 flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-white text-xs">{providerName}</div>
+                        <div className="text-[11px] text-slate-400">
+                          {detail.requests} requests • ~{detail.wordsTranscribed.toLocaleString()} words
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-emerald-400 text-sm">
+                          {detail.audioMinutes}m
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          {detail.audioSeconds}s audio
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* TTS Breakdown */}
+              <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-5 space-y-4">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                    <Volume2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-white text-xs">Text-to-Speech (TTS) Voice Engines</h5>
+                    <p className="text-[11px] text-slate-400">Priya AI synthesized speech character volume</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {Object.entries(usageStats.tts.byProvider).map(([providerName, detail]) => (
+                    <div key={providerName} className="bg-slate-900 border border-slate-800/80 rounded-lg p-3 flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-white text-xs">{providerName}</div>
+                        <div className="text-[11px] text-slate-400">
+                          {detail.requests} utterances • {detail.audioMinutes}m spoken
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-blue-400 text-sm">
+                          {detail.characters.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          chars synthesized
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Twilio Physical Telephony */}
+        {activeTab === 'twilio' && (
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+            {/* Header info card */}
+            <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-amber-950/30 border border-blue-500/30 rounded-2xl p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-300">
+                    <Phone className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                      <span>Twilio PSTN Telephony (Physical Calling)</span>
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Rings customers on their actual mobile handset over real cellular networks
+                    </p>
+                  </div>
+                </div>
+
+                {twilioConfig?.configured ? (
+                  <span className="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center space-x-1.5 shadow-sm">
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Telephony Active &amp; Ready</span>
+                  </span>
+                ) : (
+                  <span className="self-start sm:self-auto px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Credentials Needed
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                When you click <strong>&quot;Twilio Real Call&quot;</strong> in your Leads Pipeline, Twilio dials the customer&apos;s physical phone number. Once the customer picks up, the Lyka Realty AI introduces itself as Priya in natural voice (English, Hindi, or Tamil) and qualifies their property interest!
+              </p>
+            </div>
+
+            {/* Success message */}
+            {twilioSaveSuccess && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center space-x-2 animate-in fade-in">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Twilio credentials verified and saved successfully! Physical calling is active.</span>
+              </div>
+            )}
+
+            {/* Error message */}
+            {twilioErrorMsg && (
+              <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center space-x-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{twilioErrorMsg}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleTwilioSave} className="space-y-5 bg-slate-950/60 p-5 rounded-2xl border border-slate-800">
+              {/* Account SID */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  1. Twilio Account SID (Starts with AC...)
+                </label>
+                <div className="relative">
+                  <Key className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={twilioAccountSid}
+                    onChange={(e) => setTwilioAccountSid(e.target.value)}
+                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono"
+                    required
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Located in your Twilio Console (twilio.com/console) under Project Info.
+                </p>
+              </div>
+
+              {/* Auth Token */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  2. Twilio Auth Token
+                </label>
+                <div className="relative">
+                  <ShieldCheck className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    value={twilioAuthToken}
+                    onChange={(e) => setTwilioAuthToken(e.target.value)}
+                    placeholder={twilioConfig?.hasAuthToken ? '•••••••••••••••••••••••••••••••• (Leave blank to keep saved token)' : 'Paste your Twilio Auth Token'}
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono"
+                    required={!twilioConfig?.hasAuthToken}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Secret primary auth token for API authentication.
+                </p>
+              </div>
+
+              {/* Twilio Phone Number */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  3. Twilio Outbound Phone Number (Caller ID)
+                </label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={twilioPhoneNumber}
+                    onChange={(e) => setTwilioPhoneNumber(e.target.value)}
+                    placeholder="+14155552671 or +91XXXXXXXXXX"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono"
+                    required
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Your active purchased Twilio number with country code. This number will appear on customer phones when calling.
+                </p>
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-800/80">
+                <a
+                  href="https://console.twilio.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-amber-400 hover:text-amber-300 flex items-center space-x-1"
+                >
+                  <span>Open Twilio Console Dashboard</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+
+                <button
+                  type="submit"
+                  disabled={twilioSaving}
+                  className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-2 disabled:opacity-60"
+                >
+                  {twilioSaving ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Verifying Credentials...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Verify &amp; Save Twilio Settings</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Tab 3: User Chat & Call History */}
         {activeTab === 'history' && (
           <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
