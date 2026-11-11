@@ -5,8 +5,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AuthUser, onAuthStateChanged } from './lib/supabase';
+import {
+  installMobileApiFetchInterceptor,
+  initCapacitorNativeFeatures,
+  triggerHapticFeedback,
+} from './lib/capacitor';
 import { Lead, CampaignState } from './types';
 import { subscribeToLeads, updateLead, deleteLead, bulkCreateLeads } from './services/leadService';
 import {
@@ -58,6 +63,60 @@ export default function App() {
   const [isCampaignMode, setIsCampaignMode] = useState(false);
   const [selectedLeadForDetails, setSelectedLeadForDetails] = useState<Lead | null>(null);
   const [selectedLeadForSimulator, setSelectedLeadForSimulator] = useState<Lead | null>(null);
+
+  // Install Capacitor mobile /api proxy interceptor immediately on client mount
+  if (typeof window !== 'undefined') {
+    installMobileApiFetchInterceptor();
+  }
+
+  // Keep latest modal state accessible inside Android hardware back-button handler
+  const handleNativeBackRef = useRef<() => boolean>(() => false);
+  handleNativeBackRef.current = () => {
+    if (selectedLeadForDetails) {
+      setSelectedLeadForDetails(null);
+      return true;
+    }
+    if (browserCallModalOpen) {
+      setBrowserCallModalOpen(false);
+      return true;
+    }
+    if (settingsModalOpen) {
+      setSettingsModalOpen(false);
+      return true;
+    }
+    if (knowledgeModalOpen) {
+      setKnowledgeModalOpen(false);
+      return true;
+    }
+    if (addPropertyModalOpen) {
+      setAddPropertyModalOpen(false);
+      return true;
+    }
+    if (addLeadModalOpen) {
+      setAddLeadModalOpen(false);
+      return true;
+    }
+    if (uploadModalOpen) {
+      setUploadModalOpen(false);
+      return true;
+    }
+    if (simulatorModalOpen) {
+      setSimulatorModalOpen(false);
+      return true;
+    }
+    if (loginModalOpen) {
+      setLoginModalOpen(false);
+      return true;
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    installMobileApiFetchInterceptor();
+    return initCapacitorNativeFeatures({
+      onBackPressed: () => handleNativeBackRef.current(),
+    });
+  }, []);
 
   // Auth observer
   useEffect(() => {
@@ -156,6 +215,7 @@ export default function App() {
   };
 
   const handleStartCampaign = async () => {
+    void triggerHapticFeedback('medium');
     const firstPendingLead = leads.find(
       (l) => (l.status === 'Pending' || l.status === 'PENDING') && l.consent && !l.blocked
     );
@@ -177,6 +237,7 @@ export default function App() {
   };
 
   const handleStopCampaign = async () => {
+    void triggerHapticFeedback('light');
     setIsCampaignMode(false);
     try {
       await stopCampaignAPI();
@@ -200,6 +261,7 @@ export default function App() {
   };
 
   const handleCallSingleLead = (lead: Lead) => {
+    void triggerHapticFeedback('medium');
     setIsCampaignMode(false);
     setBrowserCallLead(lead);
     setBrowserCallModalOpen(true);
@@ -212,6 +274,7 @@ export default function App() {
   };
 
   const handlePhysicalCallLead = async (lead: Lead) => {
+    void triggerHapticFeedback('heavy');
     try {
       notify(`Initiating real phone call to ${lead.name} (${lead.phone}) via Twilio...`);
       // Real-time update for Sales Manager: Outbound Twilio call dialing
@@ -381,7 +444,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950/80 py-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-900 bg-slate-950/80 py-6 pb-safe text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Lyka Realty AI Voice Qualification Engine • Next.js, Tailwind CSS & Supabase</span>
           <span>Outbound PSTN Mobile Telephony • Zero Client-Side Secret Exposure</span>

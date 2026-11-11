@@ -3,6 +3,7 @@ import { testFirebaseSyncService } from './firebaseSyncService.test';
 import { testPropertiesCatalog } from './propertiesCatalog.test';
 import { testTwilioAndConfig } from './twilioAndConfig.test';
 import { testLeadQualification } from './leadQualification.test';
+import { testCapacitorMobile } from './capacitorMobile.test';
 
 async function main() {
   console.log('\n======================================================');
@@ -20,6 +21,7 @@ async function main() {
     { name: '3. Properties Catalogue & Dubai Market Compatibility (properties)', runner: testPropertiesCatalog },
     { name: '4. Twilio Telephony & Phone Normalization (serverConfig.ts & twilio)', runner: testTwilioAndConfig },
     { name: '5. Lead Qualification, Sales Manager Alerts & DNC Rules', runner: testLeadQualification },
+    { name: '6. Capacitor Mobile Runtime, Native Helpers & API Resolution (capacitor.ts)', runner: testCapacitorMobile },
   ];
 
   for (const suite of suites) {

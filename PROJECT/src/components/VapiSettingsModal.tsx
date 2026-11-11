@@ -28,7 +28,15 @@ import {
   TrendingDown,
   Layers,
   Cpu,
+  Smartphone,
+  Wifi,
 } from 'lucide-react';
+import {
+  isNativeMobile,
+  getMobilePlatform,
+  getApiBaseUrl,
+  setApiBaseUrl,
+} from '../lib/capacitor';
 import {
   getGroqConfig,
   updateGroqConfig,
@@ -164,13 +172,44 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
   const [historyOutcomeFilter, setHistoryOutcomeFilter] = useState('ALL');
   const [expandedCallIds, setExpandedCallIds] = useState<Set<string>>(new Set());
 
+  // Capacitor Mobile Backend URL state
+  const [mobileApiUrl, setMobileApiUrl] = useState('');
+  const [mobileTestStatus, setMobileTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [mobileTestMsg, setMobileTestMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (isOpen) {
       loadConfig();
       loadCallHistory();
       setUsageStats(getAiUsageStats());
+      setMobileApiUrl(getApiBaseUrl());
+      setMobileTestStatus('idle');
+      setMobileTestMsg(null);
     }
   }, [isOpen]);
+
+  const handleSaveAndTestMobileUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const saved = setApiBaseUrl(mobileApiUrl);
+    setMobileApiUrl(saved);
+    setMobileTestStatus('testing');
+    setMobileTestMsg(null);
+    try {
+      const target = saved ? `${saved}/api/health` : '/api/health';
+      const res = await fetch(target, { method: 'GET' });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      setMobileTestStatus('ok');
+      setMobileTestMsg(`Connected to ${saved || 'local backend'} cleanly!`);
+      await loadConfig();
+    } catch (err: any) {
+      setMobileTestStatus('error');
+      setMobileTestMsg(
+        `Saved URL (${saved}), but health check failed: ${err?.message || 'Unreachable'}. Make sure Next.js backend is running.`
+      );
+    }
+  };
 
   const loadCallHistory = async () => {
     setHistoryLoading(true);
@@ -746,6 +785,69 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
                   className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
                 >
                   {openaiSaving ? 'Saving...' : 'Save OpenAI Key'}
+                </button>
+              </div>
+            </form>
+
+            {/* Capacitor Mobile Backend Server Connection */}
+            <form onSubmit={handleSaveAndTestMobileUrl} className="space-y-4 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="font-bold text-cyan-400 uppercase tracking-wider text-xs flex items-center space-x-1.5">
+                  <Smartphone className="w-4 h-4 text-cyan-400" />
+                  <span>Mobile App Backend Server (Capacitor Android / iOS)</span>
+                </span>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/25 capitalize">
+                  Runtime: {isNativeMobile() ? `${getMobilePlatform()} Native App` : 'Web Browser'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-slate-300">
+                  Next.js API Base URL (for Android / iOS APK)
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="url"
+                    value={mobileApiUrl}
+                    onChange={(e) => setMobileApiUrl(e.target.value)}
+                    placeholder="http://10.0.2.2:3001 or https://your-lyka-server.com"
+                    className="flex-1 bg-slate-950 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMobileApiUrl('http://10.0.2.2:3001')}
+                    className="px-3 py-2 rounded-xl text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shrink-0"
+                    title="Set standard Android Emulator loopback IP"
+                  >
+                    Emulator (10.0.2.2)
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  When running inside the mobile APK/IPA, relative <code>/api/*</code> requests route automatically to this server URL.
+                </p>
+              </div>
+
+              {mobileTestStatus === 'ok' && mobileTestMsg && (
+                <div className="p-3 rounded-lg bg-emerald-950/50 border border-emerald-800 text-emerald-300 text-xs flex items-center space-x-2">
+                  <Wifi className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{mobileTestMsg}</span>
+                </div>
+              )}
+
+              {mobileTestStatus === 'error' && mobileTestMsg && (
+                <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-700/40 text-amber-300 text-xs flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                  <span>{mobileTestMsg}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end">
+                <button
+                  type="submit"
+                  disabled={mobileTestStatus === 'testing'}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-cyan-600 text-white hover:bg-cyan-500 shadow-md shadow-cyan-600/20 active:scale-95 transition-all"
+                >
+                  {mobileTestStatus === 'testing' ? 'Testing...' : 'Save & Test Mobile Connection'}
                 </button>
               </div>
             </form>
