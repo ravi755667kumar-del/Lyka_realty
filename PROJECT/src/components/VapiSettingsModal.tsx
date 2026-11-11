@@ -376,12 +376,12 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className={`bg-slate-900 border border-slate-800 rounded-2xl w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transition-all duration-200 ${
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className={`bg-slate-900 border border-slate-800 rounded-2xl w-full shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden transition-all duration-200 ${
         activeTab === 'history' || activeTab === 'usage' ? 'max-w-4xl' : 'max-w-3xl'
       }`}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/90">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900/90">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
               <Settings className="w-4 h-4 text-amber-400" />
@@ -400,7 +400,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-6 pt-2 pb-0 border-b border-slate-800 bg-slate-950/60 flex items-center space-x-2 overflow-x-auto no-scrollbar scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shrink-0">
+        <div className="px-3 sm:px-6 pt-2 pb-0 border-b border-slate-800 bg-slate-950/60 flex items-center space-x-2 overflow-x-auto no-scrollbar scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('ai')}
@@ -480,7 +480,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
 
         {/* Tab 1: AI Engines (Gemini & Groq) */}
         {activeTab === 'ai' && (
-          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+          <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 text-xs">
             {/* Active AI Engines Banner */}
             <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3.5 flex items-start space-x-3 text-emerald-300">
               <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
@@ -754,7 +754,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
 
         {/* Tab: Usage & Token Analytics */}
         {activeTab === 'usage' && (
-          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+          <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 text-xs">
             {/* Top Toolbar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60 border border-slate-800 rounded-xl p-4">
               <div className="flex items-center space-x-3">
@@ -1049,7 +1049,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
 
         {/* Tab 2: Twilio Physical Telephony */}
         {activeTab === 'twilio' && (
-          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+          <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 text-xs">
             {/* Header info card */}
             <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-amber-950/30 border border-blue-500/30 rounded-2xl p-5 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1200,7 +1200,7 @@ export const VapiSettingsModal: React.FC<VapiSettingsModalProps> = ({ isOpen, on
 
         {/* Tab 3: User Chat & Call History */}
         {activeTab === 'history' && (
-          <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+          <div className="p-3.5 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 text-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
               <div>
                 <div className="flex items-center space-x-2">

@@ -73,44 +73,44 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
   if (!isOpen || !lead) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-base">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/50">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold text-base shrink-0">
               {lead.name.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-lg font-bold text-white">{lead.name}</h3>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <h3 className="text-base sm:text-lg font-bold text-white truncate">{lead.name}</h3>
                 {lead.blocked && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-400 border border-red-800">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-400 border border-red-800 shrink-0">
                     BLOCKED / OPT-OUT
                   </span>
                 )}
                 {lead.outcome === 'HOT' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
                     🔥 HOT LEAD
                   </span>
                 )}
                 {lead.outcome === 'WARM' && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
                     🟡 WARM
                   </span>
                 )}
                 {lead.language && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center space-x-1">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center space-x-1 shrink-0">
                     <Globe className="w-3 h-3" />
                     <span>{lead.language}</span>
                   </span>
                 )}
               </div>
-              <span className="text-xs text-slate-400 font-mono">{lead.phone}</span>
+              <span className="text-xs text-slate-400 font-mono block mt-0.5">{lead.phone}</span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 self-end sm:self-auto shrink-0">
             <button
               onClick={() => onCallLead(lead)}
               disabled={!lead.consent || lead.blocked}
@@ -155,7 +155,7 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 text-xs">
           {/* Key Qualification Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">

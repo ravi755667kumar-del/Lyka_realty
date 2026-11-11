@@ -51,45 +51,45 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
       {/* Background glow when active */}
       {isRunning && (
         <div className="absolute -right-20 -top-20 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
       )}
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
         {/* Left Side: Campaign Status & Info */}
         <div className="space-y-2">
-          <div className="flex items-center space-x-3">
-            <span className="text-xs uppercase font-mono tracking-widest text-slate-400">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] uppercase font-mono tracking-widest text-slate-400">
               Autonomous Campaign Engine
             </span>
             {isRunning ? (
-              <span className="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 animate-pulse">
+              <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 animate-pulse">
                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                 <span>CAMPAIGN RUNNING</span>
               </span>
             ) : (
-              <span className="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+              <span className="flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
                 <span className="w-2 h-2 rounded-full bg-slate-500"></span>
                 <span>IDLE / PAUSED</span>
               </span>
             )}
           </div>
 
-          <h2 className="text-2xl font-black text-white tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
             Lyka Realty Outbound Cold-Calling Workflow
           </h2>
 
-          <p className="text-sm text-slate-300 max-w-2xl">
+          <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
             Autonomous sequential calling: Calls authorized leads (consent=true, blocked=false) one at a time via Direct AI Voice / Telephony, conducts 5-question property qualification, classifies HOT/WARM/COLD/OPT-OUT in Firestore, and smoothly progresses.
           </p>
 
           {/* Currently Calling Status Card */}
           {isRunning && activeCallingLead && (
-            <div className="mt-3 p-3.5 bg-slate-950/80 border border-amber-500/30 rounded-xl flex items-center justify-between">
+            <div className="mt-3 p-3 sm:p-3.5 bg-slate-950/80 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center animate-spin">
+                <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center animate-spin shrink-0">
                   <PhoneForwarded className="w-5 h-5" />
                 </div>
                 <div>
@@ -97,7 +97,7 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
                     <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
                       Currently Calling (1-at-a-time)
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono">
                       AI Active
                     </span>
                   </div>
@@ -106,9 +106,9 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
                   </div>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-slate-400 block">AI Qualification In Progress</span>
-                <span className="text-xs text-amber-300 font-medium">Auto-saves to Firestore</span>
+              <div className="sm:text-right text-xs">
+                <span className="text-slate-400 block">AI Qualification In Progress</span>
+                <span className="text-amber-300 font-medium">Auto-saves to Firestore</span>
               </div>
             </div>
           )}
@@ -122,12 +122,12 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
         </div>
 
         {/* Right Side: Big Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0 w-full lg:w-auto">
           {!isRunning ? (
             <button
               onClick={handleStart}
               disabled={loading || pendingLeads.length === 0}
-              className={`flex items-center justify-center space-x-2.5 px-6 py-4 rounded-xl font-bold text-base shadow-lg transition-all ${
+              className={`flex items-center justify-center space-x-2.5 px-6 py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-base shadow-lg transition-all w-full sm:w-auto ${
                 pendingLeads.length === 0
                   ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                   : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20 cursor-pointer active:scale-95'
@@ -149,7 +149,7 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
             <button
               onClick={handleStop}
               disabled={loading}
-              className="flex items-center justify-center space-x-2.5 px-6 py-4 rounded-xl font-bold text-base bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/25 transition-all cursor-pointer active:scale-95"
+              className="flex items-center justify-center space-x-2.5 px-6 py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-base bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/25 transition-all cursor-pointer active:scale-95 w-full sm:w-auto"
             >
               {loading ? (
                 <>
@@ -168,10 +168,10 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
       </div>
 
       {/* Progress Line */}
-      <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 gap-2">
-        <div className="flex items-center space-x-4">
+      <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs">
           <span>
-            Queue Status: <strong className="text-slate-200">{pendingLeads.length}</strong> Ready to Call
+            Queue: <strong className="text-slate-200">{pendingLeads.length}</strong> Ready
           </span>
           <span>•</span>
           <span>
@@ -179,10 +179,10 @@ export const CampaignBanner: React.FC<CampaignBannerProps> = ({
           </span>
           <span>•</span>
           <span>
-            Blocked/Opt-Out: <strong className="text-rose-400">{leads.filter((l) => l.blocked).length}</strong>
+            Blocked: <strong className="text-rose-400">{leads.filter((l) => l.blocked).length}</strong>
           </span>
         </div>
-        <div className="text-slate-400">
+        <div className="text-[11px] sm:text-xs text-slate-400">
           Mode: <span className="text-amber-400 font-medium">One-Lead-At-A-Time Sequencer</span>
         </div>
       </div>

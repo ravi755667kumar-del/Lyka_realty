@@ -218,8 +218,8 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Desktop Table View (>= md screens) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-950/50 text-slate-400 uppercase tracking-wider text-[11px] font-semibold border-b border-slate-800">
             <tr>
@@ -518,6 +518,209 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card List View (< md screens) */}
+      <div className="md:hidden divide-y divide-slate-800/80 bg-slate-900/60">
+        {filteredLeads.length === 0 ? (
+          <div className="p-8 text-center text-slate-400">
+            <p className="text-sm font-semibold text-slate-300">No leads found</p>
+            <p className="text-xs text-slate-400 mt-1">Upload CSV or change your filter.</p>
+          </div>
+        ) : (
+          filteredLeads.map((lead) => {
+            const isCallable = lead.consent && !lead.blocked && lead.status !== 'CALLING';
+            const isExpanded = expandedLeadIds.has(lead.id);
+            const qaPairs = parseTranscriptToQAPairs(undefined, lead.transcript, lead.qaHistory);
+
+            return (
+              <div
+                key={`mobile-lead-${lead.id}`}
+                className={`p-3.5 transition-colors ${
+                  lead.outcome === 'HOT'
+                    ? 'bg-rose-950/15'
+                    : lead.blocked
+                    ? 'bg-red-950/20 opacity-70'
+                    : 'hover:bg-slate-800/30'
+                } ${isExpanded ? 'border-l-4 border-amber-400 bg-slate-950/40' : ''}`}
+              >
+                {/* Header: Name, Lang & Status Badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-white text-sm truncate">{lead.name}</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700 uppercase shrink-0">
+                        {lead.language || 'hi'}
+                      </span>
+                      {lead.blocked && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0">
+                          DNC
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5 flex items-center space-x-2 flex-wrap">
+                      <span>{lead.phone}</span>
+                      {lead.duration ? (
+                        <>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-slate-300 font-medium">
+                            {Math.floor(lead.duration / 60)}m {lead.duration % 60}s
+                          </span>
+                        </>
+                      ) : null}
+                      {lead.callTime && (
+                        <>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-slate-500 text-[10px]">
+                            {new Date(lead.callTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Outcome / Status badge */}
+                  <div className="shrink-0">
+                    {getOutcomeBadge(lead)}
+                  </div>
+                </div>
+
+                {/* Qualification Highlights */}
+                {(lead.outcome === 'HOT' || lead.outcome === 'WARM' || lead.buyerOrInvestor || lead.location || lead.timeline) ? (
+                  <div className="mt-2.5 p-2 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">Profile:</span>
+                      <span className="font-semibold text-amber-300 capitalize">{lead.buyerOrInvestor || 'Buyer'}</span>
+                    </div>
+                    {lead.location && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Location:</span>
+                        <span className="text-slate-200">{lead.location}</span>
+                      </div>
+                    )}
+                    {lead.timeline && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Timeline:</span>
+                        <span className="text-slate-300">{lead.timeline}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : lead.summary ? (
+                  <div className="mt-2 text-[11px] text-slate-400 italic line-clamp-2">
+                    {lead.summary}
+                  </div>
+                ) : null}
+
+                {/* Recommended Next Action */}
+                {lead.nextAction && (
+                  <div className="mt-2 text-[11px] text-slate-200 bg-slate-950/80 px-2.5 py-1.5 rounded-lg border border-slate-800 flex items-start space-x-1.5">
+                    <span className="text-amber-400 font-semibold shrink-0">Next:</span>
+                    <span className="line-clamp-2">{lead.nextAction}</span>
+                  </div>
+                )}
+
+                {/* Mobile Action Buttons Bar */}
+                <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
+                  {/* Web Call button */}
+                  <button
+                    onClick={() => onCallLead(lead)}
+                    disabled={!isCallable}
+                    className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1 transition-all ${
+                      isCallable
+                        ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 active:scale-95'
+                        : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
+                    }`}
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>Web Call</span>
+                  </button>
+
+                  {/* Twilio Physical Phone Call button */}
+                  {onPhysicalCallLead && (
+                    <button
+                      onClick={() => onPhysicalCallLead(lead)}
+                      disabled={!isCallable}
+                      className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1 transition-all ${
+                        isCallable
+                          ? 'bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/40 active:scale-95'
+                          : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
+                      }`}
+                    >
+                      <Radio className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Twilio Call</span>
+                    </button>
+                  )}
+
+                  {/* Q&A Accordion Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpandLead(lead.id)}
+                    className={`p-2 rounded-lg text-xs font-medium border transition-colors ${
+                      isExpanded
+                        ? 'bg-amber-400 text-slate-950 border-amber-400 font-bold'
+                        : qaPairs.length > 0
+                        ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30'
+                        : 'bg-slate-800 text-slate-600 border-slate-700/50 cursor-not-allowed'
+                    }`}
+                    disabled={qaPairs.length === 0 && !lead.transcript}
+                    title={qaPairs.length > 0 ? `View ${qaPairs.length} Q&A turns` : 'No conversation recorded yet'}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* View Details */}
+                  <button
+                    onClick={() => onViewLead(lead)}
+                    className="p-2 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors"
+                    title="View full lead details"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Block / DNC */}
+                  <button
+                    onClick={() => onToggleBlock(lead)}
+                    className={`p-2 rounded-lg text-xs font-medium transition-colors ${
+                      lead.blocked
+                        ? 'bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700'
+                        : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700'
+                    }`}
+                    title={lead.blocked ? 'Unblock lead' : 'Block / DNC'}
+                  >
+                    <Ban className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Mobile Inline Q&A Drawer */}
+                {isExpanded && (
+                  <div className="mt-3 p-3 bg-slate-950 rounded-xl border border-amber-500/40 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+                      <div className="flex items-center space-x-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-xs font-bold text-white">Q&A Breakdown ({qaPairs.length})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandLead(lead.id)}
+                        className="text-[11px] text-amber-400 hover:underline font-semibold"
+                      >
+                        Hide
+                      </button>
+                    </div>
+
+                    <TalkHistorySection
+                      rawTranscript={lead.transcript}
+                      qaHistory={lead.qaHistory}
+                      customerName={lead.name}
+                      aiName="👧 Priya (Lyka Realty)"
+                      compact={true}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

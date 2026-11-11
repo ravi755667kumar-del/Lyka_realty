@@ -4876,10 +4876,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   // ─── Setup Screen Phase: Choose Persona, Models & Combinations ───────
   if (callPhase === 'setup') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
         <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
                 <Sparkles className="w-5 h-5" />
@@ -4900,7 +4900,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           </div>
 
           {/* Scrollable Setup Options */}
-          <div className="p-6 space-y-5 overflow-y-auto flex-1 text-xs">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1 text-xs">
             {/* 1. CHOOSE PERSONA: BOY OR GIRL */}
             <div>
               <div className="flex items-center justify-between mb-2.5">
@@ -5446,10 +5446,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden">
         {/* Top Call Banner */}
-        <div className="px-6 py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="relative">
               <div
@@ -5736,7 +5736,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         </div>
 
         {/* Call Body */}
-        <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <div className="p-3.5 sm:p-6 space-y-3 sm:space-y-4 overflow-y-auto flex-1 text-xs">
           {/* 3D Interactive Voice Sphere (Reacts Live while Speaking & Listening) */}
           {callState !== 'Call Completed' && (
             <div className="bg-gradient-to-b from-slate-950 via-slate-900/80 to-slate-950 border border-slate-800 rounded-3xl p-3 shadow-2xl relative overflow-hidden flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
@@ -6494,7 +6494,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
           {/* Voice Wave Animation when speaking / listening */}
           {callState !== 'Call Completed' && (
-            <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between">
+            <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="flex items-center space-x-3">
                 {callState === 'AI Speaking...' ? (
                   <div className="flex items-center space-x-1">
@@ -6518,7 +6518,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               </div>
 
               {/* Text fallback input in case user prefers typing */}
-              <div className="flex items-center space-x-1.5">
+              <div className="flex items-center space-x-1.5 w-full sm:w-auto">
                 <input
                   type="text"
                   placeholder="Or type here..."
@@ -6529,7 +6529,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                       handleCustomerInput(currentTextInput.trim());
                     }
                   }}
-                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-amber-400 w-40"
+                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-amber-400 flex-1 sm:w-40"
                 />
                 <button
                   type="button"
@@ -6686,7 +6686,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         </div>
 
         {/* Footer with End Call Controls */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-t border-slate-800 bg-slate-950/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="text-[11px] text-slate-400">
             {callState !== 'Call Completed' ? (
               <span className="flex items-center space-x-1.5">

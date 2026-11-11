@@ -291,10 +291,10 @@ export default function App() {
         }}
       />
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8 animate-in fade-in duration-300">
+      <main className="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 w-full space-y-5 sm:space-y-8 animate-in fade-in duration-300">
         {/* Floating Notification Toast */}
         {statusNotification && (
-          <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-amber-400 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 animate-in slide-in-from-bottom duration-300">
+          <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-50 bg-slate-900 border border-amber-400 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 animate-in slide-in-from-bottom duration-300">
             <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="text-xs font-semibold">{statusNotification}</span>
           </div>
