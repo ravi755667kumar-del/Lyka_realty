@@ -1,8 +1,0 @@
-{
-  "name": "Remix Lyka Realty AI Cold-Calling Agent",
-  "description": "MVP AI outbound cold-calling agent for Lyka Realty to qualify real estate leads via Vapi and manage campaigns with Firestore.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

@@ -5,13 +5,6 @@ import {
   Search,
   CheckCircle,
   XCircle,
-  ShieldAlert,
-  Flame,
-  Clock,
-  ArrowRight,
-  ExternalLink,
-  MoreVertical,
-  Check,
   Ban,
   FileText,
   MessageSquare,
@@ -22,6 +15,178 @@ import {
 } from 'lucide-react';
 import { TalkHistorySection, parseTranscriptToQAPairs } from './TalkHistorySection';
 import { isDateToday, formatDurationDetailed } from './MetricsCards';
+
+interface LeadQualificationHighlightsProps {
+  lead: Lead;
+  variant: 'desktop' | 'mobile';
+}
+
+const LeadQualificationHighlights: React.FC<LeadQualificationHighlightsProps> = ({ lead, variant }) => {
+  const showStructured =
+    lead.outcome === 'HOT' ||
+    lead.outcome === 'WARM' ||
+    Boolean(lead.buyerOrInvestor) ||
+    (variant === 'mobile' && Boolean(lead.location || lead.timeline));
+
+  if (showStructured) {
+    const rows = [
+      { label: 'Profile:', value: lead.buyerOrInvestor || 'Buyer', valueClass: 'font-semibold text-amber-300 capitalize' },
+      ...(lead.location ? [{ label: 'Location:', value: lead.location, valueClass: 'text-slate-200' }] : []),
+      ...(lead.timeline ? [{ label: 'Timeline:', value: lead.timeline, valueClass: 'text-slate-300' }] : []),
+    ];
+    return (
+      <div
+        className={
+          variant === 'mobile'
+            ? 'mt-2.5 p-2 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-1 text-[11px]'
+            : 'space-y-1'
+        }
+      >
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className={variant === 'mobile' ? 'flex items-center justify-between' : 'flex items-center space-x-2 text-[11px]'}
+          >
+            <span className="text-slate-400">{row.label}</span>
+            <span className={row.valueClass}>{row.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === 'mobile') {
+    return lead.summary ? (
+      <div className="mt-2 text-[11px] text-slate-400 italic line-clamp-2">{lead.summary}</div>
+    ) : null;
+  }
+
+  return (
+    <span className="text-slate-400 text-xs italic">
+      {lead.summary || (lead.status === 'PENDING' ? 'Awaiting qualification' : 'No details recorded')}
+    </span>
+  );
+};
+
+interface LeadActionButtonsProps {
+  lead: Lead;
+  variant: 'desktop' | 'mobile';
+  isCallable: boolean;
+  isExpanded: boolean;
+  qaCount: number;
+  onCallLead: (lead: Lead) => void;
+  onPhysicalCallLead?: (lead: Lead) => void;
+  onToggleExpand: (leadId: string) => void;
+  onViewLead: (lead: Lead) => void;
+  onToggleBlock: (lead: Lead) => void;
+}
+
+const LeadActionButtons: React.FC<LeadActionButtonsProps> = ({
+  lead,
+  variant,
+  isCallable,
+  isExpanded,
+  qaCount,
+  onCallLead,
+  onPhysicalCallLead,
+  onToggleExpand,
+  onViewLead,
+  onToggleBlock,
+}) => {
+  const isMobile = variant === 'mobile';
+  const iconPadding = isMobile ? 'p-2' : 'p-1.5';
+  const callBtnBase = isMobile
+    ? 'flex-1 py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1 transition-all'
+    : 'p-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors';
+
+  return (
+    <div
+      className={
+        isMobile
+          ? 'mt-3 flex items-center gap-1.5 pt-2 border-t border-slate-800/60'
+          : 'flex items-center justify-end space-x-1.5'
+      }
+    >
+      <button
+        onClick={() => onCallLead(lead)}
+        disabled={!isCallable}
+        className={`${callBtnBase} ${
+          isCallable
+            ? `bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 ${isMobile ? 'active:scale-95' : ''}`
+            : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
+        }`}
+        title={
+          isCallable
+            ? 'Start in-browser AI voice call'
+            : lead.blocked
+            ? 'Blocked: Number requested opt-out'
+            : 'Not callable'
+        }
+      >
+        <Phone className="w-3.5 h-3.5" />
+        <span className={isMobile ? undefined : 'hidden sm:inline'}>Web Call</span>
+      </button>
+
+      {onPhysicalCallLead && (
+        <button
+          onClick={() => onPhysicalCallLead(lead)}
+          disabled={!isCallable}
+          className={`${isMobile ? 'flex-1 py-2 px-2 justify-center active:scale-95' : 'p-1.5 shadow-sm'} rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all ${
+            isCallable
+              ? 'bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/40'
+              : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
+          }`}
+          title={
+            isCallable
+              ? "Make real physical telephone call to customer's mobile phone via Twilio"
+              : 'Not callable'
+          }
+        >
+          <Radio className="w-3.5 h-3.5 text-blue-400" />
+          <span className={isMobile ? undefined : 'hidden sm:inline'}>
+            {isMobile ? 'Twilio Call' : 'Twilio Real Call'}
+          </span>
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={() => onToggleExpand(lead.id)}
+        className={`${iconPadding} rounded-lg text-xs font-medium border transition-colors ${
+          isExpanded
+            ? 'bg-amber-400 text-slate-950 border-amber-400 font-bold'
+            : qaCount > 0
+            ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30'
+            : 'bg-slate-800 text-slate-600 border-slate-700/50 cursor-not-allowed'
+        }`}
+        disabled={qaCount === 0 && !lead.transcript}
+        title={qaCount > 0 ? `View ${qaCount} Q&A Turns (What user told)` : 'No conversation recorded yet'}
+      >
+        <MessageSquare className="w-3.5 h-3.5" />
+      </button>
+
+      <button
+        onClick={() => onViewLead(lead)}
+        className={`${iconPadding} rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors`}
+        title="View full lead details and qualification metadata"
+      >
+        <FileText className="w-3.5 h-3.5" />
+      </button>
+
+      <button
+        onClick={() => onToggleBlock(lead)}
+        className={`${iconPadding} rounded-lg text-xs font-medium transition-colors ${
+          lead.blocked
+            ? 'bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700'
+            : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700'
+        }`}
+        title={lead.blocked ? 'Unblock lead' : 'Block / Add to DNC'}
+      >
+        <Ban className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+};
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -325,32 +490,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
 
                       {/* Qualification Highlights (Crucial for HOT/WARM leads) */}
                       <td className="px-4 py-3.5 max-w-xs">
-                        {lead.outcome === 'HOT' || lead.outcome === 'WARM' || lead.buyerOrInvestor ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2 text-[11px]">
-                              <span className="text-slate-400">Profile:</span>
-                              <span className="font-semibold text-amber-300 capitalize">
-                                {lead.buyerOrInvestor || 'Buyer'}
-                              </span>
-                            </div>
-                            {lead.location && (
-                              <div className="flex items-center space-x-2 text-[11px]">
-                                <span className="text-slate-400">Location:</span>
-                                <span className="text-slate-200">{lead.location}</span>
-                              </div>
-                            )}
-                            {lead.timeline && (
-                              <div className="flex items-center space-x-2 text-[11px]">
-                                <span className="text-slate-400">Timeline:</span>
-                                <span className="text-slate-300">{lead.timeline}</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs italic">
-                            {lead.summary || (lead.status === 'PENDING' ? 'Awaiting qualification' : 'No details recorded')}
-                          </span>
-                        )}
+                        <LeadQualificationHighlights lead={lead} variant="desktop" />
 
                         {qaPairs.length > 0 && (
                           <button
@@ -383,88 +523,18 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
 
                       {/* Action buttons */}
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end space-x-1.5">
-                          {/* Browser Call button */}
-                          <button
-                            onClick={() => onCallLead(lead)}
-                            disabled={!isCallable}
-                            className={`p-1.5 rounded-lg text-xs font-medium flex items-center space-x-1 transition-colors ${
-                              isCallable
-                                ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40'
-                                : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
-                            }`}
-                            title={
-                              isCallable
-                                ? 'Start in-browser AI voice call'
-                                : lead.blocked
-                                ? 'Blocked: Number requested opt-out'
-                                : 'Not callable'
-                            }
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Web Call</span>
-                          </button>
-
-                          {/* Twilio Physical Phone Call button */}
-                          {onPhysicalCallLead && (
-                            <button
-                              onClick={() => onPhysicalCallLead(lead)}
-                              disabled={!isCallable}
-                              className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all ${
-                                isCallable
-                                  ? 'bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/40 shadow-sm'
-                                  : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
-                              }`}
-                              title={
-                                isCallable
-                                  ? "Make real physical telephone call to customer's mobile phone via Twilio"
-                                  : 'Not callable'
-                              }
-                            >
-                              <Radio className="w-3.5 h-3.5 text-blue-400" />
-                              <span className="hidden sm:inline">Twilio Real Call</span>
-                            </button>
-                          )}
-
-                          {/* View Q&A Toggle button */}
-                          <button
-                            type="button"
-                            onClick={() => toggleExpandLead(lead.id)}
-                            className={`p-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                              isExpanded
-                                ? 'bg-amber-400 text-slate-950 border-amber-400 font-bold'
-                                : qaPairs.length > 0
-                                ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30'
-                                : 'bg-slate-800 text-slate-600 border-slate-700/50 cursor-not-allowed'
-                            }`}
-                            disabled={qaPairs.length === 0 && !lead.transcript}
-                            title={qaPairs.length > 0 ? `View ${qaPairs.length} Q&A Turns (What user told)` : 'No conversation recorded yet'}
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* View Details */}
-                          <button
-                            onClick={() => onViewLead(lead)}
-                            className="p-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors"
-                            title="View full lead details and qualification metadata"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Toggle Block */}
-                          <button
-                            onClick={() => onToggleBlock(lead)}
-                            className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
-                              lead.blocked
-                                ? 'bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700'
-                                : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700'
-                            }`}
-                            title={lead.blocked ? 'Unblock lead' : 'Block / Add to DNC'}
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                        <LeadActionButtons
+                          lead={lead}
+                          variant="desktop"
+                          isCallable={isCallable}
+                          isExpanded={isExpanded}
+                          qaCount={qaPairs.length}
+                          onCallLead={onCallLead}
+                          onPhysicalCallLead={onPhysicalCallLead}
+                          onToggleExpand={toggleExpandLead}
+                          onViewLead={onViewLead}
+                          onToggleBlock={onToggleBlock}
+                        />
                       </td>
                     </tr>
 
@@ -564,7 +634,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                         <>
                           <span className="text-slate-600">•</span>
                           <span className="text-slate-300 font-medium">
-                            {Math.floor(lead.duration / 60)}m {lead.duration % 60}s
+                            {formatDurationDetailed(lead.duration)}
                           </span>
                         </>
                       ) : null}
@@ -586,30 +656,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                 </div>
 
                 {/* Qualification Highlights */}
-                {(lead.outcome === 'HOT' || lead.outcome === 'WARM' || lead.buyerOrInvestor || lead.location || lead.timeline) ? (
-                  <div className="mt-2.5 p-2 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-1 text-[11px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Profile:</span>
-                      <span className="font-semibold text-amber-300 capitalize">{lead.buyerOrInvestor || 'Buyer'}</span>
-                    </div>
-                    {lead.location && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Location:</span>
-                        <span className="text-slate-200">{lead.location}</span>
-                      </div>
-                    )}
-                    {lead.timeline && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Timeline:</span>
-                        <span className="text-slate-300">{lead.timeline}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : lead.summary ? (
-                  <div className="mt-2 text-[11px] text-slate-400 italic line-clamp-2">
-                    {lead.summary}
-                  </div>
-                ) : null}
+                <LeadQualificationHighlights lead={lead} variant="mobile" />
 
                 {/* Recommended Next Action */}
                 {lead.nextAction && (
@@ -620,76 +667,18 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                 )}
 
                 {/* Mobile Action Buttons Bar */}
-                <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-slate-800/60">
-                  {/* Web Call button */}
-                  <button
-                    onClick={() => onCallLead(lead)}
-                    disabled={!isCallable}
-                    className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1 transition-all ${
-                      isCallable
-                        ? 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40 active:scale-95'
-                        : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
-                    }`}
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>Web Call</span>
-                  </button>
-
-                  {/* Twilio Physical Phone Call button */}
-                  {onPhysicalCallLead && (
-                    <button
-                      onClick={() => onPhysicalCallLead(lead)}
-                      disabled={!isCallable}
-                      className={`flex-1 py-2 px-2 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1 transition-all ${
-                        isCallable
-                          ? 'bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/40 active:scale-95'
-                          : 'bg-slate-800 text-slate-600 border border-slate-700/50 cursor-not-allowed'
-                      }`}
-                    >
-                      <Radio className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Twilio Call</span>
-                    </button>
-                  )}
-
-                  {/* Q&A Accordion Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => toggleExpandLead(lead.id)}
-                    className={`p-2 rounded-lg text-xs font-medium border transition-colors ${
-                      isExpanded
-                        ? 'bg-amber-400 text-slate-950 border-amber-400 font-bold'
-                        : qaPairs.length > 0
-                        ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 border-amber-500/30'
-                        : 'bg-slate-800 text-slate-600 border-slate-700/50 cursor-not-allowed'
-                    }`}
-                    disabled={qaPairs.length === 0 && !lead.transcript}
-                    title={qaPairs.length > 0 ? `View ${qaPairs.length} Q&A turns` : 'No conversation recorded yet'}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* View Details */}
-                  <button
-                    onClick={() => onViewLead(lead)}
-                    className="p-2 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition-colors"
-                    title="View full lead details"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Block / DNC */}
-                  <button
-                    onClick={() => onToggleBlock(lead)}
-                    className={`p-2 rounded-lg text-xs font-medium transition-colors ${
-                      lead.blocked
-                        ? 'bg-slate-800 text-slate-300 hover:text-emerald-400 hover:bg-slate-700'
-                        : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-700'
-                    }`}
-                    title={lead.blocked ? 'Unblock lead' : 'Block / DNC'}
-                  >
-                    <Ban className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                <LeadActionButtons
+                  lead={lead}
+                  variant="mobile"
+                  isCallable={isCallable}
+                  isExpanded={isExpanded}
+                  qaCount={qaPairs.length}
+                  onCallLead={onCallLead}
+                  onPhysicalCallLead={onPhysicalCallLead}
+                  onToggleExpand={toggleExpandLead}
+                  onViewLead={onViewLead}
+                  onToggleBlock={onToggleBlock}
+                />
 
                 {/* Mobile Inline Q&A Drawer */}
                 {isExpanded && (

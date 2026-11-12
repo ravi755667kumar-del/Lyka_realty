@@ -34,19 +34,15 @@ import {
   groqChat,
   geminiChat,
   openaiChat,
-  groqSTT,
   groqTTS,
-  geminiSTT,
   geminiTTS,
-  openaiSTT,
   openaiTTS,
   speechifyTTS,
   cartesiaTTS,
   deepgramTTS,
-  deepgramSTT,
   sarvamTTS,
-  sarvamSTT,
   murfTTS,
+  transcribeAudioTurn,
   getGeminiConfig,
   getGroqConfig,
   getOpenAIConfig,
@@ -58,6 +54,11 @@ import {
   SpeechEmotion,
   SpeechLanguage,
   detectCustomerEmotion,
+  detectExplicitLanguageSwitch,
+  resolveSttConversationLanguage,
+  resolveCloudSttLanguageParam,
+  detectUserConversationLanguage,
+  resolveTtsEngineForLanguage,
   refineForSpeech,
 } from '../lib/speech';
 import { VoiceSphere3D } from './VoiceSphere3D';
@@ -311,9 +312,9 @@ const OFFTOPIC_REDIRECTS: Record<'English' | 'Hindi' | 'Tamil-English', string[]
     'I can help you with property details, pricing, and site-visit bookings. Shall we continue with your property requirement?',
   ],
   Hindi: [
-    'Maaf kijiye, main sirf property se related madad ke liye hoon, out of syllabus baat nahi kar sakte. Batayein, property me kya requirement hai?',
-    'Ye mere kaam ke area se bahar hai. Chaliye aapki requirement pe baat karein — property, price ya booking?',
-    'Main property details, pricing aur site visit booking me help kar sakti hoon. Aapki property requirement kya hai?',
+    'माफ़ कीजिए, मैं सिर्फ़ प्रॉपर्टी से जुड़ी मदद के लिए हूँ, विषय से बाहर की बात नहीं कर सकते। बताइए, प्रॉपर्टी में आपकी क्या ज़रूरत है?',
+    'यह मेरे काम के दायरे से बाहर है। चलिए आपकी ज़रूरत पर बात करते हैं — प्रॉपर्टी, कीमत या बुकिंग?',
+    'मैं प्रॉपर्टी की जानकारी, कीमत और साइट विज़िट बुकिंग में मदद के लिए हूँ। आपकी प्रॉपर्टी की क्या ज़रूरत है?',
   ],
   'Tamil-English': [
     'Sorry Sir, idhu en working area-la illa, out of syllabus pesa mudiyadhu. Property details, price, booking — idhula naan full-ah help panren!',
@@ -328,6 +329,185 @@ const getNextOffTopicRedirect = (lang: LanguageOption | null): string => {
   const line = lines[offTopicRedirectIndex % lines.length];
   offTopicRedirectIndex += 1;
   return line;
+};
+
+interface QuickReplyOption {
+  input: string;
+  label: string;
+  className: string;
+}
+
+const DEFAULT_CHIP_CLASS = 'bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700';
+const EMERALD_CHIP_CLASS = 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30';
+const AMBER_CHIP_CLASS = 'bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30';
+const CYAN_CHIP_CLASS = 'bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30';
+const PURPLE_CHIP_CLASS = 'bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30';
+const BLUE_CHIP_CLASS = 'bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30';
+const ROSE_CHIP_CLASS = 'bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600/30';
+
+const QUICK_REPLY_OPTIONS: Record<number, Record<LanguageOption, QuickReplyOption[]>> = {
+  1: {
+    'Tamil-English': [
+      { input: 'Aama, free thaan, pesalam', label: "👍 Aama, free thaan (Yes, I'm free)", className: EMERALD_CHIP_CLASS },
+      { input: 'Ippo free illa, konjam busy', label: '⏳ Ippo free illa (Not free right now)', className: ROSE_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'हाँ बिल्कुल, बात कर सकते हैं।', label: '👍 हाँ, अभी फ्री हूँ', className: EMERALD_CHIP_CLASS },
+      { input: 'अभी व्यस्त हूँ, बाद में कॉल कीजिए।', label: '⏳ अभी व्यस्त हूँ', className: ROSE_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Yes, I am free to talk.', label: "👍 Yes, I'm free to talk", className: EMERALD_CHIP_CLASS },
+      { input: 'Not free, I am busy right now.', label: '⏳ Not free / busy right now', className: ROSE_CHIP_CLASS },
+    ],
+  },
+  2: {
+    'Tamil-English': [
+      { input: 'Veedu vaanga plan irukku, flat vaanganum', label: '🏠 வீடு வாங்கணும் (Buy Flat/House)', className: AMBER_CHIP_CLASS },
+      { input: 'Rent ku paakuren, vadagai veedu', label: '🔑 வாடகைக்கு வேணும் (Rent)', className: PURPLE_CHIP_CLASS },
+      { input: 'Plot vaanganum, nilam theduren', label: '📐 நிலம் / Plot வாங்கணும் (Plot)', className: CYAN_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'मुझे फ्लैट या घर खरीदना है।', label: '🏠 घर / फ्लैट खरीदना है', className: AMBER_CHIP_CLASS },
+      { input: 'मुझे किराये पर घर चाहिए।', label: '🔑 किराये पर चाहिए', className: PURPLE_CHIP_CLASS },
+      { input: 'मुझे प्लॉट या ज़मीन खरीदनी है।', label: '📐 प्लॉट / ज़मीन चाहिए', className: CYAN_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Looking to buy a flat or house.', label: '🏠 Looking to Buy (Flat/House)', className: AMBER_CHIP_CLASS },
+      { input: 'Looking for rental house.', label: '🔑 Looking for Rent', className: PURPLE_CHIP_CLASS },
+      { input: 'Looking to buy a plot or land.', label: '📐 Looking for Land / Plot', className: CYAN_CHIP_CLASS },
+    ],
+  },
+  3: {
+    'Tamil-English': [
+      { input: 'Velachery area la paakuren', label: '📍 வேளச்சேரி (Velachery)', className: DEFAULT_CHIP_CLASS },
+      { input: 'OMR Sholinganallur side la venum', label: '📍 OMR / சோழிங்கநல்லூர்', className: DEFAULT_CHIP_CLASS },
+      { input: 'Tambaram area la theduren', label: '📍 தாம்பரம் (Tambaram)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Adyar location la paakuren', label: '📍 அடையார் (Adyar)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Porur area la theduren', label: '📍 போரூர் (Porur)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Chengalpattu side plot paakuren', label: '📍 செங்கல்பட்டு (Chengalpattu)', className: DEFAULT_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'वेलाचेरी इलाके में देख रहे हैं।', label: '📍 वेलाचेरी (Velachery)', className: DEFAULT_CHIP_CLASS },
+      { input: 'ओएमआर शोलींगनल्लूर के पास देख रहे हैं।', label: '📍 ओएमआर / शोलींगनल्लूर', className: DEFAULT_CHIP_CLASS },
+      { input: 'तांबरम में प्रॉपर्टी देख रहे हैं।', label: '📍 तांबरम (Tambaram)', className: DEFAULT_CHIP_CLASS },
+      { input: 'अडयार में घर देख रहे हैं।', label: '📍 अडयार (Adyar)', className: DEFAULT_CHIP_CLASS },
+      { input: 'पोरूर इलाके में देख रहे हैं।', label: '📍 पोरूर (Porur)', className: DEFAULT_CHIP_CLASS },
+      { input: 'चेंगलपट्टू में प्लॉट देख रहे हैं।', label: '📍 चेंगलपट्टू (Chengalpattu)', className: DEFAULT_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Looking in Velachery.', label: '📍 Velachery', className: DEFAULT_CHIP_CLASS },
+      { input: 'Looking along OMR Sholinganallur.', label: '📍 OMR / Sholinganallur', className: DEFAULT_CHIP_CLASS },
+      { input: 'Looking in Tambaram.', label: '📍 Tambaram', className: DEFAULT_CHIP_CLASS },
+      { input: 'Looking in Adyar.', label: '📍 Adyar', className: DEFAULT_CHIP_CLASS },
+      { input: 'Looking in Porur.', label: '📍 Porur', className: DEFAULT_CHIP_CLASS },
+      { input: 'Looking in Chengalpattu.', label: '📍 Chengalpattu', className: DEFAULT_CHIP_CLASS },
+    ],
+  },
+  4: {
+    'Tamil-English': [
+      { input: '2 BHK venum', label: '🏢 2 BHK', className: EMERALD_CHIP_CLASS },
+      { input: '3 BHK flat venum', label: '🏢 3 BHK', className: BLUE_CHIP_CLASS },
+      { input: '1 BHK podhum', label: '🏢 1 BHK', className: PURPLE_CHIP_CLASS },
+      { input: '1200 sq ft plot theduren', label: '📐 1200 sq ft Plot', className: AMBER_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: '2 BHK फ्लैट चाहिए।', label: '🏢 2 BHK', className: EMERALD_CHIP_CLASS },
+      { input: '3 BHK फ्लैट चाहिए।', label: '🏢 3 BHK', className: BLUE_CHIP_CLASS },
+      { input: '1 BHK फ्लैट चाहिए।', label: '🏢 1 BHK', className: PURPLE_CHIP_CLASS },
+      { input: '1200 स्क्वायर फीट प्लॉट चाहिए।', label: '📐 1200 sq ft प्लॉट', className: AMBER_CHIP_CLASS },
+    ],
+    English: [
+      { input: '2 BHK flat', label: '🏢 2 BHK', className: EMERALD_CHIP_CLASS },
+      { input: '3 BHK flat', label: '🏢 3 BHK', className: BLUE_CHIP_CLASS },
+      { input: '1 BHK flat', label: '🏢 1 BHK', className: PURPLE_CHIP_CLASS },
+      { input: '1200 sq ft plot', label: '📐 1200 sq ft Plot', className: AMBER_CHIP_CLASS },
+    ],
+  },
+  5: {
+    'Tamil-English': [
+      { input: 'En budget around 72 lakhs', label: '₹72 Lakhs (Velachery)', className: DEFAULT_CHIP_CLASS },
+      { input: 'En budget 1.25 crore kulla', label: '₹1.25 Crore (OMR)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Budget 1.6 crore irukku', label: '₹1.6 Crore (Tambaram)', className: DEFAULT_CHIP_CLASS },
+      { input: 'En budget 18 lakhs kulla', label: '₹18 Lakhs (Chengalpattu)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Rent 14000 per month kulla paakuren', label: '₹14,000 / Mo (Porur)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Rent 28000 per month budget', label: '₹28,000 / Mo (Adyar)', className: DEFAULT_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'मेरा बजट लगभग 72 लाख है।', label: '₹72 लाख (वेलाचेरी)', className: DEFAULT_CHIP_CLASS },
+      { input: 'मेरा बजट लगभग 1.25 करोड़ है।', label: '₹1.25 करोड़ (ओएमआर)', className: DEFAULT_CHIP_CLASS },
+      { input: 'मेरा बजट लगभग 1.6 करोड़ है।', label: '₹1.6 करोड़ (तांबरम)', className: DEFAULT_CHIP_CLASS },
+      { input: 'मेरा बजट लगभग 18 लाख है।', label: '₹18 लाख (चेंगलपट्टू)', className: DEFAULT_CHIP_CLASS },
+      { input: 'किराये का बजट 14000 रुपये महीना है।', label: '₹14,000 / माह (किराया)', className: DEFAULT_CHIP_CLASS },
+      { input: 'किराये का बजट 28000 रुपये महीना है।', label: '₹28,000 / माह (किराया)', className: DEFAULT_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Budget is around 72 Lakhs.', label: '₹72 Lakhs (Velachery)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Budget is around 1.25 Crore.', label: '₹1.25 Crore (OMR)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Budget is around 1.6 Crore.', label: '₹1.6 Crore (Tambaram)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Budget is around 18 Lakhs.', label: '₹18 Lakhs (Chengalpattu)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Rent budget is 14000 per month.', label: '₹14,000 / Mo (Rent)', className: DEFAULT_CHIP_CLASS },
+      { input: 'Rent budget is 28000 per month.', label: '₹28,000 / Mo (Rent)', className: DEFAULT_CHIP_CLASS },
+    ],
+  },
+  6: {
+    'Tamil-English': [
+      { input: 'Udane ready to move venum', label: '⚡ உடனே Ready to Move', className: EMERALD_CHIP_CLASS },
+      { input: 'Next 1 month kulla plan', label: '⏳ 1 மாசத்துல (Next month)', className: CYAN_CHIP_CLASS },
+      { input: 'Dec 2026 konjam naal aanaalum paravaalla', label: '📅 Dec 2026 / Short wait ok', className: DEFAULT_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'मुझे तुरंत रेडी-टू-मूव चाहिए।', label: '⚡ तुरंत रेडी-टू-मूव', className: EMERALD_CHIP_CLASS },
+      { input: '1 महीने के अंदर शिफ्ट होना है।', label: '⏳ 1 महीने में', className: CYAN_CHIP_CLASS },
+      { input: 'दिसंबर 2026 तक थोड़ा इंतज़ार चलेगा।', label: '📅 दिसंबर 2026 / इंतज़ार ठीक है', className: DEFAULT_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Immediate ready to move.', label: '⚡ Immediate / Ready', className: EMERALD_CHIP_CLASS },
+      { input: 'Within 1 month.', label: '⏳ Within 1 Month', className: CYAN_CHIP_CLASS },
+      { input: 'Dec 2026 possession is fine.', label: '📅 Dec 2026 / Wait fine', className: DEFAULT_CHIP_CLASS },
+    ],
+  },
+  7: {
+    'Tamil-English': [
+      { input: 'Bank loan pottu vaanganum', label: '🏦 Bank Loan போடணும்', className: EMERALD_CHIP_CLASS },
+      { input: 'Direct cash payment thaan', label: '💵 Direct Cash-ல Pay பண்ணுவேன்', className: AMBER_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'बैंक होम लोन से लेने की योजना है।', label: '🏦 बैंक होम लोन', className: EMERALD_CHIP_CLASS },
+      { input: 'सीधे कैश से पेमेंट करूँगा।', label: '💵 कैश / सेल्फ-फंडिंग', className: AMBER_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Planning to take a bank loan.', label: '🏦 Need Bank Loan', className: EMERALD_CHIP_CLASS },
+      { input: 'Will pay by cash / self-funding.', label: '💵 Self Funding / Cash', className: AMBER_CHIP_CLASS },
+    ],
+  },
+  8: {
+    'Tamil-English': [
+      { input: 'Aama, direct site visit poi paakaren', label: '✅ ஆமா, Site Visit பாக்கணும்', className: EMERALD_CHIP_CLASS },
+      { input: 'Brochure details WhatsApp-la anupunga', label: '📱 WhatsApp-ல brochure அனுப்புங்க', className: CYAN_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'हाँ, मैं साइट विज़िट करना चाहता हूँ।', label: '✅ हाँ, साइट विज़िट करनी है', className: EMERALD_CHIP_CLASS },
+      { input: 'कृपया व्हाट्सएप पर ब्रोशर भेज दीजिए।', label: '📱 व्हाट्सएप पर ब्रोशर भेजें', className: CYAN_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'Yes, I want to do a site visit.', label: '✅ Yes, want a Site Visit', className: EMERALD_CHIP_CLASS },
+      { input: 'Please send brochure details on WhatsApp.', label: '📱 Send Details on WhatsApp first', className: CYAN_CHIP_CLASS },
+    ],
+  },
+  9: {
+    'Tamil-English': [
+      { input: 'This weekend sani yaayiru varren', label: '📅 This Weekend வரேன் (Sat / Sun)', className: EMERALD_CHIP_CLASS },
+      { input: 'Weekday naalula vara try pandren', label: '📅 Weekday வரேன் (Mon - Fri)', className: DEFAULT_CHIP_CLASS },
+    ],
+    Hindi: [
+      { input: 'मैं इस वीकेंड शनिवार या रविवार को आ सकता हूँ।', label: '📅 इस वीकेंड (शनि / रवि)', className: EMERALD_CHIP_CLASS },
+      { input: 'मैं वीकडे में आ जाऊँगा।', label: '📅 वीकडे (सोम - शुक्र)', className: DEFAULT_CHIP_CLASS },
+    ],
+    English: [
+      { input: 'I can visit this weekend.', label: '📅 This Weekend (Sat / Sun)', className: EMERALD_CHIP_CLASS },
+      { input: 'I will visit on a weekday.', label: '📅 Weekday (Mon - Fri)', className: DEFAULT_CHIP_CLASS },
+    ],
+  },
 };
 
 export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
@@ -449,10 +629,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const conversationStyleRef = useRef<ConversationStyle>(conversationStyle);
 
   // AI Engines & Model Selectors
-  const [brainEngine, setBrainEngine] = useState<BrainEngineChoice>(() => {
-    const stored = readStoredChoice('lyka_brain_engine', 'gemini') as BrainEngineChoice;
-    return stored === 'groq' ? 'gemini' : (stored || 'gemini');
-  });
+  const [brainEngine, setBrainEngine] = useState<BrainEngineChoice>(() =>
+    readStoredChoice('lyka_brain_engine', 'gemini') as BrainEngineChoice
+  );
   const brainEngineRef = useRef<BrainEngineChoice>(brainEngine);
 
   const [ttsEngine, setTtsEngine] = useState<TtsEngineChoice>(() =>
@@ -460,8 +639,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   );
   const ttsEngineRef = useRef<TtsEngineChoice>(ttsEngine);
 
-  const [sttEngine, setSttEngine] = useState<SttEngineChoice>('browser');
-  const sttEngineRef = useRef<SttEngineChoice>('browser');
+  const [sttEngine, setSttEngine] = useState<SttEngineChoice>(() =>
+    readStoredChoice('lyka_stt_engine', 'browser') as SttEngineChoice
+  );
+  const sttEngineRef = useRef<SttEngineChoice>(sttEngine);
 
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
     const stored = readStoredChoice<string>('lyka_gemini_model', 'gemini-2.5-flash');
@@ -482,7 +663,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   // Multi-Engine Provider Availability States (Gemini, Groq & OpenAI)
   const [groqAvailable, setGroqAvailable] = useState<boolean>(false);
   const [geminiAvailable, setGeminiAvailable] = useState<boolean>(false);
+  const geminiAvailableRef = useRef<boolean>(false);
   const [openaiAvailable, setOpenaiAvailable] = useState<boolean>(false);
+  const openaiAvailableRef = useRef<boolean>(false);
 
   // OpenAI Model & Voice Selectors
   const [selectedOpenAiTtsModel, setSelectedOpenAiTtsModel] = useState<string>(() =>
@@ -527,10 +710,20 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     promise?: Promise<void>;
   } | null>(null);
 
-  // For Gemini & Groq STT — MediaRecorder to capture audio chunks for upload
+  // For Cloud STT (Groq / OpenAI / Deepgram / Gemini / Sarvam) — MediaRecorder VAD capture
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const isRecordingRef = useRef<boolean>(false);
+  const serverSttTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverSttSessionIdRef = useRef<number>(0);
+  const isSttTranscribingRef = useRef<boolean>(false);
+  const cloudBargeInSinceRef = useRef<number>(0);
+  const cloudSttFallbackActiveRef = useRef<boolean>(false);
+  const cloudSttFailCountRef = useRef<number>(0);
+  const explicitLanguageLockedRef = useRef<boolean>(false);
+
+  const isCloudSttActive = () =>
+    sttEngineRef.current !== 'browser' && !cloudSttFallbackActiveRef.current;
 
   // Full Call Session Recording (uploaded to Supabase Storage: voice-recordings)
   const fullCallRecorderRef = useRef<MediaRecorder | null>(null);
@@ -586,9 +779,38 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   };
 
   const updateSttEngine = (engine: SttEngineChoice) => {
+    const prevEngine = sttEngineRef.current;
+    const wasFallback = cloudSttFallbackActiveRef.current;
     setSttEngine(engine);
     sttEngineRef.current = engine;
     localStorage.setItem('lyka_stt_engine', engine);
+    cloudSttFallbackActiveRef.current = false;
+    cloudSttFailCountRef.current = 0;
+
+    if (
+      (prevEngine !== engine || wasFallback) &&
+      callStateRef.current === 'Listening...' &&
+      !isSpeechSynthesisSpeakingRef.current &&
+      !isTurnProcessingRef.current
+    ) {
+      if (engine === 'browser') {
+        stopServerSTTListening();
+        if (!isRecognitionRunningRef.current) {
+          startContinuousSpeechRecognition();
+        }
+      } else {
+        if (recognitionRef.current) {
+          try {
+            recognitionRef.current.onend = null;
+            recognitionRef.current.onerror = null;
+            recognitionRef.current.onresult = null;
+            isRecognitionRunningRef.current = false;
+            recognitionRef.current.stop();
+          } catch (e) { /* ignore */ }
+        }
+        startServerSTTListening();
+      }
+    }
   };
 
   const updateGeminiModelChoice = (model: string) => {
@@ -726,13 +948,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   const isMaleVoiceName = (name: string): boolean => {
     const lower = name.toLowerCase();
-    const maleNames = ['male', 'david', 'george', 'ravi', 'mark', 'guy', 'stefan', 'james', 'richard', 'daniel', 'sean', 'paul', 'prabhat', 'karthik', 'madhur', 'andrew', 'brian'];
+    const maleNames = ['male', 'david', 'george', 'ravi', 'mark', 'guy', 'stefan', 'james', 'richard', 'daniel', 'sean', 'paul', 'prabhat', 'karthik', 'madhur', 'hemant', 'andrew', 'brian'];
     return maleNames.some((m) => lower.includes(m));
   };
 
   const isFemaleVoiceName = (name: string): boolean => {
     const lower = name.toLowerCase();
-    const femaleNames = ['female', 'girl', 'woman', 'kavya', 'pooja', 'anushka', 'sangeeta', 'veena', 'neerja', 'swara', 'jenny', 'aria', 'emma', 'ava', 'samantha', 'zira', 'heera'];
+    const femaleNames = ['female', 'girl', 'woman', 'kavya', 'pooja', 'anushka', 'sangeeta', 'veena', 'neerja', 'swara', 'kalpana', 'lekha', 'jenny', 'aria', 'emma', 'ava', 'samantha', 'zira', 'heera'];
     return femaleNames.some((f) => lower.includes(f));
   };
 
@@ -782,8 +1004,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? `Vanakkam! Naan Lyka Realty-la irundhu ${testName} pesaren. En voice ungalukku natural-a thuliyama kekudhaa?`
         : lang === 'Hindi'
         ? (activeGender === 'male'
-            ? `Namaste! Main Lyka Realty se ${testName} baat kar raha hoon. Kya meri aawaaz saaf aur natural lag rahi hai?`
-            : `Namaste! Main Lyka Realty se ${testName} baat kar rahi hoon. Kya meri aawaaz saaf aur natural lag rahi hai?`)
+            ? `नमस्ते! मैं लाइका रियल्टी से ${testName} बात कर रहा हूँ। क्या मेरी आवाज़ साफ़ और नेचुरल लग रही है?`
+            : `नमस्ते! मैं लाइका रियल्टी से ${testName} बात कर रही हूँ। क्या मेरी आवाज़ साफ़ और नेचुरल लग रही है?`)
         : `Hello! This is ${testName} from Lyka Realty. How does my natural voice sound to you?`;
 
     speakAIText(testText, lang === 'Hindi' ? 'hi-IN' : lang === 'Tamil-English' ? 'ta-IN' : 'en-US');
@@ -826,12 +1048,26 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       .catch(() => setGroqAvailable(false));
 
     getGeminiConfig()
-      .then((cfg) => setGeminiAvailable(Boolean(cfg?.apiKeyConfigured)))
-      .catch(() => setGeminiAvailable(false));
+      .then((cfg) => {
+        const available = Boolean(cfg?.apiKeyConfigured);
+        geminiAvailableRef.current = available;
+        setGeminiAvailable(available);
+      })
+      .catch(() => {
+        geminiAvailableRef.current = false;
+        setGeminiAvailable(false);
+      });
 
     getOpenAIConfig()
-      .then((cfg) => setOpenaiAvailable(Boolean(cfg?.apiKeyConfigured)))
-      .catch(() => setOpenaiAvailable(false));
+      .then((cfg) => {
+        const available = Boolean(cfg?.apiKeyConfigured);
+        openaiAvailableRef.current = available;
+        setOpenaiAvailable(available);
+      })
+      .catch(() => {
+        openaiAvailableRef.current = false;
+        setOpenaiAvailable(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -859,15 +1095,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const cleanLeadName = hasKnownName ? lead!.name.trim() : '';
 
     if (lang === 'Hindi') {
-      const verb = gender === 'male' ? 'bol raha hoon' : 'bol rahi hoon';
+      const verb = gender === 'male' ? 'बोल रहा हूँ' : 'बोल रही हूँ';
       if (cleanLeadName) {
         return {
-          text: `[happy] Namaste ${cleanLeadName} ji! Main Lyka Realty se ${name} ${verb}. Kaise hain aap?`,
+          text: `[happy] नमस्ते ${cleanLeadName} जी! मैं लाइका रियल्टी से ${name} ${verb}। कैसे हैं आप?`,
           langCode: 'hi-IN',
         };
       }
       return {
-        text: `[happy] Namaste! Main Lyka Realty se ${name} ${verb}. Kaise hain aap?`,
+        text: `[happy] नमस्ते! मैं लाइका रियल्टी से ${name} ${verb}। कैसे हैं आप?`,
         langCode: 'hi-IN',
       };
     }
@@ -896,9 +1132,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     };
   };
 
-  // Helper to determine the effective TTS engine (resolves 'auto' to preferred provider)
-  const resolveCurrentTtsEngine = (_activeLang?: string): TtsEngineChoice => {
-    return ttsEngineRef.current || 'gemini';
+  // Helper to determine the effective TTS engine (resolves 'auto' to preferred provider and keeps Indic languages off English-only TTS routes)
+  const resolveCurrentTtsEngine = (activeLang?: string): TtsEngineChoice => {
+    const resolvedLang = activeLang || selectedLanguageRef.current || initialLanguage || 'Tamil-English';
+    return resolveTtsEngineForLanguage(ttsEngineRef.current || 'gemini', resolvedLang, {
+      geminiAvailable: geminiAvailableRef.current,
+      openaiAvailable: openaiAvailableRef.current,
+    }) as TtsEngineChoice;
   };
 
   // Pre-synthesis engine dispatcher: ensures each API pre-synthesizes with its own native voice
@@ -1106,9 +1346,22 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       remoteAudioRef.current = null;
     }
     // Stop Server STT recording
+    serverSttSessionIdRef.current += 1;
+    if (serverSttTimerRef.current) {
+      clearTimeout(serverSttTimerRef.current);
+      serverSttTimerRef.current = null;
+    }
+    isSttTranscribingRef.current = false;
+    cloudBargeInSinceRef.current = 0;
     isRecordingRef.current = false;
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try { mediaRecorderRef.current.stop(); } catch (e) { /* ignore */ }
+    if (mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.onstop = null;
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) { /* ignore */ }
     }
     mediaRecorderRef.current = null;
     audioChunksRef.current = [];
@@ -1177,6 +1430,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       analyser.fftSize = 256; // 128 bins for high frequency resolution
       analyser.smoothingTimeConstant = 0.3;
       lowpass.connect(analyser);
+      // Connect through a zero-gain sink so WebAudio pulls live samples on all browsers/WebViews
+      const silentSink = audioCtx.createGain();
+      silentSink.gain.value = 0;
+      analyser.connect(silentSink);
+      silentSink.connect(audioCtx.destination);
       analyserRef.current = analyser;
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -1187,6 +1445,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
       const updateMeter = () => {
         if (!analyserRef.current) return;
+        if (audioContextRef.current?.state === 'suspended') {
+          audioContextRef.current.resume().catch(() => {});
+        }
         analyserRef.current.getByteFrequencyData(dataArray);
 
         // Calculate vocal-band specific energy (ignores background fan & rumble)
@@ -1199,6 +1460,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         const vocalAvg = vocalCount > 0 ? vocalSum / vocalCount : 0;
         const normalized = Math.min(100, Math.round(vocalAvg * 2.2));
         setMicAudioLevel(normalized);
+
+        // Sustained vocal-band barge-in when cloud STT is active (since Web Speech API is paused during playback)
+        if (
+          isSpeechSynthesisSpeakingRef.current &&
+          isCloudSttActive() &&
+          callStateRef.current === 'AI Speaking...'
+        ) {
+          if (vocalAvg > 28) {
+            if (cloudBargeInSinceRef.current === 0) {
+              cloudBargeInSinceRef.current = Date.now();
+            } else if (Date.now() - cloudBargeInSinceRef.current >= 420) {
+              cloudBargeInSinceRef.current = 0;
+              handleBargeIn();
+            }
+          } else {
+            cloudBargeInSinceRef.current = 0;
+          }
+        } else {
+          cloudBargeInSinceRef.current = 0;
+        }
+
         animFrameRef.current = requestAnimationFrame(updateMeter);
       };
       updateMeter();
@@ -1213,7 +1495,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     dialogueRef.current = [];
     updateCurrentStep(1);
     offTopicTurnsRef.current = 0; // Reset out-of-syllabus turn counter for fresh call
+    cloudSttFallbackActiveRef.current = false;
+    cloudSttFailCountRef.current = 0;
     const activeStartLang = initialLanguage || selectedLanguageRef.current || 'Tamil-English';
+    explicitLanguageLockedRef.current = activeStartLang === 'Hindi' || activeStartLang === 'English';
     updateSelectedLanguage(activeStartLang);
     setFinalSummary(null);
     setFinalOutcome(null);
@@ -1255,6 +1540,17 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         mediaStreamRef.current = stream;
         setMicActive(true);
         startAudioMeter(stream);
+
+        if (
+          callStateRef.current === 'Listening...' &&
+          isCloudSttActive() &&
+          !isRecordingRef.current &&
+          !isSpeechSynthesisSpeakingRef.current &&
+          !isTurnProcessingRef.current &&
+          !isSttTranscribingRef.current
+        ) {
+          startServerSTTListening();
+        }
 
         // Start real-time call recording (uploaded to Supabase Storage: voice-recordings)
         try {
@@ -1320,13 +1616,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     updateCallState('Listening...');
     if (onEnd) onEnd();
 
-    // Start STT immediately with ZERO delay — no artificial timeout delay!
+    // Start STT immediately with ZERO delay — route to cloud STT when configured
     if (
       callStateRef.current === 'Listening...' &&
       !isSpeechSynthesisSpeakingRef.current &&
       !isTurnProcessingRef.current
     ) {
-      startContinuousSpeechRecognition();
+      startActiveListening();
     }
 
     resetNoAnswerTimeout();
@@ -1379,9 +1675,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     updateCallState('Listening...');
     resetInactivityDisconnectTimer();
 
-    // If browser recognition is already active, keep it running smoothly without restarting
-    // so the customer's full question is captured with zero missing words!
-    if (!isRecognitionRunningRef.current) {
+    // Restart or keep active STT listening immediately after interrupting AI speech
+    if (isCloudSttActive()) {
+      startServerSTTListening();
+    } else if (!isRecognitionRunningRef.current) {
       startContinuousSpeechRecognition();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1517,7 +1814,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       updateCallState('Listening...');
       if (onEnd) onEnd();
-      startContinuousSpeechRecognition();
+      startActiveListening();
       return;
     }
 
@@ -1530,10 +1827,20 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     isSpeechSynthesisSpeakingRef.current = true;
 
-    // Use native Tamil code for Tamil/Tanglish when available, fallback to en-IN
+    // Align browser speech synthesis lang strictly with active conversation language
     let effectiveLangCode = langCode;
-    if (selectedLanguageRef.current === 'Tamil-English' || langCode.startsWith('ta')) {
+    if (selectedLanguageRef.current === 'Hindi') {
+      effectiveLangCode = 'hi-IN';
+    } else if (selectedLanguageRef.current === 'English') {
+      effectiveLangCode = langCode.startsWith('en') ? langCode : 'en-US';
+    } else if (selectedLanguageRef.current === 'Tamil-English') {
       effectiveLangCode = 'ta-IN';
+    } else if (langCode.startsWith('hi')) {
+      effectiveLangCode = 'hi-IN';
+    } else if (langCode.startsWith('ta')) {
+      effectiveLangCode = 'ta-IN';
+    } else if (langCode.startsWith('en')) {
+      effectiveLangCode = langCode;
     }
 
     const isMale = voiceGenderRef.current === 'male';
@@ -1547,21 +1854,36 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     const voices = window.speechSynthesis.getVoices();
     let chosenVoice: SpeechSynthesisVoice | undefined;
+    const targetPrefix = effectiveLangCode.substring(0, 2).toLowerCase();
 
     const activeURI = selectedVoiceURIRef.current;
     if (activeURI) {
       const candidate = voices.find((v) => v.voiceURI === activeURI);
-      if (candidate && getVoiceQualityScore(candidate, voiceGenderRef.current) > 0) {
+      const langMatches = candidate
+        ? (candidate.lang || '').toLowerCase().replace('_', '-').startsWith(targetPrefix)
+        : false;
+      if (candidate && langMatches && getVoiceQualityScore(candidate, voiceGenderRef.current) > -50) {
         chosenVoice = candidate;
       }
     }
 
     if (!chosenVoice) {
+      const sameLangVoices = [...voices]
+        .filter((v) => (v.lang || '').toLowerCase().replace('_', '-').startsWith(targetPrefix))
+        .sort((a, b) => getVoiceQualityScore(b, voiceGenderRef.current) - getVoiceQualityScore(a, voiceGenderRef.current));
+
+      const sameLangGenderMatched = sameLangVoices.find(
+        (v) => (isMale ? !isFemaleVoiceName(v.name) : !isMaleVoiceName(v.name)) && getVoiceQualityScore(v, voiceGenderRef.current) > -50
+      );
+
       const genderCandidates = [...voices]
         .filter((v) => (isMale ? !isFemaleVoiceName(v.name) : !isMaleVoiceName(v.name)))
         .sort((a, b) => getVoiceQualityScore(b, voiceGenderRef.current) - getVoiceQualityScore(a, voiceGenderRef.current));
+
       chosenVoice =
-        genderCandidates.find((v) => v.lang.startsWith(effectiveLangCode.substring(0, 2)) && getVoiceQualityScore(v, voiceGenderRef.current) > 0) ||
+        sameLangGenderMatched ||
+        sameLangVoices.find((v) => getVoiceQualityScore(v, voiceGenderRef.current) > -50) ||
+        sameLangVoices[0] ||
         genderCandidates.find((v) => getVoiceQualityScore(v, voiceGenderRef.current) > 0) ||
         genderCandidates[0] ||
         voices[0];
@@ -1623,8 +1945,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } catch (e) { /* ignore */ }
       remoteAudioRef.current = null;
     }
-    // If non-browser STT is active, pause browser recognition; otherwise ensure it is actively listening for instant user barge-in!
-    if (sttEngineRef.current !== 'browser') {
+    // If non-browser STT is active, pause both browser recognition and cloud recorder so AI voice is never re-transcribed;
+    // otherwise ensure browser recognition stays active for instant user barge-in!
+    if (isCloudSttActive()) {
+      stopServerSTTListening();
       if (recognitionRef.current) {
         try {
           isRecognitionRunningRef.current = false;
@@ -1647,7 +1971,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     updateCallState('AI Speaking...');
     isSpeechSynthesisSpeakingRef.current = true;
 
-    const currentTts = resolveCurrentTtsEngine(selectedLanguageRef.current || 'English');
+    const ttsLangHint =
+      selectedLanguageRef.current ||
+      (langCode?.toLowerCase().startsWith('hi')
+        ? 'Hindi'
+        : langCode?.toLowerCase().startsWith('ta')
+        ? 'Tamil-English'
+        : initialLanguage || 'Tamil-English');
+    const currentTts = resolveCurrentTtsEngine(ttsLangHint);
 
     // 1. Gemini Voice (Kore — Multimodal Female Voice)
     if (currentTts === 'gemini') {
@@ -1658,6 +1989,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         emotion: prepared.emotion,
       })
         .then(({ audio, format }) => {
+          geminiAvailableRef.current = true;
           setGeminiAvailable(true);
           setErrorMessage(null);
           playAudioFromBase64(audio, format, onEnd, text, langCode, 'Gemini');
@@ -1821,6 +2153,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         speed: prepared.delivery.pace,
       })
         .then(({ audio, format }) => {
+          openaiAvailableRef.current = true;
           setOpenaiAvailable(true);
           setErrorMessage(null);
           playAudioFromBase64(audio, format, onEnd, text, langCode, 'OpenAI');
@@ -1839,36 +2172,56 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
 
 
-  // ── Voice Activity Detection (VAD) Helper (Human Vocal Frequencies Only) ──
-  const isMicVADActive = (): boolean => {
-    if (!analyserRef.current) return false;
+  // ── Voice Activity Detection (VAD) Helper (Human Vocal Frequencies + Time RMS) ─
+  const getMicVocalEnergy = (): number => {
+    const analyser = analyserRef.current;
+    if (!analyser) return 0;
     try {
-      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-      analyserRef.current.getByteFrequencyData(dataArray);
+      if (audioContextRef.current?.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {});
+      }
+      const freqData = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(freqData);
 
       const sampleRate = audioContextRef.current?.sampleRate || 48000;
-      const binWidth = sampleRate / (dataArray.length * 2);
-      const minVocalBin = Math.max(1, Math.floor(280 / binWidth));
-      const maxVocalBin = Math.min(dataArray.length - 1, Math.ceil(3600 / binWidth));
+      const binWidth = sampleRate / (freqData.length * 2);
+      const minVocalBin = Math.max(1, Math.floor(250 / binWidth));
+      const maxVocalBin = Math.min(freqData.length - 1, Math.ceil(3600 / binWidth));
 
       let sum = 0;
+      let peak = 0;
       let count = 0;
       for (let i = minVocalBin; i <= maxVocalBin; i++) {
-        sum += dataArray[i];
+        const val = freqData[i];
+        sum += val;
+        if (val > peak) peak = val;
         count++;
       }
       const vocalAvg = count > 0 ? sum / count : 0;
-      return vocalAvg > 9;
+
+      // Time-domain RMS catches normal conversational voices even when energy sits in only a few harmonics
+      const timeData = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(timeData);
+      let sqSum = 0;
+      for (let i = 0; i < timeData.length; i++) {
+        const centered = timeData[i] - 128;
+        sqSum += centered * centered;
+      }
+      const timeRms = Math.sqrt(sqSum / timeData.length);
+
+      return Math.max(vocalAvg, peak * 0.28, timeRms * 1.35);
     } catch (e) {
-      return false;
+      return 0;
     }
   };
+
+  const isMicVADActive = (): boolean => getMicVocalEnergy() > 5;
 
   // ── Tanglish / Tamil Real Estate Speech Normalizer ────────────────────────
   // Accurately maps Tamil Unicode script & Chrome acoustic misrecognitions
   // into clean, natural Tanglish / English words so the UI and AI always write
-  // EXACTLY what the user actually meant and spoke!
-  const normalizeCustomerSpeech = (text: string): string => {
+  // Language-safe base normalization (Tamil Unicode & universal BHK/city terms only — never mangles English grammar!)
+  const normalizeCustomerSpeechBase = (text: string): string => {
     if (!text) return '';
     let normalized = text.trim();
 
@@ -1917,26 +2270,66 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       [/\b(சனி\s*ஞாயிறு)\b/gi, 'Sani yaayiru'],
       [/\b(உடனே)\b/gi, 'Udane'],
       [/\b(வங்கி\s*கடன்|லோன்)\b/gi, 'Bank loan'],
-      [/\b(தமிழ்|தமிழ்ல|தமிழில்)\b/gi, 'Tamil'],
-      [/\b(இங்கிலீஷ்|ஆங்கிலம்|இங்லிஷ்|இங்கிலீஷ்ல|ஆங்கிலத்தில்)\b/gi, 'English'],
-      [/\b(ஹிந்தி|இந்தி|ஹிந்தில|இந்தில|ஹிந்தியில்|இந்தியில்|ஹிந்தில\s*பேசுங்க|இந்தில\s*பேசுங்க|ஹிந்தி\s*பேசுங்க|இந்தி\s*பேசுங்க)\b/gi, 'Hindi']
+      [/(?<![\u0B80-\u0BFF\w])(தமிழ்|தமிழ்ல|தமிழில்)(?![\u0B80-\u0BFF\w])/gi, 'Tamil'],
+      [/(?<![\u0B80-\u0BFF\w])(இங்கிலீஷ்|ஆங்கிலம்|இங்லிஷ்|இங்கிலீஷ்ல|ஆங்கிலத்தில்)(?![\u0B80-\u0BFF\w])/gi, 'English'],
+      [/(?<![\u0B80-\u0BFF\w])(ஹிந்தி|இந்தி|ஹிந்தில|இந்தில|ஹிந்தியில்|இந்தியில்|ஹிந்தில\s*பேசுங்க|இந்தில\s*பேசுங்க|ஹிந்தி\s*பேசுங்க|இந்தி\s*பேசுங்க|ஹிந்தில\s*பேசு|இந்தில\s*பேசு|ஹிந்தி\s*பேசு|இந்தி\s*பேசு)(?![\u0B80-\u0BFF\w])/gi, 'Hindi']
     ];
 
     for (const [pattern, replacement] of tamilToTanglishMap) {
       normalized = normalized.replace(pattern, replacement);
     }
 
-    // 2. Map Chrome Acoustic Misrecognitions (when Tamil/Tanglish sounds hit English or multilingual STT)
-    const phoneticCorrections: [RegExp, string][] = [
-      // "Aama" misheard by Chrome (e.g. "armor", "i'm a", "on a", "arma")
-      [/\b(armor|i'?m a|on a|arma|alma|almer|ah ma|a ma|ahmaa)\b/gi, 'Aama'],
-      // "Velachery" (e.g. "well cherry", "villa cherry", "vela cherry")
+    // 2. Universal property configuration / area spelling fixes safe across English, Hindi, and Tamil
+    const universalCorrections: [RegExp, string][] = [
       [/\b(well\s*cherry|vela\s*cherry|villa\s*cherry|vella\s*cherry|wellcherry|villacherry)\b/gi, 'Velachery'],
-      // BHK configurations (e.g. "to be hk", "two bhk", "tree bhk")
       [/\b(to be hk|to be h k|to bhk|tube hk|tubhk|two bhk|2bhk)\b/gi, '2 BHK'],
       [/\b(one bhk|won bhk|1bhk)\b/gi, '1 BHK'],
       [/\b(three bhk|tree bhk|3bhk)\b/gi, '3 BHK'],
       [/\b(four bhk|for bhk|4bhk)\b/gi, '4 BHK'],
+      [/\bfor tea lakhs\b/gi, '40 lakhs'],
+      [/\b50lakhs\b/gi, '50 lakhs'],
+      [/\b40lakhs\b/gi, '40 lakhs'],
+      [/\b30lakhs\b/gi, '30 lakhs'],
+      [/\b20lakhs\b/gi, '20 lakhs'],
+      [/\btwo crore\b/gi, '2 Crore'],
+      [/\bone crore\b/gi, '1 Crore'],
+      [/\b(tamber am|tom bram)\b/gi, 'Tambaram'],
+      [/\b(anna nogger|ananagar)\b/gi, 'Anna Nagar'],
+      [/\b(sho ling anallur|solinganallur)\b/gi, 'Sholinganallur'],
+      [/\b(mad pack am|madipakam)\b/gi, 'Madipakkam'],
+      [/\b(mid wake am|medavakam)\b/gi, 'Medavakkam'],
+      [/\b(?:hidni|hindhi|indhi|heendi)\b/gi, 'Hindi'],
+    ];
+
+    for (const [pattern, replacement] of universalCorrections) {
+      normalized = normalized.replace(pattern, replacement);
+    }
+
+    if (normalized.length > 0) {
+      normalized = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    }
+
+    return normalized.trim();
+  };
+
+  // EXACTLY what the user actually meant and spoke (applies Tanglish homophone fixes ONLY in Tamil-English)
+  const normalizeCustomerSpeech = (text: string, targetLang?: LanguageOption | null): string => {
+    const base = normalizeCustomerSpeechBase(text);
+    if (!base) return '';
+
+    const probeText = /[\u0900-\u097F\u0B80-\u0BFF]/u.test(text) ? text : base;
+    const resolvedLang =
+      targetLang ??
+      detectUserConversationLanguage(probeText, selectedLanguageRef.current || 'Tamil-English').language;
+
+    if (resolvedLang !== 'Tamil-English') {
+      return base;
+    }
+
+    let normalized = base;
+    const tanglishPhoneticCorrections: [RegExp, string][] = [
+      // "Aama" misheard by Chrome (e.g. "armor", "i'm a", "on a", "arma")
+      [/\b(armor|i'?m a|on a|arma|alma|almer|ah ma|a ma|ahmaa)\b/gi, 'Aama'],
       // "Venum" (want / need)
       [/\b(venom|when home|win um|win home|wenum|when um)\b/gi, 'venum'],
       // "Puriyudhu" (understood)
@@ -1957,24 +2350,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       [/\b(can dipper|candy bar|kandipa)\b/gi, 'kandippa'],
       // "Solla mudiyuma" (can you tell)
       [/\b(solar medium|sole ammo diuma|solla mudiuma)\b/gi, 'solla mudiyuma'],
-      // Budgets & Numbers
-      [/\bfor tea lakhs\b/gi, '40 lakhs'],
-      [/\b50lakhs\b/gi, '50 lakhs'],
-      [/\b40lakhs\b/gi, '40 lakhs'],
-      [/\b30lakhs\b/gi, '30 lakhs'],
-      [/\b20lakhs\b/gi, '20 lakhs'],
-      [/\btwo crore\b/gi, '2 Crore'],
-      [/\bone crore\b/gi, '1 Crore'],
-      // "Rent ku"
+      // "Rent ku" / "Buying ku"
       [/\brent (?:cool|to|go)\b/gi, 'rent ku'],
-      // "Buying ku"
       [/\bbuying (?:cool|go|to)\b/gi, 'buying ku'],
-      // Locations
-      [/\b(tamber am|tom bram)\b/gi, 'Tambaram'],
-      [/\b(anna nogger|ananagar)\b/gi, 'Anna Nagar'],
-      [/\b(sho ling anallur|solinganallur)\b/gi, 'Sholinganallur'],
-      [/\b(mad pack am|madipakam)\b/gi, 'Madipakkam'],
-      [/\b(mid wake am|medavakam)\b/gi, 'Medavakkam'],
       // Phrases
       [/\b(free turn|three time)\b/gi, 'free thaan'],
       [/\b(sunny gyro|sani yairu)\b/gi, 'sani yaayiru'],
@@ -1983,7 +2361,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       [/^sorry$/i, 'Sari']
     ];
 
-    for (const [pattern, replacement] of phoneticCorrections) {
+    for (const [pattern, replacement] of tanglishPhoneticCorrections) {
       normalized = normalized.replace(pattern, replacement);
     }
 
@@ -2088,7 +2466,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const activeLang = selectedLanguageRef.current;
     const politeClose =
       activeLang === 'Hindi'
-        ? 'Aapki taraf se koi aawaz nahi aa rahi hai. Hum call disconnect kar rahe hain. Lyka Realty mein call karne ke liye dhanyavad.'
+        ? 'आपकी तरफ़ से कोई आवाज़ नहीं आ रही है। हम कॉल डिसकनेक्ट कर रहे हैं। लाइका रियल्टी में कॉल करने के लिए धन्यवाद।'
         : activeLang === 'English'
         ? 'We did not detect any response for 8 seconds. Disconnecting the call now. Thank you for calling Lyka Realty.'
         : 'Unga kitta irundhu bathil varala. Call disconnect panrom. Lyka Realty-ku nandri.';
@@ -2244,7 +2622,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('வீடு') ||
         lower.includes('வாடகை') ||
         lower.includes('நிலம்') ||
-        lower.includes('வாங்க')
+        lower.includes('வாங்க') ||
+        lower.includes('खरीद') ||
+        lower.includes('किराए') ||
+        lower.includes('किराये') ||
+        lower.includes('घर') ||
+        lower.includes('फ्लैट') ||
+        lower.includes('प्लॉट') ||
+        lower.includes('निवेश') ||
+        lower.includes('रहने')
       );
     }
 
@@ -2253,19 +2639,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       return (
         lower.includes('velachery') ||
         lower.includes('வேளச்சேரி') ||
+        lower.includes('वेलाचेरी') ||
         lower.includes('omr') ||
+        lower.includes('ओएमआर') ||
         lower.includes('sholinganallur') ||
         lower.includes('சோழிங்கநல்லூர்') ||
         lower.includes('tambaram') ||
         lower.includes('தாம்பரம்') ||
+        lower.includes('तांबरम') ||
+        lower.includes('ताम्बरम') ||
         lower.includes('adyar') ||
         lower.includes('அடையார்') ||
+        lower.includes('अड्यार') ||
         lower.includes('porur') ||
         lower.includes('போரூர்') ||
+        lower.includes('पोरूर') ||
         lower.includes('chengalpattu') ||
         lower.includes('செங்கல்பட்டு') ||
+        lower.includes('चेंगलपट्टू') ||
         lower.includes('chennai') ||
         lower.includes('சென்னை') ||
+        lower.includes('चेन्नई') ||
         lower.includes('medavakkam') ||
         lower.includes('guindy') ||
         lower.includes('anna nagar') ||
@@ -2291,7 +2685,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('sqft') ||
         lower.includes('1200') ||
         lower.includes('podhum') ||
-        lower.includes('போதும்')
+        lower.includes('போதும்') ||
+        lower.includes('स्टूडियो') ||
+        lower.includes('बीएचके') ||
+        lower.includes('बेडरूम') ||
+        lower.includes('विला') ||
+        lower.includes('स्क्वायर')
       );
     }
 
@@ -2312,7 +2711,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('28,000') ||
         lower.includes('30000') ||
         lower.includes('லட்சம்') ||
-        lower.includes('கோடி')
+        lower.includes('கோடி') ||
+        lower.includes('लाख') ||
+        lower.includes('करोड़') ||
+        lower.includes('हज़ार') ||
+        lower.includes('बजट')
       );
     }
 
@@ -2332,7 +2735,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('short wait') ||
         lower.includes('2026') ||
         lower.includes('உடனே') ||
-        lower.includes('மாசத்துல')
+        lower.includes('மாசத்துல') ||
+        lower.includes('तुरंत') ||
+        lower.includes('रेडी') ||
+        lower.includes('महीने') ||
+        lower.includes('जल्दी')
       );
     }
 
@@ -2348,7 +2755,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('bank') ||
         lower.includes('self') ||
         lower.includes('கடன்') ||
-        lower.includes('லோன்')
+        lower.includes('லோன்') ||
+        lower.includes('कैश') ||
+        lower.includes('लोन') ||
+        lower.includes('बैंक') ||
+        lower.includes('नकद')
       );
     }
 
@@ -2364,7 +2775,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('varren') ||
         lower.includes('போகலாம்') ||
         lower.includes('ஆமா') ||
-        lower.includes('பாக்கணும்')
+        lower.includes('பாக்கணும்') ||
+        lower.includes('हाँ') ||
+        lower.includes('हां') ||
+        lower.includes('बिल्कुल') ||
+        lower.includes('ज़रूर') ||
+        lower.includes('देखना') ||
+        lower.includes('विज़िट')
       );
     }
 
@@ -2380,7 +2797,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('tomorrow') ||
         lower.includes('today') ||
         lower.includes('ஞாயிறு') ||
-        lower.includes('சனி')
+        lower.includes('சனி') ||
+        lower.includes('शनिवार') ||
+        lower.includes('रविवार') ||
+        lower.includes('वीकेंड') ||
+        lower.includes('कल') ||
+        lower.includes('आज')
       );
     }
 
@@ -2481,9 +2903,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const fullAi = `${currentAi || ''} ${lastAi || ''}`.toLowerCase().replace(/[^a-z0-9\u0B80-\u0BFF\u0900-\u097F\s]/g, ' ').trim();
     if (!fullAi) return false;
 
-    // 1. Direct condensed substring check (e.g., "2bhk" inside "...2bhk...")
     const condensedSpoken = cleanSpoken.replace(/\s+/g, '');
     const condensedAi = fullAi.replace(/\s+/g, '');
+
+    // Never treat explicit language-switch commands ("talk in hindi", "talk in hidni") as echo
+    // unless the full utterance is an exact repeat of the entire AI turn.
+    if (detectExplicitLanguageSwitch(spoken) !== null) {
+      return condensedAi === condensedSpoken;
+    }
+
+    // 1. Direct condensed substring check (e.g., "2bhk" inside "...2bhk...")
     if (condensedSpoken.length >= 2 && condensedAi.includes(condensedSpoken)) {
       return true;
     }
@@ -2500,8 +2929,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     return false;
   };
 
+  type CustomerSpeechMeta = {
+    sttDetectedLanguage?: string | null;
+    conversationLanguage?: SpeechLanguage | null;
+  };
+
   // Immediate Customer Speech Dispatcher (Bypasses Chrome's 2.5s silence wait & prevents repeating audio)
-  const dispatchCustomerSpeech = (text: string) => {
+  const dispatchCustomerSpeech = (text: string, meta?: CustomerSpeechMeta) => {
     const cleanText = text.trim();
     if (!cleanText) return;
     if (isSpeechSynthesisSpeakingRef.current) {
@@ -2547,6 +2981,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (noAnswerTimeoutRef.current) clearTimeout(noAnswerTimeoutRef.current);
     setLiveSpeechText('');
 
+    stopServerSTTListening();
     if (recognitionRef.current) {
       try {
         isRecognitionRunningRef.current = false;
@@ -2560,15 +2995,17 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         console.warn('[Turn Watchdog] Auto-cleared stuck turn processing lock');
         isTurnProcessingRef.current = false;
         updateCallState('Listening...');
+        startActiveListening();
       }
     }, 10000);
 
     // Keep turn lock active while AI answers & speaks; onAudioPlaybackDone will release it.
-    handleCustomerInput(cleanText)
+    handleCustomerInput(cleanText, meta)
       .catch((err) => {
         console.error('[Turn Processing Error]:', err);
         isTurnProcessingRef.current = false;
         updateCallState('Listening...');
+        startActiveListening();
       })
       .finally(() => {
         clearTimeout(turnWatchdog);
@@ -2681,6 +3118,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         const spokenLower = fullTurnTranscript.toLowerCase().trim();
         const isGenuineInterruption =
           /\b(wait|stop|hold\s*on|listen|suno|ruko|oru\s*nimisham|cut\s*pannu|podhum|enna\s*solreenga|who\s*are\s*you|yaar\s*pesura)\b/i.test(spokenLower) ||
+          Boolean(detectExplicitLanguageSwitch(fullTurnTranscript)) ||
           (spokenLower.includes('?') && !isAcousticEchoFromAiSpeech(spokenLower, currentAiSpeechRef.current, lastAiSpeechTextRef.current));
 
         if (isGenuineInterruption) {
@@ -2751,7 +3189,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         // Non-fatal transient errors: keep prefix and restart smoothly
         isRecognitionRunningRef.current = false;
         setTimeout(() => {
-          if (callStateRef.current === 'Listening...' && !isTurnProcessingRef.current) {
+          if (
+            callStateRef.current === 'Listening...' &&
+            !isTurnProcessingRef.current &&
+            !isCloudSttActive()
+          ) {
             try { recognition.start(); } catch (e) { /* ignore */ }
           }
         }, 120);
@@ -2765,7 +3207,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (
         callStateRef.current !== 'Call Completed' &&
         callStateRef.current !== 'Calling...' &&
-        !isTurnProcessingRef.current
+        !isTurnProcessingRef.current &&
+        !isCloudSttActive()
       ) {
         if (userAccumulatedSpeechRef.current.trim()) {
           speechSessionPrefixRef.current = userAccumulatedSpeechRef.current.trim();
@@ -2777,7 +3220,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             callStateRef.current !== 'Call Completed' &&
             callStateRef.current !== 'Calling...' &&
             !isRecognitionRunningRef.current &&
-            !isTurnProcessingRef.current
+            !isTurnProcessingRef.current &&
+            !isCloudSttActive()
           ) {
             try {
               recognition.start();
@@ -2805,11 +3249,298 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
   };
 
-  // ── High-Speed Native Speech Recognition STT ───────────────────────────────
-  // MediaRecorder STT removed per user request. Native Web Speech Recognition
-  // provides 100% reliable, real-time streaming voice-to-text with 0ms latency.
+  // ── Cloud Server STT (Groq Whisper / OpenAI / Deepgram / Gemini / Sarvam) ─
+  const stopServerSTTListening = () => {
+    serverSttSessionIdRef.current += 1;
+    if (serverSttTimerRef.current) {
+      clearTimeout(serverSttTimerRef.current);
+      serverSttTimerRef.current = null;
+    }
+    isRecordingRef.current = false;
+    if (mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.ondataavailable = null;
+        mediaRecorderRef.current.onstop = null;
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) { /* ignore */ }
+    }
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+  };
+
   const startServerSTTListening = () => {
-    startContinuousSpeechRecognition();
+    if (!isCloudSttActive()) {
+      startContinuousSpeechRecognition();
+      return;
+    }
+    if (
+      callStateRef.current !== 'Listening...' ||
+      isSpeechSynthesisSpeakingRef.current ||
+      isTurnProcessingRef.current ||
+      isSttTranscribingRef.current ||
+      isRecordingRef.current
+    ) {
+      return;
+    }
+    if (typeof MediaRecorder === 'undefined') {
+      cloudSttFallbackActiveRef.current = true;
+      startContinuousSpeechRecognition();
+      return;
+    }
+
+    const stream = mediaStreamRef.current;
+    const hasLiveTrack = Boolean(stream && stream.getAudioTracks().some((t) => t.readyState === 'live'));
+    if (!hasLiveTrack || !stream) {
+      const waitSessionId = serverSttSessionIdRef.current;
+      serverSttTimerRef.current = setTimeout(() => {
+        if (
+          waitSessionId === serverSttSessionIdRef.current &&
+          callStateRef.current === 'Listening...' &&
+          isCloudSttActive()
+        ) {
+          startServerSTTListening();
+        }
+      }, 150);
+      return;
+    }
+
+    stopServerSTTListening();
+    const sessionId = serverSttSessionIdRef.current;
+
+    const preferredTypes = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg;codecs=opus',
+    ];
+    const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+    } catch (recErr) {
+      console.warn('[Cloud STT] MediaRecorder initialization failed, falling back to browser STT:', recErr);
+      cloudSttFallbackActiveRef.current = true;
+      startContinuousSpeechRecognition();
+      return;
+    }
+
+    mediaRecorderRef.current = recorder;
+    audioChunksRef.current = [];
+    isRecordingRef.current = true;
+
+    let speechDetected = false;
+    let speechStartedAt = 0;
+    let lastVoiceAt = 0;
+    let ambientFloor = 1.5;
+    const startedIdleAt = Date.now();
+    let stopTriggered = false;
+
+    const triggerStop = () => {
+      if (stopTriggered) return;
+      stopTriggered = true;
+      isRecordingRef.current = false;
+      if (serverSttTimerRef.current) {
+        clearTimeout(serverSttTimerRef.current);
+        serverSttTimerRef.current = null;
+      }
+      try {
+        if (recorder.state !== 'inactive') {
+          recorder.stop();
+        }
+      } catch (e) { /* ignore */ }
+    };
+
+    recorder.ondataavailable = (event: BlobEvent) => {
+      if (sessionId !== serverSttSessionIdRef.current) return;
+      if (event.data && event.data.size > 0) {
+        audioChunksRef.current.push(event.data);
+      }
+    };
+
+    recorder.onstop = async () => {
+      const recordedChunks = audioChunksRef.current.slice();
+      audioChunksRef.current = [];
+      isRecordingRef.current = false;
+      if (mediaRecorderRef.current === recorder) {
+        mediaRecorderRef.current = null;
+      }
+
+      if (sessionId !== serverSttSessionIdRef.current) return;
+      if (
+        callStateRef.current !== 'Listening...' ||
+        isSpeechSynthesisSpeakingRef.current ||
+        isTurnProcessingRef.current ||
+        !isCloudSttActive()
+      ) {
+        return;
+      }
+
+      const blobType = recorder.mimeType || mimeType || 'audio/webm';
+      const audioBlob = new Blob(recordedChunks, { type: blobType });
+      if (!speechDetected || audioBlob.size < 1800) {
+        startServerSTTListening();
+        return;
+      }
+
+      const engineAtCapture = sttEngineRef.current;
+      if (engineAtCapture === 'browser' || cloudSttFallbackActiveRef.current) {
+        startContinuousSpeechRecognition();
+        return;
+      }
+
+      isSttTranscribingRef.current = true;
+      setLiveSpeechText('Transcribing...');
+
+      try {
+        const langParam = resolveCloudSttLanguageParam(
+          engineAtCapture,
+          selectedLanguageRef.current || 'Tamil-English',
+          explicitLanguageLockedRef.current
+        );
+        const openAiModel =
+          engineAtCapture === 'openai' ? selectedOpenAiSttModelRef.current : undefined;
+        const result = await transcribeAudioTurn(engineAtCapture, audioBlob, langParam, openAiModel);
+
+        if (sessionId !== serverSttSessionIdRef.current) {
+          isSttTranscribingRef.current = false;
+          setLiveSpeechText('');
+          return;
+        }
+
+        cloudSttFailCountRef.current = 0;
+        isSttTranscribingRef.current = false;
+        setLiveSpeechText('');
+
+        const cleanTranscript = result.transcript.trim();
+        const alphanumericOrIndicCount = cleanTranscript.replace(/[^\p{L}\p{N}]/gu, '').length;
+        if (alphanumericOrIndicCount < 2) {
+          startServerSTTListening();
+          return;
+        }
+
+        dispatchCustomerSpeech(cleanTranscript, {
+          sttDetectedLanguage: result.detectedLanguage,
+          conversationLanguage: result.conversationLanguage,
+        });
+      } catch (err) {
+        console.warn(`[Cloud STT ${engineAtCapture}] Error:`, err);
+        isSttTranscribingRef.current = false;
+        setLiveSpeechText('');
+        if (sessionId !== serverSttSessionIdRef.current) return;
+
+        cloudSttFailCountRef.current += 1;
+        const message = err instanceof Error ? err.message : 'Cloud STT failed.';
+        const isAuthOrConfigFailure =
+          /not configured|invalid api key|invalid_api_key|unauthorized|forbidden|401|403|503/i.test(
+            message
+          );
+
+        if (isAuthOrConfigFailure || cloudSttFailCountRef.current >= 2) {
+          cloudSttFallbackActiveRef.current = true;
+          setErrorMessage(
+            `⚠️ ${message} Auto-switched to Browser speech recognition for this call.`
+          );
+          startContinuousSpeechRecognition();
+        } else {
+          setErrorMessage(`⚠️ ${engineAtCapture.toUpperCase()} STT retry: ${message}`);
+          serverSttTimerRef.current = setTimeout(() => {
+            if (
+              sessionId === serverSttSessionIdRef.current &&
+              callStateRef.current === 'Listening...' &&
+              isCloudSttActive()
+            ) {
+              startServerSTTListening();
+            }
+          }, 400);
+        }
+      }
+    };
+
+    try {
+      recorder.start(200);
+    } catch (startErr) {
+      console.warn('[Cloud STT] Recorder start failed:', startErr);
+      isRecordingRef.current = false;
+      cloudSttFallbackActiveRef.current = true;
+      startContinuousSpeechRecognition();
+      return;
+    }
+
+    const pollVad = () => {
+      if (sessionId !== serverSttSessionIdRef.current || stopTriggered) return;
+      if (
+        callStateRef.current !== 'Listening...' ||
+        isSpeechSynthesisSpeakingRef.current ||
+        isTurnProcessingRef.current ||
+        !isCloudSttActive()
+      ) {
+        triggerStop();
+        return;
+      }
+
+      const now = Date.now();
+      const vocalEnergy = getMicVocalEnergy();
+      const onsetThreshold = Math.max(4.5, ambientFloor * 1.8);
+      const holdThreshold = Math.max(3.2, ambientFloor * 1.4);
+
+      if (!speechDetected) {
+        if (vocalEnergy > onsetThreshold) {
+          speechDetected = true;
+          speechStartedAt = now;
+          lastVoiceAt = now;
+          if (noAnswerTimeoutRef.current) {
+            clearTimeout(noAnswerTimeoutRef.current);
+            noAnswerTimeoutRef.current = null;
+          }
+          if (inactivityTimerRef.current) {
+            clearTimeout(inactivityTimerRef.current);
+            inactivityTimerRef.current = null;
+          }
+          setLiveSpeechText('Listening...');
+        } else {
+          if (vocalEnergy > 0 && vocalEnergy < onsetThreshold) {
+            ambientFloor = ambientFloor * 0.85 + vocalEnergy * 0.15;
+          }
+          if (now - startedIdleAt >= 6000) {
+            // Periodically rotate silent buffer so WebM header stays fresh without calling API on silence
+            triggerStop();
+            return;
+          }
+        }
+      } else {
+        if (vocalEnergy > holdThreshold) {
+          lastVoiceAt = now;
+        }
+        const silenceMs = now - lastVoiceAt;
+        const utterMs = now - speechStartedAt;
+        if (silenceMs >= 750 || utterMs >= 12000) {
+          triggerStop();
+          return;
+        }
+      }
+
+      serverSttTimerRef.current = setTimeout(pollVad, 80);
+    };
+
+    serverSttTimerRef.current = setTimeout(pollVad, 120);
+  };
+
+  const startActiveListening = () => {
+    if (
+      callStateRef.current !== 'Listening...' ||
+      isSpeechSynthesisSpeakingRef.current ||
+      isTurnProcessingRef.current
+    ) {
+      return;
+    }
+    if (isCloudSttActive()) {
+      startServerSTTListening();
+    } else if (!isRecognitionRunningRef.current) {
+      startContinuousSpeechRecognition();
+    }
   };
 
 
@@ -2856,17 +3587,17 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       lower.includes('repeat') || lower.includes('once again') || lower.includes('marupadi') ||
       lower.includes('marubadi') || lower.includes('enna sonneenga') || lower.includes('what did you say') ||
       lower.includes('one more time') || lower.includes('phir se bolo') || lower.includes('dobara bolo') ||
-      lower.includes('kekkala') || lower.includes('innum oru thadava')
+      lower.includes('फिर से बोलो') || lower.includes('दोबारा') || lower.includes('kekkala') || lower.includes('innum oru thadava')
     ) {
       const lastAiEntry = [...dialogueRef.current].reverse().find((d) => d.speaker === 'AI');
       if (lastAiEntry && lastAiEntry.text) {
         const cleanLast = lastAiEntry.text
           .replace(/^\[.*?\]\s*/, '')
-          .replace(/^(once again|marupadiyum solren|ek baar phir se batati hoon)[,\s]*/i, '');
+          .replace(/^(once again|marupadiyum solren|ek baar phir se batat[ai] hoon|एक बार फिर से बतात[ाी] हूँ)[,\s]*/i, '');
         if (lang === 'Tamil-English') {
           return `[understanding] Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren: ${cleanLast} Ippo ungalukku clear-aa puriyudhaa sir?`;
         } else if (lang === 'Hindi') {
-          return `[understanding] Zaroor sir! Ek baar phir se batati hoon: ${cleanLast}`;
+          return `[understanding] जी बिल्कुल सर! एक बार फिर से ${voiceGenderRef.current === 'male' ? 'बताता हूँ' : 'बताती हूँ'}: ${cleanLast}`;
         } else {
           return `[understanding] Sure! Once again: ${cleanLast}`;
         }
@@ -2883,7 +3614,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[warm] Aan, kandippa! [break] Sollunga, naan kekkaren.';
       } else if (lang === 'Hindi') {
-        return '[warm] Haan ji, bilkul! [break] Boliye, main sun rahi hoon.';
+        return `[warm] हाँ जी, बिल्कुल! [break] बोलिए, मैं सुन ${voiceGenderRef.current === 'male' ? 'रहा हूँ' : 'रही हूँ'}।`;
       } else {
         return "[warm] Ah, of course! [break] Go ahead, I'm listening.";
       }
@@ -2899,7 +3630,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Sorry, sudden-aa call pannadhukku. Naan Priya, Lyka Realty-lendhu pesuren. Unga contact enga records-la irukku-nu verify pannittu, property-related enquiry irundhucha-nu politely check panna call panninen. Ippo pesuradhukku comfortable illenna, no problem.';
       } else if (lang === 'Hindi') {
-        return '[friendly] Haan ji, aapne property ke liye enquiry ki thi, isliye Lyka Realty se call kiya hai taaki sahi options bata sakein. Kya abhi 2 minute baat kar sakte hain?';
+        return '[friendly] हाँ जी, आपने प्रॉपर्टी के लिए इन्क्वायरी की थी, इसलिए लाइका रियल्टी से कॉल किया है ताकि सही विकल्प बता सकें। क्या अभी दो मिनट बात कर सकते हैं?';
       } else {
         return '[friendly] Ah, yes! You had enquired about property options earlier, so I am calling from Lyka Realty to share verified listings. Do you have 2 minutes to talk?';
       }
@@ -2913,7 +3644,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Puriyudhu. Neenga ennai personally therinjirukkanum-nu avasiyam illa. Naan Lyka Realty team-lendhu call panren. Unexpected call-aa irundhaa sorry. Unga contact source-a naan team kitta verify pannikkaren.';
       } else if (lang === 'Hindi') {
-        return 'Main samajh sakti hoon. Main Lyka Realty team se hoon, unexpected call ke liye sorry. Main contact source check karke verify kar loongi.';
+        return `मैं समझ ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। मैं लाइका रियल्टी टीम से हूँ, अचानक कॉल के लिए माफ़ कीजिए। मैं कॉन्टैक्ट सोर्स चेक करके कन्फर्म कर ${voiceGenderRef.current === 'male' ? 'लूँगा' : 'लूँगी'}।`;
       } else {
         return "I understand. You don't need to know me personally; I am calling from the Lyka Realty team. I apologize for the unexpected call and will verify our records.";
       }
@@ -2927,7 +3658,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Sorry about that. Neenga request pannala-na, naan insist panna maatten. Unga contact eppadi enga records-ku vandhuchu-nu verify pannuren. Neenga virumbina, indha conversation inga stop pannalaam.';
       } else if (lang === 'Hindi') {
-        return 'Maaf kijiye. Agar aapne request nahi kiya, toh main insist nahi karungi. Records verify karke agar aap chahein toh call yahin end kar sakte hain.';
+        return `माफ़ कीजिए। अगर आपने रिक्वेस्ट नहीं किया है, तो मैं बिल्कुल ज़ोर नहीं ${voiceGenderRef.current === 'male' ? 'दूँगा' : 'दूँगी'}। रिकॉर्ड्स चेक करके अगर आप चाहें तो कॉल यहीं समाप्त कर सकते हैं।`;
       } else {
         return 'Sorry about that. If you did not request a call, I will not insist. We can end this conversation right here if you prefer.';
       }
@@ -2942,7 +3673,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Good question. Unga number enga records-la eppadi add aachu-nu naan verify pannanum. Wrong information kudukka virumbala, guess panni solla maatten. Neenga okay-na, team kitta check pannuren.';
       } else if (lang === 'Hindi') {
-        return 'Sahi sawaal hai. Main bina verify kiye galat information nahi dena chahti. CRM me contact source check karke team se confirm karwa sakti hoon.';
+        return `सही सवाल है। मैं बिना जाँच किए गलत जानकारी नहीं देना ${voiceGenderRef.current === 'male' ? 'चाहता' : 'चाहती'}। सीआरएम में कॉन्टैक्ट सोर्स चेक करके टीम से कन्फर्म करवा ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}।`;
       } else {
         return 'Good question. I need to verify how your number was added to our records rather than guessing. I can check with our team if you wish.';
       }
@@ -2956,7 +3687,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Idhu Lyka Realty-lendhu property-related follow-up call. Aana neenga interested illenna, pressure panna maatten. Unga preference-a sollunga; adhukku respect pannuren.';
       } else if (lang === 'Hindi') {
-        return 'Yeh Lyka Realty se property follow-up call hai. Lekin aap interested nahi hain toh koi pressure nahi hai. Aapki choice ki respect karti hoon.';
+        return `यह लाइका रियल्टी से प्रॉपर्टी फॉलो-अप कॉल है। लेकिन अगर आप रुचि नहीं रखते हैं तो कोई दबाव नहीं है। आपकी पसंद का पूरा सम्मान ${voiceGenderRef.current === 'male' ? 'करता हूँ' : 'करती हूँ'}।`;
       } else {
         return 'This is a property follow-up call from Lyka Realty. If you are not interested, there is absolutely no pressure. We respect your preference.';
       }
@@ -2972,7 +3703,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Aama, naan Lyka Realty-oda AI virtual assistant Priya. Unga property-related questions-ku help panna, basic requirements understand panna, suitable options pathi guide panna inga irukken.';
       } else if (lang === 'Hindi') {
-        return 'Haan, main Lyka Realty ki AI virtual assistant Priya hoon. Aapke property sawaalon me madad karne aur basic requirements samajhne ke liye yahan hoon.';
+        return `हाँ, मैं लाइका रियल्टी ${voiceGenderRef.current === 'male' ? 'का एआई वर्चुअल असिस्टेंट कार्तिक' : 'की एआई वर्चुअल असिस्टेंट प्रिया'} हूँ। आपके प्रॉपर्टी सवालों में मदद करने और आपकी ज़रूरत समझने के लिए यहाँ हूँ।`;
       } else {
         return "Yes, I am Lyka Realty's AI virtual assistant Priya. I am here to understand your requirements and help guide you through verified property options.";
       }
@@ -2986,7 +3717,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Neenga verify pannitu dhaan proceed pannanum; adhu romba correct. Company details, listing information and relevant documents-a authorised team moolama check pannalaam. Verify pannaadha information-a naan guarantee panna maatten.';
       } else if (lang === 'Hindi') {
-        return 'Aapka verify karna bilkul sahi hai. Company aur property documents authorised team ke zariye check kiye ja sakte hain.';
+        return 'आपका जाँच करना बिल्कुल सही है। कंपनी और प्रॉपर्टी के दस्तावेज़ अधिकृत टीम के ज़रिए देखे जा सकते हैं।';
       } else {
         return 'You should definitely verify before proceeding. Our authorized team can share company details, verified listings, and documentation.';
       }
@@ -3000,7 +3731,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Oru second, latest cost details verify panren. Property price-kooda registration fees, agency fee if applicable, service charges and other costs irukkalaam. Exact breakdown check pannittu share panren.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Ek second, latest cost details check karti hoon. [break] Property price ke saath registration fees, agency charges aur service costs ho sakte hain. Exact breakdown confirm karke batati hoon.';
+        return `[thinking] एक सेकंड, लेटेस्ट खर्च की जानकारी चेक ${voiceGenderRef.current === 'male' ? 'करता हूँ' : 'करती हूँ'}। [break] प्रॉपर्टी की कीमत के साथ रजिस्ट्रेशन फीस, एजेंसी चार्ज और सर्विस कॉस्ट हो सकते हैं। पूरा विवरण कन्फर्म करके ${voiceGenderRef.current === 'male' ? 'बताता हूँ' : 'बताती हूँ'}।`;
       } else {
         return '[thinking] One second, let me check the latest costs. [break] Besides property price, there may be DLD/registration fees, agency fees, and service charges. I will share the exact breakdown.';
       }
@@ -3014,7 +3745,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Sure, budget-friendly options paakalaam. Aana location, size, handover and extra charges-um compare pannalaama? Lowest price mattum base panni decide panna vendaam.';
       } else if (lang === 'Hindi') {
-        return 'Sure, budget-friendly options dekh sakte hain. Lekin location, size aur extra charges bhi compare kar lein? Sirf lowest price par decide na karein.';
+        return 'ज़रूर, बजट के हिसाब से विकल्प देख सकते हैं। लेकिन लोकेशन, साइज़ और अतिरिक्त खर्च भी तुलना कर लें? सिर्फ़ सबसे कम कीमत देखकर फैसला न करें।';
       } else {
         return 'Sure, we can look at budget-friendly options. But shall we also compare location, size, and handover timeline rather than deciding only on lowest price?';
       }
@@ -3028,7 +3759,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Idhu romba important question. Project registration, developer details, escrow information if applicable, title or ownership documents and sale agreement details official records-la verify pannanum. Naan guess panni confirm panna maatten; legal team kitta check panni share panren.';
       } else if (lang === 'Hindi') {
-        return '[calm] Yeh bahut important sawaal hai. Project registration, escrow details aur title documents verify karna zaroori hai. Hamari legal team confirm karke aapko batayegi.';
+        return '[calm] यह बहुत ज़रूरी सवाल है। प्रोजेक्ट रजिस्ट्रेशन, एस्क्रो विवरण और टाइटल दस्तावेज़ की जाँच ज़रूरी है। हमारी लीगल टीम कन्फर्म करके आपको बताएगी।';
       } else {
         return '[calm] That is an important question. Project registration, developer details, and title documents must be verified from official records. Our legal team will confirm directly.';
       }
@@ -3041,7 +3772,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Off-plan-la developer, project registration, escrow details, payment milestones, SPA terms and expected completion date ellam verify pannradhu important. Risk illai-nu guarantee panna mudiyadhu. Qualified advisor kitta documents review pannunga.';
       } else if (lang === 'Hindi') {
-        return 'Off-plan me developer registration, escrow account aur milestones verify karna zaroori hai. Risk-free guarantee nahi de sakte, qualified advisor se review karwayein.';
+        return 'ऑफ-प्लान प्रॉपर्टी में डेवलपर रजिस्ट्रेशन, एस्क्रो अकाउंट और माइलस्टोन की जाँच ज़रूरी है। जोखिम-मुक्त गारंटी नहीं दे सकते, कृपया योग्य सलाहकार से दस्तावेज़ दिखवा लें।';
       } else {
         return 'For off-plan properties, verifying developer escrow, milestones, and SPA terms is vital. We cannot guarantee zero risk, and advise reviewing documents with a qualified advisor.';
       }
@@ -3055,7 +3786,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Guarantee-nu naan solla mudiyadhu. Property investment-la risk irukkum. Verified documents and costs share panren; legal and financial decision-ku qualified professional advice eduthukkonga.';
       } else if (lang === 'Hindi') {
-        return 'Guarantee main nahi de sakti. Property investment me market risk hota hai. Verified documents share kar sakti hoon taaki aap sahi faisla le sakein.';
+        return `गारंटी मैं नहीं दे ${voiceGenderRef.current === 'male' ? 'सकता' : 'सकती'}। प्रॉपर्टी निवेश में बाज़ार का जोखिम होता है। मैं सत्यापित दस्तावेज़ साझा कर ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'} ताकि आप सही फैसला ले सकें।`;
       } else {
         return 'I cannot offer a profit guarantee, as all property investments carry market risk. We share verified documents and costs so you can make an informed decision.';
       }
@@ -3066,7 +3797,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Oru second, andha area listings and availability check panren. Match aagura verified options irundha price, size, and loan details share panren.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Ek second, uss area ke listings check karti hoon. [break] Inventory me jo match hoga, uska price, size aur details share kar doongi.';
+        return `[thinking] एक सेकंड, उस एरिया की लिस्टिंग चेक ${voiceGenderRef.current === 'male' ? 'करता हूँ' : 'करती हूँ'}। [break] जो विकल्प मिलेंगे, उनकी कीमत, साइज़ और जानकारी साझा कर ${voiceGenderRef.current === 'male' ? 'दूँगा' : 'दूँगी'}।`;
       } else {
         return '[thinking] One second, checking listings for that area. [break] If we have matching options in current inventory, I will share the price, size, and loan details.';
       }
@@ -3080,7 +3811,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Namma kitta Chennai-la prime locations-la options irukku: Velachery, OMR Sholinganallur, Tambaram, Porur, Adyar, and Chengalpattu. Ungalukku endha area preference Sir?';
       } else if (lang === 'Hindi') {
-        return 'Hamare paas Chennai ke prime locations me options hain: Velachery, OMR Sholinganallur, Tambaram, Porur, Adyar aur Chengalpattu. Aap kaun sa area dekh rahe hain?';
+        return 'हमारे पास चेन्नई के प्रमुख इलाकों में विकल्प हैं: वेलाचेरी, ओएमआर शोलिंगनल्लूर, तांबरम, पोरूर, अडयार और चेंगलपट्टू। आप कौन सा इलाका देख रहे हैं?';
       } else {
         return 'We have verified options across prime Chennai locations: Velachery, OMR Sholinganallur, Tambaram, Porur, Adyar, and Chengalpattu. Which area do you prefer?';
       }
@@ -3091,7 +3822,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Chengalpattu-la DTCP approved 1200 sq ft plots 18 Lakhs-ku clear patta-voda available-aa irukku. Site visit paakkalama Sir?';
       } else if (lang === 'Hindi') {
-        return 'Chengalpattu me DTCP approved 1200 sq ft plots 18 Lakhs me clear patta ke saath available hain. Kya aap site visit dekhna chahenge?';
+        return 'चेंगलपट्टू में डीटीसीपी स्वीकृत 1200 स्क्वेयर फीट के प्लॉट 18 लाख रुपये में क्लियर पट्टा के साथ उपलब्ध हैं। क्या आप साइट विज़िट देखना चाहेंगे?';
       } else {
         return 'In Chengalpattu, we have DTCP approved 1200 sq ft plots for Rs. 18 Lakhs with clear patta. Would you like to schedule a site visit?';
       }
@@ -3105,7 +3836,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Unga concern puriyudhu sir. Naan Lyka Realty-lendhu pesuren, property-related follow-up-kkaaga mattum. Neenga comfortable illenna, inga stop pannalaam. Venumna official channel-la company details verify pannitu apuram pesalaam.';
       } else if (lang === 'Hindi') {
-        return 'Aapki concern samajh sakti hoon. Main Lyka Realty se sirf property follow-up ke liye call kar rahi hoon. Agar aap comfortable nahi hain toh abhi call end kar sakte hain aur official website se verify kar sakte hain.';
+        return `आपकी चिंता समझ ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। मैं लाइका रियल्टी से सिर्फ़ प्रॉपर्टी की जानकारी के लिए कॉल कर ${voiceGenderRef.current === 'male' ? 'रहा हूँ' : 'रही हूँ'}। अगर आप सहज नहीं हैं तो अभी कॉल बंद कर सकते हैं और आधिकारिक चैनल से जाँच कर सकते हैं।`;
       } else {
         return 'I understand your concern completely. I am calling from Lyka Realty strictly for property assistance. If you are uncomfortable, we can end the call and you may verify through our official channels.';
       }
@@ -3119,7 +3850,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Adhu romba important sir. Namma properties ellam CMDA, DTCP, and TN RERA approved. Exact approval numbers and legal documents-a authorised team verify panna share pannuvaanga.';
       } else if (lang === 'Hindi') {
-        return 'Yeh bahut zaroori hai. Hamari sabhi properties CMDA, DTCP aur TN RERA se approved hain. Hamari team official legal documents share kar degi.';
+        return 'यह बहुत ज़रूरी है। हमारी सभी प्रॉपर्टीज़ सीएमडीए, डीटीसीपी और टीएन रेरा से स्वीकृत हैं। हमारी टीम आधिकारिक कानूनी दस्तावेज़ साझा कर देगी।';
       } else {
         return 'That is very important. All our projects are CMDA, DTCP, and TN RERA approved with verified clear title documents.';
       }
@@ -3133,7 +3864,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Illa sir, indha call-la neenga edhuvum pay panna vendaam. Naan payment details, card number or OTP edhuvum kekka maatten. Official accounts moolama mattum dhaan payment proceed aagum.';
       } else if (lang === 'Hindi') {
-        return 'Nahi sir, is call par aapko koi payment nahi karni hai. Hum kabhi card number ya OTP nahi maangte. Payment sirf developer ke authorised account se hoti hai.';
+        return 'नहीं सर, इस कॉल पर आपको कोई पेमेंट नहीं करनी है। हम कभी कार्ड नंबर या ओटीपी नहीं माँगते। पेमेंट केवल अधिकृत खाते के ज़रिए ही होती है।';
       } else {
         return 'No sir, you do not need to make any payment on this call. We never ask for card details or OTPs; transactions are handled strictly through official escrow accounts.';
       }
@@ -3147,7 +3878,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Idhu important concern sir. Developer track record, project registration, escrow details and payment milestones-a verify pannanum. Delay illa-nu guarantee panna mudiyadhu; documents-a review pannunga.';
       } else if (lang === 'Hindi') {
-        return 'Yeh valid concern hai. Developer track record aur escrow account details verify karna zaroori hai. Hum official milestones share kar sakte hain.';
+        return 'यह सही चिंता है। डेवलपर का पिछला रिकॉर्ड और एस्क्रो खाते की जानकारी जाँचना ज़रूरी है। हम आधिकारिक माइलस्टोन साझा कर सकते हैं।';
       } else {
         return 'That is a valid concern. Reviewing the developer track record and escrow milestones is essential. We always recommend verifying official documents before committing.';
       }
@@ -3161,7 +3892,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Exact rental income guarantee panna mudiyadhu sir. Area, property type and market-a poruthu maarum. Available verified data team moolama share panren.';
       } else if (lang === 'Hindi') {
-        return 'Rental income ki guarantee nahi di ja sakti. Yeh area aur market conditions par depend karta hai. Historical verified data hum share kar sakte hain.';
+        return 'किराये की कमाई की गारंटी नहीं दी जा सकती। यह इलाके और बाज़ार की स्थिति पर निर्भर करता है। हम पिछले सत्यापित आँकड़े साझा कर सकते हैं।';
       } else {
         return 'We cannot promise guaranteed rental yields as they depend on market trends and property type, but our team can share verified historical rental data.';
       }
@@ -3175,7 +3906,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Visa eligibility pathi naan confirm panna mudiyadhu sir. Adha official sources or qualified immigration adviser-kitta verify pannunga. Property pathi information naan share panren.';
       } else if (lang === 'Hindi') {
-        return 'Visa eligibility official immigration rules par depend karti hai. Hum property details provide karte hain aur immigration adviser se verify karne ki salah dete hain.';
+        return 'वीज़ा पात्रता आधिकारिक इमिग्रेशन नियमों पर निर्भर करती है। हम प्रॉपर्टी की जानकारी देते हैं और इमिग्रेशन सलाहकार से जाँच कराने की सलाह देते हैं।';
       } else {
         return 'Visa eligibility depends on official government thresholds. While I share property details, legal visa verification should always be confirmed with immigration authorities.';
       }
@@ -3189,7 +3920,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Sure sir. Distance check panna, Google Maps-la unga location-um property area-um pottaal exact travel time theriyum. Traffic poruthu commute maarum, so office time-la oru thadava check pannunga.';
       } else if (lang === 'Hindi') {
-        return 'Sure sir, Google Maps se aapke location aur property ke beech commute travel time aasani se check kar sakte hain.';
+        return 'जी बिल्कुल सर, आप गूगल मैप्स पर अपनी लोकेशन और प्रॉपर्टी के बीच का सफ़र और समय आसानी से देख सकते हैं।';
       } else {
         return 'Sure! You can check live commute and travel times from your location in Chennai using Google Maps.';
       }
@@ -3203,7 +3934,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Thank you sir. Ungalukku property pathi enna help venum-nu sollunga.';
       } else if (lang === 'Hindi') {
-        return 'Shukriya sir. Property ke baare me aapko kya jankari chahiye?';
+        return 'धन्यवाद सर। प्रॉपर्टी के बारे में आपको क्या जानकारी चाहिए?';
       } else {
         return 'Thank you sir. How can I assist you with your property search today?';
       }
@@ -3218,7 +3949,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Sir, adhu personal question; adha pathi naan pesa mudiyadhu. Naan Lyka Realty property help-kku mattum. Property pathi edhaavadhu sollunga.';
       } else if (lang === 'Hindi') {
-        return 'Sir, yeh personal sawaal hai, main sirf Lyka Realty property queries me madad karti hoon.';
+        return `सर, यह व्यक्तिगत सवाल है। मैं सिर्फ़ लाइका रियल्टी प्रॉपर्टी से जुड़े सवालों में मदद ${voiceGenderRef.current === 'male' ? 'करता हूँ' : 'करती हूँ'}।`;
       } else {
         return 'Sir, that is personal and outside my scope. I am here only to assist with Lyka Realty property inquiries.';
       }
@@ -3232,7 +3963,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return 'Puriyudhu sir, aana naan property queries-kku mattum dhaan help panna mudiyum. Chennai property pathi enquiry irundhaa pesalaam; illenna, unga time-ku thanks.';
       } else if (lang === 'Hindi') {
-        return 'Main samajhti hoon sir, par main sirf property queries par hi baat kar sakti hoon. Agar property ke baare me baat karni ho toh zaroor batayein.';
+        return `मैं समझ ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'} सर, पर मैं सिर्फ़ प्रॉपर्टी से जुड़े सवालों पर ही बात कर ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। अगर प्रॉपर्टी के बारे में बात करनी हो तो ज़रूर बताइए।`;
       } else {
         return 'I understand sir, but I can only assist with property-related inquiries. If you have property requirements, I would be glad to help.';
       }
@@ -3243,7 +3974,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, oru second! [break] வேளச்சேரில ready-to-move 2 BHK flat இருக்கு Sir, 950 sq ft, 72 Lakhs, lift and 2 car parking-oda. Site visit எப்போ பாக்கலாம்?';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, ek second! [break] Velachery me humara ready-to-move 2 BHK flat hai, 950 square feet 72 Lakhs me, lift aur 2 car parking ke saath. Kya aap site visit dekhna chahenge?';
+        return '[thinking] हाँ जी, एक सेकंड! [break] वेलाचेरी में हमारा रेडी-टू-मूव 2 BHK फ्लैट उपलब्ध है, 950 स्क्वेयर फीट, 72 लाख रुपये में, लिफ्ट और दो कार पार्किंग के साथ। क्या आप साइट विज़िट देखना चाहेंगे?';
       } else {
         return '[thinking] Ah, let me check that! [break] In Velachery, we have a ready-to-move 2 BHK flat, 950 sq ft for Rs. 72 Lakhs, with 2 car parking and lift. Would you like to schedule a site visit?';
       }
@@ -3254,7 +3985,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, OMR-aa? [break] OMR சோழிங்கநல்லூர்ல premium 3 BHK flat இருக்கு Sir, 1450 sq ft, gym மற்றும் swimming pool-oda 1.25 Crore. WhatsApp-ல brochure அனுப்பவா?';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, OMR option! [break] OMR Sholinganallur me premium 3 BHK flat hai, 1450 square feet gym aur swimming pool ke saath 1.25 Crore me. Kya brochure WhatsApp pe bhej doon?';
+        return '[thinking] हाँ जी, ओएमआर विकल्प! [break] ओएमआर शोलिंगनल्लूर में प्रीमियम 3 BHK फ्लैट उपलब्ध है, 1450 स्क्वेयर फीट, जिम और स्विमिंग पूल के साथ 1.25 करोड़ रुपये में। क्या मैं ब्रोशर व्हाट्सएप पर भेज दूँ?';
       } else {
         return '[thinking] Ah, OMR! [break] In OMR Sholinganallur, we have a premium 3 BHK flat, 1450 sq ft with gym and pool for Rs. 1.25 Crore. Shall I send the brochure on WhatsApp?';
       }
@@ -3265,7 +3996,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, Tambaram individual house! [break] தாம்பரம்ல new individual house இருக்கு Sir, 1800 sq ft, 3 bedrooms, East facing, 1.6 Crore. உங்களுக்கு floor plan பார்க்க விருப்பமா?';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, Tambaram me individual house hai, 1800 square feet, 3 bedrooms, East facing 1.6 Crore me. Kya aapko details chahiye?';
+        return '[thinking] हाँ जी, तांबरम में नया इंडिविजुअल हाउस उपलब्ध है, 1800 स्क्वेयर फीट, 3 बेडरूम, पूर्व मुखी, 1.6 करोड़ रुपये में। क्या आपको इसका विवरण चाहिए?';
       } else {
         return '[thinking] Ah, Tambaram! [break] In Tambaram, we have a newly constructed 3-bedroom individual house, 1800 sq ft, East facing for Rs. 1.6 Crore. Would you like the floor plan?';
       }
@@ -3276,7 +4007,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, Chengalpattu plots! [break] செங்கல்பட்டுல DTCP approved plot இருக்கு Sir, 1200 sq ft, clear patta, 18 Lakhs மட்டும்தான், bank loan support இருக்கு.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, Chengalpattu me DTCP approved plot hai, 1200 square feet clear patta ke saath 18 Lakhs me, aur bank loan facility bhi available hai.';
+        return '[thinking] हाँ जी, चेंगलपट्टू में डीटीसीपी स्वीकृत प्लॉट उपलब्ध है, 1200 स्क्वेयर फीट, क्लियर पट्टा के साथ 18 लाख रुपये में, और बैंक लोन की सुविधा भी उपलब्ध है।';
       } else {
         return '[thinking] Ah, Chengalpattu! [break] In Chengalpattu, we have DTCP approved plots, 1200 sq ft with clear patta for Rs. 18 Lakhs, with bank loan assistance available.';
       }
@@ -3287,7 +4018,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, Porur rental flat! [break] போரூர்ல 1 BHK வாடகை வீடு இருக்கு Sir, மாதம் 14,000 ரூபாய், 3 மாத முன்பணம்.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, Porur me 1 BHK rental flat hai, 14,000 per month 3 months deposit ke saath.';
+        return '[thinking] हाँ जी, पोरूर में 1 BHK किराये का फ्लैट उपलब्ध है, 14,000 रुपये प्रति माह, तीन महीने के डिपॉज़िट के साथ।';
       } else {
         return '[thinking] Ah, Porur! [break] In Porur, we have a 1 BHK rental flat for Rs. 14,000 per month with 3 months deposit.';
       }
@@ -3298,7 +4029,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, Adyar rental flat! [break] அடையார்ல 2 BHK வாடகைக்கு இருக்கு Sir, மாதம் 28,000 ரூபாய், குடும்பங்களுக்கு மட்டும், செல்லப்பிராணிகள் அனுமதிக்கப்படும்.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, Adyar me 2 BHK rental flat hai, 28,000 per month, family aur pet-friendly.';
+        return '[thinking] हाँ जी, अडयार में 2 BHK किराये का फ्लैट उपलब्ध है, 28,000 रुपये प्रति माह, परिवारों के लिए और पेट-फ्रेंडली है।';
       } else {
         return '[thinking] Ah, Adyar! [break] In Adyar, we have a 2 BHK rental flat for Rs. 28,000 per month, family only and pet-friendly.';
       }
@@ -3309,7 +4040,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Ah, price pathi kekkureengala? [break] செங்கல்பட்டு plot 18 Lakhs, வேளச்சேரி 2BHK 72 Lakhs, OMR 3BHK 1.25 Crore. உங்களுக்கு எந்த ஏரியா பட்ஜெட்டுக்கு ஏத்த மாதிரி இருக்கும்?';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, price details! [break] Chengalpattu plot 18 Lakhs, Velachery 2BHK 72 Lakhs, aur OMR 3BHK 1.25 Crore se shuru hota hai. Aapka budget kis area ke liye hai?';
+        return '[thinking] हाँ जी, कीमत की जानकारी! [break] चेंगलपट्टू प्लॉट 18 लाख से, वेलाचेरी 2 BHK 72 लाख से, और ओएमआर 3 BHK 1.25 करोड़ रुपये से शुरू होता है। आपका बजट किस इलाके के लिए है?';
       } else {
         return '[thinking] Ah, speaking of pricing! [break] Our properties start from 18 Lakhs for plots in Chengalpattu, 72 Lakhs for 2BHK in Velachery, and 1.25 Crore for 3BHK in OMR. Which area fits your budget?';
       }
@@ -3320,7 +4051,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, puriyudhu! [break] முத்திரைத்தீர்வை, பதிவுக் கட்டணம் guideline value அல்லது விற்பனை விலை, இதுல எது அதிகமோ அதுக்கு கணக்கிடுவாங்க. சரியான தொகைய எங்க sales team சொல்வாங்க.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, samajh gaya! [break] Stamp duty aur registration guideline value ya sale value me se jo zyada ho, uspe lagta hai. Exact amount sales team confirm karegi.';
+        return `[thinking] हाँ जी, समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}! [break] स्टाम्प ड्यूटी और रजिस्ट्रेशन शुल्क गाइडलाइन वैल्यू या सेल वैल्यू में से जो ज़्यादा हो, उस पर लगता है। सही राशि हमारी सेल्स टीम कन्फर्म करेगी।`;
       } else {
         return '[thinking] Ah, got it! [break] Stamp duty and registration are charged on guideline value or sale value, whichever is higher. The sales team will confirm the exact amount.';
       }
@@ -3331,7 +4062,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[warm] Aan, loan facility kandippa irukku! [break] Partner bank மூலமா கடன் உதவி பண்றோம். வருமானம், credit score பாத்து bank தான் இறுதி முடிவு பண்ணும்.';
       } else if (lang === 'Hindi') {
-        return '[warm] Haan ji, loan facility bilkul available hai! [break] Hum partner banks ke through loan assist karte hain. Income aur credit score dekh kar bank hi final decision leta hai.';
+        return '[warm] हाँ जी, बैंक लोन की सुविधा बिल्कुल उपलब्ध है! [break] हम पार्टनर बैंकों के ज़रिए लोन में मदद करते हैं। आय और क्रेडिट स्कोर देखकर बैंक अंतिम निर्णय लेता है।';
       } else {
         return '[warm] Ah, yes! Bank loan assistance is definitely available! [break] We assist with bank loans through our partner banks. The bank decides approval based on your income and credit score.';
       }
@@ -3342,7 +4073,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[warm] Aan, site visit kandippa paakkalaam! [break] திங்கள் முதல் சனி காலை 10 மணி முதல் மாலை 5 மணி வரை site visit பாக்கலாம். ஞாயிறு appointment மூலமா வரலாம்.';
       } else if (lang === 'Hindi') {
-        return '[warm] Haan ji, site visit zaroor plan kar sakte hain! [break] Site visit Somwar se Shanivar subah 10 baje se shaam 5 baje tak allowed hai. Ravivar ko appointment ke through aana hota hai.';
+        return '[warm] हाँ जी, साइट विज़िट ज़रूर प्लान कर सकते हैं! [break] साइट विज़िट सोमवार से शनिवार सुबह 10 बजे से शाम 5 बजे तक उपलब्ध है। रविवार को अपॉइंटमेंट के ज़रिए आ सकते हैं।';
       } else {
         return '[warm] Ah, definitely! [break] Site visits are available Monday to Saturday from 10 AM to 5 PM, and Sundays by appointment.';
       }
@@ -3353,7 +4084,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, documents list solren! [break] அடையாள அட்டை, முகவரிச் சான்று, PAN, வருமானச் சான்று (loan-க்கு), மற்றும் photos வேணும். Property documents-ஐ team மற்றும் உங்க வக்கீல் சரிபாக்கணும்.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, documents list batati hoon! [break] ID proof, address proof, PAN card, income proof (loan ke liye), aur photos chahiye. Property documents sales team aur aapke lawyer verify karenge.';
+        return `[thinking] हाँ जी, दस्तावेज़ों की सूची ${voiceGenderRef.current === 'male' ? 'बताता हूँ' : 'बताती हूँ'}! [break] आईडी प्रूफ़, एड्रेस प्रूफ़, पैन कार्ड, लोन के लिए इनकम प्रूफ़ और फोटो चाहिए होंगे। प्रॉपर्टी के दस्तावेज़ सेल्स टीम और आपके वकील जाँचेंगे।`;
       } else {
         return '[thinking] Ah, here are the required documents! [break] You will need ID proof, address proof, PAN, income proof for loans, and photos. Property title documents will be verified by our team and your lawyer.';
       }
@@ -3364,7 +4095,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[thinking] Aan, puriyudhu! [break] பொதுவா சொத்து விலையில 1 முதல் 5 சதவீதம் booking amount இருக்கும். குறிப்பிட்ட project பொறுத்து மாறும்.';
       } else if (lang === 'Hindi') {
-        return '[thinking] Haan ji, booking amount aam taur par property value ka 1 se 5 percent hota hai, project ke hisaab se vary karta hai.';
+        return '[thinking] हाँ जी, बुकिंग राशि आमतौर पर प्रॉपर्टी की कीमत का 1 से 5 प्रतिशत होती है, जो प्रोजेक्ट के हिसाब से अलग हो सकती है।';
       } else {
         return '[thinking] Ah, yes! Booking amount is usually 1 to 5 percent of the property price, depending on the specific project.';
       }
@@ -3379,7 +4110,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[friendly] Aan, naan Priya! [break] நாங்க Lyka Realty. எங்க Office Anna Nagar, Chennai-ல இருக்கு. வேலை நேரம்: Mon-Sat 9:30 AM to 6:30 PM.';
       } else if (lang === 'Hindi') {
-        return '[friendly] Haan ji, main Priya hoon! [break] Main Lyka Realty se hoon. Humara office Anna Nagar, Chennai me hai. Working hours: Mon-Sat 9:30 AM to 6:30 PM.';
+        return `[friendly] हाँ जी, मैं ${voiceGenderRef.current === 'male' ? 'कार्तिक' : 'प्रिया'} हूँ! [break] मैं लाइका रियल्टी से हूँ। हमारा ऑफिस अन्ना नगर, चेन्नई में है। ऑफिस का समय सोमवार से शनिवार सुबह साढ़े नौ से शाम साढ़े छह बजे तक है।`;
       } else {
         return "[friendly] Ah, yes! I'm Priya from Lyka Realty. Our office is in Anna Nagar, Chennai. Open Monday to Saturday, 9:30 AM to 6:30 PM.";
       }
@@ -3394,7 +4125,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[friendly] Aan, kandippa! [break] எங்க verified சொத்து பட்டியல்: வேளச்சேரில 2BHK flat (72L), OMR சோழிங்கநல்லூர்ல 3BHK flat (1.25 Cr), தாம்பரம்ல தனி வீடு (1.6 Cr), செங்கல்பட்டுல DTCP plot (18L), போரூர்ல 1BHK வாடகை (14,000/m), அடையார்ல 2BHK வாடகை (28,000/m). இதுல உங்களுக்கு எதுல ஆர்வம்?';
       } else if (lang === 'Hindi') {
-        return '[friendly] Haan ji, bilkul! [break] Humare verified listings: Velachery me 2BHK flat (72L), OMR me 3BHK flat (1.25 Cr), Tambaram me individual house (1.6 Cr), Chengalpattu me DTCP plot (18L), Porur me 1BHK rent (14k/m), aur Adyar me 2BHK rent (28k/m). Aap kis me interested hain?';
+        return '[friendly] हाँ जी, बिल्कुल! [break] हमारी सत्यापित प्रॉपर्टीज़ हैं: वेलाचेरी में 2 BHK फ्लैट (72 लाख), ओएमआर में 3 BHK फ्लैट (1.25 करोड़), तांबरम में इंडिविजुअल हाउस (1.6 करोड़), चेंगलपट्टू में डीटीसीपी प्लॉट (18 लाख), पोरूर में 1 BHK किराये पर (14,000 प्रति माह), और अडयार में 2 BHK किराये पर (28,000 प्रति माह)। आपको किस में रुचि है?';
       } else {
         return '[friendly] Ah, certainly! [break] Our verified properties include: 2BHK flat in Velachery (72L), 3BHK flat in OMR (1.25 Cr), Individual house in Tambaram (1.6 Cr), DTCP plot in Chengalpattu (18L), 1BHK rental in Porur (14,000/m), and 2BHK rental in Adyar (28,000/m). Which one suits you?';
       }
@@ -3408,7 +4139,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return '[friendly] Aan, kandippa! [break] Complete property brochure, floor plans and pricing details உங்க WhatsApp-க்கு அனுப்பிடுறோம். உங்க preferred ஏரியா மற்றும் பட்ஜெட் சொல்லுங்க.';
       } else if (lang === 'Hindi') {
-        return '[friendly] Haan ji, zaroor! [break] Complete brochure aur details aapke WhatsApp par share kar denge.';
+        return '[friendly] हाँ जी, ज़रूर! [break] पूरा ब्रोशर और प्रॉपर्टी की जानकारी आपके व्हाट्सएप पर साझा कर देंगे।';
       } else {
         return '[friendly] Ah, certainly! [break] We will share the complete property brochure and pricing directly to your WhatsApp.';
       }
@@ -3418,7 +4149,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if (lang === 'Tamil-English') {
       return '[thinking] Aan, puriyudhu. [break] பட்டியல்ல இல்லாத property, legal கருத்து, discount எல்லாத்துக்கும் எங்க sales team மற்றும் வக்கீல் கிட்ட கேட்டு உறுதி பண்ணி சொல்றோம்.';
     } else if (lang === 'Hindi') {
-      return '[thinking] Haan ji, samajh gaya. [break] Is baare me humare senior sales team aur lawyer se confirm karke aapko batayenge.';
+      return `[thinking] हाँ जी, समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}। [break] इस बारे में हमारी सीनियर सेल्स टीम और वकील से कन्फर्म करके आपको बताएंगे।`;
     } else {
       return '[thinking] Ah, understood. [break] For legal opinions, unlisted properties, or special discounts, our senior sales team and lawyer will confirm directly with you.';
     }
@@ -3429,7 +4160,11 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const formatRepeatAnswerIfNeeded = (replyText: string, userQuery?: string): string => {
     if (!replyText || !replyText.trim()) return replyText;
     const lang = selectedLanguageRef.current;
-    const cleanCurrent = replyText.replace(/\[.*?\]/g, '').replace(/[^a-zA-Z0-9\s]/g, ' ').toLowerCase().trim();
+    const cleanCurrent = replyText
+      .replace(/\[.*?\]/g, '')
+      .replace(/[^a-zA-Z0-9\u0900-\u097F\u0B80-\u0BFF\s]/g, ' ')
+      .toLowerCase()
+      .trim();
     const userLower = (userQuery || '').toLowerCase().trim();
 
     const isUserAskingRepeat =
@@ -3441,6 +4176,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       userLower.includes('what did you say') ||
       userLower.includes('phir se bolo') ||
       userLower.includes('dobara bolo') ||
+      userLower.includes('फिर से बोलो') ||
+      userLower.includes('दोबारा') ||
+      userLower.includes('फिर से बताइए') ||
       userLower.includes('one more time') ||
       userLower.includes('kekkala') ||
       userLower.includes('pardon');
@@ -3448,7 +4186,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // Check if the AI already spoke this exact or very similar answer earlier in the call
     const previousAiReplies = dialogueRef.current
       .filter((d) => d.speaker === 'AI')
-      .map((d) => d.text.replace(/\[.*?\]/g, '').replace(/[^a-zA-Z0-9\s]/g, ' ').toLowerCase().trim())
+      .map((d) =>
+        d.text
+          .replace(/\[.*?\]/g, '')
+          .replace(/[^a-zA-Z0-9\u0900-\u097F\u0B80-\u0BFF\s]/g, ' ')
+          .toLowerCase()
+          .trim()
+      )
       .filter((text) => text.length > 15);
 
     const alreadySaid = previousAiReplies.some((prev) => {
@@ -3471,6 +4215,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       cleanCurrent.startsWith('marupadi') ||
       cleanCurrent.startsWith('marubadi') ||
       cleanCurrent.startsWith('ek baar phir') ||
+      cleanCurrent.startsWith('एक बार फिर') ||
       cleanCurrent.startsWith('innoru vaati');
 
     if ((alreadySaid || isUserAskingRepeat) && !alreadyHasPrefix) {
@@ -3478,7 +4223,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (lang === 'Tamil-English') {
         return `[explaining] Marupadiyum solren, ${strippedReply}`;
       } else if (lang === 'Hindi') {
-        return `[explaining] Ek baar phir se batati hoon, ${strippedReply}`;
+        return `[explaining] एक बार फिर से ${voiceGenderRef.current === 'male' ? 'बताता हूँ' : 'बताती हूँ'}, ${strippedReply}`;
       } else {
         return `[explaining] Once again, ${strippedReply}`;
       }
@@ -3599,107 +4344,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     speakAIText(promptText, langCode);
   };
 
-  // Detects if the caller is speaking directly in Hindi (property inquiry, question, or statement)
-  const isHindiPropertyOrConversationQuery = (text: string): boolean => {
-    const lower = (text || '').toLowerCase().trim();
-    if (!lower || lower.length < 2) return false;
-
-    // 1. Devanagari script presence
-    if (/[\u0900-\u097F]/.test(lower)) return true;
-
-    // 2. Hindi conversational grammar and question structures in Roman script
-    const isRomanHindi =
-      /\b(kya\s*(price|rate|cost|hai|milega|hoga|options|budget|details))\b/i.test(lower) ||
-      /\b(kitna|kitne|kitni)\s*(price|rate|budget|bhk|lakh|crore|hoga|lagega|milega)\b/i.test(lower) ||
-      /\b(chahiye|chahie|chahta|chahte|chahti|khareedna|khareedne|dekhna)\b/i.test(lower) ||
-      /\b(batao|bataiye|batayein|suno|boliye|bolo)\b/i.test(lower) ||
-      /\b(mein|me)\s*(kya|hai|hain|chahiye|dekh|milega|kitna|kaun)\b/i.test(lower) ||
-      /\b(mujhe|humein|aapka|aapke|aapki)\s*(batao|chahiye|bataiye|paas)\b/i.test(lower) ||
-      /\b(kaha|kahan|kaise|kab)\s*(hai|milega|chalna|aana|hoga|kar\s*sakte)\b/i.test(lower) ||
-      /\b(baat\s*(karo|kijiye|karein|kar\s*sakte))\b/i.test(lower) ||
-      /\b(nahi\s*(samajh|aata|aati|aa\s*raha))\b/i.test(lower) ||
-      /\b(kaun\s*bol\s*raha|kaun\s*hai)\b/i.test(lower);
-
-    return isRomanHindi;
-  };
-
-  // Language Switch Intent Detector: detects if the user wants to speak in English, Hindi, or Tamil
-  // Handles all variants: "i don't know which language are you can you talk in hindi", "can we speak in english",
-  // "hindi please", "talk in hindi", "hindi me baat karo", "இங்கிலீஷ்", "ஹிந்தி", "இந்தி", etc.
-  const detectLanguageSwitchIntent = (text: string): LanguageOption | null => {
-    const lower = (text || '').toLowerCase().trim();
-    if (!lower) return null;
-
-    // Negative guards to prevent false positives (e.g. "not hindi", "no hindi", "don't know hindi", "hindi nahi")
-    const isNegativeForHindi =
-      /\b(no|not|don'?t\s+know|don'?t\s+speak|don'?t\s+want|never|nahi\s+aati|nahi\s+aata|theriyadhu|vendam|venaam)\s+hindi\b/i.test(lower) ||
-      /\bhindi\s+(nahi\s*aati|nahi\s*aata|nahi|theriyadhu|vendam|venaam|illa)\b/i.test(lower);
-
-    const isNegativeForEnglish =
-      /\b(no|not|don'?t\s+know|don'?t\s+speak|don'?t\s+want|never|nahi\s+aati|theriyadhu|vendam|venaam)\s+english\b/i.test(lower) ||
-      /\benglish\s+(nahi\s*aati|nahi|theriyadhu|vendam|venaam|illa)\b/i.test(lower);
-
-    const isNegativeForTamil =
-      /\b(no|not|don'?t\s+know|don'?t\s+speak|don'?t\s+want|never|nahi\s+aati|nahi\s+samajh|illa)\s+tamil\b/i.test(lower) ||
-      /\btamil\s+(nahi\s*aati|nahi\s*samajh|nahi|illa)\b/i.test(lower);
-
-    // 1. Hindi switch triggers:
-    const isHindi =
-      !isNegativeForHindi &&
-      (
-        /\bhindi\b/i.test(lower) ||
-        lower.includes('हिंदी') ||
-        lower.includes('ஹிந்தி') ||
-        lower.includes('இந்தி') ||
-        /\b(talk|speak|switch|change|continue|prefer)\s*(in|to)?\s*hindi\b/i.test(lower) ||
-        /\bcan\s*(we|you)\s*(talk|speak)\s*(in)?\s*hindi\b/i.test(lower) ||
-        /\b(could|please)\s*(we|you)?\s*(talk|speak)\s*(in)?\s*hindi\b/i.test(lower) ||
-        /\bi\s*(want|would like|prefer)\s*(to\s*)?(talk|speak)\s*in\s*hindi\b/i.test(lower) ||
-        /\bi\s*want\s*hindi\b/i.test(lower) ||
-        /\bhindi[-\s]*(please|la|lae|laa|pesalaam|pesalam|pesunga|mattum|only|language)\b/i.test(lower) ||
-        /\bhindi[-\s]*(mein|me)\s*(baat|bolo|boliye|karo|karein|kijiye)\b/i.test(lower) ||
-        /\b(in\s+hindi|only\s+hindi)\b/i.test(lower)
-      );
-
-    // 2. English switch triggers:
-    const isEnglish =
-      !isNegativeForEnglish &&
-      (
-        /\b(talk|speak|switch|change|continue|prefer)\s*(in|to)?\s*english\b/i.test(lower) ||
-        /\bcan\s*(we|you)\s*(talk|speak)\s*(in)?\s*english\b/i.test(lower) ||
-        /\b(could|please)\s*(we|you)?\s*(talk|speak)\s*(in)?\s*english\b/i.test(lower) ||
-        /\bi\s*(want|would like|prefer)\s*(to\s*)?(talk|speak)\s*in\s*english\b/i.test(lower) ||
-        /\bi\s*want\s*english\b/i.test(lower) ||
-        /\benglish[-\s]*(please|la|lae|laa|pesalaam|pesalam|pesunga|mattum|only|language)\b/i.test(lower) ||
-        /\benglish[-\s]*(mein|me)\s*(baat|bolo|karo|karein)\b/i.test(lower) ||
-        /\b(in\s+english|only\s+english)\b/i.test(lower) ||
-        /^(english|inglish|இங்கிலீஷ்|ஆங்கிலம்|இங்லிஷ்)$/i.test(lower) ||
-        lower.includes('இங்கிலீஷ்') ||
-        lower.includes('ஆங்கிலம்') ||
-        (/\benglish\b/i.test(lower) && !lower.includes('tamil') && !lower.includes('hindi'))
-      );
-
-    // 3. Tamil / Tanglish switch triggers:
-    const isTamil =
-      !isNegativeForTamil &&
-      (
-        /\b(talk|speak|switch|change|continue)\s*(in|to)?\s*(tamil|tanglish)\b/i.test(lower) ||
-        /\bcan\s*(we|you)\s*(talk|speak)\s*(in)?\s*tamil\b/i.test(lower) ||
-        /\btamil[-\s]*(please|la|lae|laa|pesalaam|pesalam|pesunga|mattum|only|language)\b/i.test(lower) ||
-        /\btamil[-\s]*(mein|me)\s*(baat|bolo)\b/i.test(lower) ||
-        /^(tamil|tanglish|தமிழ்)$/i.test(lower) ||
-        lower.includes('தமிழ்')
-      );
-
-    if (isHindi) return 'Hindi';
-    if (isEnglish) return 'English';
-    if (isTamil) return 'Tamil-English';
-
-    return null;
-  };
-
   // Language switch applier: dynamically reconfigures STT engine, Session Memory Brain, Lead & Voice
-  const applyLanguageSwitch = (newLang: LanguageOption) => {
+  const applyLanguageSwitch = (
+    newLang: LanguageOption,
+    options?: { lockCloudStt?: boolean }
+  ) => {
+    if (options?.lockCloudStt !== undefined) {
+      explicitLanguageLockedRef.current = options.lockCloudStt;
+    } else if (newLang === 'Hindi') {
+      explicitLanguageLockedRef.current = true;
+    }
     updateSelectedLanguage(newLang);
     try {
       localStorage.setItem('lyka_voice_lang', newLang);
@@ -3721,13 +4375,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       ];
     }
 
-    // Immediately re-target STT engine so live speech recognition writes in the chosen language!
+    // Immediately re-target browser STT engine if active/fallback so live speech recognition writes in the chosen language
     const targetLangCode = newLang === 'Hindi' ? 'hi-IN' : newLang === 'English' ? 'en-IN' : 'ta-IN';
+
+    // Always abort and discard the current browser recognition instance so the NEXT one starts with the correct language.
+    // This applies whether using browser STT directly or as a cloud-STT fallback.
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.lang = targetLangCode;
         recognitionRef.current.onend = null;
         recognitionRef.current.onerror = null;
+        recognitionRef.current.onresult = null;
         recognitionRef.current.abort();
       } catch (e) {
         // ignore
@@ -3736,20 +4393,26 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       isRecognitionRunningRef.current = false;
     }
 
+    // Also stop any active cloud STT recording so the next turn uses the updated selectedLanguageRef
+    // (Sarvam reads getVoiceLangCode() per turn; Groq/Whisper uses 'auto' which auto-detects language)
+    if (isCloudSttActive()) {
+      stopServerSTTListening();
+    }
+
     // Reset turn speech buffers so no previous-language text leaks
     userAccumulatedSpeechRef.current = '';
     speechSessionPrefixRef.current = '';
     turnCommittedSpeechRef.current = '';
     setLiveSpeechText('');
 
-    // Spin up fresh speech recognition with the new target language
+    // Spin up fresh STT engine with the new target language when not already recording cloud audio
     setTimeout(() => {
       if (
-        callStateRef.current !== 'Call Completed' &&
-        callStateRef.current !== 'Calling...' &&
-        !isSpeechSynthesisSpeakingRef.current
+        callStateRef.current === 'Listening...' &&
+        !isSpeechSynthesisSpeakingRef.current &&
+        !isTurnProcessingRef.current
       ) {
-        startContinuousSpeechRecognition();
+        startActiveListening();
       }
     }, 40);
   };
@@ -3952,7 +4615,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (isDecliningOrBusy(input)) {
         const politeEnd =
           activeLang === 'Hindi'
-            ? `[understanding] Ji Sir, koi baat nahi. Aapke liye kab baat karna convenient rahega? Main us time par call kar ${voiceGenderRef.current === 'male' ? 'sakta hoon' : 'sakti hoon'}. Have a lovely day!`
+            ? `[understanding] जी सर, कोई बात नहीं। आपके लिए कब बात करना सुविधाजनक रहेगा? मैं उस समय पर कॉल कर ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। आपका दिन शुभ हो!`
             : activeLang === 'English'
             ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
             : 'Of course, no problem. Disturb pannadhukku sorry. Ungalukku eppo call panna comfortable-aa irukkum? Illenna, neenga free-aa irukkumbodhu pesalaam.';
@@ -3972,7 +4635,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (isNotInterested(input)) {
         const politeEnd =
           activeLang === 'Hindi'
-            ? '[calm] Ji Sir, koi problem nahi. Aapke time ke liye thank you. Aapka din achha rahe!'
+            ? '[calm] जी सर, कोई बात नहीं। आपके समय के लिए धन्यवाद। आपका दिन शुभ हो!'
             : activeLang === 'English'
             ? '[calm] Absolutely Sir, I understand. Thank you for your time. Have a lovely day!'
             : 'Seri, puriyudhu. Ungaloda time-ku thanks. Disturb pannadhukku sorry. Have a nice day!';
@@ -3993,7 +4656,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else {
         const askPurposeAgain =
           activeLang === 'Hindi'
-            ? 'Aap property khareedna chahte hain, ya rent ke liye dekh rahe hain?'
+            ? 'क्या आप प्रॉपर्टी खरीदना चाहते हैं, या किराये के लिए देख रहे हैं?'
             : activeLang === 'English'
             ? 'Are you looking to buy a flat/house, rent, or looking for a plot?'
             : 'Neenga veedu vaanga paakureengala, illa rent-ku paakureengala Sir?';
@@ -4013,7 +4676,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else {
         const askAreaAgain =
           activeLang === 'Hindi'
-            ? 'Chennai me aap kis area me property dekh rahe hain? Jaise Velachery, OMR, Tambaram?'
+            ? 'चेन्नई में आप किस इलाके में प्रॉपर्टी देख रहे हैं? जैसे वेलाचेरी, ओएमआर या तांबरम?'
             : activeLang === 'English'
             ? 'Which location in Chennai are you looking in? For example Velachery, OMR, or Tambaram?'
             : 'Chennai-la ungalukku endha area convenient-aa irukkum Sir? Velachery, OMR, Tambaram maadhiri?';
@@ -4033,7 +4696,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else {
         const askBhkAgain =
           activeLang === 'Hindi'
-            ? 'Aapko kitne BHK ki zaroorat hai Sir? 1 BHK, 2 BHK, ya 3 BHK?'
+            ? 'आपको कितने BHK की ज़रूरत है सर? 1 BHK, 2 BHK या 3 BHK?'
             : activeLang === 'English'
             ? 'How many BHK are you looking for Sir? 1 BHK, 2 BHK, or 3 BHK?'
             : 'Ungalukku ethana BHK thevai padudhu Sir? 1 BHK, 2 BHK, illa 3 BHK-aa?';
@@ -4053,7 +4716,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else {
         const askBudgetAgain =
           activeLang === 'Hindi'
-            ? 'Aapka approximate budget kitna rahega Sir?'
+            ? 'आपका अनुमानित बजट कितना रहेगा सर?'
             : activeLang === 'English'
             ? 'What is your comfortable budget range Sir?'
             : 'Unga budget approximate-aa evlo plan pannirukeenga Sir?';
@@ -4073,7 +4736,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else {
         const askTimelineAgain =
           activeLang === 'Hindi'
-            ? 'Aap kab tak shift hona chahte hain? Immediate ya kuch mahino me?'
+            ? 'आप कब तक शिफ्ट होना चाहते हैं? तुरंत या कुछ महीनों में?'
             : activeLang === 'English'
             ? 'When are you planning to move in? Immediate or in a few months?'
             : 'Eppodhukulla move-in panna plan pandreenga Sir? Udane-vaa illa adutha sila maasathulaya?';
@@ -4097,7 +4760,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } else {
         const askFinanceAgain =
           activeLang === 'Hindi'
-            ? 'Aap bank loan plan kar rahe hain ya self-funding / cash?'
+            ? 'क्या आप बैंक होम लोन लेने की सोच रहे हैं या सेल्फ-फंडिंग यानी कैश?'
             : activeLang === 'English'
             ? 'Are you planning for a bank home loan or self-funding / cash?'
             : 'Finance bank loan moolama paakureengala, illa direct own funds cash-aa Sir?';
@@ -4114,6 +4777,14 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('ama') ||
         lower.includes('yes') ||
         lower.includes('sure') ||
+        lower.includes('haan') ||
+        lower.includes('haanji') ||
+        lower.includes('bilkul') ||
+        lower.includes('zaroor') ||
+        lower.includes('theek') ||
+        lower.includes('हाँ') ||
+        lower.includes('बिल्कुल') ||
+        lower.includes('जरूर') ||
         lower.includes('paakkanum') ||
         lower.includes('varren') ||
         lower.includes('visit') ||
@@ -4140,7 +4811,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   };
 
   // Main Customer Input Parser & Flow Controller (STT -> Groq Model / Rule Engine -> TTS)
-  const handleCustomerInput = async (input: string) => {
+  const handleCustomerInput = async (input: string, meta?: CustomerSpeechMeta) => {
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
@@ -4154,18 +4825,43 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     speechSessionPrefixRef.current = '';
     setIsUserPausing(false);
 
-    const cleanNormalized = normalizeCustomerSpeech(input);
-    appendDialogue('Customer', cleanNormalized);
+    const baseNormalized = normalizeCustomerSpeechBase(input);
+    const activeStep = currentStepRef.current;
+    let activeLang: LanguageOption = selectedLanguageRef.current || 'Tamil-English';
+
+    // Detect explicit switch OR combine script/vocabulary + cloud STT acoustic language tag
+    const explicitSwitch = detectExplicitLanguageSwitch(input) || detectExplicitLanguageSwitch(baseNormalized);
+    const languageProbe = /[\u0900-\u097F\u0B80-\u0BFF]/u.test(input) ? input : baseNormalized;
+    const sttTagHint = meta?.sttDetectedLanguage || meta?.conversationLanguage || null;
+    const detectedLanguage = explicitSwitch
+      ? { language: explicitSwitch, switched: explicitSwitch !== activeLang, reason: 'explicit' as const }
+      : resolveSttConversationLanguage({
+          transcript: languageProbe,
+          sttDetectedLanguage: sttTagHint,
+          currentLanguage: activeLang,
+        });
+
+    const cleanNormalized = normalizeCustomerSpeech(input, detectedLanguage.language);
+    const preserveCloudUnicode =
+      sttEngineRef.current !== 'browser' && /[\u0900-\u097F\u0B80-\u0BFF]/u.test(input);
+    const displayTranscript = preserveCloudUnicode ? input.trim() : cleanNormalized;
+    appendDialogue('Customer', displayTranscript);
     setCurrentTextInput('');
     setLiveSpeechText('');
 
     const lower = cleanNormalized.toLowerCase().trim();
-    const activeStep = currentStepRef.current;
-    const activeLang = selectedLanguageRef.current;
 
     // Guard: ignore empty or whitespace-only inputs
     if (!input || lower.length < 2) {
       return;
+    }
+
+    // Apply automatic language switch immediately so opt-out, off-topic, LLM, and TTS all align
+    if (activeStep >= 1 && (detectedLanguage.switched || detectedLanguage.reason === 'explicit')) {
+      applyLanguageSwitch(detectedLanguage.language, {
+        lockCloudStt: detectedLanguage.reason === 'explicit' || detectedLanguage.language === 'Hindi',
+      });
+      activeLang = detectedLanguage.language;
     }
 
     // Step 0: Real-time Emotional Intelligence Detection
@@ -4211,7 +4907,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (offTopicTurnsRef.current >= 2) {
         const politeClose =
           activeLang === 'Hindi'
-            ? 'Main sirf property madad ke liye yahan hoon. Hum out of syllabus baat nahi kar sakte. Aapka time dene ke liye shukriya, call disconnect kar rahi hoon. Have a wonderful day!'
+            ? `मैं सिर्फ़ प्रॉपर्टी से जुड़ी मदद के लिए यहाँ हूँ। हम विषय से बाहर बात नहीं कर सकते। आपका समय देने के लिए धन्यवाद, कॉल डिसकनेक्ट कर ${voiceGenderRef.current === 'male' ? 'रहा हूँ' : 'रही हूँ'}। आपका दिन शुभ हो!`
             : activeLang === 'English'
             ? "I am only here to assist with property queries and cannot discuss out of syllabus topics. Thank you for your time, disconnecting the call. Have a wonderful day!"
             : 'Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!';
@@ -4227,42 +4923,6 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       return;
     }
 
-    // Detect Language Switch Request at ANY point (Step 0 or mid-conversation)
-    const detectedLangSwitch = detectLanguageSwitchIntent(input);
-
-    // STEP 0: Language selection step
-    if (activeStep === 0) {
-      const chosenLang: LanguageOption =
-        detectedLangSwitch ||
-        (lower.includes('hindi') || lower.includes('हिंदी') || lower.includes('ஹிந்தி') || lower.includes('இந்தி') || isHindiPropertyOrConversationQuery(input)
-          ? 'Hindi'
-          : lower.includes('english') || lower.includes('inglish') || lower.includes('இங்கிலீஷ்') || lower.includes('ஆங்கிலம்')
-          ? 'English'
-          : 'Tamil-English');
-
-      applyLanguageSwitch(chosenLang);
-      updateCurrentStep(1);
-
-      if (chosenLang === 'English') {
-        const customerName = lead?.name ? ` ${lead.name}` : '';
-        const openingEnglish = `[warm] Sure, absolutely! We can talk in English.${customerName ? ` Welcome${customerName}!` : ''} [break] [curious] Are you looking to buy a flat or house in Chennai, or looking to rent?`;
-        appendDialogue('AI', openingEnglish);
-        speakAIText(openingEnglish, 'en-US');
-      } else if (chosenLang === 'Hindi') {
-        const customerName = lead?.name ? ` ${lead.name} ji` : ' Sir';
-        const openingHindi = `[warm] Haan zaroor! Hum Hindi me baat kar sakte hain. [break] [curious] ${customerName}, aap Chennai me ghar khareedna chahte hain, ya rent pe dekh rahe hain?`;
-        appendDialogue('AI', openingHindi);
-        speakAIText(openingHindi, 'hi-IN');
-      } else {
-        const customerName = lead?.name ? ` ${lead.name} Sir` : ' Sir';
-        const openingTamil = `[warm] Romba sandhosham! [break] [curious] Neenga Chennai-la veedu vaanga paakureengala, illa rent-ku paakureengala${customerName}?`;
-        appendDialogue('AI', openingTamil);
-        speakAIText(openingTamil, 'ta-IN');
-      }
-      return;
-    }
-
-    // MID-CONVERSATION DYNAMIC LANGUAGE SWITCH & HINDI QUERY HANDLER (Step >= 1)
     const PROPERTY_INQUIRY_TERMS = [
       'price', 'rate', 'cost', 'budget', 'vilai', 'kimat', 'keemat',
       '1 bhk', '2 bhk', '3 bhk', '4 bhk', '1bhk', '2bhk', '3bhk', '4bhk', 'bhk',
@@ -4274,72 +4934,102 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     ];
     const hasPropertyInquiry = PROPERTY_INQUIRY_TERMS.some((term) => lower.includes(term));
 
-    let targetLanguageSwitch = detectedLangSwitch;
-    if (!targetLanguageSwitch && selectedLanguageRef.current !== 'Hindi' && isHindiPropertyOrConversationQuery(input)) {
-      targetLanguageSwitch = 'Hindi';
-    }
-
-    if (targetLanguageSwitch) {
-      const isSwitching = targetLanguageSwitch !== selectedLanguageRef.current;
-      if (isSwitching) {
-        applyLanguageSwitch(targetLanguageSwitch);
-      }
-
-      // If user's input solely requests the language switch without a specific property inquiry,
-      // respond immediately with the step-appropriate prompt in that language and return!
-      if (!hasPropertyInquiry) {
-        let switchResponse = '';
-        if (targetLanguageSwitch === 'English') {
-          const customerName = lead?.name ? ` ${lead.name}` : ' Sir';
-          if (activeStep <= 1) {
-            switchResponse = `[warm] Sure, absolutely! We can continue our conversation in English. [curious] Are you looking to buy a flat or house in Chennai, or looking to rent${customerName}?`;
-          } else if (activeStep === 2) {
-            switchResponse = `[warm] Sure, absolutely! Let's continue in English. [curious] Which area in Chennai is your preference? For example Velachery, OMR, Tambaram, Adyar, or Porur?`;
-          } else if (activeStep === 3) {
-            switchResponse = `[warm] Definitely! Continuing in English. [curious] How many BHK are you looking for? 1 BHK, 2 BHK, or 3 BHK?`;
-          } else if (activeStep === 4) {
-            switchResponse = `[warm] Of course! [curious] What is your comfortable approximate budget range${customerName}?`;
-          } else if (activeStep === 5) {
-            switchResponse = `[warm] Certainly! [curious] Would you be interested in scheduling a site visit this weekend, Saturday or Sunday?`;
-          } else {
-            switchResponse = `[warm] Sure, absolutely! We can talk in English. How can I help you with your property search in Chennai today${customerName}?`;
-          }
-          appendDialogue('AI', switchResponse);
-          speakAIText(switchResponse, 'en-US');
-          return;
-        } else if (targetLanguageSwitch === 'Hindi') {
-          const customerName = lead?.name ? ` ${lead.name} ji` : ' Sir';
-          if (activeStep <= 1) {
-            switchResponse = `[warm] Haan bilkul! Hum Hindi me baat kar sakte hain. [break] [curious] ${customerName}, aap Chennai me ghar khareedna chahte hain, ya rent pe dekh rahe hain?`;
-          } else if (activeStep === 2) {
-            switchResponse = `[warm] Zaroor! Hum Hindi me baat karenge. [break] [curious] ${customerName}, aap Chennai ke kaun se area me property dekh rahe hain? Jaise Velachery, OMR, Tambaram ya Porur?`;
-          } else if (activeStep === 3) {
-            switchResponse = `[warm] Bilkul! [break] [curious] Aapko kitne BHK ki requirement hai? 1 BHK, 2 BHK, ya 3 BHK?`;
-          } else if (activeStep === 4) {
-            switchResponse = `[warm] Samajh gaya. [break] [curious] ${customerName}, aapka approximate budget kitna hoga?`;
-          } else if (activeStep === 5) {
-            switchResponse = `[warm] Haan zaroor! [break] [curious] Kya aap iss weekend Saturday ya Sunday site visit ke liye aa sakte hain?`;
-          } else {
-            switchResponse = `[warm] Haan bilkul! Hum Hindi me baat kar sakte hain. [break] [curious] ${customerName}, aap Chennai me kis tarah ki property dekh rahe hain?`;
-          }
-          appendDialogue('AI', switchResponse);
-          speakAIText(switchResponse, 'hi-IN');
-          return;
-        } else {
-          switchResponse = `[warm] Kandippa! Namma Tamil-laye pesalaam Sir. Ungalukku Chennai property pathi enna details thevai?`;
-          appendDialogue('AI', switchResponse);
-          speakAIText(switchResponse, 'ta-IN');
-          return;
-        }
-      }
-    }
-
-    // ⚡ LLM Conversational Model execution (Gemini / Groq / OpenAI -> STT -> Reasoning -> TTS)
     const isBrainActive =
       brainEngineRef.current === 'gemini' ||
       brainEngineRef.current === 'groq' ||
       brainEngineRef.current === 'openai';
 
+    // STEP 0: Language selection step (explicit selection, script, or natural Hindi/English/Tamil speech)
+    if (activeStep === 0) {
+      const chosenLang: LanguageOption = detectedLanguage.language;
+      applyLanguageSwitch(chosenLang, {
+        lockCloudStt: detectedLanguage.reason === 'explicit' || chosenLang === 'Hindi',
+      });
+      activeLang = chosenLang;
+      updateCurrentStep(2);
+
+      // If user already started with a concrete property question and an AI Brain is active,
+      // answer it directly in their chosen language instead of resetting to the canned opener.
+      if (detectedLanguage.reason !== 'explicit' && hasPropertyInquiry && isBrainActive) {
+        // Fall through to LLM conversational handler below
+      } else {
+        if (chosenLang === 'English') {
+          const customerName = lead?.name ? ` ${lead.name}` : '';
+          const openingEnglish = `[warm] Sure, absolutely! We can talk in English.${customerName ? ` Welcome${customerName}!` : ''} [break] [curious] Are you looking to buy a flat or house in Chennai, or looking to rent?`;
+          appendDialogue('AI', openingEnglish);
+          speakAIText(openingEnglish, 'en-US');
+        } else if (chosenLang === 'Hindi') {
+          const customerName = lead?.name ? ` ${lead.name} जी` : ' सर';
+          const openingHindi = `[warm] हाँ ज़रूर! हम हिंदी में बात कर सकते हैं। [break] [curious]${customerName}, आप चेन्नई में घर खरीदना चाहते हैं, या किराये पर देख रहे हैं?`;
+          appendDialogue('AI', openingHindi);
+          speakAIText(openingHindi, 'hi-IN');
+        } else {
+          const customerName = lead?.name ? ` ${lead.name} Sir` : ' Sir';
+          const openingTamil = `[warm] Romba sandhosham! [break] [curious] Neenga Chennai-la veedu vaanga paakureengala, illa rent-ku paakureengala${customerName}?`;
+          appendDialogue('AI', openingTamil);
+          speakAIText(openingTamil, 'ta-IN');
+        }
+        return;
+      }
+    }
+
+    // MID-CONVERSATION EXPLICIT LANGUAGE SWITCH HANDLER (Step >= 1)
+    // When user explicitly asks to change language without asking a property question, acknowledge in that language.
+    // Implicit language shifts (English / Hindi / Hinglish / Tanglish) fall straight through to answer their message.
+    if (activeStep >= 1 && detectedLanguage.reason === 'explicit' && !hasPropertyInquiry) {
+      const targetLanguageSwitch = detectedLanguage.language;
+      let switchResponse = '';
+      if (targetLanguageSwitch === 'English') {
+        const customerName = lead?.name ? ` ${lead.name}` : ' Sir';
+        if (activeStep <= 1) {
+          updateCurrentStep(2);
+          switchResponse = `[warm] Sure, absolutely! We can continue our conversation in English. [curious] Are you looking to buy a flat or house in Chennai, or looking to rent${customerName}?`;
+        } else if (activeStep === 2) {
+          switchResponse = `[warm] Sure, absolutely! Let's continue in English. [curious] Which area in Chennai is your preference? For example Velachery, OMR, Tambaram, Adyar, or Porur?`;
+        } else if (activeStep === 3) {
+          switchResponse = `[warm] Definitely! Continuing in English. [curious] How many BHK are you looking for? 1 BHK, 2 BHK, or 3 BHK?`;
+        } else if (activeStep === 4) {
+          switchResponse = `[warm] Of course! [curious] What is your comfortable approximate budget range${customerName}?`;
+        } else if (activeStep === 5) {
+          switchResponse = `[warm] Certainly! [curious] Would you be interested in scheduling a site visit this weekend, Saturday or Sunday?`;
+        } else {
+          switchResponse = `[warm] Sure, absolutely! We can talk in English. How can I help you with your property search in Chennai today${customerName}?`;
+        }
+        appendDialogue('AI', switchResponse);
+        speakAIText(switchResponse, 'en-US');
+        return;
+      } else if (targetLanguageSwitch === 'Hindi') {
+        const customerName = lead?.name ? ` ${lead.name} जी` : ' सर';
+        const gotItVerb = voiceGenderRef.current === 'male' ? 'समझ गया' : 'समझ गई';
+        if (activeStep <= 1) {
+          updateCurrentStep(2);
+          switchResponse = `[warm] हाँ बिल्कुल! अब हम हिंदी में बात करेंगे। [break] [curious]${customerName}, आप चेन्नई में घर खरीदना चाहते हैं, या किराये पर देख रहे हैं?`;
+        } else if (activeStep === 2) {
+          switchResponse = `[warm] ज़रूर! अब हम हिंदी में बात करेंगे। [break] [curious]${customerName}, आप चेन्नई के किस इलाके में प्रॉपर्टी देख रहे हैं? जैसे वेलाचेरी, ओएमआर, तांबरम या पोरूर?`;
+        } else if (activeStep === 3) {
+          switchResponse = `[warm] बिल्कुल! अब हम हिंदी में बात करेंगे। [break] [curious] आपको कितने BHK की ज़रूरत है? 1 BHK, 2 BHK या 3 BHK?`;
+        } else if (activeStep === 4) {
+          switchResponse = `[warm] ${gotItVerb}, अब हम हिंदी में बात करेंगे। [break] [curious]${customerName}, आपका अनुमानित बजट कितना होगा?`;
+        } else if (activeStep === 5) {
+          switchResponse = `[warm] हाँ ज़रूर! [break] [curious] क्या आप इस वीकेंड शनिवार या रविवार को साइट विज़िट के लिए आ सकते हैं?`;
+        } else {
+          switchResponse = `[warm] हाँ बिल्कुल! हम हिंदी में बात कर सकते हैं। [break] [curious]${customerName}, आप चेन्नई में किस तरह की प्रॉपर्टी देख रहे हैं?`;
+        }
+        appendDialogue('AI', switchResponse);
+        speakAIText(switchResponse, 'hi-IN');
+        return;
+      } else {
+        if (activeStep <= 1) {
+          updateCurrentStep(2);
+        }
+        switchResponse = `[warm] Kandippa! Namma Tamil-laye pesalaam Sir. Ungalukku Chennai property pathi enna details thevai?`;
+        appendDialogue('AI', switchResponse);
+        speakAIText(switchResponse, 'ta-IN');
+        return;
+      }
+    }
+
+    // ⚡ LLM Conversational Model execution (Gemini / Groq / OpenAI -> STT -> Reasoning -> TTS)
     const currentEffectiveStep = currentStepRef.current;
     if (isBrainActive && (activeStep >= 1 || currentEffectiveStep >= 1)) {
       const stepForProcessing = Math.max(activeStep, currentEffectiveStep);
@@ -4350,7 +5040,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       if (stepForProcessing === 1 && isDecliningOrBusy(input)) {
         const politeEnd =
           activeLang === 'Hindi'
-            ? `[understanding] Ji Sir, koi baat nahi. Aapke liye kab baat karna convenient rahega? Main us time par call kar ${voiceGenderRef.current === 'male' ? 'sakta hoon' : 'sakti hoon'}. Have a lovely day!`
+            ? `[understanding] जी सर, कोई बात नहीं। आपके लिए कब बात करना सुविधाजनक रहेगा? मैं उस समय पर कॉल कर ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। आपका दिन शुभ हो!`
             : activeLang === 'English'
             ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
             : 'Of course, no problem. Disturb pannadhukku sorry. Ungalukku eppo call panna comfortable-aa irukkum? Illenna, neenga free-aa irukkumbodhu pesalaam.';
@@ -4494,13 +5184,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     updateCurrentStep(qNum + 1); // maps to steps 2, 3, 4, 5, 6, 7, 8, 9
     let questionText = '';
     const activeLang = selectedLanguageRef.current;
-    const customerName = lead?.name || 'சார்';
+    const customerName = lead?.name || (activeLang === 'Tamil-English' ? 'சார்' : 'Sir');
     const q = qualificationRef.current;
 
     // PDF Q1: Purpose (Own use vs Investment - Section 5)
     if (qNum === 1) {
       if (activeLang === 'Hindi') {
-        questionText = `[curious] Bahut shukriya ${customerName}! [break] Aap Chennai me ghar khareedna chahte hain, ya rent pe dekh rahe hain?`;
+        questionText = `[curious] बहुत धन्यवाद ${customerName}! [break] आप चेन्नई में घर खरीदना चाहते हैं, या किराये पर देख रहे हैं?`;
       } else if (activeLang === 'English') {
         questionText = `[curious] Thank you so much ${customerName}! [break] Are you looking to buy a flat or house in Chennai, or looking to rent?`;
       } else {
@@ -4511,7 +5201,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Q2: Property Type & Location (Section 5)
     else if (qNum === 2) {
       if (activeLang === 'Hindi') {
-        questionText = '[curious] Super! [break] Chennai me aap kaun se area me dekh rahe hain? Jaise Velachery, OMR, Tambaram, Adyar, Porur ya Chengalpattu.';
+        questionText = '[curious] बहुत बढ़िया! [break] चेन्नई में आप किस इलाके में देख रहे हैं? जैसे वेलाचेरी, ओएमआर, तांबरम, अडयार, पोरूर या चेंगलपट्टू।';
       } else if (activeLang === 'English') {
         questionText = '[curious] Great! [break] Which area in Chennai is your preference? For example Velachery, OMR, Tambaram, Adyar, Porur, or Chengalpattu.';
       } else {
@@ -4522,7 +5212,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Q3: Bedrooms and Size (Section 5)
     else if (qNum === 3) {
       if (activeLang === 'Hindi') {
-        questionText = '[curious] Sahi hai! [break] Aapko kitne BHK chahiye? 1 BHK, 2 BHK, ya 3 BHK? Ya plot ke liye kitna sq ft?';
+        questionText = '[curious] सही है! [break] आपको कितने BHK चाहिए? 1 BHK, 2 BHK या 3 BHK? या प्लॉट के लिए कितने स्क्वेयर फीट?';
       } else if (activeLang === 'English') {
         questionText = '[curious] Okay! [break] How many BHK do you need? 1 BHK, 2 BHK, or 3 BHK? Or plot size in sq ft?';
       } else {
@@ -4533,7 +5223,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Q4: Budget (Section 5 & 6)
     else if (qNum === 4) {
       if (activeLang === 'Hindi') {
-        questionText = '[curious] Samajh gaya. [break] Aapka approximate budget kitna hoga Sir?';
+        questionText = `[curious] समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}। [break] आपका अनुमानित बजट कितना होगा सर?`;
       } else if (activeLang === 'English') {
         questionText = '[curious] Got it! [break] What is your comfortable approximate budget range Sir?';
       } else {
@@ -4544,7 +5234,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Q5: Timeline (Section 5)
     else if (qNum === 5) {
       if (activeLang === 'Hindi') {
-        questionText = '[curious] Achha! [break] Kab tak shift hona hai? Immediate ready-to-move chahiye ya thoda wait kar sakte hain?';
+        questionText = '[curious] अच्छा! [break] कब तक शिफ्ट होना है? तुरंत रेडी-टू-मूव चाहिए या थोड़ा इंतज़ार कर सकते हैं?';
       } else if (activeLang === 'English') {
         questionText = '[curious] That helps! [break] When do you want to move in? Should it be ready now, or is a short wait fine?';
       } else {
@@ -4555,7 +5245,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Q6: Payment Method (Section 6)
     else if (qNum === 6) {
       if (activeLang === 'Hindi') {
-        questionText = '[curious] Sahi hai. [break] Aap bank home loan lenge ya direct cash own funds me pay karenge?';
+        questionText = '[curious] ठीक है। [break] आप बैंक होम लोन लेंगे या सीधे कैश से पेमेंट करेंगे?';
       } else if (activeLang === 'English') {
         questionText = '[curious] Perfect! [break] Are you planning for a bank home loan, or direct self-funding in cash?';
       } else {
@@ -4567,7 +5257,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     else if (qNum === 7) {
       const matched = getMatchedListingFromPDF(q);
       if (activeLang === 'Hindi') {
-        questionText = `${customerName}, aapki requirement note kar li hai. ${q.location || matched.location} me aapke liye matching ${q.sizeBHK || matched.type} property available hai. Kya aap iss weekend site visit ke liye aana chahenge?`;
+        questionText = `${customerName}, आपकी ज़रूरत नोट कर ली है। ${q.location || matched.location} में आपके लिए सही ${q.sizeBHK || matched.type} प्रॉपर्टी उपलब्ध है। क्या आप इस वीकेंड साइट विज़िट के लिए आना चाहेंगे?`;
       } else if (activeLang === 'English') {
         questionText = `${customerName}, I have noted your requirements. In ${q.location || matched.location}, there is a matching ${q.sizeBHK || matched.type} available. Would you like to schedule a site visit this weekend?`;
       } else {
@@ -4578,7 +5268,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     // PDF Step 8: Shortlist Request & Closing (Section 9)
     else if (qNum === 8) {
       if (activeLang === 'Hindi') {
-        questionText = 'Zaroor! Site visit ke liye Saturday convenient rahega ya Sunday?';
+        questionText = 'ज़रूर! साइट विज़िट के लिए शनिवार सुविधाजनक रहेगा या रविवार?';
       } else if (activeLang === 'English') {
         questionText = 'Sure! Which day would be convenient for the site visit? Saturday or Sunday?';
       } else {
@@ -4596,7 +5286,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const activeLang = selectedLanguageRef.current;
     const endMsg =
       activeLang === 'Hindi'
-        ? 'Haan bilkul, samajh gayi! Main turant aapka number list se remove kar deti hoon. Aage koi call nahi aayega. Thank you, have a good day!'
+        ? `हाँ बिल्कुल, समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}! मैं तुरंत आपका नंबर लिस्ट से हटा ${voiceGenderRef.current === 'male' ? 'देता हूँ' : 'देती हूँ'}। आगे से कोई कॉल नहीं आएगा। धन्यवाद, आपका दिन शुभ हो!`
         : activeLang === 'English'
         ? "I completely understand! I'm removing your number from our list right away so you won't be contacted again. Thank you, have a good day!"
         : 'Kandippa, mannichidunga. Unga request-a Do Not Contact-aa update panna team-kku forward pannuren. Inime sales follow-up panna koodaadhu-nu mark pannuvom. Thank you for letting me know.';
@@ -4611,7 +5301,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const activeLang = selectedLanguageRef.current;
     const agentMsg =
       activeLang === 'Hindi'
-        ? 'Haan zaroor! Lyka Realty ke senior property advisor aapse jald hi direct call pe baat karenge. Thank you so much!'
+        ? 'हाँ ज़रूर! लाइका रियल्टी के सीनियर प्रॉपर्टी सलाहकार आपसे जल्द ही सीधे कॉल पर बात करेंगे। बहुत धन्यवाद!'
         : activeLang === 'English'
         ? "Certainly! I'll have our senior property advisor connect with you directly very shortly. Thank you so much!"
         : 'Kandippa. Ungalukku human team member kooda pesanum-nu puriyudhu. Unga request-a team-kitta pass pannuren. Convenient time edhu-nu sollunga.';
@@ -4625,7 +5315,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const evaluateAndCompleteQualification = (q: typeof qualification) => {
     const activeLang = selectedLanguageRef.current;
     const matched = getMatchedListingFromPDF(q);
-    const customerName = lead?.name || 'சார்';
+    const customerName = lead?.name || (activeLang === 'Tamil-English' ? 'சார்' : 'Sir');
     const mem = sessionMemoryRef.current;
 
     const recalledBhk = mem.bhk || q.sizeBHK || matched.type || 'property';
@@ -4637,7 +5327,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     const concludingMessage =
       activeLang === 'Hindi'
-        ? `Bahut badhiya ${customerName}! Humne aapki poori baat note kar li hai: ${recalledLoc} me ${recalledBhk} ${recalledBudget}, aur ${recalledVisit}. Main WhatsApp par brochure aur location bhej rahi hoon. Shukriya, have a lovely day!`
+        ? `बहुत बढ़िया ${customerName}! हमने आपकी पूरी जानकारी नोट कर ली है: ${recalledLoc} में ${recalledBhk}${mem.budget || q.budget ? `, बजट लगभग ${mem.budget || q.budget}` : ''}, और ${recalledVisit}। मैं अभी व्हाट्सएप पर ब्रोशर और लोकेशन भेज ${voiceGenderRef.current === 'male' ? 'रहा हूँ' : 'रही हूँ'}। धन्यवाद, आपका दिन शुभ हो!`
         : activeLang === 'English'
         ? `Certainly ${customerName}! To recap our conversation: you are looking for ${recalledBhk} in ${recalledLoc} ${recalledBudget}, and we have noted your ${recalledVisit}. I'll send the brochure and details on WhatsApp right away. Thank you so much, have a wonderful day!`
         : `Super ${customerName}! Namma inaikki pesina maadhiri: neenga ${recalledLoc}-la ${recalledBhk} ${recalledBudget} paakureenga, and ${recalledVisit} arrange panna note panniten. WhatsApp-la brochure and verified details share panren Sir! Romba nandri, have a great day!`;
@@ -5717,15 +6407,21 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
             <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-300 text-[11px]">
               <Globe className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-slate-400">STT Lang:</span>
+              <span className="text-slate-400">
+                {sttEngine !== 'browser' && sttEngine !== 'sarvam' && selectedLanguage !== 'Hindi' ? 'Lang (Auto):' : 'STT Lang:'}
+              </span>
               <select
                 value={selectedLanguage || initialLanguage || 'Tamil-English'}
                 onChange={(e) => {
                   const newLang = e.target.value as LanguageOption;
-                  applyLanguageSwitch(newLang);
+                  applyLanguageSwitch(newLang, { lockCloudStt: newLang === 'Hindi' || newLang === 'English' });
                 }}
                 className="bg-transparent text-amber-400 font-bold focus:outline-none cursor-pointer text-[11px]"
-                title="Change Speech Recognition Language"
+                title={
+                  sttEngine !== 'browser' && sttEngine !== 'sarvam'
+                    ? 'Active conversation language (auto-detected live by cloud STT)'
+                    : 'Change Speech Recognition Language'
+                }
               >
                 <option value="Tamil-English" className="bg-slate-900 text-white">🇮🇳 Tamil / Tanglish</option>
                 <option value="English" className="bg-slate-900 text-white">🇬🇧 English</option>
@@ -5818,455 +6514,24 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {currentStep === 1 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Aama, free thaan, pesalam')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        👍 Aama, free thaan (Yes, I'm free)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Ippo free illa, konjam busy')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600/30"
-                      >
-                        ⏳ Ippo free illa (Not free right now)
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Yes, I am free to talk.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        👍 Yes, I'm free to talk
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Not free, I am busy right now.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600/30"
-                      >
-                        ⏳ Not free / busy right now
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 2 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Veedu vaanga plan irukku, flat vaanganum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30"
-                      >
-                        🏠 வீடு வாங்கணும் (Buy Flat/House)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Rent ku paakuren, vadagai veedu')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30"
-                      >
-                        🔑 வாடகைக்கு வேணும் (Rent)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Plot vaanganum, nilam theduren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30"
-                      >
-                        📐 நிலம் / Plot வாங்கணும் (Plot)
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Looking to buy a flat or house.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30"
-                      >
-                        🏠 Looking to Buy (Flat/House)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking for rental house.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30"
-                      >
-                        🔑 Looking for Rent
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking to buy a plot or land.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30"
-                      >
-                        📐 Looking for Land / Plot
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 3 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Velachery area la paakuren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 வேளச்சேரி (Velachery)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('OMR Sholinganallur side la venum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 OMR / சோழிங்கநல்லூர்
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Tambaram area la theduren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 தாம்பரம் (Tambaram)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Adyar location la paakuren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 அடையார் (Adyar)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Porur area la theduren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 போரூர் (Porur)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Chengalpattu side plot paakuren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 செங்கல்பட்டு (Chengalpattu)
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Looking in Velachery.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 Velachery
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking along OMR Sholinganallur.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 OMR / Sholinganallur
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking in Tambaram.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 Tambaram
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking in Adyar.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 Adyar
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking in Porur.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 Porur
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Looking in Chengalpattu.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📍 Chengalpattu
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 4 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('2 BHK venum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        🏢 2 BHK
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('3 BHK flat venum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30"
-                      >
-                        🏢 3 BHK
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('1 BHK podhum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30"
-                      >
-                        🏢 1 BHK
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('1200 sq ft plot theduren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30"
-                      >
-                        📐 1200 sq ft Plot
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('2 BHK flat')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        🏢 2 BHK
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('3 BHK flat')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600/30"
-                      >
-                        🏢 3 BHK
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('1 BHK flat')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600/30"
-                      >
-                        🏢 1 BHK
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('1200 sq ft plot')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30"
-                      >
-                        📐 1200 sq ft Plot
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 5 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('En budget around 72 lakhs')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹72 Lakhs (Velachery)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('En budget 1.25 crore kulla')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹1.25 Crore (OMR)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Budget 1.6 crore irukku')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹1.6 Crore (Tambaram)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('En budget 18 lakhs kulla')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹18 Lakhs (Chengalpattu)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Rent 14000 per month kulla paakuren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹14,000 / Mo (Porur)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Rent 28000 per month budget')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹28,000 / Mo (Adyar)
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Budget is around 72 Lakhs.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹72 Lakhs (Velachery)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Budget is around 1.25 Crore.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹1.25 Crore (OMR)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Budget is around 1.6 Crore.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹1.6 Crore (Tambaram)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Budget is around 18 Lakhs.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹18 Lakhs (Chengalpattu)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Rent budget is 14000 per month.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹14,000 / Mo (Rent)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Rent budget is 28000 per month.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        ₹28,000 / Mo (Rent)
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 6 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Udane ready to move venum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        ⚡ உடனே Ready to Move
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Next 1 month kulla plan')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30"
-                      >
-                        ⏳ 1 மாசத்துல (Next month)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Dec 2026 konjam naal aanaalum paravaalla')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📅 Dec 2026 / Short wait ok
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Immediate ready to move.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        ⚡ Immediate / Ready
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Within 1 month.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30"
-                      >
-                        ⏳ Within 1 Month
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Dec 2026 possession is fine.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📅 Dec 2026 / Wait fine
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 7 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Bank loan pottu vaanganum')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        🏦 Bank Loan போடணும்
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Direct cash payment thaan')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30"
-                      >
-                        💵 Direct Cash-ல Pay பண்ணுவேன்
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Planning to take a bank loan.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        🏦 Need Bank Loan
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Will pay by cash / self-funding.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600/30"
-                      >
-                        💵 Self Funding / Cash
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 8 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Aama, direct site visit poi paakaren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        ✅ ஆமா, Site Visit பாக்கணும்
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Brochure details WhatsApp-la anupunga')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30"
-                      >
-                        📱 WhatsApp-ல brochure அனுப்புங்க
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('Yes, I want to do a site visit.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        ✅ Yes, want a Site Visit
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Please send brochure details on WhatsApp.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30"
-                      >
-                        📱 Send Details on WhatsApp first
-                      </button>
-                    </>
-                  )
-                )}
-
-                {currentStep === 9 && (
-                  selectedLanguage === 'Tamil-English' ? (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('This weekend sani yaayiru varren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        📅 This Weekend வரேன் (Sat / Sun)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('Weekday naalula vara try pandren')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📅 Weekday வரேன் (Mon - Fri)
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleCustomerInput('I can visit this weekend.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30"
-                      >
-                        📅 This Weekend (Sat / Sun)
-                      </button>
-                      <button
-                        onClick={() => handleCustomerInput('I will visit on a weekday.')}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700"
-                      >
-                        📅 Weekday (Mon - Fri)
-                      </button>
-                    </>
-                  )
-                )}</div>
+                {(
+                  QUICK_REPLY_OPTIONS[currentStep]?.[
+                    selectedLanguage === 'Hindi'
+                      ? 'Hindi'
+                      : selectedLanguage === 'Tamil-English'
+                      ? 'Tamil-English'
+                      : 'English'
+                  ] || []
+                ).map((chip) => (
+                  <button
+                    key={chip.label}
+                    onClick={() => handleCustomerInput(chip.input)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${chip.className}`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

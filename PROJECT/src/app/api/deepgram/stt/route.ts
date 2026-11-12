@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mapSttDetectedLanguageToConversationLanguage } from '@/lib/speech';
 
 function getDeepgramApiKey(): string {
   return (
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file');
-    const languageCode = String(formData.get('language_code') || 'en-IN');
+    const languageCode = String(formData.get('language_code') || 'auto').trim().toLowerCase();
 
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, message: 'Audio file is required.' }, { status: 400 });
@@ -29,12 +30,22 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Map language code: Deepgram Nova-3 supports multilingual
-    let dgLang = 'en';
-    if (languageCode.startsWith('ta')) dgLang = 'ta';
-    else if (languageCode.startsWith('hi')) dgLang = 'hi';
+    const queryParams = new URLSearchParams({
+      model: 'nova-2',
+      smart_format: 'true',
+    });
 
-    const url = `https://api.deepgram.com/v1/listen?model=nova-2&language=${dgLang}&smart_format=true`;
+    if (!languageCode || languageCode === 'auto') {
+      queryParams.set('detect_language', 'true');
+    } else if (languageCode.startsWith('ta')) {
+      queryParams.set('language', 'ta');
+    } else if (languageCode.startsWith('hi')) {
+      queryParams.set('language', 'hi');
+    } else {
+      queryParams.set('language', 'en');
+    }
+
+    const url = `https://api.deepgram.com/v1/listen?${queryParams.toString()}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -51,11 +62,29 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json();
-    const transcript = data.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+    const channel = data.results?.channels?.[0];
+    const transcript = String(channel?.alternatives?.[0]?.transcript || '').trim();
+    const detectedLanguage =
+      String(
+        channel?.detected_language ||
+          (!languageCode || languageCode === 'auto' ? '' : queryParams.get('language') || '')
+      )
+        .trim()
+        .toLowerCase() || null;
+
+    const conversationLanguage =
+      mapSttDetectedLanguageToConversationLanguage(detectedLanguage) ||
+      (/[\u0900-\u097F]/.test(transcript)
+        ? 'Hindi'
+        : /[\u0B80-\u0BFF]/.test(transcript)
+          ? 'Tamil-English'
+          : null);
 
     return NextResponse.json({
       success: true,
-      transcript: transcript.trim(),
+      transcript,
+      detectedLanguage,
+      conversationLanguage,
     });
   } catch (error: any) {
     const message = error instanceof Error ? error.message : 'Deepgram STT failed.';

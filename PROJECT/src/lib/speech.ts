@@ -479,8 +479,298 @@ export interface PreparedSpeech {
 }
 
 const TAMIL_ROMAN_HINTS =
-  /\b(?:naan|neenga|ungalukku|illai|illa|seri|sari|venum|pannunga|pannalaam|pesalaam|pesaren|pesuren|irukku|irundhu|romba|kandippa|vanakkam|kekudhaa|nimisham|therinjikalam|vasadhiya|nandri)\b/i;
-const HINDI_ROMAN_HINTS = /\b(?:haan|nahin|nahi|hai|hoon|aap|mujhe|chahiye|baat|kya|achha|theek)\b/i;
+  /\b(?:naan|naa|neenga|neengal|ungalukku|unga|engalukku|enga|enaku|enakku|illai|illa|illanga|seri|seringa|sari|saringa|aama|aamam|aamaam|venum|vendam|venam|pothum|podhum|pannunga|pannalam|pannalaam|panren|pannuren|panniten|pesalam|pesalaam|pesunga|pesaren|pesuren|sollunga|solren|irukku|irukka|irukeenga|irundhu|irundha|romba|kandippa|vanakkam|kekudhaa|kekutha|nimisham|therinjikalam|vasadhiya|nandri|nanri|evlo|evvalavu|enna|eppo|eppadi|epdi|endha|indha|andha|inga|anga|vaanga|ponga|paakalam|paakalaam|paakuren|parkalam|parunga|paarunga|kudunga|kodunga|anuppunga|anupunga|konjam|puriyudhu|puriyala|puriyadhu|theriyum|theriyala|theriyadhu|vadagai|vaadagai|veedu|pakkathula|pakathula|appuram|apram|thaan|dhaan|kooda|naalai|naalaikku|innaiku|inniku)\b/i;
+const HINDI_ROMAN_HINTS =
+  /\b(?:haan|haanji|nahin|nahi|nai|nhi|hai|hain|hoon|hun|hoga|hogi|aap|aapka|aapki|aapke|aapko|mujhe|mujhko|humko|hume|hamara|hamari|mera|meri|kya|kyu|kyon|kaise|kahan|kaha|kitna|kitne|kitni|chahiye|chahie|chahta|chahti|batao|bataiye|batayiye|boliye|baat|karo|kijiye|karna|karunga|karungi|achha|accha|acha|theek|thik|badiya|badhiya|bilkul|zaroor|jaroor|zarur|khareedna|kharidna|bechna|kiraya|kiraye|makaan|bhi|abhi|pehle|zyada|jyada|yahan|wahan|bhejo|bhejiye|dikhao|dikhaiye|milega|milegi|mein|liye|wala|wali|wale|matlab|shukriya|namaste|namaskar|bhai|bhaiya|krupaya|kripya|samajh|samjha|samjhi)\b/i;
+
+const TAMIL_CONVERSATION_TOKENS = new RegExp(TAMIL_ROMAN_HINTS.source, 'gi');
+const TAMIL_CASE_SUFFIX_HINTS =
+  /\b(?:[a-z]{3,}-(?:la|le|ku|kku|oda|laam|laa|ngala|thaan|dhaan)|(?:chennai|velachery|adyar|omr|ecr|tambaram|porur|guindy|flat|house|plot|villa|rent|budget|evening|morning|afternoon|area|side|road|floor|cash|loan|emi|month|week|day|time|call|visit|saturday|sunday|monday|tuesday|wednesday|thursday|friday|office|school|metro|bus)[-\s]+(?:la|kku|oda|laa))\b/gi;
+
+const HINDI_CONVERSATION_TOKENS = new RegExp(HINDI_ROMAN_HINTS.source, 'gi');
+const HINDI_CONTEXT_HINTS =
+  /\b(?:(?:hindi|hinglish|ghar|flat|plot|house|villa|budget|rent|rate|price|chennai|velachery|omr|area|yahan|wahan|abhi|kal|aaj)\s+(?:mein|me|se|ke|ka|ki|ko|par|pe)|main\s+(?:dekh|le|khareed|bech|rent|kar|hoon|hun|chahta|chahti|baat|bol|bata)|kya\s+main|(?:haan|sir|madam|bhaiya|didi)\s+ji|ji\s+(?:haan|nahi|sir|madam|bataiye|boliye)|(?:theek|sahi)\s+hai|mere\s+(?:paas|liye|ko)|ke\s+paas|paisa|paise|rupaye|ghar|subah|shaam|dopahar|aur|lekin|toh|phir)\b/gi;
+
+const ENGLISH_GRAMMAR_TOKENS = new Set([
+  'i',
+  'am',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'do',
+  'does',
+  'did',
+  'can',
+  'cannot',
+  'could',
+  'would',
+  'should',
+  'will',
+  'have',
+  'has',
+  'had',
+  'what',
+  'where',
+  'which',
+  'when',
+  'why',
+  'how',
+  'who',
+  'whom',
+  'whose',
+  'the',
+  'this',
+  'that',
+  'these',
+  'those',
+  'there',
+  'here',
+  'with',
+  'without',
+  'about',
+  'from',
+  'because',
+  'currently',
+  'actually',
+  'basically',
+  'my',
+  'our',
+  'your',
+  'their',
+  'me',
+  'us',
+  'them',
+  'we',
+  'you',
+  'they',
+  'looking',
+  'searching',
+  'want',
+  'wanted',
+  'need',
+  'needed',
+  'prefer',
+  'interested',
+  'planning',
+  'tell',
+  'explain',
+  'share',
+  'send',
+  'know',
+  'understand',
+  'mean',
+  'means',
+  'trying',
+  'sorry',
+  'fine',
+  'something',
+  'anything',
+  'everything',
+  'nothing',
+  'speak',
+  'talking',
+  'continue',
+]);
+
+function expandEnglishContractions(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\bi['’]m\b/g, 'i am')
+    .replace(/\bi['’]ll\b/g, 'i will')
+    .replace(/\bi['’]ve\b/g, 'i have')
+    .replace(/\bi['’]d\b/g, 'i would')
+    .replace(/\byou['’]re\b/g, 'you are')
+    .replace(/\byou['’]ll\b/g, 'you will')
+    .replace(/\bwe['’]re\b/g, 'we are')
+    .replace(/\bwe['’]ll\b/g, 'we will')
+    .replace(/\bthey['’]re\b/g, 'they are')
+    .replace(/\bwhat['’]s\b/g, 'what is')
+    .replace(/\bwhere['’]s\b/g, 'where is')
+    .replace(/\bwho['’]s\b/g, 'who is')
+    .replace(/\bthat['’]s\b/g, 'that is')
+    .replace(/\bthere['’]s\b/g, 'there is')
+    .replace(/\bit['’]s\b/g, 'it is')
+    .replace(/\bdoesn['’]t\b/g, 'does not')
+    .replace(/\bdon['’]t\b/g, 'do not')
+    .replace(/\bdidn['’]t\b/g, 'did not')
+    .replace(/\bcan['’]t\b/g, 'cannot')
+    .replace(/\bcouldn['’]t\b/g, 'could not')
+    .replace(/\bwouldn['’]t\b/g, 'would not')
+    .replace(/\bshouldn['’]t\b/g, 'should not')
+    .replace(/\bwon['’]t\b/g, 'will not')
+    .replace(/\bhaven['’]t\b/g, 'have not')
+    .replace(/\bhasn['’]t\b/g, 'has not');
+}
+
+function stripNegatedLanguageClauses(text: string, langTokenPattern: string): string {
+  const expanded = expandEnglishContractions(text);
+  const preNegated = new RegExp(
+    `(?:^|[\\s,.;:!?])(?:not|no|do\\s+not|cannot|will\\s+not|never|avoid|stop|mat|nahi|nahin|vendam|venam|illa|illai|नहीं|मत|வேண்டாம்|வேணாம்|இல்ல|இல்லை)\\s+(?:to\\s+)?(?:speak\\s+|talk\\s+|use\\s+|in\\s+|with\\s+|speaking\\s+|talking\\s+|want\\s+|go\\s+with\\s+|start\\s+with\\s+)?(?:in\\s+)?(?:${langTokenPattern})(?=$|[\\s,.;:!?])`,
+    'gi'
+  );
+  const postNegated = new RegExp(
+    `(?:^|[\\s,.;:!?])(?:${langTokenPattern})(?:\\s+(?:me|mein|main|may|mai|la|il|in|with|to))?\\s*(?:nahi|nahin|mat|illa|illai|vendam|venam|avoid|stop|not|नहीं|मत|வேண்டாம்|வேணாம்|இல்ல|இல்லை)(?:\\s+(?:aati|aata|aatha|bolna|pesu))?(?=$|[\\s,.;:!?])`,
+    'gi'
+  );
+  return expanded.replace(preNegated, ' ').replace(postNegated, ' ');
+}
+
+const EXPLICIT_COMMAND_VERBS =
+  'speak|speaking|talk|talking|reply|respond|continue|switch|switching|change|shift|move|start|starting|go|want|prefer|use|try|explain|tell|telling|chat|converse|ask|say|said|bolo|boliye|bol|baat|batao|bataiye|bataye|karo|kijiye|pesu|pesunga|pese|pesalam|sollu|sollunga|बोलो|बोलिए|बोलें|बोलना|बात|बताओ|बताइए|स्पीक|टॉक|चाहिए|चाहता|चाहती|करना|करनी|स्विच|चेंज|பேசு|பேசுங்க|பேச|பேசணும்|பேசுவோம்|பேசலாம்|பேசலாமா|சொல்லு|சொல்லுங்க|டாக்|ஸ்பீக்|மாத்து|மாத்துங்க|வேண்டும்|வேணும்';
+
+const EXPLICIT_POST_MODIFIERS =
+  'only|please|pls|me\\b|mein\\b|main\\b|may\\b|mai\\b|la\\b|il\\b|se\\b|में|speak|talk|reply|start|want|prefer|use|bolo|boliye|bol|baat|batao|bataiye|bataye|karo|kijiye|karna|karni|chahiye|pesu|pesunga|sollu|sollunga|बोलो|बोलिए|बोलें|बोलना|बात|बताओ|बताइए|स्पीक|टॉक|करो|करनी|करना|चाहिए|चाहता|चाहती|பேசு|பேசுங்க|பேச|பேசணும்|பேசுவோம்|பேசலாம்|பேசலாமா|சொல்லு|சொல்லுங்க|டாக்|ஸ்பீக்|வேண்டும்|வேணும்|mode|medium';
+
+function matchesExplicitLanguageRequest(
+  normalized: string,
+  tokens: string
+): boolean {
+  const safeText = stripNegatedLanguageClauses(normalized, tokens);
+  const trimmedSafe = safeText.trim();
+  if (!trimmedSafe) return false;
+
+  const direct = new RegExp(
+    `^(?:please\\s+)?(?:(?:in|with|to|into)\\s+)?(?:pure\\s+|full\\s+|complete\\s+|only\\s+)?(?:${tokens})(?:\\s+(?:only|please|pls|me|mein|main|may|mai|la|il|में))?$`,
+    'i'
+  );
+  const command = new RegExp(
+    `(?:${EXPLICIT_COMMAND_VERBS}).{0,35}(?:${tokens})|(?:${tokens}).{0,35}(?:${EXPLICIT_POST_MODIFIERS})|(?:^|\\s)(?:in|with|into|to|இன்)\\s+(?:only\\s+)?(?:${tokens})(?=\\s|$|[.,!?])`,
+    'i'
+  );
+  return direct.test(trimmedSafe) || command.test(safeText);
+}
+
+export function detectExplicitLanguageSwitch(text: string): SpeechLanguage | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  const normalized = trimmed.toLowerCase();
+
+  const hindiTokens =
+    '\\b(?:hindi|hindhi|hidni|indhi|indi|indie|hindee|hinde|heendi|hinglish)\\b|हिंदी|हिन्दी|ஹிந்தி|இந்தி|ஹிந்தில|இந்தில|ஹிந்தியில்|இந்தியில்';
+  if (matchesExplicitLanguageRequest(normalized, hindiTokens)) {
+    return 'Hindi';
+  }
+
+  const englishTokens =
+    '\\b(?:english|inglish)\\b|अंग्रेजी|अंग्रेज़ी|इंग्लिश|இங்கிலீஷ்|இங்கிலீஷ்ல|இங்லிஷ்|ஆங்கிலம்|ஆங்கிலத்தில்';
+  if (matchesExplicitLanguageRequest(normalized, englishTokens)) {
+    return 'English';
+  }
+
+  const tamilTokens = '\\btamil\\b(?!\\s*nadu)|\\btanglish\\b|तमिल|தமிழ்|தமிழ்ல|தமிழில்';
+  if (matchesExplicitLanguageRequest(normalized, tamilTokens) || /தமிழில்/.test(stripNegatedLanguageClauses(normalized, tamilTokens))) {
+    return 'Tamil-English';
+  }
+
+  return null;
+}
+
+export type LanguageDetectionReason =
+  | 'explicit'
+  | 'hindi-script'
+  | 'tamil-script'
+  | 'hindi-detected'
+  | 'tamil-detected'
+  | 'english-detected'
+  | 'unchanged';
+
+export interface ConversationLanguageDetection {
+  language: SpeechLanguage;
+  switched: boolean;
+  reason: LanguageDetectionReason;
+}
+
+export function detectUserConversationLanguage(
+  text: string,
+  currentLanguage: SpeechLanguage | null = 'Tamil-English'
+): ConversationLanguageDetection {
+  const fallbackLanguage: SpeechLanguage = currentLanguage ?? 'Tamil-English';
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { language: fallbackLanguage, switched: false, reason: 'unchanged' };
+  }
+
+  const explicit = detectExplicitLanguageSwitch(trimmed);
+  if (explicit) {
+    return {
+      language: explicit,
+      switched: explicit !== currentLanguage,
+      reason: 'explicit',
+    };
+  }
+
+  // Native Unicode script unambiguously identifies Hindi or Tamil.
+  const hasDevanagari = /[\u0900-\u097F]/u.test(trimmed);
+  const hasTamilScript = /[\u0B80-\u0BFF]/u.test(trimmed);
+  if (hasDevanagari && !hasTamilScript) {
+    return {
+      language: 'Hindi',
+      switched: currentLanguage !== 'Hindi',
+      reason: 'hindi-script',
+    };
+  }
+  if (hasTamilScript && !hasDevanagari) {
+    return {
+      language: 'Tamil-English',
+      switched: currentLanguage !== 'Tamil-English',
+      reason: 'tamil-script',
+    };
+  }
+
+  const hindiMatches =
+    (trimmed.match(HINDI_CONVERSATION_TOKENS)?.length ?? 0) +
+    (trimmed.match(HINDI_CONTEXT_HINTS)?.length ?? 0);
+  const tamilMatches =
+    (trimmed.match(TAMIL_CONVERSATION_TOKENS)?.length ?? 0) +
+    (trimmed.match(TAMIL_CASE_SUFFIX_HINTS)?.length ?? 0);
+
+  // Code-mixed speech (Hinglish or Tanglish) stays in Hindi / Tamil-English rather than English.
+  if (hindiMatches > 0 && hindiMatches >= tamilMatches) {
+    return {
+      language: 'Hindi',
+      switched: currentLanguage !== 'Hindi',
+      reason: 'hindi-detected',
+    };
+  }
+  if (tamilMatches > 0) {
+    return {
+      language: 'Tamil-English',
+      switched: currentLanguage !== 'Tamil-English',
+      reason: 'tamil-detected',
+    };
+  }
+
+  // Switch to pure English ONLY when complete English syntax/grammar is present
+  // and zero Hindi/Tamil tokens exist (short neutral answers like "Velachery", "2 BHK",
+  // "50 lakhs", "Yes", "Bank loan", "Tomorrow morning" keep the active language).
+  const expanded = expandEnglishContractions(trimmed);
+  const words = expanded.match(/[a-z]+/g) ?? [];
+  let englishGrammarHits = 0;
+  for (const word of words) {
+    if (ENGLISH_GRAMMAR_TOKENS.has(word)) {
+      englishGrammarHits += 1;
+    }
+  }
+
+  if (englishGrammarHits >= 2 && words.length >= 3) {
+    return {
+      language: 'English',
+      switched: currentLanguage !== 'English',
+      reason: 'english-detected',
+    };
+  }
+
+  return {
+    language: fallbackLanguage,
+    switched: false,
+    reason: 'unchanged',
+  };
+}
 
 function resolveSpeechLanguage(text: string, requestedLanguage?: string): SpeechLanguage {
   const requested = (requestedLanguage || '').toLowerCase();
@@ -706,4 +996,302 @@ export function getDefaultTtsForBrain(
   if (brain === 'groq') return 'groq';
   if (brain === 'gemini') return 'gemini';
   return 'browser';
+}
+
+export function normalizeConversationLanguage(language?: string): SpeechLanguage {
+  const normalized = (language || '').toLowerCase();
+  if (normalized.includes('hindi') || normalized.includes('hinglish') || normalized.startsWith('hi')) {
+    return 'Hindi';
+  }
+  if (normalized.includes('english') && !normalized.includes('tamil')) {
+    return 'English';
+  }
+  if (normalized.startsWith('en-')) {
+    return 'English';
+  }
+  return 'Tamil-English';
+}
+
+export function resolveTtsEngineForLanguage(
+  configuredEngine: string,
+  language?: string,
+  availability: { geminiAvailable?: boolean; openaiAvailable?: boolean } = {}
+): string {
+  const normalizedEngine = (configuredEngine || 'gemini').toLowerCase();
+  const targetLang = normalizeConversationLanguage(language);
+
+  // Groq Orpheus and Deepgram Aura are English-only models in our API routes.
+  // Route Hindi / Tamil-English automatically to a multilingual voice so speech actually matches the language.
+  if (targetLang !== 'English' && (normalizedEngine === 'groq' || normalizedEngine === 'deepgram')) {
+    if (availability.geminiAvailable) return 'gemini';
+    if (availability.openaiAvailable) return 'openai';
+    return 'browser';
+  }
+
+  return normalizedEngine;
+}
+
+export function getKnowledgeLanguageDirective(language?: string): string {
+  const target = normalizeConversationLanguage(language);
+  if (target === 'Hindi') {
+    return '\n\nCRITICAL TRANSLATION RULE: The property knowledge above may be written in English or Tanglish. You MUST convert ALL pricing, location, and feature facts completely into natural conversational Hindi (Devanagari script only, zero Tamil or Tanglish words).';
+  }
+  if (target === 'English') {
+    return '\n\nCRITICAL LANGUAGE RULE: Some property notes above may contain Tanglish, Tamil, or Hindi phrasing. You MUST express ALL pricing, location, and feature facts 100% in complete, pure, natural English ONLY. NEVER copy or repeat any Tamil, Tanglish, or Hindi words.';
+  }
+  return '\n\nCRITICAL TRANSLATION RULE: Express all project facts naturally in warm Chennai Tanglish spoken style with everyday English property terms, and zero Hindi words.';
+}
+
+export function getLanguageScopedStyleSection(language?: string): string {
+  const target = normalizeConversationLanguage(language);
+
+  if (target === 'English') {
+    return `
+### PURE ENGLISH VOICE-FIRST CONVERSATIONAL STYLE (MANDATORY):
+You are speaking on a real phone call in 100% PURE, COMPLETE ENGLISH. Even if earlier turns in conversation history used another language, respond completely in fluent English now:
+1. Natural acknowledgements (use sparingly): "Got it", "Sure", "I understand", "Of course", "Let me check that for you".
+2. Phone-call pacing: Keep replies to 2-3 short, natural sentences. Acknowledge the customer's answer briefly, give the requested detail clearly, and end with one clear question.
+3. Spoken numbers: Write prices naturally for voice ("55 lakhs", "around 1.2 crores", "20 percent").
+4. Example reply: "Got it, thank you for sharing that. We have 2 BHK apartments in Velachery starting from 65 lakhs with covered parking. Would you like me to schedule a site visit this weekend?"
+5. STRICT PURE-ENGLISH ISOLATION: Every single word must be complete, natural, fluent English. Never mix in any regional fillers, greetings, or honorifics from any other language.
+6. Return ONLY the clean spoken dialogue to say next — no stage directions, no markdown bullets, and no brackets.`;
+  }
+
+  if (target === 'Hindi') {
+    return `
+### HINDI VOICE-FIRST CONVERSATIONAL STYLE (MANDATORY):
+आप फ़ोन कॉल पर स्वाभाविक, आत्मीय और स्पष्ट हिंदी (देवनागरी लिपि) में बात कर रहे हैं:
+1. छोटे और स्वाभाविक उत्तर दें: "जी बिल्कुल", "ठीक है", "जी हाँ", "समझ गया", "एक सेकंड सर, मैं चेक करके बताता हूँ।"
+2. एक बार में 2 से 3 छोटे वाक्य बोलें, ग्राहक की बात दोहराए बिना आगे एक स्पष्ट सवाल पूछें।
+3. वास्तविक प्रॉपर्टी शब्द ज़रूरत के अनुसार इस्तेमाल कर सकते हैं: 2 BHK, 3 BHK, RERA, EMI, WhatsApp, site visit, sq.ft.
+4. उदाहरण: "जी बिल्कुल सर! हमारे पास वेलाचेरी में 2 BHK फ्लैट 65 लाख से उपलब्ध हैं। क्या आप इस शनिवार को साइट विज़िट देखना चाहेंगे?"
+5. सख्त भाषा नियम: पूरी बातचीत केवल हिंदी में रखें और किसी भी अन्य क्षेत्रीय भाषा के शब्द न जोड़ें।
+6. केवल बोलने योग्य साफ संवाद लिखें — बिना किसी ब्रैकेट या बुलेट पॉइंट के।`;
+  }
+
+  return `
+### TAMIL-ENGLISH (TANGLISH) VOICE-FIRST CONVERSATIONAL STYLE (MANDATORY):
+You are speaking on a real Chennai phone call in warm, natural Tanglish (Roman Tamil + everyday English property terms):
+1. Natural conversational acknowledgements (vary cleanly, never repeat blindly): "Aan", "Puriyudhu", "Seri", "Aama", "Kandippa", "Oru second Sir, check panni solren."
+2. Short spoken rhythm: Keep responses concise (2-3 spoken sentences), acknowledge briefly, answer clearly, and ask only one follow-up question at a time.
+3. Examples:
+   - "Super Sir! Saturday morning 11 AM site visit confirm panniten, unga WhatsApp-ku location anuppuren."
+   - "Puriyudhu Sir. Velachery-la 2 BHK flat 65 lakhs-la irundhu start aagudhu. Weekend site visit paakureengala?"
+4. STRICT LANGUAGE ISOLATION: Stay exclusively in Chennai Tanglish and English property terms without mixing in words or scripts from other regional languages.
+5. Output ONLY what you speak aloud — plain natural text, zero brackets, zero bullet points.`;
+}
+
+const NEUTRAL_STT_WORDS = new Set([
+  'yes',
+  'yeah',
+  'yep',
+  'no',
+  'nope',
+  'ok',
+  'okay',
+  'thank',
+  'you',
+  'thanks',
+  'hello',
+  'hi',
+  'hey',
+  'sir',
+  'madam',
+  'maam',
+  'mam',
+  'please',
+  'pls',
+  'sure',
+  'fine',
+  'alright',
+  'good',
+  'morning',
+  'afternoon',
+  'evening',
+  'bye',
+  'goodbye',
+]);
+
+const NEUTRAL_PROPERTY_PHRASES = new Set([
+  'ready to move',
+  'under construction',
+  'for self use',
+  'self use',
+  'for investment',
+  'for rent',
+  'to buy',
+  'looking to buy',
+  'want to buy',
+  'want to rent',
+]);
+
+/**
+ * Maps a raw STT engine language label or ISO code (e.g. "hindi", "hi", "ta-IN")
+ * to the conversation's active SpeechLanguage, or null if unsupported/unknown.
+ */
+export function mapSttDetectedLanguageToConversationLanguage(
+  sttLanguage?: string | null
+): SpeechLanguage | null {
+  const normalized = (sttLanguage || '').trim().toLowerCase();
+  if (!normalized || normalized === 'auto') return null;
+
+  if (normalized === 'hindi' || normalized === 'hi' || normalized.startsWith('hi-')) {
+    return 'Hindi';
+  }
+  if (normalized === 'tamil' || normalized === 'ta' || normalized.startsWith('ta-')) {
+    return 'Tamil-English';
+  }
+  if (normalized === 'english' || normalized === 'en' || normalized.startsWith('en-')) {
+    return 'English';
+  }
+  return null;
+}
+
+/**
+ * Resolves the active conversation language for a transcribed customer turn by
+ * combining text/script/explicit-switch detection with cloud STT acoustic tags
+ * (for example Whisper `verbose_json` detected `language`).
+ */
+export function resolveSttConversationLanguage(params: {
+  transcript: string;
+  sttDetectedLanguage?: string | null;
+  currentLanguage: SpeechLanguage;
+}): ConversationLanguageDetection {
+  const { transcript, sttDetectedLanguage, currentLanguage } = params;
+  const trimmed = (transcript || '').trim();
+  const textResult = detectUserConversationLanguage(trimmed, currentLanguage);
+
+  if (textResult.reason !== 'unchanged') {
+    return textResult;
+  }
+
+  if (!trimmed) {
+    return {
+      language: currentLanguage,
+      switched: false,
+      reason: 'unchanged',
+    };
+  }
+
+  const sttMapped = mapSttDetectedLanguageToConversationLanguage(sttDetectedLanguage);
+  if (sttMapped === 'Hindi') {
+    return {
+      language: 'Hindi',
+      switched: currentLanguage !== 'Hindi',
+      reason: 'hindi-detected',
+    };
+  }
+
+  if (sttMapped === 'Tamil-English') {
+    return {
+      language: 'Tamil-English',
+      switched: currentLanguage !== 'Tamil-English',
+      reason: 'tamil-detected',
+    };
+  }
+
+  if (sttMapped === 'English') {
+    const expanded = expandEnglishContractions(trimmed).toLowerCase();
+    const normalizedPhrase = expanded.replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const words = normalizedPhrase.split(' ').filter(Boolean);
+    const hasOnlyNeutralWords =
+      words.length > 0 && words.every((word) => NEUTRAL_STT_WORDS.has(word));
+
+    if (!hasOnlyNeutralWords && !NEUTRAL_PROPERTY_PHRASES.has(normalizedPhrase)) {
+      let englishGrammarHits = 0;
+      for (const word of words) {
+        if (ENGLISH_GRAMMAR_TOKENS.has(word)) {
+          englishGrammarHits += 1;
+        }
+      }
+
+      if (words.length >= 2 && englishGrammarHits >= 1) {
+        return {
+          language: 'English',
+          switched: currentLanguage !== 'English',
+          reason: 'english-detected',
+        };
+      }
+    }
+  }
+
+  return {
+    language: currentLanguage,
+    switched: false,
+    reason: 'unchanged',
+  };
+}
+
+/**
+ * Resolves the effective conversation language for server-side chat routes so an
+ * explicit user language request (for example "talk in hindi") immediately
+ * promotes the active language even if client state still held the old one.
+ */
+export function resolveServerConversationLanguage(
+  requestedLanguage: string | null | undefined,
+  messages: Array<{ role?: string; speaker?: string; content?: unknown; text?: string }> = []
+): string {
+  const normalizedRequested = (requestedLanguage || '').trim();
+  const lastUserMessage = [...messages]
+    .reverse()
+    .find((m) => m.role === 'user' || m.speaker === 'Customer');
+  const lastUserText =
+    typeof lastUserMessage?.content === 'string'
+      ? lastUserMessage.content
+      : typeof lastUserMessage?.text === 'string'
+        ? lastUserMessage.text
+        : '';
+
+  const explicit = lastUserText ? detectExplicitLanguageSwitch(lastUserText) : null;
+  if (explicit) {
+    return explicit;
+  }
+
+  return normalizedRequested;
+}
+
+/**
+ * Returns an explicit override instruction when the latest customer turn caused
+ * a mid-call language switch so prior turns in the previous language do not
+ * pull the LLM back into Tanglish or trigger a language-refusal reply.
+ */
+export function getLanguageSwitchOverridePrompt(
+  requestedLanguage: string | null | undefined,
+  effectiveLanguage: string | null | undefined
+): string {
+  const effective = (effectiveLanguage || '').trim();
+  const requested = (requestedLanguage || '').trim();
+  if (!effective || effective === requested) {
+    return '';
+  }
+
+  return `\n\nLANGUAGE SWITCH OVERRIDE (HIGHEST PRIORITY): The customer just requested to speak in ${effective}. Ignore the previous ${requested || 'earlier'} turns, NEVER apologize or say you only speak Tanglish, and reply immediately 100% in ${effective}.`;
+}
+
+/**
+ * Computes the `language_code` sent to cloud STT routes. Before an explicit
+ * customer language switch, Whisper/Deepgram/Gemini use `'auto'` so callers
+ * starting in Tamil can switch spontaneously to Hindi or English; once explicitly
+ * switched to Hindi or English, lock the cloud STT hint so transcripts write
+ * accurately in Devanagari Hindi or clean English.
+ */
+export function resolveCloudSttLanguageParam(
+  sttEngine: string,
+  activeLanguage: SpeechLanguage | string,
+  isExplicitlyLocked: boolean
+): string {
+  const normalized = normalizeConversationLanguage(activeLanguage);
+  const voiceCode =
+    normalized === 'Hindi' ? 'hi-IN' : normalized === 'English' ? 'en-IN' : 'ta-IN';
+
+  if (sttEngine === 'sarvam') {
+    return voiceCode;
+  }
+
+  if (isExplicitlyLocked) {
+    if (normalized === 'Hindi') return 'hi-IN';
+    if (normalized === 'English') return 'en-IN';
+  }
+
+  return 'auto';
 }

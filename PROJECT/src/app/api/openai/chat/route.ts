@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { getOpenAISettings } from '@/lib/serverConfig';
 import { queryBestPDFAnswer } from '@/lib/neon';
 import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import {
+  getKnowledgeLanguageDirective,
+  getLanguageScopedStyleSection,
+  getLanguageSwitchOverridePrompt,
+  resolveServerConversationLanguage,
+} from '@/lib/speech';
 
 function getOpenAISystemPrompt(
   agentName = 'Priya',
@@ -137,7 +143,7 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
    - REPEAT / "ONCE AGAIN" RULE: When you repeat an answer, give the same information again, or if the customer asks "can you repeat" / "enna sonneenga" / "once again":
      * ALWAYS prefix your answer with: "[warm] Marupadiyum solren, [answer]" or "[warm] Once again solren, [answer]"
      * Never sound annoyed when repeating; stay warm and patient.
-   - Never use Hindi words in Tanglish mode. Greet in Tamil/English naturally.
+   - Never refuse another language or say "naan Tanglish-la mattum dhaan pesuven". Greet in Tamil/English naturally, and if the customer asks to speak in Hindi or English, switch immediately and reply 100% in Devanagari Hindi or pure English.
    - Speak politely, naturally and warmly. Ask one question at a time.
    - Keep answers punchy: 1 to 2 short sentences (around 15 to 25 words). Ask the full question clearly.
     - PDF GUIDE RULE: Listen first. Answer exactly what the customer said. Then ask ONE follow-up max.
@@ -147,19 +153,19 @@ SPEAKING STYLE:
 - Format: smiling enthusiastic acknowledgement + one fact + one short follow-up question.
 - PDF rule: Listen -> Answer -> One Question.`;
   } else if (language === 'English') {
-    roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (ENGLISH ONLY):
-- The customer has chosen ENGLISH. You MUST speak EXCLUSIVELY in warm, natural, engaging Indian English.
-- NEVER speak in Tamil, Tanglish, or Hindi.
-- If previous dialogue messages have Tamil or Tanglish words, ignore them and continue purely in English.
-- Use natural Indian English property terms: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, CMDA approved, RERA registered, site visit.
+    roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (100% PURE ENGLISH ONLY):
+- The customer is speaking in ENGLISH. You MUST speak EXCLUSIVELY in complete, pure, natural, engaging English.
+- NEVER use ANY Tamil, Tanglish, Hindi, or Hinglish words, fillers, or phrases (no "Aan", "Aama", "Seri", "Puriyudhu", "Haan", "Theek hai", "Sir ji", or "சார்").
+- If previous dialogue messages or knowledge snippets contain Tamil, Tanglish, or Hindi words, completely ignore those regional words and respond 100% in fluent English.
+- Use clear English property terms: 1 BHK, 2 BHK, 3 BHK, sq. ft., Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, CMDA approved, RERA registered, site visit.
 - Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
   } else if (language === 'Hindi') {
     roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (HINDI ONLY):
-- The customer has chosen HINDI. You MUST speak EXCLUSIVELY in warm, polite, and natural conversational Hindi.
+- The customer is speaking in HINDI / HINGLISH. You MUST speak EXCLUSIVELY in warm, polite, and natural conversational Hindi (Devanagari script preferred so voice pronunciation is natural).
 - NEVER speak in Tamil or Tanglish under any circumstances.
-- If previous dialogue messages have Tamil or Tanglish words, completely ignore them and respond purely in Hindi.
-- Greet and converse in Hindi naturally: "Namaste", "Haan ji", "Aap Chennai me ghar khareedna chahte hain ya rent pe dekh rahe hain?", "Aapka approximate budget kitna hoga?".
-- ${isMale ? 'Use masculine verbs: "bol raha hoon", "karta hoon", "samajh gaya", "bata sakta hoon".' : 'Use feminine verbs: "bol rahi hoon", "karti hoon", "samajh gayi", "bata sakti hoon".'}
+- If previous dialogue messages have Tamil, Tanglish, or English-only turns, completely ignore that language and respond purely in Hindi.
+- Greet and converse in Hindi naturally: "नमस्ते", "हाँ जी", "आप चेन्नई में घर खरीदना चाहते हैं या किराए पर देख रहे हैं?", "आपका अनुमानित बजट कितना होगा?".
+- ${isMale ? 'Use masculine verbs: "बोल रहा हूँ", "करता हूँ", "समझ गया", "बता सकता हूँ".' : 'Use feminine verbs: "बोल रही हूँ", "करती हूँ", "समझ गई", "बता सकती हूँ".'}
 - Real estate terminology in Chennai: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, site visit, booking.
 - Always translate any property information or verified facts into natural, fluent Hindi!
 - Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
@@ -195,7 +201,7 @@ STRICT WORK-FOCUS POLICY (HIGHEST PRIORITY — overrides every other rule below)
   * Tanglish: "Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!"
 `;
 
-  return `${roleDesc}\n\n${emotionGuidance}\n\n${workFocusPolicy}`;
+  return `${roleDesc}\n\n${emotionGuidance}\n\n${workFocusPolicy}\n\n${getLanguageScopedStyleSection(language)}`;
 }
 
 export async function POST(req: Request) {
@@ -223,7 +229,9 @@ export async function POST(req: Request) {
     } = await req.json();
 
     const activeModel = model || settings.chatModel || 'gpt-4o-mini';
-    const basePrompt = getOpenAISystemPrompt(agentName, agentGender, customerEmotion, language);
+    const effectiveLanguage = resolveServerConversationLanguage(language, messages);
+    const languageOverride = getLanguageSwitchOverridePrompt(language, effectiveLanguage);
+    const basePrompt = getOpenAISystemPrompt(agentName, agentGender, customerEmotion, effectiveLanguage);
 
     // Synthesize Active Session Memory Brain
     const activeMemory = extractSessionMemory(messages || [], clientSessionMemory || { leadName });
@@ -234,17 +242,17 @@ export async function POST(req: Request) {
       ? `${basePrompt}\nNote: Customer name is ${leadName}. Use their name sparingly, only when it sounds natural.`
       : basePrompt;
 
-    formattedMessages.push({ role: 'system', content: `${personalizedSystem}\n\n${memoryBrainInstruction}` });
+    formattedMessages.push({ role: 'system', content: `${personalizedSystem}\n\n${memoryBrainInstruction}${languageOverride}` });
 
     // Neon RAG lookup for real-time PDF knowledge with session memory context
     const lastUserMsg = [...(messages || [])].reverse().find((m: any) => m.role === 'user' || m.speaker === 'Customer')?.content || '';
     if (lastUserMsg) {
       try {
-        const bestKnowledge = await queryBestPDFAnswer(lastUserMsg, language, activeMemory);
+        const bestKnowledge = await queryBestPDFAnswer(lastUserMsg, effectiveLanguage, activeMemory);
         if (bestKnowledge) {
           formattedMessages.push({
             role: 'system',
-            content: `VERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Pick ONLY the 1 single most relevant fact that directly answers what the customer asked.\n- Answer in 1 or 2 quick, conversational sentences (strictly under 25 words).\n${language === 'Hindi' ? '- CRITICAL: You must explain these facts EXCLUSIVELY in natural spoken HINDI. Never use Tamil words.' : ''}`,
+            content: `VERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Pick ONLY the 1 single most relevant fact that directly answers what the customer asked.\n- Answer in 1 or 2 quick, conversational sentences (strictly under 25 words).${getKnowledgeLanguageDirective(effectiveLanguage)}`,
           });
         }
       } catch (e) {

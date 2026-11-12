@@ -1,7 +1,68 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { CampaignState, SessionMemory } from '../types';
-import type { SpeechEmotion } from '../lib/speech';
+import type { SpeechEmotion, SpeechLanguage } from '../lib/speech';
 import { recordLlmTurnUsage, recordSttUsage, recordTtsUsage, estimateTokens } from './aiUsageTracker';
+
+export type CloudSttEngine = 'groq' | 'gemini' | 'openai' | 'deepgram' | 'sarvam';
+
+export interface SttTranscriptionResult {
+  transcript: string;
+  detectedLanguage: string | null;
+  conversationLanguage: SpeechLanguage | null;
+}
+
+const STT_PROVIDER_META: Record<CloudSttEngine, { endpoint: string; providerLabel: string }> = {
+  groq: { endpoint: '/api/groq/stt', providerLabel: 'Groq Whisper-large-v3' },
+  gemini: { endpoint: '/api/gemini/stt', providerLabel: 'Google Gemini STT' },
+  openai: { endpoint: '/api/openai/stt', providerLabel: 'OpenAI Whisper-1' },
+  deepgram: { endpoint: '/api/deepgram/stt', providerLabel: 'Deepgram Nova-2' },
+  sarvam: { endpoint: '/api/sarvam/stt', providerLabel: 'Sarvam Saaras v2' },
+};
+
+/**
+ * Transcribes a single recorded customer audio turn using the active cloud STT engine.
+ * Supports `languageCode = 'auto'` for automatic Tamil / Hindi / English detection.
+ */
+export async function transcribeAudioTurn(
+  engine: CloudSttEngine,
+  audioBlob: Blob,
+  languageCode: string = 'auto',
+  model?: string
+): Promise<SttTranscriptionResult> {
+  const meta = STT_PROVIDER_META[engine];
+  const ext = audioBlob.type.includes('mp4')
+    ? 'mp4'
+    : audioBlob.type.includes('ogg')
+      ? 'ogg'
+      : 'webm';
+  const formData = new FormData();
+  formData.append('file', audioBlob, `recording.${ext}`);
+  formData.append('language_code', languageCode);
+  if (model) formData.append('model', model);
+
+  const res = await fetch(meta.endpoint, { method: 'POST', body: formData });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.message || `${engine} STT failed`);
+  }
+
+  const transcript = String(data.transcript || '').trim();
+  if (transcript) {
+    try {
+      recordSttUsage({
+        provider: meta.providerLabel,
+        audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
+        transcriptText: transcript,
+      });
+    } catch (e) {}
+  }
+
+  return {
+    transcript,
+    detectedLanguage: typeof data.detectedLanguage === 'string' ? data.detectedLanguage : null,
+    conversationLanguage: (data.conversationLanguage as SpeechLanguage | null | undefined) ?? null,
+  };
+}
 
 const DEFAULT_CAMPAIGN: CampaignState = {
   id: 'lyka_cold_call_mvp',
@@ -262,21 +323,8 @@ export async function geminiChat(
 }
 
 export async function geminiSTT(audioBlob: Blob, languageCode: string): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.webm');
-  formData.append('language_code', languageCode);
-
-  const res = await fetch('/api/gemini/stt', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.message || 'Gemini STT failed');
-  try {
-    recordSttUsage({
-      provider: 'Google Gemini STT',
-      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
-      transcriptText: data.transcript as string,
-    });
-  } catch (e) {}
-  return data.transcript as string;
+  const { transcript } = await transcribeAudioTurn('gemini', audioBlob, languageCode);
+  return transcript;
 }
 
 export async function geminiTTS(params: {
@@ -369,21 +417,8 @@ export async function groqChat(
 }
 
 export async function groqSTT(audioBlob: Blob, languageCode: string): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.webm');
-  formData.append('language_code', languageCode);
-
-  const res = await fetch('/api/groq/stt', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.message || 'Groq STT failed');
-  try {
-    recordSttUsage({
-      provider: 'Groq Whisper-large-v3',
-      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
-      transcriptText: data.transcript as string,
-    });
-  } catch (e) {}
-  return data.transcript as string;
+  const { transcript } = await transcribeAudioTurn('groq', audioBlob, languageCode);
+  return transcript;
 }
 
 export async function groqTTS(params: {
@@ -480,21 +515,8 @@ export async function deepgramTTS(params: {
 }
 
 export async function deepgramSTT(audioBlob: Blob, languageCode: string): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.webm');
-  formData.append('language_code', languageCode);
-
-  const res = await fetch('/api/deepgram/stt', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.message || 'Deepgram STT failed');
-  try {
-    recordSttUsage({
-      provider: 'Deepgram Nova-2',
-      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
-      transcriptText: data.transcript as string,
-    });
-  } catch (e) {}
-  return data.transcript as string;
+  const { transcript } = await transcribeAudioTurn('deepgram', audioBlob, languageCode);
+  return transcript;
 }
 
 export async function sarvamTTS(params: {
@@ -521,21 +543,8 @@ export async function sarvamTTS(params: {
 }
 
 export async function sarvamSTT(audioBlob: Blob, languageCode: string): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.webm');
-  formData.append('language_code', languageCode);
-
-  const res = await fetch('/api/sarvam/stt', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.message || 'Sarvam STT failed');
-  try {
-    recordSttUsage({
-      provider: 'Sarvam Saaras v2',
-      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
-      transcriptText: data.transcript as string,
-    });
-  } catch (e) {}
-  return data.transcript as string;
+  const { transcript } = await transcribeAudioTurn('sarvam', audioBlob, languageCode);
+  return transcript;
 }
 
 export async function murfTTS(params: {
@@ -621,22 +630,8 @@ export async function openaiSTT(
   languageCode: string,
   model?: string
 ): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.webm');
-  formData.append('language_code', languageCode);
-  if (model) formData.append('model', model);
-
-  const res = await fetch('/api/openai/stt', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok || !data.success) throw new Error(data.message || 'OpenAI STT failed');
-  try {
-    recordSttUsage({
-      provider: 'OpenAI Whisper-1',
-      audioDurationSeconds: Math.max(2, Math.round(audioBlob.size / 16000)),
-      transcriptText: data.transcript as string,
-    });
-  } catch (e) {}
-  return data.transcript as string;
+  const { transcript } = await transcribeAudioTurn('openai', audioBlob, languageCode, model);
+  return transcript;
 }
 
 export async function openaiChat(

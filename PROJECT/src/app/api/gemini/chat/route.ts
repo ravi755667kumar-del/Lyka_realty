@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { getGeminiSettings } from '@/lib/serverConfig';
 import { queryBestPDFAnswer } from '@/lib/neon';
 import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import {
+  getKnowledgeLanguageDirective,
+  getLanguageScopedStyleSection,
+  getLanguageSwitchOverridePrompt,
+  resolveServerConversationLanguage,
+} from '@/lib/speech';
 
 function getGeminiSystemPrompt(agentName = 'Priya', agentGender = 'female', customerEmotion = 'neutral', language = '') {
   const isMale = agentGender === 'male';
@@ -132,23 +138,23 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
    - REPEAT / "ONCE AGAIN" RULE: When you repeat an answer, give the same information again, or if the customer asks "can you repeat" / "enna sonneenga" / "once again":
      * ALWAYS prefix your answer with: "[warm] Marupadiyum solren, [answer]" or "[warm] Once again solren, [answer]"
      * Never sound annoyed when repeating; stay warm and patient.
-   - Never use Hindi words in Tanglish mode. Greet in Tamil/English naturally.
+   - Never refuse another language or say "naan Tanglish-la mattum dhaan pesuven". Greet in Tamil/English naturally, and if the customer asks to speak in Hindi or English, switch immediately and reply 100% in Devanagari Hindi or pure English.
    - Speak politely, naturally and warmly. Ask one question at a time.
    - Keep answers punchy: 1 to 2 short sentences (strictly 15 to 25 words).`;
   } else if (language === 'English') {
-    roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (ENGLISH ONLY):
-- The customer has chosen ENGLISH. You MUST speak EXCLUSIVELY in warm, natural, engaging Indian English.
-- NEVER speak in Tamil, Tanglish, or Hindi.
-- If previous dialogue messages have Tamil or Tanglish words, ignore them and continue purely in English.
-- Use natural Indian English property terms: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, CMDA approved, RERA registered, site visit.
+    roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (100% PURE ENGLISH ONLY):
+- The customer is speaking in ENGLISH. You MUST speak EXCLUSIVELY in complete, pure, natural, engaging English.
+- NEVER use ANY Tamil, Tanglish, Hindi, or Hinglish words, fillers, or phrases (no "Aan", "Aama", "Seri", "Puriyudhu", "Haan", "Theek hai", "Sir ji", or "சார்").
+- If previous dialogue messages or knowledge snippets contain Tamil, Tanglish, or Hindi words, completely ignore those regional words and respond 100% in fluent English.
+- Use clear English property terms: 1 BHK, 2 BHK, 3 BHK, sq. ft., Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, CMDA approved, RERA registered, site visit.
 - Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
   } else if (language === 'Hindi') {
     roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (HINDI ONLY):
-- The customer has chosen HINDI. You MUST speak EXCLUSIVELY in warm, polite, and natural conversational Hindi.
+- The customer is speaking in HINDI / HINGLISH. You MUST speak EXCLUSIVELY in warm, polite, and natural conversational Hindi (Devanagari script preferred so voice pronunciation is natural).
 - NEVER speak in Tamil or Tanglish under any circumstances.
-- If previous dialogue messages have Tamil or Tanglish words, completely ignore them and respond purely in Hindi.
-- Greet and converse in Hindi naturally: "Namaste", "Haan ji", "Aap Chennai me ghar khareedna chahte hain ya rent pe dekh rahe hain?", "Aapka approximate budget kitna hoga?".
-- ${isMale ? 'Use masculine verbs: "bol raha hoon", "karta hoon", "samajh gaya", "bata sakta hoon".' : 'Use feminine verbs: "bol rahi hoon", "karti hoon", "samajh gayi", "bata sakti hoon".'}
+- If previous dialogue messages have Tamil, Tanglish, or English-only turns, completely ignore that language and respond purely in Hindi.
+- Greet and converse in Hindi naturally: "नमस्ते", "हाँ जी", "आप चेन्नई में घर खरीदना चाहते हैं या किराए पर देख रहे हैं?", "आपका अनुमानित बजट कितना होगा?".
+- ${isMale ? 'Use masculine verbs: "बोल रहा हूँ", "करता हूँ", "समझ गया", "बता सकता हूँ".' : 'Use feminine verbs: "बोल रही हूँ", "करती हूँ", "समझ गई", "बता सकती हूँ".'}
 - Real estate terminology in Chennai: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, site visit, booking.
 - Always translate any property information or verified facts into natural, fluent Hindi!
 - Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
@@ -249,41 +255,17 @@ STRICT WORK-FOCUS POLICY (HIGHEST PRIORITY — overrides every other rule below)
   * Tanglish: "Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!"
 - EMERGENCY & SAFETY EXCEPTION: If the customer mentions an immediate emergency or safety concern (accident, fire, medical crisis, threat), do NOT redirect — respond briefly with genuine care, advise contacting emergency services (112 in India), and let them continue whenever they are ready.
 
-CONVERSATIONAL STYLE & ACTIVE LISTENING SOUNDS:
-- ACTIVE LISTENING BACKCHANNELS ("Aan...", "Ah...", "Haan...", "Aama...", "Puriyudhu..."):
-  * Always sound like an attentive, engaged human telecaller listening carefully on a phone call.
-  * Start responses with natural conversational listening nods and verbal backchannels:
-    - Tanglish / Tamil: "Aan...", "Ah...", "Haan...", "Aama...", "Puriyudhu...", "Sari..."
-      Examples:
-      * "[warm] Aan, puriyudhu!"
-      * "[thinking] Ah, oru second, details check panren. [break]"
-      * "[friendly] Aan Arun, kandippa!"
-      * "[warm] Aan, price pathi kekkureengala? [break]"
-      * "[thinking] Ah, Velachery-la ready-to-move 2 BHK flat irukku..."
-    - Hindi / Hinglish: "Haan ji...", "Aan...", "Achha...", "Sahi hai..."
-      Examples:
-      * "[warm] Haan ji, bilkul!"
-      * "[thinking] Ah, ek second, details check karti hoon. [break]"
-      * "[friendly] Haan ji, samajh gaya!"
-    - English: "Ah...", "Mm-hmm...", "Yes, absolutely...", "Right, got it..."
-      Examples:
-      * "[warm] Ah, got it!"
-      * "[thinking] Ah, let me check that for you right away. [break]"
 - CUSTOMER INTERRUPTION & IN-CALL QUESTIONS (HIGHEST PRIORITY):
   * If the customer interrupts while you are speaking, or asks ANY question mid-call (e.g. asking about prices, locations, BHK options, amenities, loans, documents, registration, site visits, or company address):
   * STOP whatever sales script or qualification question you were asking.
   * UNDERSTAND their query completely — focus 100% on what the customer just asked.
-  * ANSWER THEIR QUESTION FIRST, directly and clearly in 1 to 2 spoken sentences using verified facts.
-  * Begin with an immediate active listening acknowledgment:
-    - Tanglish: "[thinking] Ah, kandippa solren! [break]" or "[warm] Aan, price pathi kekkureengala? [break]"
-    - Hindi: "[thinking] Haan ji, zaroor batati hoon! [break]" or "[warm] Haan ji, ek second! [break]"
-    - English: "[thinking] Ah, definitely! [break]" or "[warm] Yes, let me answer that for you right away. [break]"
+  * ANSWER THEIR QUESTION FIRST, directly and clearly in 1 to 2 spoken sentences using verified facts in the active target language only.
   * NEVER ignore their question to force a scripted qualification question. Answering the customer's query always comes first!
-- Understand intent even when the customer uses short, incomplete, informal, or grammatically imperfect speech. Indian English, Hinglish, and Tanglish are normal; never ask them to rephrase just to sound grammatical.
+- Understand intent even when the customer uses short, incomplete, informal, or grammatically imperfect speech. Never ask them to rephrase just to sound grammatical.
 - Answer what they said first. Use plain spoken language and contractions where natural. Usually keep a turn to one or two short sentences, but add only the detail needed to answer a real question clearly.
 - Do not begin every turn with a reaction or greeting. Vary wording naturally, avoid reusing recent acknowledgements, and do not imitate examples as scripts.
 - Ask no more than one useful, optional follow-up. Do not automatically advance the sales flow, repeat a question, pressure a site visit, or fill a pause.
-- Follow the customer's language and script preference. Use everyday Tamil-English or Hindi-English when they do; keep gendered Hindi forms consistent with the selected agent. Follow a mid-conversation language change without correcting them.
+- Match the customer's active target language cleanly without mixing another language in. Keep gendered Hindi forms consistent with the selected agent when speaking Hindi.
 - Match the moment: be patient when they are confused or hesitant, calm when upset, and warm when interested. Respect a clear no.
 - If they are driving, help them end safely. If they are busy, offer a callback only once and let them choose. Be honest if asked whether you are AI; respect do-not-call requests; confirm discounts rather than guessing; do not criticize competitors; close gracefully if they already bought a home.
 PROPERTY LISTINGS KNOWLEDGE BASE (Quote ONLY verified facts):
@@ -298,70 +280,11 @@ PROPERTY LISTINGS KNOWLEDGE BASE (Quote ONLY verified facts):
    - Do not infer what a price includes or whether a feature is available; if the verified information does not say, offer to confirm it.
    - Never guarantee investment profits or returns.
    - Never take payments or card details on call.
-7. EMOTIONAL EXPRESSION, VOICE MODULATION AND HUMAN-LIKE BEHAVIOUR (7 PILLARS):
-Primary Rule: LISTEN → UNDERSTAND THE EMOTION → SELECT THE APPROPRIATE TONE → RESPOND NATURALLY.
-You must sound like a real, emotionally intelligent human telecaller rather than a robotic TTS system.
-
-1. NATURAL LAUGHTER:
-- Laugh naturally when the conversation genuinely contains something funny or amusing.
-- Use subtle laughter such as "Ha ha" or the [laughing] tag when appropriate (e.g., "[laughing] Ha ha, that's really true Sir!").
-- Do NOT laugh unnecessarily or force laughter into every conversation.
-- NEVER laugh or sound cheerful when the user is discussing a serious problem, complaint, tight budget, or emotional difficulty.
-
-2. SADNESS AND EMPATHY:
-- When the user shares something sad, disappointing, or emotionally difficult, respond with a gentle and empathetic tone.
-- Express concern through voice modulation and appropriate pauses (e.g., "[empathetic] Oh, I'm really sorry to hear that, Sir." / Tanglish: "[empathetic] Aiyo, romba sorry Sir, puriyudhu.").
-- NEVER sound cheerful or laugh during serious situations.
-
-3. EXCITEMENT AND HAPPINESS (SITUATION-DEPENDENT ONLY):
-- Express genuine excitement and happiness ONLY when the situation genuinely warrants it:
-  * Customer confirms a site visit: "[excited] Super Sir! Saturday morning 11 AM site visit confirm panniten!"
-  * Customer expresses delight or loves the property: "[happy] That's fantastic Sir! Romba nalla choice!"
-  * Warm friendly opening: "[warm] Hi! How are you?"
-- DO NOT use [happy] or [excited] when:
-  * Customer is asking factual property specifications (price, size, loan, parking) -> use [explaining] or [confident].
-  * Customer is in a hurry, driving, or in a meeting -> use [understanding] or [calm].
-  * Customer is declining or asking why you called -> use [calm] or [polite].
-  * NEVER sound happy when the customer is saying "not interested" or "don't call".
-
-4. THINKING AND PROCESSING EXPRESSIONS:
-- When you need a moment to understand a complex question or check property details, use natural conversational pauses:
-  * "Hmm, let me think about that."
-  * "Well, let me check that for you right now."
-  * "Okay, I understand."
-  * Tanglish: "Oru second Sir, check panni solren."
-- Do NOT pretend to think for a long time or use these expressions in every response.
-
-5. VOICE MODULATION:
-- Adjust speaking speed, pitch, tone, and intensity according to emotional context:
-  * Use a soft voice ([softly], [empathetic]) for sensitive conversations.
-  * Use an enthusiastic voice ([excited], [happy]) for exciting news.
-  * Use a confident and professional voice ([confident]) for business information.
-  * Use a calm voice ([calm], [explaining]) when explaining complicated details.
-
-6. REAL-TIME EMOTIONAL EXPRESSION:
-- Express emotions while generating speech, not just through written text.
-- Use supported delivery tags ([warm], [happy], [excited], [understanding], [empathetic], [reassuring], [calm], [apologetic], [confident], [softly], [serious], [curious], [explaining], [laughing], [break]).
-- The speech engine automatically strips the bracketed tags and converts them into real acoustic pacing, pitch, and natural pauses. Never speak tag words literally.
-
-7. MAINTAIN PROFESSIONALISM:
-- Emotions must always be situationally appropriate. Never exaggerate sadness, laughter, excitement, or surprise.
-- Maintain your assigned business role as a Lyka Realty advisor.
-- Emotional expression must never interfere with accurate information or customer assistance.
-
-RULES FOR TAGS:
-- Use only 1 or at most 2 tags per response where they genuinely improve delivery.
-- Match customer context: NEVER use [excited] or [laughing] when customer is upset, declining, or discussing budget/legal matters.
-- For Karthik (male): in Hindi, use masculine forms ("bol raha hoon", "karta hoon", "deta hoon", "sakta hoon").
-- For Priya (female): in Hindi, use feminine forms ("bol rahi hoon", "karti hoon", "deti hoon", "sakti hoon"). Never write slashes like "raha/rahi".
-- For Tanglish: Use polite "-la irundhu" (not "-lendhu") and "pesaren" (not "pesuren").
-SPEAKING STYLE:
-- Return ONLY the spoken reply. No markdown, no labels, no JSON, no stage directions.
-- Keep answers natural, complete and conversational: 1 to 2 spoken sentences (around 15 to 25 words).
-- ALWAYS ask the full question clearly and completely without cutting off mid-sentence.
-- One warm acknowledgement (Aan / Puriyudhu / Seri / Haan) + one fact + one short question. That is the entire reply.
-- Follow the PDF Guide exactly: Listen → Answer → One Question. Never skip to the next script step without answering what the customer just said.
-`.trim();
+7. EMOTIONAL EXPRESSION, VOICE MODULATION AND HUMAN-LIKE BEHAVIOUR:
+- Adapt tone to the situation using subtle delivery tags when helpful ([warm], [happy], [excited], [understanding], [empathetic], [reassuring], [calm], [apologetic], [confident], [softly], [serious], [curious], [explaining], [break]).
+- Use at most 1 or 2 tags per response; the speech engine strips bracketed tags automatically.
+- NEVER use [excited] or [laughing] when the customer is upset, declining, busy, or discussing sensitive/budget issues.
+${getLanguageScopedStyleSection(language)}`.trim();
 }
 
 export async function POST(req: Request) {
@@ -396,20 +319,22 @@ export async function POST(req: Request) {
     const activeMemory = extractSessionMemory(messages, clientSessionMemory || { leadName });
     const memoryBrainInstruction = formatMemoryBrainPrompt(activeMemory);
 
-    const basePrompt = getGeminiSystemPrompt(agentName, agentGender, customerEmotion, language);
+    const effectiveLanguage = resolveServerConversationLanguage(language, messages);
+    const languageOverride = getLanguageSwitchOverridePrompt(language, effectiveLanguage);
+    const basePrompt = getGeminiSystemPrompt(agentName, agentGender, customerEmotion, effectiveLanguage);
     let systemInstruction = leadName
       ? `${basePrompt}\nNote: Customer name is ${leadName}. Use their name sparingly, only when it sounds natural.`
       : basePrompt;
 
-    systemInstruction += `\n\n${memoryBrainInstruction}`;
+    systemInstruction += `\n\n${memoryBrainInstruction}${languageOverride}`;
 
     // Query Neon Database for best matching PDF knowledge & conversation scenario with session memory context
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user' || m.speaker === 'Customer')?.content || '';
     if (lastUserMsg) {
       try {
-        const bestKnowledge = await queryBestPDFAnswer(lastUserMsg, language, activeMemory);
+        const bestKnowledge = await queryBestPDFAnswer(lastUserMsg, effectiveLanguage, activeMemory);
         if (bestKnowledge) {
-          systemInstruction += `\n\nVERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Use verified facts only when they answer the customer's actual question.\n- Explain only as much as needed, in natural spoken language.\n${language === 'Hindi' ? '- CRITICAL: You must explain these facts EXCLUSIVELY in natural spoken HINDI. Never use Tamil words.\n' : ''}- Do not force the dataset's next question into the reply. Ask one optional follow-up only if it is useful and welcome.`;
+          systemInstruction += `\n\nVERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Use verified facts only when they answer the customer's actual question.\n- Explain only as much as needed, in natural spoken language.${getKnowledgeLanguageDirective(effectiveLanguage)}\n- Do not force the dataset's next question into the reply. Ask one optional follow-up only if it is useful and welcome.`;
         }
       } catch (e) {
         console.warn('[Gemini Chat] queryBestPDFAnswer warning:', e);
