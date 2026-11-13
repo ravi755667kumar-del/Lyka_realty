@@ -400,3 +400,168 @@ export function resetAiUsageStats(): AiUsageStats {
   }
   return fresh;
 }
+
+// --------------------------------------------------------------------------
+// Quota & Allowance Tracking (Total, Used, Remaining)
+// --------------------------------------------------------------------------
+
+export interface QuotaRemainingDetail {
+  totalQuota: number;
+  used: number;
+  remaining: number;
+  percentUsed: number;
+  percentRemaining: number;
+  status: 'healthy' | 'warning' | 'critical';
+}
+
+export interface AiQuotaConfig {
+  monthlyTokenQuota: number;
+  monthlyAudioMinutesQuota: number;
+  monthlyTtsCharsQuota: number;
+  byModelTokenQuota: Record<string, number>;
+  bySttMinutesQuota: Record<string, number>;
+  byTtsCharsQuota: Record<string, number>;
+}
+
+export const DEFAULT_AI_QUOTAS: AiQuotaConfig = {
+  monthlyTokenQuota: 1000000, // 1M tokens monthly allowance
+  monthlyAudioMinutesQuota: 120, // 120 minutes (2 hrs) audio STT
+  monthlyTtsCharsQuota: 250000, // 250k characters TTS synthesis
+  byModelTokenQuota: {
+    'Google Gemini 2.5 Flash': 1000000,
+    'Groq Llama 3.3 70B': 500000,
+    'OpenAI GPT-4o-mini': 500000,
+  },
+  bySttMinutesQuota: {
+    'Deepgram Nova-2': 60,
+    'Groq Whisper-large-v3': 45,
+    'Sarvam Saaras v2': 30,
+  },
+  byTtsCharsQuota: {
+    'Cartesia Sonic': 100000,
+    'Deepgram Aura': 80000,
+    'Sarvam Bulbul v3': 50000,
+    'Murf Falcon': 50000,
+  },
+};
+
+const QUOTA_STORAGE_KEY = 'lyka_ai_quota_config_v1';
+
+/**
+ * Calculates used, remaining, and percentage values against a total quota limit
+ */
+export function calculateQuotaRemaining(used: number, totalQuota: number): QuotaRemainingDetail {
+  const safeTotal = Math.max(1, Number(totalQuota) || 1);
+  const safeUsed = Math.max(0, Number(used) || 0);
+  const remaining = Math.max(0, Number((safeTotal - safeUsed).toFixed(1)));
+  const percentUsed = Math.min(100, Number(((safeUsed / safeTotal) * 100).toFixed(1)));
+  const percentRemaining = Math.max(0, Number((100 - percentUsed).toFixed(1)));
+
+  let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+  if (percentRemaining <= 10) {
+    status = 'critical';
+  } else if (percentRemaining <= 30) {
+    status = 'warning';
+  }
+
+  return {
+    totalQuota: safeTotal,
+    used: safeUsed,
+    remaining,
+    percentUsed,
+    percentRemaining,
+    status,
+  };
+}
+
+/**
+ * Resolves the token quota for a given model name
+ */
+export function getModelTokenQuota(modelName: string, config: AiQuotaConfig): number {
+  if (config.byModelTokenQuota && typeof config.byModelTokenQuota[modelName] === 'number') {
+    return config.byModelTokenQuota[modelName];
+  }
+  if (/gemini/i.test(modelName)) return config.byModelTokenQuota['Google Gemini 2.5 Flash'] || config.monthlyTokenQuota;
+  if (/groq|llama/i.test(modelName)) return config.byModelTokenQuota['Groq Llama 3.3 70B'] || Math.round(config.monthlyTokenQuota / 2);
+  if (/openai|gpt/i.test(modelName)) return config.byModelTokenQuota['OpenAI GPT-4o-mini'] || Math.round(config.monthlyTokenQuota / 2);
+  return Math.round(config.monthlyTokenQuota / 2);
+}
+
+/**
+ * Resolves the audio minutes quota for a given STT provider
+ */
+export function getSttMinutesQuota(providerName: string, config: AiQuotaConfig): number {
+  if (config.bySttMinutesQuota && typeof config.bySttMinutesQuota[providerName] === 'number') {
+    return config.bySttMinutesQuota[providerName];
+  }
+  if (/deepgram/i.test(providerName)) return 60;
+  if (/groq|whisper/i.test(providerName)) return 45;
+  if (/sarvam/i.test(providerName)) return 30;
+  return Math.round(config.monthlyAudioMinutesQuota / 3);
+}
+
+/**
+ * Resolves the character quota for a given TTS provider
+ */
+export function getTtsCharsQuota(providerName: string, config: AiQuotaConfig): number {
+  if (config.byTtsCharsQuota && typeof config.byTtsCharsQuota[providerName] === 'number') {
+    return config.byTtsCharsQuota[providerName];
+  }
+  if (/cartesia/i.test(providerName)) return 100000;
+  if (/deepgram/i.test(providerName)) return 80000;
+  if (/sarvam/i.test(providerName)) return 50000;
+  if (/murf/i.test(providerName)) return 50000;
+  return Math.round(config.monthlyTtsCharsQuota / 4);
+}
+
+/**
+ * Retrieves the current quota configuration from localStorage
+ */
+export function getAiQuotaConfig(): AiQuotaConfig {
+  if (typeof window === 'undefined') {
+    return { ...DEFAULT_AI_QUOTAS };
+  }
+  try {
+    const raw = localStorage.getItem(QUOTA_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.monthlyTokenQuota === 'number') {
+        return {
+          monthlyTokenQuota: parsed.monthlyTokenQuota,
+          monthlyAudioMinutesQuota: parsed.monthlyAudioMinutesQuota ?? DEFAULT_AI_QUOTAS.monthlyAudioMinutesQuota,
+          monthlyTtsCharsQuota: parsed.monthlyTtsCharsQuota ?? DEFAULT_AI_QUOTAS.monthlyTtsCharsQuota,
+          byModelTokenQuota: { ...DEFAULT_AI_QUOTAS.byModelTokenQuota, ...(parsed.byModelTokenQuota || {}) },
+          bySttMinutesQuota: { ...DEFAULT_AI_QUOTAS.bySttMinutesQuota, ...(parsed.bySttMinutesQuota || {}) },
+          byTtsCharsQuota: { ...DEFAULT_AI_QUOTAS.byTtsCharsQuota, ...(parsed.byTtsCharsQuota || {}) },
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[AI Quota Config] Parse error:', e);
+  }
+  return { ...DEFAULT_AI_QUOTAS };
+}
+
+/**
+ * Saves quota configuration to localStorage
+ */
+export function saveAiQuotaConfig(config: AiQuotaConfig): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.warn('[AI Quota Config] Save error:', e);
+  }
+}
+
+/**
+ * Resets quota configuration to defaults
+ */
+export function resetAiQuotaConfig(): AiQuotaConfig {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(QUOTA_STORAGE_KEY);
+    } catch (e) {}
+  }
+  return { ...DEFAULT_AI_QUOTAS };
+}

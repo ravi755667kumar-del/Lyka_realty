@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getTwilioSettings } from '@/lib/serverConfig';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, {
+    allowWebhookSecret: true,
+    rateLimitBucket: 'crm-webhook',
+    maxRequestsPerMinute: 120,
+  });
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { action = 'lead', data } = body;

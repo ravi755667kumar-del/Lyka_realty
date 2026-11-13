@@ -6,14 +6,28 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AuthUser, onAuthStateChanged } from './lib/supabase';
+import {
+  AuthUser,
+  onAuthStateChanged,
+  installSecureApiFetchInterceptor,
+  isAuthorizedAdminUser,
+  logout,
+} from './lib/supabase';
 import {
   installMobileApiFetchInterceptor,
   initCapacitorNativeFeatures,
   triggerHapticFeedback,
 } from './lib/capacitor';
 import { Lead, CampaignState } from './types';
-import { subscribeToLeads, updateLead, deleteLead, bulkCreateLeads } from './services/leadService';
+import {
+  subscribeToLeads,
+  updateLead,
+  deleteLead,
+  bulkCreateLeads,
+  clearSensitiveLocalCaches,
+  restoreAdminLocalStores,
+  INITIAL_DEMO_LEADS,
+} from './services/leadService';
 import {
   subscribeToCampaignState,
   startCampaignAPI,
@@ -34,8 +48,9 @@ import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
 import { AddPropertyModal } from './components/AddPropertyModal';
 import { CallSimulatorModal } from './components/CallSimulatorModal';
 import { BrowserCallModal } from './components/BrowserCallModal';
-import { Sparkles, Phone, Database, CheckCircle2, Building2 } from 'lucide-react';
+import { Sparkles, Phone, Database, CheckCircle2, Building2, Users, Lock, ShieldAlert, LogIn, LogOut, Loader2 } from 'lucide-react';
 import { AdminLoginModal } from './components/AdminLoginModal';
+import { UserHistoryPanel } from './components/UserHistoryPanel';
 import {
   listenToFirebaseCrmLeads,
   listenToFirebaseCrmProperties,
@@ -45,10 +60,15 @@ import {
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [campaignState, setCampaignState] = useState<CampaignState | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
+  const [activeSection, setActiveSection] = useState<'pipeline' | 'history'>('pipeline');
+  const [historyRefreshKey, setHistoryRefreshKey] = useState<number>(0);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
+
+  const isAuthorized = Boolean(user && isAuthorizedAdminUser(user));
 
   // Modal states
   const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -64,9 +84,10 @@ export default function App() {
   const [selectedLeadForDetails, setSelectedLeadForDetails] = useState<Lead | null>(null);
   const [selectedLeadForSimulator, setSelectedLeadForSimulator] = useState<Lead | null>(null);
 
-  // Install Capacitor mobile /api proxy interceptor immediately on client mount
+  // Install Capacitor mobile proxy & Bearer auth fetch interceptors immediately on client mount
   if (typeof window !== 'undefined') {
     installMobileApiFetchInterceptor();
+    installSecureApiFetchInterceptor();
   }
 
   // Keep latest modal state accessible inside Android hardware back-button handler
@@ -108,31 +129,57 @@ export default function App() {
       setLoginModalOpen(false);
       return true;
     }
+    if (activeSection === 'history') {
+      setActiveSection('pipeline');
+      return true;
+    }
     return false;
   };
 
   useEffect(() => {
     installMobileApiFetchInterceptor();
+    installSecureApiFetchInterceptor();
     return initCapacitorNativeFeatures({
       onBackPressed: () => handleNativeBackRef.current(),
     });
   }, []);
 
-  // Auth observer
+  // Auth observer (strictly fail-closed when unauthenticated or unauthorized)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser) => {
       setUser(currentUser);
+      setAuthLoading(false);
+
+      if (currentUser && isAuthorizedAdminUser(currentUser)) {
+        restoreAdminLocalStores();
+      } else {
+        setLeads([]);
+        setCampaignState(null);
+        setSelectedLeadForDetails(null);
+        setSelectedLeadForSimulator(null);
+        setBrowserCallLead(null);
+        setBrowserCallModalOpen(false);
+        setSettingsModalOpen(false);
+        setKnowledgeModalOpen(false);
+        setAddPropertyModalOpen(false);
+        setAddLeadModalOpen(false);
+        setUploadModalOpen(false);
+        setSimulatorModalOpen(false);
+        clearSensitiveLocalCaches();
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // Initialize campaign doc
+  // Initialize campaign doc ONLY after authenticated admin session is verified
   useEffect(() => {
+    if (!isAuthorized) return;
     initCampaignDoc().catch((err) => console.log('Campaign doc init note:', err));
-  }, []);
+  }, [isAuthorized]);
 
-  // Subscribe to Firestore Leads
+  // Subscribe to Leads ONLY when authorized
   useEffect(() => {
+    if (!isAuthorized) return;
     const unsub = subscribeToLeads(
       (updatedLeads) => {
         setLeads(updatedLeads);
@@ -142,10 +189,11 @@ export default function App() {
       }
     );
     return () => unsub();
-  }, []);
+  }, [isAuthorized]);
 
-  // Subscribe to Firestore Campaign state
+  // Subscribe to Campaign state ONLY when authorized
   useEffect(() => {
+    if (!isAuthorized) return;
     const unsub = subscribeToCampaignState(
       (state) => {
         setCampaignState(state);
@@ -155,10 +203,11 @@ export default function App() {
       }
     );
     return () => unsub();
-  }, []);
+  }, [isAuthorized]);
 
-  // Synchronize live with External Firebase CRM (Super Admin Leads & Property Admin Properties)
+  // Synchronize live with External Firebase CRM ONLY when authorized
   useEffect(() => {
+    if (!isAuthorized) return;
     const unsubLeads = listenToFirebaseCrmLeads({
       onLeadsUpdated: (fbLeads) => {
         if (fbLeads && fbLeads.length > 0) {
@@ -195,7 +244,7 @@ export default function App() {
       unsubLeads();
       unsubProps();
     };
-  }, []);
+  }, [isAuthorized]);
 
   const notify = (msg: string) => {
     setStatusNotification(msg);
@@ -324,24 +373,115 @@ export default function App() {
     notify('Lead removed from database.');
   };
 
-  // Seed default sample leads from prompt specification (Rahul, Amit, Priya)
+  // Seed verified sample customer leads with full qualification details (budget, location, timeline, transcript, Q&A)
   const handleSeedSampleLeads = async () => {
-    const sample = [
-      { name: 'Rahul', phone: '+917464059133', consent: true },
-      { name: 'Amit', phone: '+919135380762', consent: true },
-      { name: 'Priya', phone: '+917077167118', consent: true },
-      { name: 'Vikram Malhotra', phone: '+919123456789', consent: true },
-      { name: 'Sneha Roy', phone: '+919833445566', consent: true },
-    ];
+    const sample = INITIAL_DEMO_LEADS.map((l) => ({
+      name: l.name,
+      phone: l.phone,
+      consent: l.consent,
+      blocked: l.blocked,
+      status: l.status,
+      language: l.language,
+      outcome: l.outcome,
+      callCount: l.callCount,
+      callTime: l.callTime,
+      duration: l.duration,
+      summary: l.summary,
+      transcript: l.transcript,
+      qaHistory: l.qaHistory,
+      buyerOrInvestor: l.buyerOrInvestor,
+      budget: l.budget,
+      location: l.location,
+      timeline: l.timeline,
+      nextAction: l.nextAction,
+    }));
     await bulkCreateLeads(sample);
-    notify('Added authorized customer leads to pipeline!');
+    notify('Loaded customer leads with full qualification details & call transcripts!');
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
+        <div className="flex items-center space-x-3 bg-slate-900/90 border border-slate-800 px-6 py-4 rounded-2xl shadow-2xl">
+          <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+          <span className="text-sm font-semibold text-slate-200">
+            Verifying encrypted admin session...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            {user ? <ShieldAlert className="w-8 h-8 text-red-400" /> : <Lock className="w-8 h-8" />}
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              Lyka Realty — Protected Vault
+            </h1>
+            {user ? (
+              <p className="text-sm text-red-300 leading-relaxed">
+                Signed in as <span className="font-semibold text-white">{user.email}</span>, which
+                is not authorized for admin data access.
+              </p>
+            ) : (
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Customer phone numbers, call transcripts, user history, and telephony controls are
+                strictly locked. Sign in with an authorized admin account to continue.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-3 pt-2">
+            {user ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  clearSensitiveLocalCaches();
+                  await logout();
+                }}
+                className="w-full flex items-center justify-center space-x-2 px-5 py-3.5 rounded-xl font-bold bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out & Switch Account</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setLoginModalOpen(true)}
+                className="w-full flex items-center justify-center space-x-2 px-5 py-3.5 rounded-xl font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Sign In to Admin Portal</span>
+              </button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-slate-500">
+            Zero unauthenticated exposure • Token-verified API access
+          </p>
+        </div>
+
+        <AdminLoginModal
+          isOpen={loginModalOpen}
+          onClose={() => setLoginModalOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-950">
       {/* Navigation Bar */}
       <Navbar
         user={user}
+        activeSection={activeSection}
+        onSelectSection={(sec) => setActiveSection(sec)}
         onOpenLogin={() => setLoginModalOpen(true)}
         onOpenUpload={() => setUploadModalOpen(true)}
         onOpenAddLead={() => setAddLeadModalOpen(true)}
@@ -355,6 +495,38 @@ export default function App() {
       />
 
       <main className="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 w-full space-y-5 sm:space-y-8 animate-in fade-in duration-300">
+        {/* Top-Level Section Switcher */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setActiveSection('pipeline')}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold border transition-all ${
+                activeSection === 'pipeline'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Lead Qualification Pipeline</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  activeSection === 'pipeline'
+                    ? 'bg-slate-950/20 text-slate-950'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                {leads.length}
+              </span>
+            </button>
+          </div>
+          <span className="text-[11px] text-slate-400 hidden sm:inline">
+            {activeSection === 'history'
+              ? 'Viewing caller mobile numbers, languages used, Q&A logs & full transcripts'
+              : 'Manage leads, run AI voice campaigns & monitor live qualification'}
+          </span>
+        </div>
+
         {/* Floating Notification Toast */}
         {statusNotification && (
           <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-50 bg-slate-900 border border-amber-400 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 animate-in slide-in-from-bottom duration-300">
@@ -363,84 +535,98 @@ export default function App() {
           </div>
         )}
 
-        {/* Empty State Banner if no leads */}
-        {leads.length === 0 && (
-          <div className="bg-gradient-to-r from-slate-900 to-amber-950/30 border border-amber-500/30 rounded-2xl p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
-              <Database className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white">No Leads in Pipeline</h3>
-              <p className="text-xs text-slate-300 max-w-md mx-auto mt-1">
-                Upload your CSV containing customer phone numbers and consent, or load authorized test leads.
-              </p>
-            </div>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={handleSeedSampleLeads}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors shadow-md"
-              >
-                Load Test Leads (Rahul, Amit, Priya)
-              </button>
-              <button
-                onClick={() => setUploadModalOpen(true)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-white hover:bg-slate-700 transition-colors border border-slate-700"
-              >
-                Upload CSV
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 1. Campaign Control Banner */}
-        <CampaignBanner
-          campaignState={campaignState}
-          leads={leads}
-          onStartCampaign={handleStartCampaign}
-          onStopCampaign={handleStopCampaign}
-        />
-
-        {/* 2. Today's Performance & Pipeline Metrics */}
-        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-          <MetricsCards
-            leads={leads}
-            activeFilter={activeFilter}
-            onSelectFilter={(f) => setActiveFilter(f)}
-            onViewLead={(lead) => setSelectedLeadForDetails(lead)}
-            onCallLead={handleCallSingleLead}
-            onPhysicalCallLead={handlePhysicalCallLead}
-          />
-        </div>
-
-        {/* 3. Leads Master Table (Visible to all) */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-white">Lead Qualification Pipeline</h3>
-              <p className="text-xs text-slate-400">
-                Live Supabase synchronization • Automated classification after every call
-              </p>
-            </div>
-            {leads.length > 0 && (
-              <button
-                onClick={handleSeedSampleLeads}
-                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
-              >
-                + Add Sample Leads
-              </button>
+        {activeSection === 'history' ? (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 sm:p-6 shadow-xl">
+            <UserHistoryPanel
+              refreshKey={historyRefreshKey}
+              leads={leads}
+              onViewLead={(lead) => setSelectedLeadForDetails(lead)}
+              onCallLead={handleCallSingleLead}
+              variant="page"
+            />
+          </section>
+        ) : (
+          <>
+            {/* Empty State Banner if no leads */}
+            {leads.length === 0 && (
+              <div className="bg-gradient-to-r from-slate-900 to-amber-950/30 border border-amber-500/30 rounded-2xl p-6 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                  <Database className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">No Leads in Pipeline</h3>
+                  <p className="text-xs text-slate-300 max-w-md mx-auto mt-1">
+                    Upload your CSV containing customer phone numbers and consent, or load authorized test leads.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={handleSeedSampleLeads}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors shadow-md"
+                  >
+                    Load Test Leads (Rahul, Amit, Priya)
+                  </button>
+                  <button
+                    onClick={() => setUploadModalOpen(true)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-white hover:bg-slate-700 transition-colors border border-slate-700"
+                  >
+                    Upload CSV
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
 
-          <LeadsTable
-            leads={leads}
-            activeFilter={activeFilter}
-            onSelectFilter={(f) => setActiveFilter(f)}
-            onCallLead={handleCallSingleLead}
-            onPhysicalCallLead={handlePhysicalCallLead}
-            onViewLead={(lead) => setSelectedLeadForDetails(lead)}
-            onToggleBlock={handleToggleBlock}
-          />
-        </div>
+            {/* 1. Campaign Control Banner */}
+            <CampaignBanner
+              campaignState={campaignState}
+              leads={leads}
+              onStartCampaign={handleStartCampaign}
+              onStopCampaign={handleStopCampaign}
+            />
+
+            {/* 2. Today's Performance & Pipeline Metrics */}
+            <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+              <MetricsCards
+                leads={leads}
+                activeFilter={activeFilter}
+                onSelectFilter={(f) => setActiveFilter(f)}
+                onViewLead={(lead) => setSelectedLeadForDetails(lead)}
+                onCallLead={handleCallSingleLead}
+                onPhysicalCallLead={handlePhysicalCallLead}
+              />
+            </div>
+
+            {/* 3. Leads Master Table (Visible to all) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Lead Qualification Pipeline</h3>
+                  <p className="text-xs text-slate-400">
+                    Live Supabase synchronization • Automated classification after every call
+                  </p>
+                </div>
+                {leads.length > 0 && (
+                  <button
+                    onClick={handleSeedSampleLeads}
+                    className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
+                  >
+                    + Add Sample Leads
+                  </button>
+                )}
+              </div>
+
+              <LeadsTable
+                leads={leads}
+                activeFilter={activeFilter}
+                onSelectFilter={(f) => setActiveFilter(f)}
+                onCallLead={handleCallSingleLead}
+                onPhysicalCallLead={handlePhysicalCallLead}
+                onViewLead={(lead) => setSelectedLeadForDetails(lead)}
+                onToggleBlock={handleToggleBlock}
+              />
+            </div>
+          </>
+        )}
       </main>
 
       {/* Footer */}
@@ -526,6 +712,7 @@ export default function App() {
               setIsCampaignMode(false);
             }}
             onCallFinished={() => {
+              setHistoryRefreshKey((k) => k + 1);
               notify(`Call finished for ${browserCallLead?.name || 'customer'} and stored in Supabase.`);
             }}
           />

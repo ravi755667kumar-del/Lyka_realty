@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { saveCallToNeon, isNeonConfigured } from '@/lib/neon';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'neon-save-call' });
+  if (!auth.ok) return auth.response;
+
   try {
     if (!isNeonConfigured()) {
       return NextResponse.json({

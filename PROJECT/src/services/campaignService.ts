@@ -677,9 +677,10 @@ export async function openaiChat(
 
 export interface TwilioConfig {
   configured: boolean;
-  accountSid: string;
+  accountSid?: string;
   accountSidMasked?: string;
-  phoneNumber: string;
+  phoneNumber?: string;
+  phoneNumberMasked?: string;
   hasAuthToken: boolean;
 }
 
@@ -690,9 +691,9 @@ export async function getTwilioConfig(): Promise<TwilioConfig> {
 }
 
 export async function updateTwilioConfig(data: {
-  accountSid: string;
-  authToken: string;
-  phoneNumber: string;
+  accountSid?: string;
+  authToken?: string;
+  phoneNumber?: string;
 }): Promise<{ success: boolean; message: string }> {
   const res = await fetch('/api/twilio/settings', {
     method: 'POST',

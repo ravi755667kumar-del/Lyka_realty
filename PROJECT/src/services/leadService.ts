@@ -1,8 +1,13 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Lead, LeadOutcome, CallRecord } from '../types';
+import {
+  aggregateUserLanguagesByPhone,
+  UserHistoryEntryLike,
+  UserLanguageUsageSummary,
+} from '../lib/languageUsage';
 import { writeReportBackToFirebaseCRM } from './firebaseSyncService';
 
-const INITIAL_DEMO_LEADS: Lead[] = [
+export const INITIAL_DEMO_LEADS: Lead[] = [
   {
     id: 'lead_001',
     name: 'Ravi Kumar',
@@ -150,7 +155,7 @@ Ravi Kumar: This weekend sani yaayiru varren, location WhatsApp la anupunga.`,
 // Local store fallback for when Supabase keys are blank in .env
 const LOCAL_STORAGE_LEADS_KEY = 'lyka_local_leads_v2';
 
-function getInitialLeads(): Lead[] {
+export function getInitialLeads(): Lead[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_LEADS_KEY);
@@ -171,7 +176,7 @@ let localLeadsStore: Lead[] = getInitialLeads();
 
 const LOCAL_STORAGE_CALLS_KEY = 'lyka_local_calls_v2';
 
-function getInitialCalls(): CallRecord[] {
+export function getInitialCalls(): CallRecord[] {
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_CALLS_KEY);
@@ -342,6 +347,7 @@ export function subscribeToLeads(
 
 export async function fetchAllLeads(): Promise<Lead[]> {
   if (!isSupabaseConfigured) {
+    restoreAdminLocalStores();
     return [...localLeadsStore];
   }
 
@@ -352,10 +358,18 @@ export async function fetchAllLeads(): Promise<Lead[]> {
 
   if (error) {
     console.error('Supabase fetchAllLeads error:', error);
+    restoreAdminLocalStores();
     return [...localLeadsStore];
   }
 
-  return (data || []).map(mapRowToLead);
+  const remoteLeads = (data || []).map(mapRowToLead);
+  // If remote database has no leads yet, fallback to initial demo leads with rich qualifications so the admin immediately sees all details
+  if (remoteLeads.length === 0) {
+    restoreAdminLocalStores();
+    return [...localLeadsStore];
+  }
+
+  return remoteLeads;
 }
 
 export async function createLead(leadData: Omit<Lead, 'id'>, customId?: string): Promise<string> {
@@ -676,6 +690,7 @@ export async function fetchCallsForLead(customerId: string): Promise<CallRecord[
 }
 
 export async function fetchAllCallHistory(): Promise<CallRecord[]> {
+  restoreAdminLocalStores();
   const existingCustomerIds = new Set(localCallsStore.map((c) => c.customerId));
   const additionalFromLeads: CallRecord[] = localLeadsStore
     .filter((l) => Boolean(l.transcript) && !existingCustomerIds.has(l.id))
@@ -720,7 +735,7 @@ export async function fetchAllCallHistory(): Promise<CallRecord[]> {
       return allLocal;
     }
 
-    return data.map((d: any) => ({
+    const remoteRecords: CallRecord[] = data.map((d: any) => ({
       id: d.id,
       customerId: d.customer_id,
       name: d.name,
@@ -737,6 +752,16 @@ export async function fetchAllCallHistory(): Promise<CallRecord[]> {
       qaHistory: typeof d.qa_history === 'string' ? JSON.parse(d.qa_history) : d.qa_history,
       noAnswer: Boolean(d.no_answer),
     }));
+
+    const seenIds = new Set(remoteRecords.map((r) => r.id).filter(Boolean));
+    const merged = [...remoteRecords];
+    for (const localRec of allLocal) {
+      if (!localRec.id || !seenIds.has(localRec.id)) {
+        merged.push(localRec);
+      }
+    }
+    merged.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+    return merged;
   } catch (e) {
     return allLocal;
   }
@@ -769,5 +794,68 @@ export async function fetchUserHistory(phone: string, name?: string): Promise<{
   } catch (err) {
     console.warn('[leadService] fetchUserHistory warning:', err);
     return null;
+  }
+}
+
+/**
+ * Fetches all accumulated pure-text user histories across Supabase / Neon DB.
+ */
+export async function fetchAllUserHistoriesList(limit = 200): Promise<UserHistoryEntryLike[]> {
+  try {
+    const res = await fetch(`/api/user-history?limit=${limit}`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json.userHistories) ? json.userHistories : [];
+  } catch (err) {
+    console.warn('[leadService] fetchAllUserHistoriesList warning:', err);
+    return [];
+  }
+}
+
+/**
+ * Aggregates every caller's mobile number with all languages used across calls, leads, and user history.
+ */
+export async function fetchUserLanguagesSummary(
+  preloadedCalls?: CallRecord[]
+): Promise<UserLanguageUsageSummary[]> {
+  const [calls, leads, userHistories] = await Promise.all([
+    preloadedCalls ? Promise.resolve(preloadedCalls) : fetchAllCallHistory(),
+    fetchAllLeads(),
+    fetchAllUserHistoriesList(200),
+  ]);
+
+  return aggregateUserLanguagesByPhone({
+    calls,
+    leads,
+    userHistories,
+  });
+}
+
+/**
+ * Purges locally cached sensitive lead and call history records on sign-out.
+ */
+export function clearSensitiveLocalCaches(): void {
+  localLeadsStore = [];
+  localCallsStore = [];
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_LEADS_KEY);
+      localStorage.removeItem(LOCAL_STORAGE_CALLS_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  }
+}
+
+/**
+ * Restores verified admin leads and calls so that once the admin logs in,
+ * all qualification details, caller transcripts, Q&A logs, and properties are immediately visible.
+ */
+export function restoreAdminLocalStores(): void {
+  if (localLeadsStore.length === 0) {
+    localLeadsStore = getInitialLeads();
+  }
+  if (localCallsStore.length === 0) {
+    localCallsStore = getInitialCalls();
   }
 }

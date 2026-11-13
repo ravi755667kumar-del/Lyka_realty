@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { Lead, LeadOutcome, SessionMemory } from '../types';
 import { extractSessionMemory, isMemoryFactKnown } from '../lib/sessionMemory';
+import { appendUsedLanguage, formatCallLanguagesLabel } from '../lib/languageUsage';
 import { saveLeadLanguage, completeBrowserCallSession } from '../services/leadService';
 import {
   groqChat,
@@ -575,6 +576,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const callStateRef = useRef<CallState>('Calling...');
   const currentStepRef = useRef<number>(0);
   const selectedLanguageRef = useRef<LanguageOption | null>(null);
+  const usedLanguagesRef = useRef<string[]>([]);
   const qualificationRef = useRef(qualification);
   const isSpeechSynthesisSpeakingRef = useRef<boolean>(false);
   const isRecognitionRunningRef = useRef<boolean>(false);
@@ -747,6 +749,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   const updateSelectedLanguage = (newLang: LanguageOption) => {
     selectedLanguageRef.current = newLang;
+    if (newLang) {
+      usedLanguagesRef.current = appendUsedLanguage(usedLanguagesRef.current, newLang);
+    }
     setSelectedLanguage(newLang);
     if (newLang) setInitialLanguage(newLang);
   };
@@ -1499,6 +1504,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     cloudSttFailCountRef.current = 0;
     const activeStartLang = initialLanguage || selectedLanguageRef.current || 'Tamil-English';
     explicitLanguageLockedRef.current = activeStartLang === 'Hindi' || activeStartLang === 'English';
+    usedLanguagesRef.current = [];
     updateSelectedLanguage(activeStartLang);
     setFinalSummary(null);
     setFinalOutcome(null);
@@ -5374,6 +5380,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const startedAtStr = new Date(callStartTimeRef.current).toISOString();
     const finalDuration = Math.max(duration, Math.floor((Date.now() - callStartTimeRef.current) / 1000));
     const activeLang = selectedLanguageRef.current || lead.language || 'English';
+    const callLanguageSummary = formatCallLanguagesLabel(usedLanguagesRef.current, activeLang);
     const q = qualificationRef.current;
 
     // Stop recording and upload to Supabase Storage bucket 'voice-recordings'
@@ -5441,7 +5448,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       await completeBrowserCallSession({
         lead,
         callData: {
-          language: activeLang,
+          language: callLanguageSummary,
           status,
           outcome,
           startedAt: startedAtStr,

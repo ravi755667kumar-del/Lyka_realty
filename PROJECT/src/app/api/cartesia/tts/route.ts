@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prepareSpeech } from '@/lib/speech';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 function getCartesiaApiKey(): string {
   return (
@@ -11,6 +12,9 @@ function getCartesiaApiKey(): string {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const apiKey = getCartesiaApiKey();
   if (!apiKey) {
     return NextResponse.json(

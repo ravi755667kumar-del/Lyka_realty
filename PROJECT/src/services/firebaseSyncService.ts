@@ -99,6 +99,20 @@ export function mapFirebaseDocToLead(docId: string, data: any): Lead {
 }
 
 /**
+ * Logs Firestore listener errors uniformly and handles missing remote rule permissions cleanly.
+ */
+function logListenerError(scope: 'Leads' | 'Properties', collectionName: string, err: any): void {
+  const msg = String(err?.message || '').toLowerCase();
+  if (err?.code === 'permission-denied' || msg.includes('permission') || msg.includes('insufficient')) {
+    console.info(
+      `[Firebase CRM Sync] ${scope} listener skipped (missing Firestore read permission on '${collectionName}' — publish firestore.rules to activate live sync).`
+    );
+    return;
+  }
+  console.warn(`[Firebase CRM Sync] ${scope} listener note:`, err);
+}
+
+/**
  * 1. Listen for leads added/updated by Super Admin in Firebase
  */
 export function listenToFirebaseCrmLeads(callbacks: {
@@ -137,7 +151,7 @@ export function listenToFirebaseCrmLeads(callbacks: {
         });
       },
       (err) => {
-        console.warn('[Firebase CRM Sync] Leads listener note:', err);
+        logListenerError('Leads', 'leads', err);
         if (callbacks.onError) callbacks.onError(err);
       }
     );
@@ -188,7 +202,7 @@ export function listenToFirebaseCrmProperties(callbacks: {
         }
       },
       (err) => {
-        console.warn('[Firebase CRM Sync] Properties listener note:', err);
+        logListenerError('Properties', 'properties', err);
         if (callbacks.onError) callbacks.onError(err);
       }
     );

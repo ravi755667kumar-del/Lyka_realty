@@ -7,6 +7,14 @@ import {
   recordTtsUsage,
   resetAiUsageStats,
   saveAiUsageStats,
+  calculateQuotaRemaining,
+  getModelTokenQuota,
+  getSttMinutesQuota,
+  getTtsCharsQuota,
+  getAiQuotaConfig,
+  saveAiQuotaConfig,
+  resetAiQuotaConfig,
+  DEFAULT_AI_QUOTAS,
 } from '../src/services/aiUsageTracker';
 
 // Mock localStorage for Node test environment
@@ -140,6 +148,73 @@ export async function testAiUsageTracker(): Promise<{ name: string; passed: bool
     const resetStats = resetAiUsageStats();
     assert.ok(resetStats.llm.totalCalls > 0);
     assert.ok(resetStats.estimatedCost.savingsPercent > 80);
+  });
+
+  // Test 7: calculateQuotaRemaining
+  run('calculateQuotaRemaining: computes total, used, remaining, percentages and health status', () => {
+    // 50% used
+    const res1 = calculateQuotaRemaining(500000, 1000000);
+    assert.equal(res1.totalQuota, 1000000);
+    assert.equal(res1.used, 500000);
+    assert.equal(res1.remaining, 500000);
+    assert.equal(res1.percentUsed, 50);
+    assert.equal(res1.percentRemaining, 50);
+    assert.equal(res1.status, 'healthy');
+
+    // 80% used -> warning (20% remaining)
+    const res2 = calculateQuotaRemaining(800000, 1000000);
+    assert.equal(res2.remaining, 200000);
+    assert.equal(res2.percentRemaining, 20);
+    assert.equal(res2.status, 'warning');
+
+    // 95% used -> critical (5% remaining)
+    const res3 = calculateQuotaRemaining(950000, 1000000);
+    assert.equal(res3.remaining, 50000);
+    assert.equal(res3.percentRemaining, 5);
+    assert.equal(res3.status, 'critical');
+
+    // Edge cases: 0 used or over quota
+    const resZero = calculateQuotaRemaining(0, 500000);
+    assert.equal(resZero.remaining, 500000);
+    assert.equal(resZero.percentRemaining, 100);
+
+    const resOver = calculateQuotaRemaining(1200000, 1000000);
+    assert.equal(resOver.remaining, 0);
+    assert.equal(resOver.percentUsed, 100);
+    assert.equal(resOver.percentRemaining, 0);
+    assert.equal(resOver.status, 'critical');
+  });
+
+  // Test 8: Quota config persistence & resolution
+  run('getAiQuotaConfig & saveAiQuotaConfig: saves and retrieves customized quotas', () => {
+    resetAiQuotaConfig();
+    const initialConfig = getAiQuotaConfig();
+    assert.equal(initialConfig.monthlyTokenQuota, DEFAULT_AI_QUOTAS.monthlyTokenQuota);
+    assert.equal(initialConfig.monthlyAudioMinutesQuota, 120);
+
+    // Save custom quota
+    saveAiQuotaConfig({
+      ...initialConfig,
+      monthlyTokenQuota: 2000000,
+      monthlyAudioMinutesQuota: 300,
+    });
+
+    const updatedConfig = getAiQuotaConfig();
+    assert.equal(updatedConfig.monthlyTokenQuota, 2000000);
+    assert.equal(updatedConfig.monthlyAudioMinutesQuota, 300);
+
+    // Model & provider quota resolution
+    const geminiQuota = getModelTokenQuota('Google Gemini 2.5 Flash', updatedConfig);
+    assert.ok(geminiQuota > 0);
+    const sttQuota = getSttMinutesQuota('Deepgram Nova-2', updatedConfig);
+    assert.ok(sttQuota > 0);
+    const ttsQuota = getTtsCharsQuota('Cartesia Sonic', updatedConfig);
+    assert.ok(ttsQuota > 0);
+
+    // Reset back
+    resetAiQuotaConfig();
+    const finalConfig = getAiQuotaConfig();
+    assert.equal(finalConfig.monthlyTokenQuota, DEFAULT_AI_QUOTAS.monthlyTokenQuota);
   });
 
   return results;

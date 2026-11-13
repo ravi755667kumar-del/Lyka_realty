@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getGroqSettings } from '@/lib/serverConfig';
 import { prepareSpeech } from '@/lib/speech';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const settings = getGroqSettings();
   const apiKey = settings.apiKey;
   const defaultVoice = settings.voice || 'autumn';

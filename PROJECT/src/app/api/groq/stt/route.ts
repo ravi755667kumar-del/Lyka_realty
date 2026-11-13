@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGroqSettings } from '@/lib/serverConfig';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 import {
   mapSttDetectedLanguageToConversationLanguage,
   type SpeechLanguage,
@@ -98,6 +99,9 @@ async function runGroqWhisper(
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const apiKey = getGroqSettings().apiKey;
   if (!apiKey) {
     return NextResponse.json({ success: false, message: 'Groq API key is not configured.' }, { status: 503 });

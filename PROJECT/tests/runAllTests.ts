@@ -5,6 +5,8 @@ import { testTwilioAndConfig } from './twilioAndConfig.test';
 import { testLeadQualification } from './leadQualification.test';
 import { testCapacitorMobile } from './capacitorMobile.test';
 import { testLanguageSwitching } from './languageSwitching.test';
+import { testLanguageUsage } from './languageUsage.test';
+import { testSecurity } from './security.test';
 
 async function main() {
   console.log('\n======================================================');
@@ -24,6 +26,8 @@ async function main() {
     { name: '5. Lead Qualification, Sales Manager Alerts & DNC Rules', runner: testLeadQualification },
     { name: '6. Capacitor Mobile Runtime, Native Helpers & API Resolution (capacitor.ts)', runner: testCapacitorMobile },
     { name: '7. Dynamic Language Detection, Switching & Pure English Speech (speech.ts)', runner: testLanguageSwitching },
+    { name: '8. User Language Usage Aggregation by Mobile Number (languageUsage.ts)', runner: testLanguageUsage },
+    { name: '9. Security Hardening: CORS, Auth Gate, Rate Limit & Secret Masking (serverAuth.ts)', runner: testSecurity },
   ];
 
   for (const suite of suites) {

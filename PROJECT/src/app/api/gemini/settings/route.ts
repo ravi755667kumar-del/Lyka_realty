@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getGeminiSettings, saveGeminiSettings } from '@/lib/serverConfig';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
+  if (!auth.ok) return auth.response;
+
   const current = getGeminiSettings();
   return NextResponse.json({
     apiKeyConfigured: Boolean(current.apiKey && current.apiKey.length > 5),
@@ -10,6 +14,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
+  if (!auth.ok) return auth.response;
+
   try {
     const data = await req.json();
     saveGeminiSettings(data);

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getOpenAISettings } from '@/lib/serverConfig';
 import { queryBestPDFAnswer } from '@/lib/neon';
 import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 import {
   getKnowledgeLanguageDirective,
   getLanguageScopedStyleSection,
@@ -205,6 +206,9 @@ STRICT WORK-FOCUS POLICY (HIGHEST PRIORITY — overrides every other rule below)
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const settings = getOpenAISettings();
   const apiKey = settings.apiKey;
 

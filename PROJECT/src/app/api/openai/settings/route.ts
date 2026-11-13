@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getOpenAISettings, saveOpenAISettings } from '@/lib/serverConfig';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
+  if (!auth.ok) return auth.response;
+
   const settings = getOpenAISettings();
   const apiKeyConfigured = Boolean(settings.apiKey);
-  const keyPreview = settings.apiKey
-    ? `${settings.apiKey.slice(0, 7)}...${settings.apiKey.slice(-4)}`
-    : undefined;
 
   return NextResponse.json({
     apiKeyConfigured,
-    keyPreview,
     ttsModel: settings.ttsModel,
     sttModel: settings.sttModel,
     chatModel: settings.chatModel,
@@ -19,6 +19,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const updated = saveOpenAISettings(body);
@@ -32,7 +35,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Failed to update OpenAI settings' },
+      { success: false, message: redactErrorMessage(error, 'Failed to update OpenAI settings') },
       { status: 500 }
     );
   }

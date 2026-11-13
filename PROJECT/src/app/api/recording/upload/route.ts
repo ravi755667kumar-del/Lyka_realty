@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, isSupabaseReady } from '@/lib/supabaseUserHistory';
 import { getNeonClient, isNeonConfigured } from '@/lib/neon';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
+
+const MAX_RECORDING_BYTES = 25 * 1024 * 1024; // 25 MB limit
+const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  'audio/webm',
+  'audio/mp4',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/mp3',
+]);
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'upload', maxRequestsPerMinute: 60 });
+  if (!auth.ok) return auth.response;
+
   try {
     if (!isSupabaseReady || !supabaseAdmin) {
       return NextResponse.json(
@@ -25,19 +40,34 @@ export async function POST(req: Request) {
       );
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    // Ensure audio file has valid content
-    if (buffer.length < 500) {
+    const baseMime = (file.type || 'audio/webm').split(';')[0].trim().toLowerCase();
+    if (!ALLOWED_AUDIO_MIME_TYPES.has(baseMime)) {
       return NextResponse.json(
-        { success: false, error: 'Audio recording file is too small or empty' },
+        { success: false, error: 'Unsupported file type. Only audio recordings are allowed.' },
         { status: 400 }
       );
     }
 
-    const safeLeadId = leadId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const safeCallId = callId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (file.size > MAX_RECORDING_BYTES) {
+      return NextResponse.json(
+        { success: false, error: 'Audio recording exceeds maximum allowed size (25 MB).' },
+        { status: 413 }
+      );
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Ensure audio file has valid content
+    if (buffer.length < 500 || buffer.length > MAX_RECORDING_BYTES) {
+      return NextResponse.json(
+        { success: false, error: 'Audio recording file size is invalid' },
+        { status: 400 }
+      );
+    }
+
+    const safeLeadId = leadId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+    const safeCallId = callId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
     const ext = file.name?.endsWith('.mp4') ? 'mp4' : file.name?.endsWith('.wav') ? 'wav' : 'webm';
     const filename = `recordings/${safeLeadId}_${safeCallId}_${Date.now()}.${ext}`;
 
@@ -45,14 +75,14 @@ export async function POST(req: Request) {
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from('voice-recordings')
       .upload(filename, buffer, {
-        contentType: file.type || 'audio/webm',
+        contentType: baseMime,
         upsert: true,
       });
 
     if (uploadError) {
       console.error('[Supabase Storage] Upload error:', uploadError);
       return NextResponse.json(
-        { success: false, error: uploadError.message },
+        { success: false, error: redactErrorMessage(uploadError, 'Recording upload failed') },
         { status: 500 }
       );
     }

@@ -43,44 +43,50 @@ service cloud.firestore {
         (!('name' in data) || (data.name is string && data.name.size() <= 100));
     }
 
-    // Lead rules: Read and write permitted with schema validation so outbound cold-calling agent and dashboard operate smoothly
+    // Lead rules: Authenticated access only + strict schema validation
     match /leads/{leadId} {
-      allow read: if true;
-      allow create: if isValidId(leadId) && isValidLead(incoming());
-      allow update: if isValidId(leadId);
-      allow delete: if isValidId(leadId);
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(leadId) && isValidLead(incoming());
+      allow update: if isSignedIn() && isValidId(leadId);
+      allow delete: if isAdmin() && isValidId(leadId);
     }
 
-    // Calls collection rules: Individual call session logs
+    // Calls collection rules: Authenticated access only
     match /calls/{callId} {
-      allow read: if true;
-      allow create: if isValidId(callId);
-      allow update: if isValidId(callId);
-      allow delete: if isValidId(callId);
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(callId);
+      allow update: if isSignedIn() && isValidId(callId);
+      allow delete: if isAdmin() && isValidId(callId);
     }
 
-    // Campaign state rules: Singleton campaign tracking outbound progress
+    // Campaign state rules: Authenticated access only
     match /campaigns/{campaignId} {
-      allow read: if true;
-      allow write: if isValidId(campaignId) && isValidCampaign(incoming());
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isValidId(campaignId) && isValidCampaign(incoming());
     }
 
-    // Knowledge docs rules
+    // Knowledge docs rules: Authenticated read, admin write
     match /knowledge_docs/{docId} {
-      allow read: if true;
-      allow write: if isValidId(docId) &&
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && isValidId(docId) &&
         incoming().title is string && incoming().title.size() <= 200 &&
         incoming().content is string && incoming().content.size() <= 20000;
     }
 
-    // Test connection doc
-    match /test/{docId} {
-      allow read: if true;
+    // Properties collection rules: Authenticated read for dashboard; admin write only
+    match /properties/{propertyId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    // Admins collection
+    // Test connection doc: Authenticated check only
+    match /test/{docId} {
+      allow read: if isSignedIn();
+    }
+
+    // Admins collection: Restrict to admins or self lookup; never public
     match /admins/{userId} {
-      allow read: if true;
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow write: if isAdmin();
     }
   }

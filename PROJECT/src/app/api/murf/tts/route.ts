@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prepareSpeech } from '@/lib/speech';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 function getMurfApiKey(): string {
   return process.env.murf_api || process.env.MURF_API_KEY || '';
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const apiKey = getMurfApiKey();
   if (!apiKey) {
     return NextResponse.json(

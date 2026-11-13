@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getOpenAISettings } from '@/lib/serverConfig';
 import { mapSttDetectedLanguageToConversationLanguage } from '@/lib/speech';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 function getExplicitIsoLang(languageCode: string): string {
   const normalized = languageCode.trim().toLowerCase();
@@ -39,6 +40,9 @@ async function callOpenAIStt(
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const settings = getOpenAISettings();
   const apiKey = settings.apiKey;
 

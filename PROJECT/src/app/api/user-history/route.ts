@@ -11,6 +11,7 @@ import {
   getAllUserHistoriesFromSupabase,
   isSupabaseReady,
 } from '@/lib/supabaseUserHistory';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
 /**
  * GET /api/user-history
@@ -20,11 +21,15 @@ import {
  *   - limit: Maximum records to return if querying all users (default: 50)
  */
 export async function GET(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'user-history' });
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const phone = searchParams.get('phone');
     const name = searchParams.get('name');
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 50, 1), 250);
 
     // If specific phone or name requested, fetch single user accumulated history
     if (phone || name) {
@@ -95,6 +100,9 @@ export async function GET(req: Request) {
  * Stores directly into Supabase DB (and keeps Neon DB in sync).
  */
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'user-history' });
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
 

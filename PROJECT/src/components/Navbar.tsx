@@ -15,11 +15,14 @@ import {
   Menu,
   X,
   Sparkles,
+  History,
 } from 'lucide-react';
 import { AuthUser, logout } from '../lib/supabase';
 
 interface NavbarProps {
   user: AuthUser | null;
+  activeSection?: 'pipeline' | 'history';
+  onSelectSection?: (section: 'pipeline' | 'history') => void;
   onOpenUpload: () => void;
   onOpenAddLead: () => void;
   onOpenAddProperty: () => void;
@@ -31,6 +34,8 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   user,
+  activeSection = 'pipeline',
+  onSelectSection,
   onOpenUpload,
   onOpenAddLead,
   onOpenAddProperty,
@@ -51,7 +56,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md bg-slate-900/95 pt-safe">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center space-x-2.5 sm:space-x-3">
+        <button
+          type="button"
+          onClick={() => onSelectSection?.('pipeline')}
+          className="flex items-center space-x-2.5 sm:space-x-3 text-left"
+        >
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20 shrink-0">
             <Building2 className="w-5 h-5" />
           </div>
@@ -66,10 +75,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               Autonomous Outbound Voice Lead Qualification
             </p>
           </div>
-        </div>
+        </button>
 
         {/* Desktop Quick Actions (Shown on >= md) */}
         <div className="hidden md:flex items-center space-x-2 lg:space-x-2.5">
+          {onSelectSection && (
+            <button
+              type="button"
+              onClick={() => onSelectSection(activeSection === 'history' ? 'pipeline' : 'history')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                activeSection === 'history'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                  : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
+              }`}
+              title="Open User History & Languages Section"
+            >
+              <History className={`w-3.5 h-3.5 ${activeSection === 'history' ? 'text-slate-950' : 'text-purple-400'}`} />
+              <span>User History</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenSimulator}
@@ -268,6 +292,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Settings className="w-4 h-4 text-amber-400 shrink-0" />
               <span>AI Settings</span>
             </button>
+
+            {onSelectSection && (
+              <button
+                type="button"
+                onClick={() =>
+                  handleMobileAction(() =>
+                    onSelectSection(activeSection === 'history' ? 'pipeline' : 'history')
+                  )
+                }
+                className={`col-span-2 flex items-center justify-center space-x-2 p-2.5 rounded-xl border font-semibold ${
+                  activeSection === 'history'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400'
+                    : 'bg-slate-800 text-purple-300 border-purple-500/30'
+                }`}
+              >
+                <History className={`w-4 h-4 shrink-0 ${activeSection === 'history' ? 'text-slate-950' : 'text-purple-400'}`} />
+                <span>{activeSection === 'history' ? 'Back to Lead Pipeline' : 'User History & Languages'}</span>
+              </button>
+            )}
           </div>
 
           {/* User Auth Section in Mobile Menu */}

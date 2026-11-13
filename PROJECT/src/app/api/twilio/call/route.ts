@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getTwilioSettings } from '@/lib/serverConfig';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'twilio-call', maxRequestsPerMinute: 30 });
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { leadId, name = 'Customer', phone, language = 'English' } = body;

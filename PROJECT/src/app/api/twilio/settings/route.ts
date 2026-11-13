@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getTwilioSettings, saveTwilioSettings } from '@/lib/serverConfig';
+import {
+  requireAuthenticatedApi,
+  maskSensitiveValue,
+  redactErrorMessage,
+} from '@/lib/serverAuth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
+  if (!auth.ok) return auth.response;
+
   const current = getTwilioSettings();
   const isConfigured = Boolean(
     current.accountSid &&
@@ -14,35 +22,38 @@ export async function GET() {
 
   return NextResponse.json({
     configured: isConfigured,
-    accountSid: current.accountSid || '',
-    accountSidMasked: current.accountSid
-      ? `${current.accountSid.slice(0, 6)}••••••••${current.accountSid.slice(-4)}`
-      : '',
-    phoneNumber: current.phoneNumber || '',
+    accountSidMasked: current.accountSid ? maskSensitiveValue(current.accountSid, 6, 4) : '',
+    phoneNumberMasked: current.phoneNumber ? maskSensitiveValue(current.phoneNumber, 3, 4) : '',
     hasAuthToken: Boolean(current.authToken && current.authToken.length > 5),
   });
 }
 
 export async function POST(req: Request) {
-  try {
-    const data = await req.json();
-    const { accountSid, authToken, phoneNumber } = data;
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
+  if (!auth.ok) return auth.response;
 
-    if (!accountSid || !accountSid.trim().startsWith('AC')) {
+  try {
+    const current = getTwilioSettings();
+    const data = await req.json();
+    const accountSid = (data?.accountSid || '').trim() || current.accountSid || '';
+    const authToken = (data?.authToken || '').trim() || current.authToken || '';
+    const phoneNumber = (data?.phoneNumber || '').trim() || current.phoneNumber || '';
+
+    if (!accountSid || !accountSid.startsWith('AC')) {
       return NextResponse.json(
         { success: false, message: 'Invalid Twilio Account SID. It must start with "AC".' },
         { status: 400 }
       );
     }
 
-    if (!authToken || authToken.trim().length < 10) {
+    if (!authToken || authToken.length < 10) {
       return NextResponse.json(
         { success: false, message: 'Invalid Twilio Auth Token. Please provide a valid token from your Twilio Console.' },
         { status: 400 }
       );
     }
 
-    if (!phoneNumber || phoneNumber.trim().length < 8) {
+    if (!phoneNumber || phoneNumber.length < 8) {
       return NextResponse.json(
         { success: false, message: 'Please provide a valid Twilio Phone Number (with country code, e.g. +1234567890).' },
         { status: 400 }
@@ -51,9 +62,9 @@ export async function POST(req: Request) {
 
     // Validate credentials against Twilio official API
     try {
-      const authHeader = 'Basic ' + Buffer.from(`${accountSid.trim()}:${authToken.trim()}`).toString('base64');
+      const authHeader = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
       const testRes = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid.trim()}.json`,
+        `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}.json`,
         {
           headers: {
             Authorization: authHeader,
@@ -77,9 +88,9 @@ export async function POST(req: Request) {
     }
 
     saveTwilioSettings({
-      accountSid: accountSid.trim(),
-      authToken: authToken.trim(),
-      phoneNumber: phoneNumber.trim(),
+      accountSid,
+      authToken,
+      phoneNumber,
     });
 
     return NextResponse.json({
@@ -88,7 +99,7 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Failed to update Twilio settings.' },
+      { success: false, message: redactErrorMessage(error, 'Failed to update Twilio settings.') },
       { status: 500 }
     );
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 function getSarvamApiKey(): string {
   return (
@@ -9,6 +10,9 @@ function getSarvamApiKey(): string {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   const apiKey = getSarvamApiKey();
   if (!apiKey) {
     return NextResponse.json(

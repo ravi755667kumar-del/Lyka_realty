@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getPDFQueryCacheStats, clearPDFQueryCache, queryBestPDFAnswer } from '@/lib/neon';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'pdf-cache' });
+  if (!auth.ok) return auth.response;
+
   try {
     // Ensure cache is warmed up if not already
     await queryBestPDFAnswer('test warmup query', 'ta');
@@ -16,7 +20,10 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'pdf-cache' });
+  if (!auth.ok) return auth.response;
+
   try {
     clearPDFQueryCache();
     return NextResponse.json({

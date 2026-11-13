@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getGeminiSettings } from '@/lib/serverConfig';
 import { queryBestPDFAnswer } from '@/lib/neon';
 import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 import {
   getKnowledgeLanguageDirective,
   getLanguageScopedStyleSection,
@@ -288,6 +289,9 @@ ${getLanguageScopedStyleSection(language)}`.trim();
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'ai-voice', maxRequestsPerMinute: 240 });
+  if (!auth.ok) return auth.response;
+
   try {
     const geminiKey = getGeminiSettings().apiKey;
     if (!geminiKey) {

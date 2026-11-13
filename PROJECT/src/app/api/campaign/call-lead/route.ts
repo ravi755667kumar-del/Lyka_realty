@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'campaign' });
+  if (!auth.ok) return auth.response;
+
   try {
     const { leadId } = await req.json();
     return NextResponse.json({

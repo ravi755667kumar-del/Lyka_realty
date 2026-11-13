@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { PropertyItem } from '@/types';
 import { invalidatePdfKnowledgeCache, getNeonClient } from '@/lib/neon';
+import { requireAuthenticatedApi } from '@/lib/serverAuth';
 
 const CUSTOM_PROPS_FILE = path.resolve(process.cwd(), 'datasets', 'custom_properties.json');
 
@@ -119,7 +120,10 @@ function writeCustomProperties(props: PropertyItem[]) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'properties' });
+  if (!auth.ok) return auth.response;
+
   try {
     const custom = readCustomProperties();
     // Return custom properties first, then default verified ones
@@ -136,6 +140,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'properties' });
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const {
@@ -238,6 +245,9 @@ Description: ${newProperty.description}`;
 }
 
 export async function DELETE(req: Request) {
+  const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'properties' });
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

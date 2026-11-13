@@ -14,6 +14,9 @@ interface AdminLoginModalProps {
 type Mode = 'signin' | 'signup';
 type Busy = null | 'google' | 'redirect' | 'email';
 
+const ALLOW_SELF_SIGNUP =
+  typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ALLOW_SIGNUP !== 'false';
+
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('signin');
@@ -177,37 +180,43 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
             </button>
           </form>
 
-          <p className="text-center text-xs text-slate-500">
-            {mode === 'signin' ? (
-              <>
-                New here?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setError(null);
-                  }}
-                  className="text-amber-400 hover:text-amber-300 font-semibold underline"
-                >
-                  Create an account
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signin');
-                    setError(null);
-                  }}
-                  className="text-amber-400 hover:text-amber-300 font-semibold underline"
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
+          {ALLOW_SELF_SIGNUP ? (
+            <p className="text-center text-xs text-slate-500">
+              {mode === 'signin' ? (
+                <>
+                  New here?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signup');
+                      setError(null);
+                    }}
+                    className="text-amber-400 hover:text-amber-300 font-semibold underline"
+                  >
+                    Create an account
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signin');
+                      setError(null);
+                    }}
+                    className="text-amber-400 hover:text-amber-300 font-semibold underline"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </p>
+          ) : (
+            <p className="text-center text-xs text-slate-500">
+              Protected admin portal — authorized accounts only.
+            </p>
+          )}
         </div>
       </div>
     </div>
