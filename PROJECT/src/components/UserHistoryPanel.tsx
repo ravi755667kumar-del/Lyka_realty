@@ -17,6 +17,7 @@ import {
   FileText,
   PhoneCall,
   Eye,
+  Repeat,
 } from 'lucide-react';
 import { CallRecord, Lead } from '../types';
 import { fetchAllCallHistory, fetchUserLanguagesSummary } from '../services/leadService';
@@ -24,6 +25,7 @@ import {
   UserLanguageUsageSummary,
   getLanguageBadgeClasses,
   splitLanguagesLabel,
+  normalizePhoneForDedupe,
 } from '../lib/languageUsage';
 import { TalkHistorySection } from './TalkHistorySection';
 
@@ -143,6 +145,7 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
   const [historyDateFilter, setHistoryDateFilter] = useState('ALL');
   const [historyOutcomeFilter, setHistoryOutcomeFilter] = useState('ALL');
   const [historyLanguageFilter, setHistoryLanguageFilter] = useState('ALL');
+  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
   const [expandedUserKeys, setExpandedUserKeys] = useState<Set<string>>(new Set());
   const [expandedCallIds, setExpandedCallIds] = useState<Set<string>>(new Set());
 
@@ -207,6 +210,19 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
     });
   };
 
+  const phoneCallFrequency = useMemo(() => {
+    const map = new Map<string, number>();
+    callHistory.forEach((c) => {
+      const key = normalizePhoneForDedupe(c.phone);
+      if (key) map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [callHistory]);
+
+  const duplicateUserCount = useMemo(() => {
+    return userLanguageSummaries.filter((u) => u.isDuplicate || u.totalCalls > 1).length;
+  }, [userLanguageSummaries]);
+
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
     callHistory.forEach((c) => {
@@ -225,6 +241,10 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
 
   const filteredUserLanguages = useMemo(() => {
     return userLanguageSummaries.filter((entry) => {
+      if (onlyDuplicates && !(entry.isDuplicate || entry.totalCalls > 1)) {
+        return false;
+      }
+
       if (historySearch.trim()) {
         const q = historySearch.toLowerCase().trim();
         const matchName = entry.name.toLowerCase().includes(q);
@@ -257,6 +277,7 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
     });
   }, [
     userLanguageSummaries,
+    onlyDuplicates,
     historySearch,
     historyLanguageFilter,
     historyOutcomeFilter,
@@ -265,6 +286,13 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
 
   const filteredCalls = useMemo(() => {
     return callHistory.filter((call) => {
+      if (onlyDuplicates) {
+        const key = normalizePhoneForDedupe(call.phone);
+        if (!key || (phoneCallFrequency.get(key) || 0) <= 1) {
+          return false;
+        }
+      }
+
       if (historySearch.trim()) {
         const q = historySearch.toLowerCase().trim();
         const matchName = call.name?.toLowerCase().includes(q);
@@ -306,7 +334,15 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
 
       return true;
     });
-  }, [callHistory, historySearch, historyOutcomeFilter, historyLanguageFilter, historyDateFilter]);
+  }, [
+    callHistory,
+    onlyDuplicates,
+    phoneCallFrequency,
+    historySearch,
+    historyOutcomeFilter,
+    historyLanguageFilter,
+    historyDateFilter,
+  ]);
 
   const groupedCalls = useMemo(() => {
     const groups: { dateGroup: string; isoDate: string; calls: CallRecord[] }[] = [];
@@ -367,7 +403,7 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
 
       {/* Page Variant Top Summary Cards */}
       {variant === 'page' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 flex items-center justify-between">
             <div>
               <span className="text-[11px] text-slate-400 font-medium">Tracked Mobile Numbers</span>
@@ -392,9 +428,35 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
             </div>
           </div>
 
+          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] text-slate-400 font-medium">Duplicate Numbers</span>
+              <div className="flex items-center space-x-2 mt-0.5">
+                <span className="text-2xl font-black text-amber-400 font-mono">
+                  {duplicateUserCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOnlyDuplicates((prev) => !prev)}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                    onlyDuplicates
+                      ? 'bg-amber-500 text-slate-950 border-amber-400'
+                      : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                  }`}
+                  title="Toggle duplicates filter"
+                >
+                  {onlyDuplicates ? 'Active' : 'Filter'}
+                </button>
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center">
+              <Repeat className="w-5 h-5 text-amber-400" />
+            </div>
+          </div>
+
           <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-400 font-medium">Languages Spoken by Users</span>
+              <span className="text-[11px] text-slate-400 font-medium">Languages Spoken</span>
               <Globe className="w-4 h-4 text-cyan-400" />
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -423,64 +485,91 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
       )}
 
       {/* Filter Controls */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={historySearch}
-            onChange={(e) => setHistorySearch(e.target.value)}
-            placeholder="Search name, phone, language, Q&A..."
-            className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
-          />
+      <div className="space-y-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              placeholder="Search name, phone, language, Q&A..."
+              className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          <div className="relative">
+            <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <select
+              value={historyLanguageFilter}
+              onChange={(e) => setHistoryLanguageFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+            >
+              <option value="ALL">All Languages</option>
+              {availableLanguages.map((lang) => (
+                <option key={lang} value={lang}>
+                  {lang}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <select
+              value={historyDateFilter}
+              onChange={(e) => setHistoryDateFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+            >
+              <option value="ALL">All Dates</option>
+              {availableDates.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative">
+            <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <select
+              value={historyOutcomeFilter}
+              onChange={(e) => setHistoryOutcomeFilter(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+            >
+              <option value="ALL">All Outcomes</option>
+              <option value="HOT">HOT 🔥</option>
+              <option value="WARM">WARM ☀️</option>
+              <option value="COLD">COLD ❄️</option>
+              <option value="OPT-OUT">OPT-OUT ⛔</option>
+              <option value="AGENT_CALLBACK">CALLBACK 📞</option>
+            </select>
+          </div>
         </div>
 
-        <div className="relative">
-          <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-          <select
-            value={historyLanguageFilter}
-            onChange={(e) => setHistoryLanguageFilter(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
+        {/* Duplicate Filter Quick Button */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOnlyDuplicates((prev) => !prev)}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+              onlyDuplicates
+                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm shadow-amber-500/20'
+                : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
+            }`}
           >
-            <option value="ALL">All Languages</option>
-            {availableLanguages.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="relative">
-          <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-          <select
-            value={historyDateFilter}
-            onChange={(e) => setHistoryDateFilter(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
-          >
-            <option value="ALL">All Dates</option>
-            {availableDates.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="relative">
-          <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-          <select
-            value={historyOutcomeFilter}
-            onChange={(e) => setHistoryOutcomeFilter(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-amber-400"
-          >
-            <option value="ALL">All Outcomes</option>
-            <option value="HOT">HOT 🔥</option>
-            <option value="WARM">WARM ☀️</option>
-            <option value="COLD">COLD ❄️</option>
-            <option value="OPT-OUT">OPT-OUT ⛔</option>
-            <option value="AGENT_CALLBACK">CALLBACK 📞</option>
-          </select>
+            <Repeat className={`w-3.5 h-3.5 ${onlyDuplicates ? 'text-slate-950' : 'text-amber-400'}`} />
+            <span>Duplicate Numbers Only ({duplicateUserCount})</span>
+          </button>
+          {onlyDuplicates && (
+            <button
+              type="button"
+              onClick={() => setOnlyDuplicates(false)}
+              className="text-[11px] text-amber-400 hover:underline"
+            >
+              Clear Duplicates Filter
+            </button>
+          )}
         </div>
       </div>
 
@@ -509,8 +598,14 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
               const isUserExpanded = expandedUserKeys.has(entry.phoneKey);
               const matchedLead = leads.length > 0 ? findMatchingLead(leads, entry.phone, entry.name) : undefined;
               const outcomeBadge = entry.latestOutcome ? getOutcomeBadge(entry.latestOutcome) : null;
+              const isDuplicateUser = Boolean(entry.isDuplicate || entry.totalCalls > 1);
               const hasExtraDetails = Boolean(
-                entry.summary || entry.qualificationText || entry.qaPairsText || entry.historyText || matchedLead
+                entry.summary ||
+                  entry.qualificationText ||
+                  entry.qaPairsText ||
+                  entry.historyText ||
+                  matchedLead ||
+                  (entry.callSessions && entry.callSessions.length > 0)
               );
 
               return (
@@ -532,18 +627,29 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
                           <span className="text-[11px] text-slate-300 font-medium truncate">
                             {entry.name}
                           </span>
+                          {isDuplicateUser && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
+                              <Repeat className="w-3 h-3" />
+                              <span>Duplicate ({entry.duplicateCount || entry.totalCalls} entries)</span>
+                            </span>
+                          )}
                           {outcomeBadge && (
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${outcomeBadge.bg}`}>
                               {outcomeBadge.label}
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                          <span>{entry.totalCalls} {entry.totalCalls === 1 ? 'call' : 'calls'}</span>
+                        <div className="text-[10px] text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                          <span className="font-semibold text-amber-300">
+                            Calling Times: {entry.totalCalls}x ({entry.totalCalls === 1 ? '1 call' : `${entry.totalCalls} calls`})
+                          </span>
                           {entry.lastUsedAt && (
                             <>
                               <span>•</span>
-                              <span>Last: {formatDateGroup(entry.lastUsedAt)} {formatTime(entry.lastUsedAt)}</span>
+                              <span className="flex items-center space-x-1 text-slate-300">
+                                <Clock className="w-3 h-3 text-slate-500 inline" />
+                                <span>Last Called: {formatDateGroup(entry.lastUsedAt)} at {formatTime(entry.lastUsedAt)}</span>
+                              </span>
                             </>
                           )}
                         </div>
@@ -598,6 +704,62 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
 
                   {isUserExpanded && hasExtraDetails && (
                     <div className="px-4 pb-4 pt-2 border-t border-slate-800/60 bg-slate-900/50 space-y-3">
+                      {/* Calling Times & Session History Timeline */}
+                      {entry.callSessions && entry.callSessions.length > 0 && (
+                        <div className="bg-slate-950/80 border border-slate-800/80 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center space-x-1.5">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>Calling Times &amp; Session History ({entry.callSessions.length} total)</span>
+                            </span>
+                            {entry.callSessions.length > 1 && (
+                              <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                                🔁 Repeated Number
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            {entry.callSessions.map((session, sIdx) => {
+                              const sBadge = session.outcome ? getOutcomeBadge(session.outcome) : null;
+                              return (
+                                <div
+                                  key={session.id || sIdx}
+                                  className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-md bg-slate-900/60 border border-slate-800/60 text-xs"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                                      Call #{entry.callSessions!.length - sIdx}
+                                    </span>
+                                    <span className="text-slate-200 font-medium">
+                                      {formatDateGroup(session.startedAt)}
+                                    </span>
+                                    <span className="text-slate-400 font-mono text-[11px]">
+                                      at {formatTime(session.startedAt)}
+                                    </span>
+                                    {session.duration !== undefined && session.duration > 0 && (
+                                      <span className="text-[10px] text-slate-500">
+                                        ({formatDuration(session.duration)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center space-x-1.5">
+                                    {session.language && (
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getLanguageBadgeClasses(session.language)}`}>
+                                        {session.language}
+                                      </span>
+                                    )}
+                                    {sBadge && (
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${sBadge.bg}`}>
+                                        {sBadge.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                       {entry.qualificationText && (
                         <div className="bg-slate-950/70 border border-slate-800 rounded-lg p-2.5">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">
@@ -722,11 +884,17 @@ export const UserHistoryPanel: React.FC<UserHistoryPanelProps> = ({
                                 <span className="text-[11px] text-slate-400 font-mono">
                                   {call.phone || 'No Phone'}
                                 </span>
+                                {call.phone && (phoneCallFrequency.get(normalizePhoneForDedupe(call.phone) || '') || 0) > 1 && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/35 flex items-center space-x-1">
+                                    <Repeat className="w-2.5 h-2.5" />
+                                    <span>Repeat Number ({phoneCallFrequency.get(normalizePhoneForDedupe(call.phone) || '')} calls)</span>
+                                  </span>
+                                )}
                               </div>
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-400 mt-0.5">
-                                <span className="flex items-center space-x-1">
-                                  <Clock className="w-3 h-3 text-slate-500" />
-                                  <span>{formatTime(call.startedAt)}</span>
+                                <span className="flex items-center space-x-1 text-amber-300/90 font-medium">
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>Calling Time: {formatTime(call.startedAt)}</span>
                                 </span>
                                 <span>•</span>
                                 <span>Duration: {formatDuration(call.duration)}</span>

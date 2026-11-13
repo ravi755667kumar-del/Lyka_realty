@@ -133,5 +133,79 @@ export async function testLanguageUsage(): Promise<{ name: string; passed: boole
     assert.deepEqual(summary[2].languages, ['Tamil-English']);
   });
 
+  run('aggregateUserLanguagesByPhone: accurately identifies duplicate numbers, calling times, and session history', () => {
+    const calls: CallRecord[] = [
+      {
+        id: 'call_dup_1',
+        customerId: 'lead_dup_1',
+        name: 'Arun Kumar',
+        phone: '+91 98400 11111',
+        language: 'Tamil-English',
+        status: 'Completed',
+        outcome: 'WARM',
+        startedAt: '2026-11-13T10:00:00.000Z',
+        endedAt: '2026-11-13T10:01:25.000Z',
+        duration: 85,
+        qualification: { interested: 'Yes', buyerOrInvestor: 'buyer' },
+      },
+      {
+        id: 'call_dup_2',
+        customerId: 'lead_dup_1',
+        name: 'Arun Kumar',
+        phone: '9840011111',
+        language: 'Hindi',
+        status: 'Completed',
+        outcome: 'HOT',
+        startedAt: '2026-11-13T11:30:00.000Z',
+        endedAt: '2026-11-13T11:31:50.000Z',
+        duration: 110,
+        qualification: { interested: 'Yes', buyerOrInvestor: 'buyer' },
+      },
+      {
+        id: 'call_single',
+        customerId: 'lead_single_1',
+        name: 'Single User',
+        phone: '+91 99999 22222',
+        language: 'English',
+        status: 'Completed',
+        outcome: 'COLD',
+        startedAt: '2026-11-13T09:00:00.000Z',
+        endedAt: '2026-11-13T09:00:40.000Z',
+        duration: 40,
+        qualification: { interested: 'No', buyerOrInvestor: 'unspecified' },
+      },
+    ];
+
+    const leads: Lead[] = [
+      {
+        id: 'lead_dup_1',
+        name: 'Arun K',
+        phone: '+91 9840011111',
+        consent: true,
+        blocked: false,
+        status: 'Completed',
+        callCount: 2,
+        callTime: '2026-11-13T11:30:00.000Z',
+      },
+    ];
+
+    const summary = aggregateUserLanguagesByPhone({ calls, leads });
+    const arun = summary.find((u) => u.phoneKey.endsWith('9840011111'));
+    const single = summary.find((u) => u.phoneKey.endsWith('9999922222'));
+
+    assert.ok(arun, 'Arun should be found');
+    assert.equal(arun.isDuplicate, true, 'Duplicate phone number flag should be true');
+    assert.equal(arun.totalCalls, 2, 'Total calls should be 2');
+    assert.ok(arun.duplicateCount >= 2, 'Duplicate count should be >= 2');
+    assert.equal(arun.callSessions?.length, 2, 'Should have 2 calling session records');
+    // Newest first
+    assert.equal(arun.callSessions?.[0].outcome, 'HOT');
+    assert.equal(arun.callSessions?.[0].startedAt, '2026-11-13T11:30:00.000Z');
+
+    assert.ok(single, 'Single user should be found');
+    assert.equal(single.isDuplicate, false, 'Single call should not be marked duplicate');
+    assert.equal(single.totalCalls, 1);
+  });
+
   return results;
 }

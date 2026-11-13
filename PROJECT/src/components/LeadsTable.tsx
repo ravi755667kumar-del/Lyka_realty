@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Lead, LeadOutcome } from '../types';
 import {
   Phone,
@@ -12,9 +12,13 @@ import {
   ChevronUp,
   Volume2,
   Radio,
+  Clock,
+  PhoneCall,
+  Repeat,
 } from 'lucide-react';
 import { TalkHistorySection, parseTranscriptToQAPairs } from './TalkHistorySection';
 import { isDateToday, formatDurationDetailed } from './MetricsCards';
+import { normalizePhoneForDedupe } from '../lib/languageUsage';
 
 interface LeadQualificationHighlightsProps {
   lead: Lead;
@@ -222,6 +226,27 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
     });
   };
 
+  // Duplicate Phone Detection across all leads
+  const duplicatePhoneMap = useMemo(() => {
+    const counts = new Map<string, number>();
+    leads.forEach((l) => {
+      const key = normalizePhoneForDedupe(l.phone);
+      if (key) {
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [leads]);
+
+  const duplicateLeadsCount = useMemo(() => {
+    return leads.filter((l) => {
+      const key = normalizePhoneForDedupe(l.phone);
+      const isDupEntry = Boolean(key && (duplicatePhoneMap.get(key) || 0) > 1);
+      const isMultipleCalls = Boolean(l.callCount && l.callCount > 1);
+      return isDupEntry || isMultipleCalls;
+    }).length;
+  }, [leads, duplicatePhoneMap]);
+
   // Filtering
   const filteredLeads = leads.filter((lead) => {
     // 1. Search Query
@@ -237,6 +262,12 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
 
     // 2. Tab Filter
     if (activeFilter === 'ALL') return true;
+    if (activeFilter === 'DUPLICATES') {
+      const key = normalizePhoneForDedupe(lead.phone);
+      const isDupEntry = Boolean(key && (duplicatePhoneMap.get(key) || 0) > 1);
+      const isMultipleCalls = Boolean(lead.callCount && lead.callCount > 1);
+      return isDupEntry || isMultipleCalls;
+    }
     if (activeFilter === 'SALES_ACTION') {
       return (
         lead.outcome === 'HOT' ||
@@ -347,6 +378,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
         <div className="flex items-center space-x-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           {[
             { id: 'ALL', label: 'All Leads' },
+            { id: 'DUPLICATES', label: `🔁 Duplicate Numbers (${duplicateLeadsCount})` },
             { id: 'SALES_ACTION', label: '🎯 Sales Action Queue' },
             { id: 'TODAY', label: "📅 Today's Calls" },
             { id: 'HOT', label: '🔥 HOT' },
@@ -425,19 +457,59 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                     >
                       {/* Lead Contact Info */}
                       <td className="px-4 py-3.5">
-                        <div className="font-semibold text-white text-sm">{lead.name}</div>
-                        <div className="text-slate-400 font-mono text-[11px] mt-0.5">{lead.phone}</div>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          <span className="font-semibold text-white text-sm">{lead.name}</span>
+                          {(() => {
+                            const key = normalizePhoneForDedupe(lead.phone);
+                            const dupCount = key ? (duplicatePhoneMap.get(key) || 0) : 0;
+                            const isDup = dupCount > 1 || Boolean(lead.callCount && lead.callCount > 1);
+                            if (!isDup) return null;
+                            return (
+                              <span
+                                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse shadow-sm"
+                                title={`Duplicate Phone Number: ${dupCount > 1 ? `${dupCount} lead records with this number` : `${lead.callCount} calls recorded`}`}
+                              >
+                                <Repeat className="w-2.5 h-2.5 text-amber-400" />
+                                <span>Duplicate ({dupCount > 1 ? `${dupCount} entries` : `${lead.callCount} calls`})</span>
+                              </span>
+                            );
+                          })()}
+                        </div>
+
+                        <div className="text-slate-300 font-mono text-[11px] mt-0.5">
+                          {lead.phone}
+                        </div>
+
+                        {/* Calling Times & Exact Timestamp */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          {lead.callCount && lead.callCount > 0 ? (
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              <PhoneCall className="w-2.5 h-2.5" />
+                              <span>Calling Times: {lead.callCount}x</span>
+                              {lead.duration ? <span>• {formatDurationDetailed(lead.duration)}</span> : null}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] text-slate-400 bg-slate-800/80 border border-slate-700">
+                              <Clock className="w-2.5 h-2.5 text-slate-500" />
+                              <span>Calling Times: 0</span>
+                            </span>
+                          )}
+
+                          {lead.callTime ? (
+                            <span className="inline-flex items-center space-x-1 text-[10px] text-slate-300 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                              <Clock className="w-2.5 h-2.5 text-amber-400" />
+                              <span>
+                                {new Date(lead.callTime).toLocaleDateString([], { month: 'short', day: 'numeric' })} at{' '}
+                                {new Date(lead.callTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                              </span>
+                            </span>
+                          ) : null}
+
                           {lead.language && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
                               🌐 {lead.language}
                             </span>
                           )}
-                          {lead.callCount && lead.callCount > 0 ? (
-                            <span className="text-[10px] text-slate-400">
-                              Calls: {lead.callCount} {lead.duration ? `• ${formatDurationDetailed(lead.duration)}` : ''}
-                            </span>
-                          ) : null}
                           {lead.recordingReference && (
                             <span
                               className="inline-flex items-center space-x-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
@@ -617,23 +689,40 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                 {/* Header: Name, Lang & Status Badge */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                       <span className="font-bold text-white text-sm truncate">{lead.name}</span>
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700 uppercase shrink-0">
                         {lead.language || 'hi'}
                       </span>
+                      {(() => {
+                        const key = normalizePhoneForDedupe(lead.phone);
+                        const dupCount = key ? (duplicatePhoneMap.get(key) || 0) : 0;
+                        const isDup = dupCount > 1 || Boolean(lead.callCount && lead.callCount > 1);
+                        if (!isDup) return null;
+                        return (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 flex items-center space-x-1 animate-pulse">
+                            <Repeat className="w-2.5 h-2.5 text-amber-400" />
+                            <span>Duplicate ({dupCount > 1 ? `${dupCount} entries` : `${lead.callCount} calls`})</span>
+                          </span>
+                        );
+                      })()}
                       {lead.blocked && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 shrink-0">
                           DNC
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5 flex items-center space-x-2 flex-wrap">
-                      <span>{lead.phone}</span>
+                    <div className="text-xs text-slate-300 font-mono mt-1 flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span className="font-semibold">{lead.phone}</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-emerald-400 font-sans text-[11px] font-semibold flex items-center space-x-1">
+                        <PhoneCall className="w-2.5 h-2.5" />
+                        <span>Calling Times: {lead.callCount || 0}x</span>
+                      </span>
                       {lead.duration ? (
                         <>
                           <span className="text-slate-600">•</span>
-                          <span className="text-slate-300 font-medium">
+                          <span className="text-slate-300 font-medium font-sans text-[11px]">
                             {formatDurationDetailed(lead.duration)}
                           </span>
                         </>
@@ -641,8 +730,12 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                       {lead.callTime && (
                         <>
                           <span className="text-slate-600">•</span>
-                          <span className="text-slate-500 text-[10px]">
-                            {new Date(lead.callTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <span className="text-amber-300 text-[10px] font-mono flex items-center space-x-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>
+                              {new Date(lead.callTime).toLocaleDateString([], { month: 'short', day: 'numeric' })} at{' '}
+                              {new Date(lead.callTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                            </span>
                           </span>
                         </>
                       )}

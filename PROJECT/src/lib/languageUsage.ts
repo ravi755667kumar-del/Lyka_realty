@@ -13,6 +13,14 @@ export interface UserHistoryEntryLike {
   total_calls?: number;
 }
 
+export interface UserCallSessionSummary {
+  id?: string;
+  startedAt: string;
+  duration?: number;
+  outcome?: string;
+  language?: string;
+}
+
 export interface UserLanguageUsageSummary {
   phoneKey: string;
   phone: string;
@@ -26,6 +34,9 @@ export interface UserLanguageUsageSummary {
   qualificationText?: string;
   historyText?: string;
   qaPairsText?: string;
+  callSessions?: UserCallSessionSummary[];
+  isDuplicate?: boolean;
+  duplicateCount?: number;
 }
 
 export function getLanguageBadgeClasses(language: string): string {
@@ -42,14 +53,20 @@ export function getLanguageBadgeClasses(language: string): string {
   return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
 }
 
+export function normalizePhoneForDedupe(phone?: string | null): string {
+  if (!phone) return '';
+  const digits = phone.replace(/[^0-9]/g, '');
+  return digits.length >= 7 ? digits.slice(-10) : digits;
+}
+
 function normalizePhoneGroupingKey(phone?: string | null, name?: string | null): string {
-  const rawPhone = (phone || '').trim();
-  const digits = rawPhone.replace(/[^0-9]/g, '');
-  if (digits.length >= 7) {
-    return digits.slice(-10);
+  const cleanPhoneKey = normalizePhoneForDedupe(phone);
+  if (cleanPhoneKey) {
+    return cleanPhoneKey;
   }
+  const rawPhone = (phone || '').trim().toLowerCase();
   if (rawPhone) {
-    return rawPhone.toLowerCase();
+    return rawPhone;
   }
   const cleanName = (name || '').trim().toLowerCase();
   return cleanName ? `name:${cleanName}` : '';
@@ -171,6 +188,8 @@ export function aggregateUserLanguagesByPhone(params: {
     qualificationText?: string;
     historyText?: string;
     qaPairsText?: string;
+    callSessions: UserCallSessionSummary[];
+    leadCount: number;
   }
 
   const buckets = new Map<string, Bucket>();
@@ -189,6 +208,8 @@ export function aggregateUserLanguagesByPhone(params: {
         latestTs: 0,
         callIds: new Set<string>(),
         maxRecordedCalls: 0,
+        callSessions: [],
+        leadCount: 0,
       };
       buckets.set(key, bucket);
     } else {
@@ -206,6 +227,16 @@ export function aggregateUserLanguagesByPhone(params: {
     if (!bucket) continue;
     if (call.id) bucket.callIds.add(call.id);
     bucket.maxRecordedCalls = Math.max(bucket.maxRecordedCalls, 1);
+
+    if (call.startedAt || call.endedAt) {
+      bucket.callSessions.push({
+        id: call.id,
+        startedAt: call.startedAt || call.endedAt,
+        duration: call.duration,
+        outcome: call.outcome,
+        language: call.language,
+      });
+    }
 
     const parsedLangs = splitLanguagesLabel(call.language);
     addUniqueLanguages(bucket.languages, parsedLangs);
@@ -239,6 +270,19 @@ export function aggregateUserLanguagesByPhone(params: {
     }
     if (hist.summary && !bucket.summary) bucket.summary = hist.summary;
 
+    if (hist.last_call_at) {
+      const histTs = getTimeMs(hist.last_call_at);
+      const exists = bucket.callSessions.some(
+        (cs) => Math.abs(getTimeMs(cs.startedAt) - histTs) < 5000
+      );
+      if (!exists) {
+        bucket.callSessions.push({
+          id: hist.id,
+          startedAt: hist.last_call_at,
+        });
+      }
+    }
+
     const parsedLangs = extractLanguagesFromUserHistoryText(hist.history_text);
     addUniqueLanguages(bucket.languages, parsedLangs);
 
@@ -261,12 +305,30 @@ export function aggregateUserLanguagesByPhone(params: {
 
     const bucket = ensureBucket(lead.phone, lead.name);
     if (!bucket) continue;
+    bucket.leadCount += 1;
+
     if (lead.lastCallId) bucket.callIds.add(lead.lastCallId);
     if (typeof lead.callCount === 'number' && lead.callCount > 0) {
       bucket.maxRecordedCalls = Math.max(bucket.maxRecordedCalls, lead.callCount);
     }
     if (!bucket.latestOutcome && lead.outcome) bucket.latestOutcome = lead.outcome;
     if (!bucket.summary && lead.summary) bucket.summary = lead.summary;
+
+    if (lead.callTime) {
+      const leadTs = getTimeMs(lead.callTime);
+      const exists = bucket.callSessions.some(
+        (cs) => Math.abs(getTimeMs(cs.startedAt) - leadTs) < 5000
+      );
+      if (!exists) {
+        bucket.callSessions.push({
+          id: lead.lastCallId || lead.id,
+          startedAt: lead.callTime,
+          duration: lead.duration,
+          outcome: lead.outcome as string,
+          language: lead.language,
+        });
+      }
+    }
 
     const parsedLangs = splitLanguagesLabel(lead.language);
     addUniqueLanguages(bucket.languages, parsedLangs);
@@ -283,19 +345,32 @@ export function aggregateUserLanguagesByPhone(params: {
   const results: UserLanguageUsageSummary[] = [];
   for (const bucket of buckets.values()) {
     if (bucket.languages.length === 0) continue;
+    bucket.callSessions.sort((a, b) => getTimeMs(b.startedAt) - getTimeMs(a.startedAt));
+    const effectiveCallCount = Math.max(
+      bucket.callIds.size,
+      bucket.maxRecordedCalls,
+      bucket.callSessions.length,
+      1
+    );
+    const isDup = effectiveCallCount > 1 || bucket.leadCount > 1;
+    const dupCount = Math.max(effectiveCallCount, bucket.leadCount);
+
     results.push({
       phoneKey: bucket.phoneKey,
       phone: bucket.phone || 'No Phone',
       name: bucket.name || 'Customer',
       languages: bucket.languages,
       latestLanguage: bucket.latestLanguage || bucket.languages[bucket.languages.length - 1],
-      totalCalls: Math.max(bucket.callIds.size, bucket.maxRecordedCalls, 1),
+      totalCalls: effectiveCallCount,
       lastUsedAt: bucket.lastUsedAt,
       latestOutcome: bucket.latestOutcome,
       summary: bucket.summary,
       qualificationText: bucket.qualificationText,
       historyText: bucket.historyText,
       qaPairsText: bucket.qaPairsText,
+      callSessions: bucket.callSessions,
+      isDuplicate: isDup,
+      duplicateCount: dupCount,
     });
   }
 
