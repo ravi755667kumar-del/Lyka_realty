@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# ─── Stage 1: Base Alpine Image ───
-FROM node:20-alpine AS base
+# ─── Stage 1: Base (Debian glibc — required by TS 7 native binary & lockfile) ───
+FROM node:20-slim AS base
 WORKDIR /app
-RUN apk add --no-cache libc6-compat
 
 # ─── Stage 2: Install Dependencies ───
 FROM base AS deps
@@ -28,7 +27,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # ─── Stage 4: Production Runner ───
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -42,11 +41,16 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy static assets and knowledge base datasets
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/datasets ./datasets
+# --chown so the admin "add property" write to custom_properties.json works
+COPY --from=builder --chown=nextjs:nodejs /app/datasets ./datasets
 
 # Copy standalone server and static files with correct user permissions
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# /app dir itself is root-owned (created by WORKDIR) — make it writable
+# so admin API-key saves (*.local.json) work at runtime
+RUN chown nextjs:nodejs /app
 
 USER nextjs
 
