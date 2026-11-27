@@ -12,7 +12,9 @@
     "cap:ios": "vite build && cap sync ios && cap open ios",
     "start": "next start -p 3001",
     "lint": "next lint",
-    "test": "tsx tests/runAllTests.ts"
+    "test": "tsx tests/runAllTests.ts",
+    "test:supabase": "node src/scripts/test_supabase_connection.mjs",
+    "test:storage": "node src/scripts/test_all_admin_storage_actions.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
