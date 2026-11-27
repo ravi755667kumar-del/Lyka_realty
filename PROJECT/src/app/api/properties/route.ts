@@ -4,6 +4,7 @@ import path from 'path';
 import { PropertyItem } from '@/types';
 import { invalidatePdfKnowledgeCache, getNeonClient } from '@/lib/neon';
 import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { supabaseAdmin, isSupabaseReady } from '@/lib/supabaseUserHistory';
 
 const CUSTOM_PROPS_FILE = path.resolve(process.cwd(), 'datasets', 'custom_properties.json');
 
@@ -125,13 +126,47 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response;
 
   try {
+    let supabaseProps: PropertyItem[] = [];
+    if (isSupabaseReady && supabaseAdmin) {
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('properties')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          supabaseProps = data.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            propertyType: r.property_type || 'Apartment',
+            bhk: r.bhk || '2 BHK',
+            listingType: r.listing_type || 'Buy',
+            price: r.price,
+            size: r.size || '',
+            location: r.location,
+            nearbyLocation: r.nearby_location || '',
+            description: r.description || '',
+            possession: r.possession || 'Ready to Move',
+            nextStep: r.next_step || '',
+            createdAt: r.created_at,
+          }));
+        }
+      } catch (sbErr) {
+        console.warn('[Properties API] Supabase properties fetch fallback:', sbErr);
+      }
+    }
+
     const custom = readCustomProperties();
-    // Return custom properties first, then default verified ones
-    const all = [...custom, ...DEFAULT_VERIFIED_PROPERTIES];
+    // Prefer Supabase properties when present, otherwise custom local
+    const combinedCustom = supabaseProps.length > 0 ? supabaseProps : custom;
+    // Prevent duplicate IDs when merging with default verified properties
+    const customIds = new Set(combinedCustom.map((p) => p.id));
+    const all = [...combinedCustom, ...DEFAULT_VERIFIED_PROPERTIES.filter((p) => !customIds.has(p.id))];
+
     return NextResponse.json({
       success: true,
       properties: all,
-      customCount: custom.length,
+      customCount: combinedCustom.length,
       totalCount: all.length,
     });
   } catch (err: any) {
@@ -188,6 +223,30 @@ export async function POST(req: Request) {
     const currentList = readCustomProperties();
     currentList.unshift(newProperty);
     writeCustomProperties(currentList);
+
+    // Save to Supabase DB if configured
+    if (isSupabaseReady && supabaseAdmin) {
+      try {
+        await supabaseAdmin.from('properties').upsert({
+          id: newProperty.id,
+          title: newProperty.title,
+          property_type: newProperty.propertyType,
+          bhk: newProperty.bhk,
+          listing_type: newProperty.listingType,
+          price: newProperty.price,
+          size: newProperty.size,
+          location: newProperty.location,
+          nearby_location: newProperty.nearbyLocation,
+          description: newProperty.description,
+          possession: newProperty.possession,
+          next_step: newProperty.nextStep,
+          created_at: newProperty.createdAt,
+          updated_at: new Date().toISOString(),
+        });
+      } catch (sbErr) {
+        console.warn('[Properties API] Supabase property insert note:', sbErr);
+      }
+    }
 
     // Invalidate in-memory knowledge cache so AI immediately queries this new property
     invalidatePdfKnowledgeCache();
@@ -259,6 +318,15 @@ export async function DELETE(req: Request) {
     const updated = currentList.filter((p) => p.id !== id);
     writeCustomProperties(updated);
     invalidatePdfKnowledgeCache();
+
+    // Also remove from Supabase DB if configured
+    if (isSupabaseReady && supabaseAdmin) {
+      try {
+        await supabaseAdmin.from('properties').delete().eq('id', id);
+      } catch (sbErr) {
+        console.warn('[Properties API] Supabase property delete note:', sbErr);
+      }
+    }
 
     // Also remove from Neon DB if present
     const sql = getNeonClient();

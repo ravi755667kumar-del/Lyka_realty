@@ -394,7 +394,12 @@ export async function createLead(leadData: Omit<Lead, 'id'>, customId?: string):
   }
 
   const row = mapLeadToRow(newLead);
-  const { error } = await supabase.from('leads').insert(row);
+  let { error } = await supabase.from('leads').insert(row);
+  if (error && error.code === 'PGRST204' && 'qa_history' in row) {
+    delete row.qa_history;
+    const retry = await supabase.from('leads').insert(row);
+    error = retry.error;
+  }
   if (error) {
     console.error('Supabase createLead error:', error);
     // Fallback to local store
@@ -451,7 +456,12 @@ export async function updateLead(leadId: string, updates: Partial<Lead>): Promis
   const row = mapLeadToRow(updatePayload);
   delete row.id;
 
-  const { error } = await supabase.from('leads').update(row).eq('id', leadId);
+  let { error } = await supabase.from('leads').update(row).eq('id', leadId);
+  if (error && error.code === 'PGRST204' && 'qa_history' in row) {
+    delete row.qa_history;
+    const retry = await supabase.from('leads').update(row).eq('id', leadId);
+    error = retry.error;
+  }
   if (error) {
     console.error('Supabase updateLead error:', error);
     localLeadsStore = localLeadsStore.map((lead) =>
@@ -522,7 +532,12 @@ export async function createCallRecord(callData: CallRecord): Promise<string> {
     created_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase.from('calls').insert(row);
+  let { error } = await supabase.from('calls').insert(row);
+  if (error && error.code === 'PGRST204' && 'recording_reference' in row) {
+    delete row.recording_reference;
+    const retry = await supabase.from('calls').insert(row);
+    error = retry.error;
+  }
   if (error) {
     console.error('Supabase createCallRecord error:', error);
     localCallsStore.unshift(record);

@@ -1,9 +1,16 @@
 import { createClient, User as SupabaseUser, Session } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+const supabaseUrl = rawSupabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
 
+// Local switch: NEXT_PUBLIC_SUPABASE_ENABLED=false runs the app on its built-in local stores
+// without contacting Supabase at all (e.g. when the project is unreachable or no longer exists).
+const supabaseEnabled =
+  (process.env.NEXT_PUBLIC_SUPABASE_ENABLED || 'true').trim().toLowerCase() !== 'false';
+
 export const isSupabaseConfigured = Boolean(
+  supabaseEnabled &&
   supabaseUrl &&
   supabaseAnonKey &&
   supabaseUrl !== '' &&
@@ -24,9 +31,6 @@ export const supabase = createClient(safeUrl, safeKey, {
 
 // User type alias
 export type AuthUser = SupabaseUser;
-
-const allowSelfSignup =
-  typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_ALLOW_SIGNUP !== 'false';
 
 /**
  * Checks whether the signed-in user is permitted based on NEXT_PUBLIC_ADMIN_EMAILS (if configured).
@@ -126,49 +130,7 @@ export function installSecureApiFetchInterceptor(): void {
   };
 }
 
-// ─── Supabase Auth Helpers (Fail-Closed) ─────────────────────────────────────
-
-export async function loginWithEmail(email: string, password: string) {
-  if (!isSupabaseConfigured) {
-    throw new Error('Authentication service is not configured. Contact your administrator.');
-  }
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error) throw error;
-  return { data, error: null };
-}
-
-export async function registerWithEmail(email: string, password: string) {
-  if (!isSupabaseConfigured) {
-    throw new Error('Authentication service is not configured. Contact your administrator.');
-  }
-  if (!allowSelfSignup) {
-    throw new Error('Self-registration is disabled. Contact your administrator for access.');
-  }
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
-  if (error) throw error;
-  return { data, error: null };
-}
-
-export async function loginWithGoogle() {
-  if (!isSupabaseConfigured) {
-    throw new Error('Authentication service is not configured. Contact your administrator.');
-  }
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${origin}/`,
-    },
-  });
-  if (error) throw error;
-  return data;
-}
+// ─── Supabase Auth Helpers ───────────────────────────────────────────────────
 
 export async function logout() {
   if (typeof window !== 'undefined') {

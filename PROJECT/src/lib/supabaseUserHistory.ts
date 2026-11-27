@@ -8,10 +8,16 @@ import {
   UserHistoryRecord,
 } from './neon';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+const supabaseUrl = rawSupabaseUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || '';
 
+// Honors the same NEXT_PUBLIC_SUPABASE_ENABLED switch as lib/supabase.ts (server side).
+const supabaseEnabled =
+  (process.env.NEXT_PUBLIC_SUPABASE_ENABLED || 'true').trim().toLowerCase() !== 'false';
+
 export const isSupabaseReady = Boolean(
+  supabaseEnabled &&
   supabaseUrl &&
   serviceRoleKey &&
   supabaseUrl.startsWith('http') &&

@@ -42,7 +42,8 @@ const TOKEN_CACHE_TTL_MS = 30_000;
 let cachedSupabaseClient: SupabaseClient | null = null;
 
 function getSupabaseServerAuthClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || '';
+  const url = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
@@ -297,6 +298,17 @@ export async function requireAuthenticatedApi(
       response: unauthJson('Too many requests. Please try again shortly.', 429, {
         'Retry-After': String(rl.retryAfterSeconds),
       }),
+    };
+  }
+
+  // Local opt-out (do NOT use in production): set API_REQUIRE_AUTH=false to skip
+  // session verification while the UI login gate is disabled.
+  if ((process.env.API_REQUIRE_AUTH || '').trim().toLowerCase() === 'false') {
+    return {
+      ok: true,
+      userId: 'local-open',
+      email: null,
+      response: null as unknown as NextResponse,
     };
   }
 
