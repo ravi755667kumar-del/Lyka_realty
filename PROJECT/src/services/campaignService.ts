@@ -294,7 +294,7 @@ export async function updateGeminiConfig(data: {
 
 export async function geminiChat(
   messages: any[],
-  model: string = 'gemini-3.8-flash',
+  model: string = 'gemini-4-neon',
   leadName?: string,
   language?: string,
   agentName?: string,
@@ -314,7 +314,7 @@ export async function geminiChat(
   const data = await res.json();
   try {
     recordLlmTurnUsage({
-      modelName: model || 'Google Gemini 2.5 Flash',
+      modelName: data.model || model || 'gemini-4-neon',
       promptTokens: data.usage?.prompt_tokens || estimateTokens(JSON.stringify(messages)),
       completionTokens: data.usage?.completion_tokens || estimateTokens(data.text || ''),
     });

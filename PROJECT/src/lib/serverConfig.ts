@@ -4,6 +4,41 @@ import path from 'path';
 const GROQ_CONFIG_FILE = path.resolve(process.cwd(), 'groq-config.local.json');
 const GEMINI_CONFIG_FILE = path.resolve(process.cwd(), 'gemini-config.local.json');
 
+function readDotEnvValue(key: string): string {
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx !== -1) {
+          const k = trimmed.slice(0, eqIdx).trim();
+          const val = trimmed.slice(eqIdx + 1).trim();
+          if (k.toLowerCase() === key.toLowerCase()) {
+            return val.replace(/^['"]|['"]$/g, '');
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return '';
+}
+
+function getEnvValue(key: string): string {
+  // In local dev, read .env on disk first so manual .env edits take effect without stale process.env
+  if (process.env.NODE_ENV !== 'production') {
+    const fromFile = readDotEnvValue(key);
+    if (fromFile) return fromFile;
+  }
+  if (process.env[key]) return process.env[key]!;
+  return readDotEnvValue(key);
+}
+
 // ─── Groq Config ─────────────────────────────────────────────────────────────
 export function getGroqSettings() {
   let fileConfig: any = {};
@@ -15,7 +50,7 @@ export function getGroqSettings() {
     }
   }
   return {
-    apiKey: fileConfig.apiKey || process.env.GROQ_API_KEY || '',
+    apiKey: fileConfig.apiKey || getEnvValue('GROQ_API_KEY') || '',
     voice: fileConfig.voice || 'autumn',
   };
 }
@@ -41,16 +76,26 @@ export function getGeminiSettings() {
     }
   }
   return {
-    apiKey: fileConfig.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
+    apiKey:
+      fileConfig.apiKey ||
+      getEnvValue('GEMINI_API_KEY') ||
+      getEnvValue('GOOGLE_API_KEY') ||
+      '',
     voice: fileConfig.voice || 'Kore',
+    model:
+      fileConfig.model ||
+      getEnvValue('gemini_model') ||
+      getEnvValue('GEMINI_MODEL') ||
+      'gemini-4-neon',
   };
 }
 
-export function saveGeminiSettings(settings: { apiKey?: string; voice?: string }) {
+export function saveGeminiSettings(settings: { apiKey?: string; voice?: string; model?: string }) {
   const current = getGeminiSettings();
   const updated = {
     apiKey: settings.apiKey !== undefined ? settings.apiKey : current.apiKey,
     voice: settings.voice !== undefined ? settings.voice : current.voice,
+    model: settings.model !== undefined ? settings.model : current.model,
   };
   fs.writeFileSync(GEMINI_CONFIG_FILE, JSON.stringify(updated, null, 2), 'utf8');
   return updated;
@@ -58,32 +103,6 @@ export function saveGeminiSettings(settings: { apiKey?: string; voice?: string }
 
 // ─── Speechify Config ────────────────────────────────────────────────────────
 const SPEECHIFY_CONFIG_FILE = path.resolve(process.cwd(), 'speechify-config.local.json');
-
-function getEnvValue(key: string): string {
-  if (process.env[key]) return process.env[key]!;
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf8');
-      const lines = content.split(/\r?\n/);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('#')) continue;
-        const eqIdx = trimmed.indexOf('=');
-        if (eqIdx !== -1) {
-          const k = trimmed.slice(0, eqIdx).trim();
-          const val = trimmed.slice(eqIdx + 1).trim();
-          if (k.toLowerCase() === key.toLowerCase()) {
-            return val.replace(/^['"]|['"]$/g, '');
-          }
-        }
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-  return '';
-}
 
 export function getSpeechifySettings() {
   let fileConfig: any = {};
