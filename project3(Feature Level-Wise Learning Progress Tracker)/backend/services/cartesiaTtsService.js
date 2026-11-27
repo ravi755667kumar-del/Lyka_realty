@@ -15,7 +15,7 @@ const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'tts-1';
 const OPENAI_TTS_VOICE = process.env.OPENAI_TTS_VOICE || 'nova';
 
 // 2. Cartesia Sonic TTS
-const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY || 'sk_car_S3sw714jcTeRHPZSCDXbz7';
+const CARTESIA_API_KEY = process.env.CARTESIA_API_KEY || process.env.casteria_api_key || '';
 const CARTESIA_MODEL = process.env.CARTESIA_MODEL || 'sonic-3.6';
 const CARTESIA_VOICE_ID = process.env.CARTESIA_VOICE_ID || 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4';
 
