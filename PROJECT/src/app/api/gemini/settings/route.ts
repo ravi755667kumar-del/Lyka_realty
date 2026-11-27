@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGeminiSettings, saveGeminiSettings } from '@/lib/serverConfig';
-import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
 export async function GET(req: Request) {
   const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'settings' });
@@ -19,14 +19,16 @@ export async function POST(req: Request) {
 
   try {
     const data = await req.json();
-    saveGeminiSettings(data);
+    const apiKey = typeof data?.apiKey === 'string' ? data.apiKey.trim().slice(0, 256) : undefined;
+    const voice = typeof data?.voice === 'string' ? data.voice.trim().slice(0, 50) : undefined;
+    saveGeminiSettings({ apiKey, voice });
     return NextResponse.json({
       success: true,
       message: 'Gemini AI configuration updated successfully.',
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: error.message || 'Failed to update Gemini settings.' },
+      { success: false, message: redactErrorMessage(error, 'Failed to update Gemini settings.') },
       { status: 500 }
     );
   }

@@ -301,6 +301,19 @@ export async function requireAuthenticatedApi(
     };
   }
 
+  // Enforce CSRF / Origin validation on state-changing methods
+  const method = req.method.toUpperCase();
+  const origin = req.headers.get('origin');
+  const host = req.headers.get('host');
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && origin) {
+    if (!isOriginAllowed(origin, host)) {
+      return {
+        ok: false,
+        response: unauthJson('Forbidden: Cross-origin state modification is prohibited.', 403),
+      };
+    }
+  }
+
   // Local opt-out (do NOT use in production): set API_REQUIRE_AUTH=false to skip
   // session verification while the UI login gate is disabled.
   if ((process.env.API_REQUIRE_AUTH || '').trim().toLowerCase() === 'false') {

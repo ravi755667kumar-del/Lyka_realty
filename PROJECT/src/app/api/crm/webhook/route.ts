@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getTwilioSettings } from '@/lib/serverConfig';
-import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
   const auth = await requireAuthenticatedApi(req, {
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
     );
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: error.message || 'CRM Webhook error' },
+      { success: false, message: redactErrorMessage(error, 'CRM Webhook error') },
       { status: 500 }
     );
   }

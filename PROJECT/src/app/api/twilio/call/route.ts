@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getTwilioSettings } from '@/lib/serverConfig';
-import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
 export async function POST(req: Request) {
   const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'twilio-call', maxRequestsPerMinute: 30 });
@@ -10,12 +10,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { leadId, name = 'Customer', phone, language = 'English' } = body;
 
-    if (!phone) {
+    if (!phone || typeof phone !== 'string') {
       return NextResponse.json(
         { success: false, message: 'A customer phone number is required to make a physical phone call.' },
         { status: 400 }
       );
     }
+
+    const safeName = String(name || 'Customer').trim().slice(0, 100);
 
     const twilio = getTwilioSettings();
     if (!twilio.accountSid || !twilio.authToken || !twilio.phoneNumber) {
@@ -40,6 +42,14 @@ export async function POST(req: Request) {
       }
     }
 
+    // Validate E.164 phone number structure
+    if (!/^\+[1-9]\d{7,14}$/.test(cleanPhone)) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid phone number format. Please provide a valid telephone number with country code.' },
+        { status: 400 }
+      );
+    }
+
     // Tailor conversational TwiML speech based on customer language
     const isHindi = language.toLowerCase().includes('hindi');
     const isTamil = language.toLowerCase().includes('tamil');
@@ -49,7 +59,7 @@ export async function POST(req: Request) {
       twimlSpeech = `
 <Response>
   <Say voice="Polly.Aditi" language="hi-IN">
-    Namaste ${escapeXml(name)} ji! Main Lyka Realty se Priya baat kar rahi hoon.
+    Namaste ${escapeXml(safeName)} ji! Main Lyka Realty se Priya baat kar rahi hoon.
   </Say>
   <Pause length="1"/>
   <Say voice="Polly.Aditi" language="hi-IN">
@@ -60,7 +70,7 @@ export async function POST(req: Request) {
       twimlSpeech = `
 <Response>
   <Say voice="Polly.Kajal" language="en-IN">
-    Vanakkam ${escapeXml(name)}! This is Priya calling from Lyka Realty.
+    Vanakkam ${escapeXml(safeName)}! This is Priya calling from Lyka Realty.
   </Say>
   <Pause length="1"/>
   <Say voice="Polly.Kajal" language="en-IN">
@@ -71,7 +81,7 @@ export async function POST(req: Request) {
       twimlSpeech = `
 <Response>
   <Say voice="Polly.Kajal" language="en-IN">
-    Hello ${escapeXml(name)}, good day! This is Priya calling from Lyka Realty.
+    Hello ${escapeXml(safeName)}, good day! This is Priya calling from Lyka Realty.
   </Say>
   <Pause length="1"/>
   <Say voice="Polly.Kajal" language="en-IN">
@@ -121,12 +131,12 @@ export async function POST(req: Request) {
       status: resJson.status, // 'queued' or 'ringing'
       to: cleanPhone,
       from: twilio.phoneNumber,
-      message: `Physical phone call initiated successfully to ${name} (${cleanPhone})! Customer phone is ringing via Twilio PSTN.`,
+      message: `Physical phone call initiated successfully to ${safeName} (${cleanPhone})! Customer phone is ringing via Twilio PSTN.`,
     });
   } catch (error: any) {
     console.error('Twilio Call Route Exception:', error);
     return NextResponse.json(
-      { success: false, message: error.message || 'Internal server error making physical call.' },
+      { success: false, message: redactErrorMessage(error, 'Internal error making physical phone call.') },
       { status: 500 }
     );
   }

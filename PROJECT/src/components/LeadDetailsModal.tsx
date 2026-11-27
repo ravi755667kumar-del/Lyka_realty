@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { TalkHistorySection } from './TalkHistorySection';
 import { fetchUserHistory } from '../services/leadService';
+import { sanitizeSafeUrl } from '../lib/urlSecurity';
 
 interface LeadDetailsModalProps {
   lead: Lead | null;
@@ -410,47 +411,57 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({
                   Supabase Storage: voice-recordings
                 </span>
               </div>
-              {lead.recordingReference && (
-                <a
-                  href={lead.recordingReference}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  className="flex items-center space-x-1 text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  <span>Open Audio File</span>
-                </a>
-              )}
-            </div>
-
-            {lead.recordingReference ? (
-              <div className="space-y-2 p-3 rounded-lg bg-slate-900 border border-slate-800">
-                <audio
-                  controls
-                  src={lead.recordingReference}
-                  className="w-full h-9 rounded-lg"
-                />
-                <div className="text-[10px] text-slate-400 font-mono truncate">
-                  File URL:{' '}
+              {(() => {
+                const safeUrl = sanitizeSafeUrl(lead.recordingReference);
+                if (!safeUrl) return null;
+                return (
                   <a
-                    href={lead.recordingReference}
+                    href={safeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline"
+                    download
+                    className="flex items-center space-x-1 text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
                   >
-                    {lead.recordingReference}
+                    <ExternalLink className="w-3 h-3" />
+                    <span>Open Audio File</span>
                   </a>
+                );
+              })()}
+            </div>
+
+            {(() => {
+              const safeUrl = sanitizeSafeUrl(lead.recordingReference);
+              if (safeUrl) {
+                return (
+                  <div className="space-y-2 p-3 rounded-lg bg-slate-900 border border-slate-800">
+                    <audio
+                      controls
+                      src={safeUrl}
+                      className="w-full h-9 rounded-lg"
+                    />
+                    <div className="text-[10px] text-slate-400 font-mono truncate">
+                      File URL:{' '}
+                      <a
+                        href={safeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline"
+                      >
+                        {safeUrl}
+                      </a>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-slate-400 text-xs flex items-center space-x-2">
+                  <VolumeX className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                  <span>
+                    No call recording file found. When an outbound call is placed, the session is recorded in real-time and stored in your Supabase Storage bucket <code>voice-recordings</code>.
+                  </span>
                 </div>
-              </div>
-            ) : (
-              <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-slate-400 text-xs flex items-center space-x-2">
-                <VolumeX className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                <span>
-                  No call recording file found. When an outbound call is placed, the session is recorded in real-time and stored in your Supabase Storage bucket <code>voice-recordings</code>.
-                </span>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* Call Metadata */}

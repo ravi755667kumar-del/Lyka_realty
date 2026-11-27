@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { PropertyItem } from '@/types';
 import { invalidatePdfKnowledgeCache, getNeonClient } from '@/lib/neon';
-import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 import { supabaseAdmin, isSupabaseReady } from '@/lib/supabaseUserHistory';
 
 const CUSTOM_PROPS_FILE = path.resolve(process.cwd(), 'datasets', 'custom_properties.json');
@@ -170,7 +170,7 @@ export async function GET(req: Request) {
       totalCount: all.length,
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: redactErrorMessage(err, 'Failed to fetch properties') }, { status: 500 });
   }
 }
 
@@ -194,29 +194,42 @@ export async function POST(req: Request) {
       nextStep = '',
     } = body;
 
-    if (!title || !title.trim()) {
+    if (!title || typeof title !== 'string' || !title.trim()) {
       return NextResponse.json({ success: false, message: 'Property title is required.' }, { status: 400 });
     }
-    if (!location || !location.trim()) {
+    if (!location || typeof location !== 'string' || !location.trim()) {
       return NextResponse.json({ success: false, message: 'Location is required.' }, { status: 400 });
     }
-    if (!price || !price.trim()) {
+    if (!price || typeof price !== 'string' || !price.trim()) {
       return NextResponse.json({ success: false, message: 'Price is required.' }, { status: 400 });
     }
 
+    // Input bounds validation to prevent payload inflation & buffer exhaustion
+    const safeTitle = title.trim().slice(0, 200);
+    const safeLocation = location.trim().slice(0, 200);
+    const safePrice = price.trim().slice(0, 100);
+    const safeType = String(propertyType || 'Apartment').trim().slice(0, 50);
+    const safeBhk = String(bhk || '2 BHK').trim().slice(0, 50);
+    const safeListing = String(listingType || 'Buy').trim().slice(0, 50);
+    const safeSize = String(size || '').trim().slice(0, 80);
+    const safeNearby = String(nearbyLocation || '').trim().slice(0, 500);
+    const safePossession = String(possession || 'Ready to Move').trim().slice(0, 80);
+    const safeDescription = String(description || `${safeBhk} ${safeType} in ${safeLocation}.`).trim().slice(0, 4000);
+    const safeNextStep = String(nextStep || `Would you like to schedule a site visit to ${safeTitle} this weekend?`).trim().slice(0, 500);
+
     const newProperty: PropertyItem = {
       id: `prop_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      title: title.trim(),
-      propertyType: propertyType.trim(),
-      bhk: bhk.trim(),
-      listingType: listingType.trim(),
-      price: price.trim(),
-      size: size.trim(),
-      location: location.trim(),
-      nearbyLocation: nearbyLocation.trim(),
-      description: description.trim() || `${bhk} ${propertyType} in ${location}. Excellent investment opportunity with prime amenities.`,
-      possession: possession.trim(),
-      nextStep: nextStep.trim() || `Would you like to schedule a site visit to ${title.trim()} this weekend?`,
+      title: safeTitle,
+      propertyType: safeType,
+      bhk: safeBhk,
+      listingType: safeListing,
+      price: safePrice,
+      size: safeSize,
+      location: safeLocation,
+      nearbyLocation: safeNearby,
+      description: safeDescription,
+      possession: safePossession,
+      nextStep: safeNextStep,
       createdAt: new Date().toISOString(),
     };
 
@@ -299,7 +312,7 @@ Description: ${newProperty.description}`;
     });
   } catch (err: any) {
     console.error('[Properties API] Error adding property:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: redactErrorMessage(err, 'Failed to add property') }, { status: 500 });
   }
 }
 
@@ -309,9 +322,13 @@ export async function DELETE(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    if (!id) {
+    const rawId = searchParams.get('id');
+    if (!rawId) {
       return NextResponse.json({ success: false, message: 'Property ID is required.' }, { status: 400 });
+    }
+    const id = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+    if (!id) {
+      return NextResponse.json({ success: false, message: 'Invalid Property ID.' }, { status: 400 });
     }
 
     const currentList = readCustomProperties();
@@ -338,6 +355,6 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ success: true, message: 'Property removed successfully.' });
   } catch (err: any) {
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: redactErrorMessage(err, 'Failed to delete property') }, { status: 500 });
   }
 }

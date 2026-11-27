@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPDFQueryCacheStats, clearPDFQueryCache, queryBestPDFAnswer } from '@/lib/neon';
-import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 
 export async function GET(req: Request) {
   const auth = await requireAuthenticatedApi(req, { rateLimitBucket: 'pdf-cache' });
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
       ...stats,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: redactErrorMessage(error, 'PDF cache warmup failed') }, { status: 500 });
   }
 }
 
@@ -32,6 +32,6 @@ export async function POST(req: Request) {
       stats: getPDFQueryCacheStats(),
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: redactErrorMessage(error, 'PDF cache clear failed') }, { status: 500 });
   }
 }
