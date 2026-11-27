@@ -4242,6 +4242,22 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const activeLang = selectedLanguageRef.current;
     const activeStep = currentStepRef.current;
 
+    // Helper: after answering a customer FAQ, resume the qualification script
+    // from the current step so the AI never gets stuck and always asks the next question.
+    const resumeQualificationAfterFAQ = (onEnd?: () => void) => {
+      // Only resume if we are still mid-qualification (steps 1–8) and not done
+      const step = currentStepRef.current;
+      if (step >= 1 && step <= 8) {
+        // Map currentStep back to the question number: step N = question N-1 pending
+        const pendingQNum = step <= 1 ? 1 : step - 1;
+        setTimeout(() => {
+          askQuestion(pendingQNum);
+        }, 800);
+      } else if (onEnd) {
+        onEnd();
+      }
+    };
+
     // Answer according to AI model if available
     if (geminiAvailable) {
       try {
@@ -4266,7 +4282,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         if (aiAnswer && aiAnswer.trim()) {
           const finalAns = formatRepeatAnswerIfNeeded(aiAnswer.trim(), questionText);
           appendDialogue('AI', finalAns);
-          speakAIText(finalAns, getVoiceLangCode());
+          // After speaking the FAQ answer, resume the scripted qualification question
+          speakAIText(finalAns, getVoiceLangCode(), () => resumeQualificationAfterFAQ());
           return;
         }
       } catch (e) {
@@ -4278,7 +4295,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     const answer = getKnowledgeResponse(questionText, activeLang, activeStep);
     const finalAns = formatRepeatAnswerIfNeeded(answer, questionText);
     appendDialogue('AI', finalAns);
-    speakAIText(finalAns, getVoiceLangCode());
+    // After speaking the knowledge-base FAQ answer, resume the scripted qualification question
+    speakAIText(finalAns, getVoiceLangCode(), () => resumeQualificationAfterFAQ());
   };
 
 
