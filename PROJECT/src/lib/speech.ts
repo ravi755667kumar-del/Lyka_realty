@@ -651,7 +651,7 @@ export function detectExplicitLanguageSwitch(text: string): SpeechLanguage | nul
   const normalized = trimmed.toLowerCase();
 
   const hindiTokens =
-    '\\b(?:hindi|hindhi|hidni|indhi|indi|indie|hindee|hinde|heendi|hinglish)\\b|हिंदी|हिन्दी|ஹிந்தி|இந்தி|ஹிந்தில|இந்தில|ஹிந்தியில்|இந்தியில்';
+    '\\b(?:hindi|hindhi|hidni|indhi|indi(?!\\s+(?:flat|house|plot|area|price|budget|rate|bhk))|indie|hindee|hinde|heendi|hinglish)\\b|हिंदी|हिन्दी|ஹிந்தி|ஹிந்தில|இந்தில|ஹிந்தியில்|இந்தியில்|இந்தி(?!(?:\\s*(?:வீடு|பிளாட்|இடம்|ஏரியா|பட்ஜெட்|விலை|லட்சம்|கோடி|flat|house|plot|area|price|budget)))';
   if (matchesExplicitLanguageRequest(normalized, hindiTokens)) {
     return 'Hindi';
   }
@@ -1039,7 +1039,7 @@ export function getKnowledgeLanguageDirective(language?: string): string {
   if (target === 'English') {
     return '\n\nCRITICAL LANGUAGE RULE: Some property notes above may contain Tanglish, Tamil, or Hindi phrasing. You MUST express ALL pricing, location, and feature facts 100% in complete, pure, natural English ONLY. NEVER copy or repeat any Tamil, Tanglish, or Hindi words.';
   }
-  return '\n\nCRITICAL TRANSLATION RULE: Express all project facts naturally in warm Chennai Tanglish spoken style with everyday English property terms, and zero Hindi words.';
+  return '\n\nCRITICAL TRANSLATION RULE: Express all property facts clearly in natural spoken Tamil script (தமிழ்) using everyday English property terms where natural (2 BHK, 3 BHK, sq ft, Velachery, OMR, site visit), and ZERO Hindi words.';
 }
 
 export function getLanguageScopedStyleSection(language?: string): string {
@@ -1070,15 +1070,14 @@ You are speaking on a real phone call in 100% PURE, COMPLETE ENGLISH. Even if ea
   }
 
   return `
-### TAMIL-ENGLISH (TANGLISH) VOICE-FIRST CONVERSATIONAL STYLE (MANDATORY):
-You are speaking on a real Chennai phone call in warm, natural Tanglish (Roman Tamil + everyday English property terms):
-1. Natural conversational acknowledgements (vary cleanly, never repeat blindly): "Aan", "Puriyudhu", "Seri", "Aama", "Kandippa", "Oru second Sir, check panni solren."
-2. Short spoken rhythm: Keep responses concise (2-3 spoken sentences), acknowledge briefly, answer clearly, and ask only one follow-up question at a time.
-3. Examples:
-   - "Super Sir! Saturday morning 11 AM site visit confirm panniten, unga WhatsApp-ku location anuppuren."
-   - "Puriyudhu Sir. Velachery-la 2 BHK flat 65 lakhs-la irundhu start aagudhu. Weekend site visit paakureengala?"
-4. STRICT LANGUAGE ISOLATION: Stay exclusively in Chennai Tanglish and English property terms without mixing in words or scripts from other regional languages.
-5. Output ONLY what you speak aloud — plain natural text, zero brackets, zero bullet points.`;
+### TAMIL VOICE-FIRST CONVERSATIONAL STYLE (MANDATORY):
+நீங்கள் நேரடி தொலைபேசி அழைப்பில் இயல்பான, இனிமையான தமிழில் (தமிழ் எழுத்தில்) பேசுகிறீர்கள்:
+1. இயல்பான பதில்கள்: "ஆம் சார்", "சரி சார்", "புரியுது சார்", "கண்டிப்பா சார்", "ஒரு நிமிஷம் சார், செக் பண்ணி சொல்றேன்."
+2. சுருக்கமாகவும் தெளிவாகவும் பேசுங்கள்: 2 முதல் 3 குறுகிய வாக்கியங்களில் பதில் சொல்லி, கடைசியில் ஒரு முழுமையான கேள்வி கேளுங்கள்.
+3. சொத்து சொற்கள் (2 BHK, 3 BHK, sq ft, Lakhs, Crores, Velachery, OMR, Tambaram, site visit, WhatsApp) தெளிவாகப் பயன்படுத்தலாம்.
+4. உதாரணம்: "சூப்பர் சார்! வேளச்சேரியில் 2 BHK பிளாட் 72 Lakhs-க்கு ready-to-move-ஆ இருக்கு. இந்த சனிக்கிழமை site visit பார்க்கலாமா?"
+5. STRICT LANGUAGE ISOLATION: Write and ask ONLY in natural spoken Tamil script (தமிழ்) with everyday property nouns — NEVER switch to Hindi or mix Hindi words!
+6. Output ONLY what you speak aloud — plain natural text, zero brackets, zero bullet points.`;
 }
 
 const NEUTRAL_STT_WORDS = new Set([
@@ -1205,7 +1204,9 @@ export function resolveSttConversationLanguage(params: {
         }
       }
 
-      if (words.length >= 2 && englishGrammarHits >= 1) {
+      // Require a genuine multi-word English sentence (>= 2 grammar words, >= 3 words)
+      // so short 1-2 word fragments don't accidentally flip out of Tamil/Hindi.
+      if (words.length >= 3 && englishGrammarHits >= 2) {
         return {
           language: 'English',
           switched: currentLanguage !== 'English',
@@ -1224,8 +1225,8 @@ export function resolveSttConversationLanguage(params: {
 
 /**
  * Resolves the effective conversation language for server-side chat routes so an
- * explicit user language request (for example "talk in hindi") immediately
- * promotes the active language even if client state still held the old one.
+ * explicit user language request (for example "talk in hindi") or a Hindi/Tamil/full-English turn
+ * immediately promotes the active language even if client state held the old one.
  */
 export function resolveServerConversationLanguage(
   requestedLanguage: string | null | undefined,
@@ -1242,9 +1243,12 @@ export function resolveServerConversationLanguage(
         ? lastUserMessage.text
         : '';
 
-  const explicit = lastUserText ? detectExplicitLanguageSwitch(lastUserText) : null;
-  if (explicit) {
-    return explicit;
+  if (lastUserText) {
+    const current = normalizeConversationLanguage(normalizedRequested);
+    const detected = detectUserConversationLanguage(lastUserText, current);
+    if (detected.reason !== 'unchanged') {
+      return detected.language;
+    }
   }
 
   return normalizedRequested;

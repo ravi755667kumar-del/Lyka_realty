@@ -475,9 +475,16 @@ export async function queryBestPDFAnswer(
     let bestRow: any = null;
     let highestScore = -1;
 
+    const prefLower = (preferredLanguage || '').toLowerCase();
+    const isTamilPref = prefLower.includes('tamil') || prefLower.includes('tanglish');
+    const isHindiPref = prefLower.includes('hindi') || prefLower.includes('hinglish');
+
     for (const row of rows) {
       let score = 0;
       const rowId = String(row.id || '').toLowerCase();
+      // Never inject opposite-language Hinglish/Tanglish scenarios into active Tamil/Hindi calls
+      if (isTamilPref && rowId.startsWith('hinglish_')) continue;
+      if (isHindiPref && rowId.startsWith('tanglish_')) continue;
       const titleLower = String(row.title || '').toLowerCase();
       const keywordsLower = Array.isArray(row.keywords)
         ? row.keywords.join(' ').toLowerCase()

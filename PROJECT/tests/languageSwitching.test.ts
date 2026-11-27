@@ -76,14 +76,22 @@ export async function testLanguageSwitching(): Promise<{ name: string; passed: b
     assert.equal(hindiFromEnglish.switched, true);
   });
 
-  run('detectUserConversationLanguage: switches dynamically to pure English without mixing Tanglish/Hindi', () => {
+  run('detectUserConversationLanguage: switches dynamically on full English sentence, stays Tamil on Tamil/neutral answers', () => {
     const englishFromTamil = detectUserConversationLanguage(
-      'I am looking for a 2 BHK apartment in Velachery',
+      'I want to buy a house in Velachery',
       'Tamil-English'
     );
     assert.equal(englishFromTamil.language, 'English');
     assert.equal(englishFromTamil.switched, true);
     assert.equal(englishFromTamil.reason, 'english-detected');
+
+    // Once user answers back in Tamil, switches back to Tamil-English
+    const backToTamil = detectUserConversationLanguage(
+      'Illanga, enaku Tambaram-la veedu venum',
+      'English'
+    );
+    assert.equal(backToTamil.language, 'Tamil-English');
+    assert.equal(backToTamil.switched, true);
 
     const englishQuestion = detectUserConversationLanguage(
       'Could you tell me the total price and possession date?',
@@ -263,14 +271,23 @@ export async function testLanguageSwitching(): Promise<{ name: string; passed: b
     assert.equal(hindiFirst.switched, true);
     assert.equal(hindiFirst.reason, 'hindi-script');
 
-    const englishFirst = resolveSttConversationLanguage({
+    const englishFullSentence = resolveSttConversationLanguage({
       transcript: 'Hello I am looking for a two bedroom apartment',
       sttDetectedLanguage: 'english',
       currentLanguage: 'Tamil-English',
     });
-    assert.equal(englishFirst.language, 'English');
-    assert.equal(englishFirst.switched, true);
-    assert.equal(englishFirst.reason, 'english-detected');
+    assert.equal(englishFullSentence.language, 'English');
+    assert.equal(englishFullSentence.switched, true);
+    assert.equal(englishFullSentence.reason, 'english-detected');
+
+    // Short 2-word fragments preserve Tamil-English even if STT tagged english
+    const shortFragmentPreservesTamil = resolveSttConversationLanguage({
+      transcript: 'My budget',
+      sttDetectedLanguage: 'english',
+      currentLanguage: 'Tamil-English',
+    });
+    assert.equal(shortFragmentPreservesTamil.language, 'Tamil-English');
+    assert.equal(shortFragmentPreservesTamil.switched, false);
 
     // Mid-call switch Hindi -> English and Tamil -> Hindi via Whisper acoustic tag
     const romanHindiTagged = resolveSttConversationLanguage({
@@ -350,6 +367,8 @@ export async function testLanguageSwitching(): Promise<{ name: string; passed: b
       'hindi nahi aati',
       'I want to buy a flat in Tamil Nadu',
       'ஹிந்தி வேண்டாம்',
+      'இந்தி வீடு சொல்லுங்க',
+      'indi price sollunga',
     ];
     for (const phrase of nonSwitches) {
       assert.notEqual(
