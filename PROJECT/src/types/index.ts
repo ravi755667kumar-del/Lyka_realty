@@ -160,5 +160,7 @@ export interface SessionMemory {
   callerSentiment?: string;     // 'Interested', 'In a hurry', 'Comparing prices'
   discussedProperties?: string[]; // ['P101 - 2BHK Apartment (Velachery)']
   confirmedFacts?: string[];    // Bullet points of user statements
+  pendingStep?: number;         // Active qualification step (1..9)
+  pendingQuestion?: string;     // Complete next question the AI must finish asking
   lastUpdated?: string;
 }

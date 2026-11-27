@@ -89,9 +89,11 @@ type VoiceGender = 'female' | 'male';
 type ConversationStyle = 'engaging' | 'polite';
 
 const GEMINI_MODEL_OPTIONS = [
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', desc: 'Ultra-fast sub-second telecaller response (Recommended)' },
-  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', desc: 'Flagship multimodal speed & accuracy' },
-  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', desc: 'Fast, lightweight multimodal reasoning' },
+  { id: 'gemini-4-neon', label: 'Gemini 4 Neon', desc: 'Configured .env flagship model (auto-fallbacks enabled)' },
+  { id: 'gemini-4-hydrogen', label: 'Gemini 4 Hydrogen', desc: 'Gemini 4 high-speed reasoning model' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash', desc: 'Fast sub-second multimodal telecaller response' },
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite', desc: 'Reliable lightweight free-tier & sub-second model' },
+  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', desc: 'Multimodal speed & accuracy' },
 ];
 
 const GROQ_MODEL_OPTIONS = [
@@ -636,9 +638,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   );
   const brainEngineRef = useRef<BrainEngineChoice>(brainEngine);
 
-  const [ttsEngine, setTtsEngine] = useState<TtsEngineChoice>(() =>
-    readStoredChoice('lyka_tts_engine', 'cartesia') as TtsEngineChoice
-  );
+  const [ttsEngine, setTtsEngine] = useState<TtsEngineChoice>(() => {
+    const stored = readStoredChoice<string>('lyka_tts_engine', 'gemini');
+    return (stored === 'cartesia' || !stored ? 'gemini' : stored) as TtsEngineChoice;
+  });
   const ttsEngineRef = useRef<TtsEngineChoice>(ttsEngine);
 
   const [sttEngine, setSttEngine] = useState<SttEngineChoice>(() =>
@@ -647,8 +650,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   const sttEngineRef = useRef<SttEngineChoice>(sttEngine);
 
   const [selectedGeminiModel, setSelectedGeminiModel] = useState<string>(() => {
-    const stored = readStoredChoice<string>('lyka_gemini_model', 'gemini-2.5-flash');
-    return stored === 'gemini-3.8-flash' ? 'gemini-2.5-flash' : (stored || 'gemini-2.5-flash');
+    const stored = readStoredChoice<string>('lyka_gemini_model', 'gemini-4-neon');
+    return stored === 'gemini-2.5-flash' || stored === 'gemini-3.8-flash' ? 'gemini-4-neon' : (stored || 'gemini-4-neon');
   });
   const selectedGeminiModelRef = useRef<string>(selectedGeminiModel);
 
@@ -860,8 +863,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
     if (preset === 'ultrafast') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
-      updateTtsEngine('cartesia'); // Ultra-low 90ms latency
+      updateGeminiModelChoice('gemini-4-neon');
+      updateTtsEngine('gemini');
       updateSttEngine('browser'); // Fast 0ms real-time speech streaming
     } else if (preset === 'openai') {
       updateBrainEngine('openai');
@@ -873,27 +876,27 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       updateOpenAiSttModelChoice('whisper-1');
     } else if (preset === 'cartesia') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
+      updateGeminiModelChoice('gemini-4-neon');
       updateTtsEngine('cartesia');
       updateSttEngine('browser');
     } else if (preset === 'deepgram') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
+      updateGeminiModelChoice('gemini-4-neon');
       updateTtsEngine('deepgram');
       updateSttEngine('deepgram');
     } else if (preset === 'speechify') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
+      updateGeminiModelChoice('gemini-4-neon');
       updateTtsEngine('speechify');
       updateSttEngine('browser');
     } else if (preset === 'sarvam') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
+      updateGeminiModelChoice('gemini-4-neon');
       updateTtsEngine('sarvam');
       updateSttEngine('sarvam');
     } else if (preset === 'murf') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
+      updateGeminiModelChoice('gemini-4-neon');
       updateTtsEngine('murf');
       updateSttEngine('browser');
     } else if (preset === 'groq') {
@@ -902,7 +905,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       updateSttEngine('groq');
     } else if (preset === 'gemini') {
       updateBrainEngine('gemini');
-      updateGeminiModelChoice('gemini-2.5-flash');
+      updateGeminiModelChoice('gemini-4-neon');
       updateTtsEngine('gemini');
       updateSttEngine('gemini');
     } else if (preset === 'free') {
@@ -1124,15 +1127,15 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         langCode: 'en-US',
       };
     }
-    // Tanglish Priya: Natural Tanglish Property Conversation Guide (v14 PDF)
+    // Spoken Tamil Priya: clear Tamil script with everyday property terms
     if (cleanLeadName) {
       return {
-        text: `[happy] Hi! How are you ${cleanLeadName}? Naan ${name}, Lyka Realty-lendhu pesuren!`,
+        text: `[happy] வணக்கம் ${cleanLeadName}! எப்படி இருக்கீங்க? நான் ${name}, Lyka Realty-ல இருந்து பேசுறேன்!`,
         langCode: 'ta-IN',
       };
     }
     return {
-      text: `[happy] Hi! How are you? Eppadi irukkeenga! Naan ${name}, Lyka Realty-lendhu pesuren!`,
+      text: `[happy] வணக்கம்! எப்படி இருக்கீங்க? நான் ${name}, Lyka Realty-ல இருந்து பேசுறேன்!`,
       langCode: 'ta-IN',
     };
   };
@@ -1467,15 +1470,16 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         setMicAudioLevel(normalized);
 
         // Sustained vocal-band barge-in when cloud STT is active (since Web Speech API is paused during playback)
+        // High threshold avoids speaker bleed cutting off AI mid-question.
         if (
           isSpeechSynthesisSpeakingRef.current &&
           isCloudSttActive() &&
           callStateRef.current === 'AI Speaking...'
         ) {
-          if (vocalAvg > 28) {
+          if (vocalAvg > 48) {
             if (cloudBargeInSinceRef.current === 0) {
               cloudBargeInSinceRef.current = Date.now();
-            } else if (Date.now() - cloudBargeInSinceRef.current >= 420) {
+            } else if (Date.now() - cloudBargeInSinceRef.current >= 600) {
               cloudBargeInSinceRef.current = 0;
               handleBargeIn();
             }
@@ -2475,7 +2479,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? 'आपकी तरफ़ से कोई आवाज़ नहीं आ रही है। हम कॉल डिसकनेक्ट कर रहे हैं। लाइका रियल्टी में कॉल करने के लिए धन्यवाद।'
         : activeLang === 'English'
         ? 'We did not detect any response for 8 seconds. Disconnecting the call now. Thank you for calling Lyka Realty.'
-        : 'Unga kitta irundhu bathil varala. Call disconnect panrom. Lyka Realty-ku nandri.';
+        : 'உங்க கிட்ட இருந்து பதில் வரல. Call disconnect பண்றோம். Lyka Realty-க்கு நன்றி.';
     appendDialogue('AI', politeClose);
     speakAIText(politeClose, getVoiceLangCode(), () => {
       finalizeCall('No Answer', 'NO_ANSWER', 'Caller remained silent for 8 consecutive seconds. Automatically disconnected.', true);
@@ -2592,11 +2596,22 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         lower.includes('hello') ||
         lower.includes('hi') ||
         lower.includes('vanakkam') ||
+        lower.includes('வணக்கம்') ||
+        lower.includes('நல்லா') ||
+        lower.includes('சரி') ||
+        lower.includes('ஆமா') ||
+        lower.includes('சொல்லுங்க') ||
+        lower.includes('பேசலாம்') ||
         lower.includes('sollunga') ||
         lower.includes('solren') ||
         lower.includes('yes') ||
         lower.includes('aama') ||
         lower.includes('haan') ||
+        lower.includes('नमस्ते') ||
+        lower.includes('हाँ') ||
+        lower.includes('ठीक') ||
+        lower.includes('बताइ') ||
+        lower.includes('बोलि') ||
         lower.includes('boliye') ||
         lower.includes('ok') ||
         lower.includes('okay')
@@ -2816,60 +2831,43 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
   };
 
   // ── Dynamic Turn Triggering Based on User Answer Content ────────────────────
-  // Evaluates the user's answer to determine the natural end-of-turn waiting duration:
-  // 1. Direct answer to current question (or decline): ~900ms (natural human response pause)
-  // 2. Customer question / inquiry: ~1000ms
-  // 3. Incomplete sentence / trailing preposition or conjunction: ~1800ms (patient listener, never interrupts!)
-  // 4. Multi-detail answer: ~1000ms
-  // 5. Standard conversational turn: ~1200ms
+  // Waits patiently (using END_OF_TURN_SILENCE_MS = 2200ms, +1200ms when incomplete)
+  // so STT always captures the user's complete sentence before responding.
   const getDynamicSilenceWaitMs = (
     text: string,
     step: number
   ): { waitMs: number; statusLabel: string } => {
     const clean = text.trim();
     if (!clean) {
-      return { waitMs: 1000, statusLabel: '🎙️ Listening...' };
+      return { waitMs: END_OF_TURN_SILENCE_MS, statusLabel: '🎙️ Listening...' };
     }
 
-    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation — give more time
+    // A. Incomplete thoughts, trailing conjunctions, or trailing punctuation — give extra time
     if (isIncompleteSentence(clean)) {
       return {
-        waitMs: 1800,
-        statusLabel: '👂 Listening... (take your time)',
+        waitMs: END_OF_TURN_SILENCE_MS + INCOMPLETE_SENTENCE_EXTRA_MS,
+        statusLabel: '👂 Listening... (finish your sentence)',
       };
     }
 
-    // B. Direct complete answer to the current qualification step
+    // Wait full END_OF_TURN_SILENCE_MS even if a keyword already appeared mid-sentence,
+    // so multi-clause answers or questions are never cut off mid-speech.
     if (isQuickAnswerMatch(clean, step) || (step === 1 && isDecliningOrBusy(clean))) {
       return {
-        waitMs: 900,
-        statusLabel: '✨ Answer heard, responding...',
+        waitMs: END_OF_TURN_SILENCE_MS,
+        statusLabel: '✨ Listening for complete sentence...',
       };
     }
 
-    // C. Customer asking a question or inquiry (price, location, etc.)
     if (isCustomerQuestion(clean)) {
       return {
-        waitMs: 1000,
-        statusLabel: '✨ Question heard, answering...',
+        waitMs: END_OF_TURN_SILENCE_MS,
+        statusLabel: '✨ Listening to your full question...',
       };
     }
 
-    // D. Multi-attribute qualification statement (e.g. "2 BHK Velachery under 80L")
-    const lower = clean.toLowerCase();
-    const hasMultipleDetails =
-      (lower.includes('bhk') || lower.includes('flat') || lower.includes('plot') || lower.includes('house')) &&
-      (lower.includes('velachery') || lower.includes('omr') || lower.includes('porur') || lower.includes('tambaram') || lower.includes('adyar') || lower.includes('chennai') || lower.includes('lakh') || lower.includes('crore'));
-    if (hasMultipleDetails) {
-      return {
-        waitMs: 1000,
-        statusLabel: '✨ Details captured, responding...',
-      };
-    }
-
-    // E. Standard conversational turn
     return {
-      waitMs: 1200,
+      waitMs: END_OF_TURN_SILENCE_MS,
       statusLabel: '👂 Listening...',
     };
   };
@@ -2995,7 +2993,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
       } catch (e) { /* ignore */ }
     }
 
-    // Safety watchdog: auto-clear turn lock if speech synthesis or API takes more than 10 seconds
+    // Safety watchdog: auto-clear turn lock if speech synthesis or API takes more than 22 seconds
     const turnWatchdog = setTimeout(() => {
       if (isTurnProcessingRef.current && !isSpeechSynthesisSpeakingRef.current) {
         console.warn('[Turn Watchdog] Auto-cleared stuck turn processing lock');
@@ -3003,7 +3001,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         updateCallState('Listening...');
         startActiveListening();
       }
-    }, 10000);
+    }, 22000);
 
     // Keep turn lock active while AI answers & speaks; onAudioPlaybackDone will release it.
     handleCustomerInput(cleanText, meta)
@@ -3120,12 +3118,12 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         }
 
         // 2b. Genuine User Interruption (Barge-In):
-        // Only interrupt AI speech if the user explicitly spoke interruption words or an external question
+        // Only interrupt AI speech on explicit interruption phrases or language-switch commands
+        // (avoid cutting off on stray punctuation from speaker bleed in regional recognition).
         const spokenLower = fullTurnTranscript.toLowerCase().trim();
         const isGenuineInterruption =
           /\b(wait|stop|hold\s*on|listen|suno|ruko|oru\s*nimisham|cut\s*pannu|podhum|enna\s*solreenga|who\s*are\s*you|yaar\s*pesura)\b/i.test(spokenLower) ||
-          Boolean(detectExplicitLanguageSwitch(fullTurnTranscript)) ||
-          (spokenLower.includes('?') && !isAcousticEchoFromAiSpeech(spokenLower, currentAiSpeechRef.current, lastAiSpeechTextRef.current));
+          Boolean(detectExplicitLanguageSwitch(fullTurnTranscript));
 
         if (isGenuineInterruption) {
           console.log('[BargeIn via SpeechRecognition] Genuine user interruption detected:', fullTurnTranscript);
@@ -3522,7 +3520,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         }
         const silenceMs = now - lastVoiceAt;
         const utterMs = now - speechStartedAt;
-        if (silenceMs >= 750 || utterMs >= 12000) {
+        // Wait for full END_OF_TURN_SILENCE_MS of silence so multi-clause sentences aren't split mid-breath
+        if (silenceMs >= END_OF_TURN_SILENCE_MS || utterMs >= 20000) {
           triggerStop();
           return;
         }
@@ -4227,7 +4226,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     if ((alreadySaid || isUserAskingRepeat) && !alreadyHasPrefix) {
       const strippedReply = replyText.replace(/^\[.*?\]\s*/, '');
       if (lang === 'Tamil-English') {
-        return `[explaining] Marupadiyum solren, ${strippedReply}`;
+        return `[explaining] மறுபடியும் சொல்றேன், ${strippedReply}`;
       } else if (lang === 'Hindi') {
         return `[explaining] एक बार फिर से ${voiceGenderRef.current === 'male' ? 'बताता हूँ' : 'बताती हूँ'}, ${strippedReply}`;
       } else {
@@ -4642,7 +4641,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? `[understanding] जी सर, कोई बात नहीं। आपके लिए कब बात करना सुविधाजनक रहेगा? मैं उस समय पर कॉल कर ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। आपका दिन शुभ हो!`
             : activeLang === 'English'
             ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
-            : 'Of course, no problem. Disturb pannadhukku sorry. Ungalukku eppo call panna comfortable-aa irukkum? Illenna, neenga free-aa irukkumbodhu pesalaam.';
+            : 'பரவாயில்லை சார், disturb பண்ணதுக்கு sorry. உங்களுக்கு எப்போது call பண்ண comfortable-ஆ இருக்கும்? நீங்க free-ஆ இருக்கும்போது பேசலாம்.';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
@@ -4662,7 +4661,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? '[calm] जी सर, कोई बात नहीं। आपके समय के लिए धन्यवाद। आपका दिन शुभ हो!'
             : activeLang === 'English'
             ? '[calm] Absolutely Sir, I understand. Thank you for your time. Have a lovely day!'
-            : 'Seri, puriyudhu. Ungaloda time-ku thanks. Disturb pannadhukku sorry. Have a nice day!';
+            : 'சரி சார், புரியுது. உங்க நேரத்திற்கு நன்றி. Have a nice day!';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer is not interested.');
@@ -4683,7 +4682,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? 'क्या आप प्रॉपर्टी खरीदना चाहते हैं, या किराये के लिए देख रहे हैं?'
             : activeLang === 'English'
             ? 'Are you looking to buy a flat/house, rent, or looking for a plot?'
-            : 'Neenga veedu vaanga paakureengala, illa rent-ku paakureengala Sir?';
+            : 'நீங்க வீடு வாங்க பாக்குறீங்களா, இல்ல வாடகைக்கு பாக்குறீங்களா சார்?';
         appendDialogue('AI', askPurposeAgain);
         speakAIText(askPurposeAgain, getVoiceLangCode());
         return;
@@ -4703,7 +4702,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? 'चेन्नई में आप किस इलाके में प्रॉपर्टी देख रहे हैं? जैसे वेलाचेरी, ओएमआर या तांबरम?'
             : activeLang === 'English'
             ? 'Which location in Chennai are you looking in? For example Velachery, OMR, or Tambaram?'
-            : 'Chennai-la ungalukku endha area convenient-aa irukkum Sir? Velachery, OMR, Tambaram maadhiri?';
+            : 'சென்னையில் உங்களுக்கு எந்த ஏரியா convenient-ஆ இருக்கும் சார்? Velachery, OMR, Tambaram மாதிரி?';
         appendDialogue('AI', askAreaAgain);
         speakAIText(askAreaAgain, getVoiceLangCode());
         return;
@@ -4723,7 +4722,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? 'आपको कितने BHK की ज़रूरत है सर? 1 BHK, 2 BHK या 3 BHK?'
             : activeLang === 'English'
             ? 'How many BHK are you looking for Sir? 1 BHK, 2 BHK, or 3 BHK?'
-            : 'Ungalukku ethana BHK thevai padudhu Sir? 1 BHK, 2 BHK, illa 3 BHK-aa?';
+            : 'உங்களுக்கு எத்தனை BHK தேவைப்படுது சார்? 1 BHK, 2 BHK, இல்ல 3 BHK-ஆ?';
         appendDialogue('AI', askBhkAgain);
         speakAIText(askBhkAgain, getVoiceLangCode());
         return;
@@ -4743,7 +4742,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? 'आपका अनुमानित बजट कितना रहेगा सर?'
             : activeLang === 'English'
             ? 'What is your comfortable budget range Sir?'
-            : 'Unga budget approximate-aa evlo plan pannirukeenga Sir?';
+            : 'உங்க budget approximate-ஆ எவ்வளவு plan பண்ணியிருக்கீங்க சார்?';
         appendDialogue('AI', askBudgetAgain);
         speakAIText(askBudgetAgain, getVoiceLangCode());
         return;
@@ -4763,7 +4762,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? 'आप कब तक शिफ्ट होना चाहते हैं? तुरंत या कुछ महीनों में?'
             : activeLang === 'English'
             ? 'When are you planning to move in? Immediate or in a few months?'
-            : 'Eppodhukulla move-in panna plan pandreenga Sir? Udane-vaa illa adutha sila maasathulaya?';
+            : 'எப்போதுக்குள் move-in பண்ண plan பண்றீங்க சார்? உடனே-வா இல்ல அடுத்த சில மாதங்களிலா?';
         appendDialogue('AI', askTimelineAgain);
         speakAIText(askTimelineAgain, getVoiceLangCode());
         return;
@@ -4787,7 +4786,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? 'क्या आप बैंक होम लोन लेने की सोच रहे हैं या सेल्फ-फंडिंग यानी कैश?'
             : activeLang === 'English'
             ? 'Are you planning for a bank home loan or self-funding / cash?'
-            : 'Finance bank loan moolama paakureengala, illa direct own funds cash-aa Sir?';
+            : 'Finance bank loan மூலமா பாக்குறீங்களா, இல்ல direct own funds-ஆ சார்?';
         appendDialogue('AI', askFinanceAgain);
         speakAIText(askFinanceAgain, getVoiceLangCode());
         return;
@@ -4834,6 +4833,88 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
     }
   };
 
+  /** Shared qualification question text builder used by both scripted askQuestion and LLM turns. */
+  const buildQualificationQuestionText = (qNum: number, langOverride?: LanguageOption): string => {
+    const activeLang = langOverride || selectedLanguageRef.current;
+    const customerName = lead?.name || (activeLang === 'Tamil-English' ? 'சார்' : 'Sir');
+    const q = qualificationRef.current;
+
+    if (qNum === 1) {
+      if (activeLang === 'Hindi') {
+        return `[curious] बहुत धन्यवाद ${customerName}! [break] आप चेन्नई में घर खरीदना चाहते हैं, या किराये पर देख रहे हैं?`;
+      }
+      if (activeLang === 'English') {
+        return `[curious] Thank you so much ${customerName}! [break] Are you looking to buy a flat or house in Chennai, or looking to rent?`;
+      }
+      return `[curious] வணக்கம்! [break] நீங்க சென்னையில் வீடு வாங்க பாக்குறீங்களா, இல்ல வாடகைக்கு பாக்குறீங்களா சார்?`;
+    }
+    if (qNum === 2) {
+      if (activeLang === 'Hindi') {
+        return '[curious] बहुत बढ़िया! [break] चेन्नई में आप किस इलाके में देख रहे हैं? जैसे वेलाचेरी, ओएमआर, तांबरम, अडयार, पोरूर या चेंगलपट्टू।';
+      }
+      if (activeLang === 'English') {
+        return '[curious] Great! [break] Which area in Chennai is your preference? For example Velachery, OMR, Tambaram, Adyar, Porur, or Chengalpattu.';
+      }
+      return '[curious] சூப்பர்! [break] சென்னையில் உங்களுக்கு எந்த ஏரியா preference சார்? Velachery, OMR, Tambaram, Porur, Adyar மாதிரி எந்த ஏரியா பாக்குறீங்க?';
+    }
+    if (qNum === 3) {
+      if (activeLang === 'Hindi') {
+        return '[curious] सही है! [break] आपको कितने BHK चाहिए? 1 BHK, 2 BHK या 3 BHK? या प्लॉट के लिए कितने स्क्वेयर फीट?';
+      }
+      if (activeLang === 'English') {
+        return '[curious] Okay! [break] How many BHK do you need? 1 BHK, 2 BHK, or 3 BHK? Or plot size in sq ft?';
+      }
+      return '[curious] சரி சார்! [break] உங்களுக்கு எத்தனை BHK தேவைப்படுது? 1 BHK, 2 BHK, இல்ல 3 BHK-ஆ?';
+    }
+    if (qNum === 4) {
+      if (activeLang === 'Hindi') {
+        return `[curious] समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}। [break] आपका अनुमानित बजट कितना होगा सर?`;
+      }
+      if (activeLang === 'English') {
+        return '[curious] Got it! [break] What is your comfortable approximate budget range Sir?';
+      }
+      return '[curious] பட்ஜெட் பத்தி கொஞ்சம் கேட்கலாமா? [break] உங்களுக்கு comfortable-ஆ இருக்கிற approximate budget range எவ்வளவு சார்?';
+    }
+    if (qNum === 5) {
+      if (activeLang === 'Hindi') {
+        return '[curious] अच्छा! [break] कब तक शिफ्ट होना है? तुरंत रेडी-टू-मूव चाहिए या थोड़ा इंतज़ार कर सकते हैं?';
+      }
+      if (activeLang === 'English') {
+        return '[curious] That helps! [break] When do you want to move in? Should it be ready now, or is a short wait fine?';
+      }
+      return '[curious] எப்போது shift ஆக plan பண்றீங்க சார்? [break] உடனே ready-to-move வேணுமா, இல்ல அடுத்த சில மாதங்களில் ஓகே-வா?';
+    }
+    if (qNum === 6) {
+      if (activeLang === 'Hindi') {
+        return '[curious] ठीक है। [break] आप बैंक होम लोन लेंगे या सीधे कैश से पेमेंट करेंगे?';
+      }
+      if (activeLang === 'English') {
+        return '[curious] Perfect! [break] Are you planning for a bank home loan, or direct self-funding in cash?';
+      }
+      return '[curious] பேமெண்ட் எப்படி plan பண்றீங்க சார்? [break] Bank home loan மூலமா பாக்குறீங்களா, இல்ல direct own funds-ஆ?';
+    }
+    if (qNum === 7) {
+      const matched = getMatchedListingFromPDF(q);
+      if (activeLang === 'Hindi') {
+        return `${customerName}, आपकी ज़रूरत नोट कर ली है। ${q.location || matched.location} में आपके लिए सही ${q.sizeBHK || matched.type} प्रॉपर्टी उपलब्ध है। क्या आप इस वीकेंड साइट विज़िट के लिए आना चाहेंगे?`;
+      }
+      if (activeLang === 'English') {
+        return `${customerName}, I have noted your requirements. In ${q.location || matched.location}, there is a matching ${q.sizeBHK || matched.type} available. Would you like to schedule a site visit this weekend?`;
+      }
+      return `சரி சார், உங்க requirement note பண்ணிட்டேன். ${q.location || matched.location}-ல் உங்களுக்கு ஏத்த ${q.sizeBHK || matched.type} property available-ஆ இருக்கு. இதோட site visit இந்த weekend plan பண்ணலாமா சார்?`;
+    }
+    if (qNum === 8) {
+      if (activeLang === 'Hindi') {
+        return 'ज़रूर! साइट विज़िट के लिए शनिवार सुविधाजनक रहेगा या रविवार?';
+      }
+      if (activeLang === 'English') {
+        return 'Sure! Which day would be convenient for the site visit? Saturday or Sunday?';
+      }
+      return 'சூப்பர் சார்! Site visit சனிக்கிழமை convenient-ஆ இருக்குமா, இல்ல ஞாயிற்றுக்கிழமை comfortable-ஆ இருக்குமா?';
+    }
+    return '';
+  };
+
   // Main Customer Input Parser & Flow Controller (STT -> Groq Model / Rule Engine -> TTS)
   const handleCustomerInput = async (input: string, meta?: CustomerSpeechMeta) => {
     if (silenceTimerRef.current) {
@@ -4866,9 +4947,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         });
 
     const cleanNormalized = normalizeCustomerSpeech(input, detectedLanguage.language);
-    const preserveCloudUnicode =
-      sttEngineRef.current !== 'browser' && /[\u0900-\u097F\u0B80-\u0BFF]/u.test(input);
-    const displayTranscript = preserveCloudUnicode ? input.trim() : cleanNormalized;
+    const hasNativeIndicScript = /[\u0900-\u097F\u0B80-\u0BFF]/u.test(input);
+    const displayTranscript = hasNativeIndicScript ? input.trim() : cleanNormalized;
     appendDialogue('Customer', displayTranscript);
     setCurrentTextInput('');
     setLiveSpeechText('');
@@ -4988,8 +5068,8 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           appendDialogue('AI', openingHindi);
           speakAIText(openingHindi, 'hi-IN');
         } else {
-          const customerName = lead?.name ? ` ${lead.name} Sir` : ' Sir';
-          const openingTamil = `[warm] Romba sandhosham! [break] [curious] Neenga Chennai-la veedu vaanga paakureengala, illa rent-ku paakureengala${customerName}?`;
+          const customerName = lead?.name ? ` ${lead.name} சார்` : ' சார்';
+          const openingTamil = `[warm] ரொம்ப சந்தோஷம்! [break] [curious] நீங்க சென்னையில் வீடு வாங்க பாக்குறீங்களா, இல்ல வாடகைக்கு பாக்குறீங்களா${customerName}?`;
           appendDialogue('AI', openingTamil);
           speakAIText(openingTamil, 'ta-IN');
         }
@@ -5046,7 +5126,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         if (activeStep <= 1) {
           updateCurrentStep(2);
         }
-        switchResponse = `[warm] Kandippa! Namma Tamil-laye pesalaam Sir. Ungalukku Chennai property pathi enna details thevai?`;
+        switchResponse = `[warm] கண்டிப்பா சார்! நம்ம தமிழிலேயே பேசலாம். உங்களுக்கு சென்னை property பத்தி என்ன details வேணும்?`;
         appendDialogue('AI', switchResponse);
         speakAIText(switchResponse, 'ta-IN');
         return;
@@ -5067,7 +5147,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             ? `[understanding] जी सर, कोई बात नहीं। आपके लिए कब बात करना सुविधाजनक रहेगा? मैं उस समय पर कॉल कर ${voiceGenderRef.current === 'male' ? 'सकता हूँ' : 'सकती हूँ'}। आपका दिन शुभ हो!`
             : activeLang === 'English'
             ? "[understanding] Of course Sir, no problem. When would be a better time for me to call you back? Have a wonderful day!"
-            : 'Of course, no problem. Disturb pannadhukku sorry. Ungalukku eppo call panna comfortable-aa irukkum? Illenna, neenga free-aa irukkumbodhu pesalaam.';
+            : 'பரவாயில்லை சார், disturb பண்ணதுக்கு sorry. உங்களுக்கு எப்போது call பண்ண comfortable-ஆ இருக்கும்? நீங்க free-ஆ இருக்கும்போது பேசலாம்.';
         appendDialogue('AI', politeEnd);
         speakAIText(politeEnd, getVoiceLangCode(), () => {
           finalizeCall('Completed', 'COLD', 'Customer was busy or not free to talk.');
@@ -5077,9 +5157,13 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
       // Advance step indicator ONLY when user ACTUALLY answered the current step's qualification question!
       // NEVER advance automatically when the user didn't give an answer!
-      const hasAnsweredCurrentStep = isQuickAnswerMatch(cleanNormalized, activeStep);
-      if (hasAnsweredCurrentStep && activeStep < 9) {
-        updateCurrentStep(activeStep + 1);
+      const hasAnsweredCurrentStep = isQuickAnswerMatch(cleanNormalized, stepForProcessing);
+      const nextStepForTurn =
+        hasAnsweredCurrentStep && stepForProcessing < 9
+          ? stepForProcessing + 1
+          : stepForProcessing;
+      if (hasAnsweredCurrentStep && stepForProcessing < 9) {
+        updateCurrentStep(nextStepForTurn);
       }
 
       if (brainEngineRef.current === 'gemini') {
@@ -5097,7 +5181,19 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
           content: d.text,
         }));
 
-        const currentEffectiveLang = selectedLanguageRef.current || activeLang;
+        const currentEffectiveLang = (selectedLanguageRef.current || activeLang) as LanguageOption;
+        const pendingQNum = nextStepForTurn <= 1 ? 1 : Math.min(8, nextStepForTurn - 1);
+        const pendingQuestionText =
+          nextStepForTurn <= 8
+            ? buildQualificationQuestionText(pendingQNum, currentEffectiveLang).replace(/\[.*?\]\s*/g, '')
+            : '';
+        const sessionWithPendingQuestion = pendingQuestionText
+          ? {
+              ...sessionMemoryRef.current,
+              pendingStep: nextStepForTurn,
+              pendingQuestion: pendingQuestionText,
+            }
+          : sessionMemoryRef.current;
 
         let aiReply = '';
         if (brainEngineRef.current === 'gemini') {
@@ -5109,7 +5205,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
             agentName,
             voiceGenderRef.current,
             lastCustomerEmotionRef.current,
-            sessionMemoryRef.current
+            sessionWithPendingQuestion
           );
         } else if (brainEngineRef.current === 'openai') {
           try {
@@ -5121,7 +5217,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
-              sessionMemoryRef.current
+              sessionWithPendingQuestion
             );
           } catch (openAiErr) {
             console.warn('[AI Model] OpenAI failed, seamlessly falling back to Gemini:', openAiErr);
@@ -5133,7 +5229,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
-              sessionMemoryRef.current
+              sessionWithPendingQuestion
             );
           }
         } else if (brainEngineRef.current === 'groq') {
@@ -5148,10 +5244,10 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               lastCustomerEmotionRef.current,
               undefined,
               conversationStyleRef.current,
-              sessionMemoryRef.current
+              sessionWithPendingQuestion
             );
           } catch (groqErr) {
-            console.warn('[AI Model] Groq failed, seamlessly falling back to Gemini 3.8 Flash:', groqErr);
+            console.warn('[AI Model] Groq failed, seamlessly falling back to Gemini:', groqErr);
             aiReply = await geminiChat(
               historyMessages,
               selectedGeminiModelRef.current,
@@ -5160,7 +5256,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
               agentName,
               voiceGenderRef.current,
               lastCustomerEmotionRef.current,
-              sessionMemoryRef.current
+              sessionWithPendingQuestion
             );
           }
         }
@@ -5205,101 +5301,9 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
 
   // Ask one of the Qualification Questions (Property AI Knowledge Base PDF Section 2 Flow)
   const askQuestion = (qNum: number, contextValue?: string) => {
+    void contextValue;
     updateCurrentStep(qNum + 1); // maps to steps 2, 3, 4, 5, 6, 7, 8, 9
-    let questionText = '';
-    const activeLang = selectedLanguageRef.current;
-    const customerName = lead?.name || (activeLang === 'Tamil-English' ? 'சார்' : 'Sir');
-    const q = qualificationRef.current;
-
-    // PDF Q1: Purpose (Own use vs Investment - Section 5)
-    if (qNum === 1) {
-      if (activeLang === 'Hindi') {
-        questionText = `[curious] बहुत धन्यवाद ${customerName}! [break] आप चेन्नई में घर खरीदना चाहते हैं, या किराये पर देख रहे हैं?`;
-      } else if (activeLang === 'English') {
-        questionText = `[curious] Thank you so much ${customerName}! [break] Are you looking to buy a flat or house in Chennai, or looking to rent?`;
-      } else {
-        questionText = `[curious] Vanakkam! [break] Neenga Chennai-la veedu vaanga paakureengala, illa rent-ku paakureengala Sir?`;
-      }
-    }
-
-    // PDF Q2: Property Type & Location (Section 5)
-    else if (qNum === 2) {
-      if (activeLang === 'Hindi') {
-        questionText = '[curious] बहुत बढ़िया! [break] चेन्नई में आप किस इलाके में देख रहे हैं? जैसे वेलाचेरी, ओएमआर, तांबरम, अडयार, पोरूर या चेंगलपट्टू।';
-      } else if (activeLang === 'English') {
-        questionText = '[curious] Great! [break] Which area in Chennai is your preference? For example Velachery, OMR, Tambaram, Adyar, Porur, or Chengalpattu.';
-      } else {
-        questionText = '[curious] Super! [break] Chennai-la ungalukku endha area preference Sir? Velachery, OMR, Tambaram, Porur, Adyar maadhiri endha area paakureenga?';
-      }
-    }
-
-    // PDF Q3: Bedrooms and Size (Section 5)
-    else if (qNum === 3) {
-      if (activeLang === 'Hindi') {
-        questionText = '[curious] सही है! [break] आपको कितने BHK चाहिए? 1 BHK, 2 BHK या 3 BHK? या प्लॉट के लिए कितने स्क्वेयर फीट?';
-      } else if (activeLang === 'English') {
-        questionText = '[curious] Okay! [break] How many BHK do you need? 1 BHK, 2 BHK, or 3 BHK? Or plot size in sq ft?';
-      } else {
-        questionText = '[curious] Sahi! [break] Ungalukku ethana BHK thevai padudhu Sir? 1 BHK, 2 BHK, illa 3 BHK-aa?';
-      }
-    }
-
-    // PDF Q4: Budget (Section 5 & 6)
-    else if (qNum === 4) {
-      if (activeLang === 'Hindi') {
-        questionText = `[curious] समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}। [break] आपका अनुमानित बजट कितना होगा सर?`;
-      } else if (activeLang === 'English') {
-        questionText = '[curious] Got it! [break] What is your comfortable approximate budget range Sir?';
-      } else {
-        questionText = '[curious] Budget pathi konjam kekkalaama? [break] Ungalukku comfortable-aa irukkura approximate budget range evlo Sir?';
-      }
-    }
-
-    // PDF Q5: Timeline (Section 5)
-    else if (qNum === 5) {
-      if (activeLang === 'Hindi') {
-        questionText = '[curious] अच्छा! [break] कब तक शिफ्ट होना है? तुरंत रेडी-टू-मूव चाहिए या थोड़ा इंतज़ार कर सकते हैं?';
-      } else if (activeLang === 'English') {
-        questionText = '[curious] That helps! [break] When do you want to move in? Should it be ready now, or is a short wait fine?';
-      } else {
-        questionText = '[curious] Eppo shift aaga plan panreenga Sir? [break] Immediate ready-to-move venuma, illa next few months-la ok-vaa?';
-      }
-    }
-
-    // PDF Q6: Payment Method (Section 6)
-    else if (qNum === 6) {
-      if (activeLang === 'Hindi') {
-        questionText = '[curious] ठीक है। [break] आप बैंक होम लोन लेंगे या सीधे कैश से पेमेंट करेंगे?';
-      } else if (activeLang === 'English') {
-        questionText = '[curious] Perfect! [break] Are you planning for a bank home loan, or direct self-funding in cash?';
-      } else {
-        questionText = '[curious] Payment epdi plan panreenga Sir? [break] Bank home loan moolama paakureengala, illa direct cash own funds-aa?';
-      }
-    }
-
-    // PDF Step 7: Match Recommendation & Confirmation (Section 9)
-    else if (qNum === 7) {
-      const matched = getMatchedListingFromPDF(q);
-      if (activeLang === 'Hindi') {
-        questionText = `${customerName}, आपकी ज़रूरत नोट कर ली है। ${q.location || matched.location} में आपके लिए सही ${q.sizeBHK || matched.type} प्रॉपर्टी उपलब्ध है। क्या आप इस वीकेंड साइट विज़िट के लिए आना चाहेंगे?`;
-      } else if (activeLang === 'English') {
-        questionText = `${customerName}, I have noted your requirements. In ${q.location || matched.location}, there is a matching ${q.sizeBHK || matched.type} available. Would you like to schedule a site visit this weekend?`;
-      } else {
-        questionText = `Seri Sir, unga requirement note panniten. ${q.location || matched.location}-la ungalukku eatha ${q.sizeBHK || matched.type} property available-aa irukku. Idhoda site visit indha weekend plan pannalaama Sir?`;
-      }
-    }
-
-    // PDF Step 8: Shortlist Request & Closing (Section 9)
-    else if (qNum === 8) {
-      if (activeLang === 'Hindi') {
-        questionText = 'ज़रूर! साइट विज़िट के लिए शनिवार सुविधाजनक रहेगा या रविवार?';
-      } else if (activeLang === 'English') {
-        questionText = 'Sure! Which day would be convenient for the site visit? Saturday or Sunday?';
-      } else {
-        questionText = 'Super Sir! Site visit Saturday convenient-aa irukkuma, illa Sunday comfortable-aa irukkuma?';
-      }
-    }
-
+    const questionText = buildQualificationQuestionText(qNum);
     const finalQuestion = formatRepeatAnswerIfNeeded(questionText);
     appendDialogue('AI', finalQuestion);
     speakAIText(finalQuestion, getVoiceLangCode());
@@ -5313,7 +5317,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? `हाँ बिल्कुल, समझ ${voiceGenderRef.current === 'male' ? 'गया' : 'गई'}! मैं तुरंत आपका नंबर लिस्ट से हटा ${voiceGenderRef.current === 'male' ? 'देता हूँ' : 'देती हूँ'}। आगे से कोई कॉल नहीं आएगा। धन्यवाद, आपका दिन शुभ हो!`
         : activeLang === 'English'
         ? "I completely understand! I'm removing your number from our list right away so you won't be contacted again. Thank you, have a good day!"
-        : 'Kandippa, mannichidunga. Unga request-a Do Not Contact-aa update panna team-kku forward pannuren. Inime sales follow-up panna koodaadhu-nu mark pannuvom. Thank you for letting me know.';
+        : 'கண்டிப்பா சார், மன்னிச்சிடுங்க. உங்க request-ஐ Do Not Contact-ஆ update பண்ண team-க்கு forward பண்றேன். இனி sales follow-up வராது. நன்றி சார்.';
     appendDialogue('AI', endMsg);
     speakAIText(endMsg, getVoiceLangCode(), () => {
       finalizeCall('Completed', 'OPT-OUT', 'Customer requested complete opt-out and number blocking.', false, true);
@@ -5328,7 +5332,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? 'हाँ ज़रूर! लाइका रियल्टी के सीनियर प्रॉपर्टी सलाहकार आपसे जल्द ही सीधे कॉल पर बात करेंगे। बहुत धन्यवाद!'
         : activeLang === 'English'
         ? "Certainly! I'll have our senior property advisor connect with you directly very shortly. Thank you so much!"
-        : 'Kandippa. Ungalukku human team member kooda pesanum-nu puriyudhu. Unga request-a team-kitta pass pannuren. Convenient time edhu-nu sollunga.';
+        : 'கண்டிப்பா சார். உங்களுக்கு human team member கூட பேசணும்னு புரியுது. உங்க request-ஐ team கிட்ட கொடுக்கிறேன். Convenient time எதுன்னு சொல்லுங்க.';
     appendDialogue('AI', agentMsg);
     speakAIText(agentMsg, getVoiceLangCode(), () => {
       finalizeCall('Completed', 'AGENT_CALLBACK', 'Customer specifically requested a senior human advisor callback.');
@@ -5354,7 +5358,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
         ? `बहुत बढ़िया ${customerName}! हमने आपकी पूरी जानकारी नोट कर ली है: ${recalledLoc} में ${recalledBhk}${mem.budget || q.budget ? `, बजट लगभग ${mem.budget || q.budget}` : ''}, और ${recalledVisit}। मैं अभी व्हाट्सएप पर ब्रोशर और लोकेशन भेज ${voiceGenderRef.current === 'male' ? 'रहा हूँ' : 'रही हूँ'}। धन्यवाद, आपका दिन शुभ हो!`
         : activeLang === 'English'
         ? `Certainly ${customerName}! To recap our conversation: you are looking for ${recalledBhk} in ${recalledLoc} ${recalledBudget}, and we have noted your ${recalledVisit}. I'll send the brochure and details on WhatsApp right away. Thank you so much, have a wonderful day!`
-        : `Super ${customerName}! Namma inaikki pesina maadhiri: neenga ${recalledLoc}-la ${recalledBhk} ${recalledBudget} paakureenga, and ${recalledVisit} arrange panna note panniten. WhatsApp-la brochure and verified details share panren Sir! Romba nandri, have a great day!`;
+        : `சூப்பர் ${customerName}! நம்ம இன்னைக்கு பேசின மாதிரி: நீங்க ${recalledLoc}-ல் ${recalledBhk} ${recalledBudget} பாக்குறீங்க, மற்றும் ${recalledVisit} arrange பண்ண note பண்ணிட்டேன். WhatsApp-ல் brochure மற்றும் details அனுப்புறேன் சார்! ரொம்ப நன்றி!`;
 
     appendDialogue('AI', concludingMessage);
     speakAIText(concludingMessage, getVoiceLangCode(), () => {
@@ -6491,7 +6495,7 @@ export const BrowserCallModal: React.FC<BrowserCallModalProps> = ({
                   ? `"Namaste! Main Lyka Realty se ${agentName} bol rahi hoon. Kya main aapka shubh naam jaan sakti hoon?"`
                   : selectedLanguage === 'English'
                   ? `"Hello! This is ${agentName} from Lyka Realty. May I know your name please?"`
-                  : `"Vanakkam sir! Naan ${agentName}, Lyka Realty-lendhu pesuren. Ungaloda name therinjukkalama?"`}
+                  : `"வணக்கம் சார்! நான் ${agentName}, Lyka Realty-ல இருந்து பேசுறேன். உங்களுடைய பெயர் தெரிஞ்சுக்கலாமா?"`}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
                 <button

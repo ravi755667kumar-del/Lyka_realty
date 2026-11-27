@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getGeminiSettings } from '@/lib/serverConfig';
+import { buildGeminiChatCandidates, callGeminiGenerateContent } from '@/lib/geminiClient';
 import { queryBestPDFAnswer } from '@/lib/neon';
-import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
-import { requireAuthenticatedApi } from '@/lib/serverAuth';
+import { buildPendingStepPrompt, extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import { requireAuthenticatedApi, redactErrorMessage } from '@/lib/serverAuth';
 import {
   getKnowledgeLanguageDirective,
   getLanguageScopedStyleSection,
@@ -135,20 +136,20 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
    - REPEATED QUESTIONS (v14 Section 14A): Say politely "Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren...", explain in simpler words, and check "Ippo clear-aa puriyudhaa sir?".
    - CHECK-IN (v14 Section 5C): Always ask "Edhu ok va?" after explaining verified property details.
    - MOTIVATION (v14 Section 5D): Link verified benefits to customer needs honestly without pressure or fake urgency.
-   - TANGLISH ONLY (v14 Section 14C): Use everyday spoken Chennai Tanglish in English letters. Avoid formal/literary Tamil.
+   - TANGLISH / TAMIL SCRIPT RULE: Write natural spoken Tamil responses and questions clearly in Tamil script (தமிழ்), keeping everyday English property nouns (1 BHK, 2 BHK, 3 BHK, sq ft, Velachery, OMR, site visit, WhatsApp) natural. NEVER reply in Hindi when the customer is speaking Tamil.
    - REPEAT / "ONCE AGAIN" RULE: When you repeat an answer, give the same information again, or if the customer asks "can you repeat" / "enna sonneenga" / "once again":
      * ALWAYS prefix your answer with: "[warm] Marupadiyum solren, [answer]" or "[warm] Once again solren, [answer]"
      * Never sound annoyed when repeating; stay warm and patient.
    - Never refuse another language or say "naan Tanglish-la mattum dhaan pesuven". Greet in Tamil/English naturally, and if the customer asks to speak in Hindi or English, switch immediately and reply 100% in Devanagari Hindi or pure English.
    - Speak politely, naturally and warmly. Ask one question at a time.
-   - Keep answers punchy: 1 to 2 short sentences (strictly 15 to 25 words).`;
+   - Keep answers punchy: 1 to 2 short spoken sentences plus 1 complete follow-up question.`;
   } else if (language === 'English') {
     roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (100% PURE ENGLISH ONLY):
 - The customer is speaking in ENGLISH. You MUST speak EXCLUSIVELY in complete, pure, natural, engaging English.
 - NEVER use ANY Tamil, Tanglish, Hindi, or Hinglish words, fillers, or phrases (no "Aan", "Aama", "Seri", "Puriyudhu", "Haan", "Theek hai", "Sir ji", or "சார்").
 - If previous dialogue messages or knowledge snippets contain Tamil, Tanglish, or Hindi words, completely ignore those regional words and respond 100% in fluent English.
 - Use clear English property terms: 1 BHK, 2 BHK, 3 BHK, sq. ft., Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, CMDA approved, RERA registered, site visit.
-- Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
+- Keep answers concise: 1 to 2 short sentences to answer clearly, then finish with 1 complete follow-up question.`;
   } else if (language === 'Hindi') {
     roleDesc += `\n\nCRITICAL LANGUAGE MANDATE (HINDI ONLY):
 - The customer is speaking in HINDI / HINGLISH. You MUST speak EXCLUSIVELY in warm, polite, and natural conversational Hindi (Devanagari script preferred so voice pronunciation is natural).
@@ -158,7 +159,7 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
 - ${isMale ? 'Use masculine verbs: "बोल रहा हूँ", "करता हूँ", "समझ गया", "बता सकता हूँ".' : 'Use feminine verbs: "बोल रही हूँ", "करती हूँ", "समझ गई", "बता सकती हूँ".'}
 - Real estate terminology in Chennai: 1 BHK, 2 BHK, 3 BHK, sq ft, Lakhs, Crores, OMR, Velachery, Tambaram, Porur, Adyar, Chengalpattu, site visit, booking.
 - Always translate any property information or verified facts into natural, fluent Hindi!
-- Keep answers punchy: 1 to 2 short conversational sentences (strictly under 25 words).`;
+- Keep answers concise: 1 to 2 short sentences to answer clearly, then finish with 1 complete follow-up question.`;
   }
 
   // Emotion-aware guidance: feel the customer's mood, and ALWAYS maintain cheerful happiness, attractive charisma, and lively engagement
@@ -249,11 +250,8 @@ ${emotionGuidance}
 STRICT WORK-FOCUS POLICY (HIGHEST PRIORITY — overrides every other rule below):
 - You are a professional property assistant, NOT a general-purpose chatbot. You discuss ONLY: Lyka Realty properties, pricing, site visits, bookings, documentation, and related customer support.
 - If the customer brings up ANYTHING unrelated or out of syllabus — personal topics, jokes, general knowledge, politics, sports, entertainment, casual chat — do NOT answer or engage with that topic, not even briefly.
-- First time out of syllabus: Redirect politely in ONE short sentence and guide straight back to their property requirement (e.g., "I'm sorry, I'm here only to help with property-related queries. How can I assist you with that?" / Hindi: "Maaf kijiye, main sirf property madad ke liye hoon. Batayein, property me kya help chahiye?" / Tanglish: "Sorry Sir, idhu en working area-la illa. Property details, price, booking — idhula naan help panren!").
-- Second time out of syllabus (Cut the call): If the customer talks out of syllabus a second time, politely close and disconnect the call:
-  * English: "I'm only here to assist with property queries and cannot discuss out of syllabus topics. Thank you for your time, disconnecting the call. Have a wonderful day!"
-  * Hindi: "Main sirf property madad ke liye yahan hoon. Hum out of syllabus baat nahi kar sakte. Aapka time dene ke liye shukriya, call disconnect kar rahi hoon. Have a wonderful day!"
-  * Tanglish: "Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!"
+- First time out of syllabus: Redirect politely in ONE short sentence in the active target language only and guide straight back to their property requirement.
+- Second time out of syllabus (Cut the call): Politely close in the active target language only and disconnect the call.
 - EMERGENCY & SAFETY EXCEPTION: If the customer mentions an immediate emergency or safety concern (accident, fire, medical crisis, threat), do NOT redirect — respond briefly with genuine care, advise contacting emergency services (112 in India), and let them continue whenever they are ready.
 
 - CUSTOMER INTERRUPTION & IN-CALL QUESTIONS (HIGHEST PRIORITY):
@@ -293,7 +291,8 @@ export async function POST(req: Request) {
   if (!auth.ok) return auth.response;
 
   try {
-    const geminiKey = getGeminiSettings().apiKey;
+    const geminiSettings = getGeminiSettings();
+    const geminiKey = geminiSettings.apiKey;
     if (!geminiKey) {
       return NextResponse.json(
         { error: 'Gemini API Key is not configured. Please add it in settings or .env.' },
@@ -303,7 +302,7 @@ export async function POST(req: Request) {
 
     const {
       messages = [],
-      model = 'gemini-3.8-flash',
+      model = geminiSettings.model || 'gemini-4-neon',
       leadName = '',
       language = '',
       agentName = 'Priya',
@@ -312,12 +311,7 @@ export async function POST(req: Request) {
       sessionMemory: clientSessionMemory,
     } = await req.json();
 
-    const candidateModels = [
-      'gemini-2.5-flash',
-      model,
-      'gemini-3.8-flash',
-      'gemini-3.5-flash-lite',
-    ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+    const candidateModels = buildGeminiChatCandidates(model, geminiSettings.model);
 
     // Synthesize Active Session Memory Brain from dialogue and incoming memory
     const activeMemory = extractSessionMemory(messages, clientSessionMemory || { leadName });
@@ -330,7 +324,7 @@ export async function POST(req: Request) {
       ? `${basePrompt}\nNote: Customer name is ${leadName}. Use their name sparingly, only when it sounds natural.`
       : basePrompt;
 
-    systemInstruction += `\n\n${memoryBrainInstruction}${languageOverride}`;
+    systemInstruction += `\n\n${memoryBrainInstruction}${languageOverride}${buildPendingStepPrompt(clientSessionMemory?.pendingQuestion, clientSessionMemory?.pendingStep)}`;
 
     // Query Neon Database for best matching PDF knowledge & conversation scenario with session memory context
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user' || m.speaker === 'Customer')?.content || '';
@@ -338,7 +332,7 @@ export async function POST(req: Request) {
       try {
         const bestKnowledge = await queryBestPDFAnswer(lastUserMsg, effectiveLanguage, activeMemory);
         if (bestKnowledge) {
-          systemInstruction += `\n\nVERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Use verified facts only when they answer the customer's actual question.\n- Explain only as much as needed, in natural spoken language.${getKnowledgeLanguageDirective(effectiveLanguage)}\n- Do not force the dataset's next question into the reply. Ask one optional follow-up only if it is useful and welcome.`;
+          systemInstruction += `\n\nVERIFIED DATASET MATCH FROM DATABASE:\n${bestKnowledge}\n\nGUIDANCE:\n- Use verified facts only when they answer the customer's actual question.\n- Explain concisely in natural spoken language.${getKnowledgeLanguageDirective(effectiveLanguage)}\n- Always complete your turn with one clear, full follow-up question to move the customer's requirement forward.`;
         }
       } catch (e) {
         console.warn('[Gemini Chat] queryBestPDFAnswer warning:', e);
@@ -363,72 +357,45 @@ export async function POST(req: Request) {
       geminiContents.push({ role: 'user', parts: [{ text: 'Hello' }] });
     }
 
-    // Call Gemini generateContent API with fallback
-    let replyText = '';
-    let usedModel = candidateModels[0];
-    let lastGeminiUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null = null;
+    const result = await callGeminiGenerateContent({
+      apiKey: geminiKey,
+      models: candidateModels,
+      systemInstruction,
+      contents: geminiContents,
+      generationConfig: {
+        temperature: 0.5,
+        maxOutputTokens: 420,
+      },
+      disableThinking: true,
+      logScope: 'Gemini Chat',
+    });
 
-    for (const m of candidateModels) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${geminiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemInstruction }] },
-              contents: geminiContents,
-              generationConfig: {
-                temperature: 0.5,
-                // Disable extended thinking tokens to get sub-second spoken replies
-                thinkingConfig: { thinkingBudget: 0 },
-                maxOutputTokens: 160,
-              },
-            }),
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (data?.usageMetadata) {
-            lastGeminiUsage = {
-              prompt_tokens: data.usageMetadata.promptTokenCount || 0,
-              completion_tokens: data.usageMetadata.candidatesTokenCount || 0,
-              total_tokens: data.usageMetadata.totalTokenCount || 0,
-            };
-          }
-          if (replyText.trim()) {
-            usedModel = m;
-            break;
-          }
-        } else {
-          console.warn(`[Gemini Chat] Model ${m} failed with status ${response.status}`);
-        }
-      } catch (err) {
-        console.warn(`[Gemini Chat] Model ${m} error:`, err);
-      }
+    if (!result.ok || !result.text) {
+      return NextResponse.json(
+        { error: result.lastError || 'Failed to generate response from Gemini' },
+        { status: 502 }
+      );
     }
 
-    if (!replyText.trim()) {
-      return NextResponse.json({ error: 'Failed to generate response from Gemini' }, { status: 502 });
-    }
-
+    const replyText = result.text;
     const promptEst = Math.round(JSON.stringify(geminiContents).length / 4);
     const compEst = Math.round(replyText.length / 4);
 
     return NextResponse.json({
-      text: replyText.trim(),
-      reply: replyText.trim(),
-      model: usedModel,
+      text: replyText,
+      reply: replyText,
+      model: result.model,
       sessionMemory: activeMemory,
-      usage: lastGeminiUsage || {
+      usage: result.usage || {
         prompt_tokens: promptEst,
         completion_tokens: compEst,
         total_tokens: promptEst + compEst,
       },
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Gemini chat error' }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: redactErrorMessage(error, 'Gemini chat error') },
+      { status: 500 }
+    );
   }
 }

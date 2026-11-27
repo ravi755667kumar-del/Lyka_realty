@@ -290,3 +290,16 @@ export function isMemoryFactKnown(
       return false;
   }
 }
+
+/**
+ * Builds the mandatory next-step qualification question directive shared by LLM chat routes.
+ */
+export function buildPendingStepPrompt(
+  pendingQuestion?: string,
+  pendingStep?: number
+): string {
+  const cleanQuestion = typeof pendingQuestion === 'string' ? pendingQuestion.trim() : '';
+  if (!cleanQuestion) return '';
+  const stepLabel = typeof pendingStep === 'number' && pendingStep > 0 ? `STEP ${pendingStep}` : 'NEXT STEP';
+  return `\n\nMANDATORY ${stepLabel} QUALIFICATION QUESTION:\n- First, acknowledge briefly or answer the customer's question directly using verified facts.\n- Then ALWAYS end your reply by asking this COMPLETE qualification question in the active target language (never cut it short or skip it): "${cleanQuestion}"`;
+}

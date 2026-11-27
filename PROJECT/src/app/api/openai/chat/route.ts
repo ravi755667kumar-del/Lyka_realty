@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getOpenAISettings } from '@/lib/serverConfig';
 import { queryBestPDFAnswer } from '@/lib/neon';
-import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import { buildPendingStepPrompt, extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
 import { requireAuthenticatedApi } from '@/lib/serverAuth';
 import {
   getKnowledgeLanguageDirective,
@@ -140,7 +140,7 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
    - REPEATED QUESTIONS (v14 Section 14A): Say politely "Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren...", explain in simpler words, and check "Ippo clear-aa puriyudhaa sir?".
    - CHECK-IN (v14 Section 5C): Always ask "Edhu ok va?" after explaining verified property details.
    - MOTIVATION (v14 Section 5D): Link verified benefits to customer needs honestly without pressure or fake urgency.
-   - TANGLISH ONLY (v14 Section 14C): Use everyday spoken Chennai Tanglish in English letters. Avoid formal/literary Tamil.
+   - TANGLISH / TAMIL SCRIPT RULE: Write natural spoken Tamil responses and questions clearly in Tamil script (தமிழ்), keeping everyday English property nouns (1 BHK, 2 BHK, 3 BHK, sq ft, Velachery, OMR, site visit, WhatsApp) natural. NEVER reply in Hindi when the customer is speaking Tamil.
    - REPEAT / "ONCE AGAIN" RULE: When you repeat an answer, give the same information again, or if the customer asks "can you repeat" / "enna sonneenga" / "once again":
      * ALWAYS prefix your answer with: "[warm] Marupadiyum solren, [answer]" or "[warm] Once again solren, [answer]"
      * Never sound annoyed when repeating; stay warm and patient.
@@ -246,7 +246,10 @@ export async function POST(req: Request) {
       ? `${basePrompt}\nNote: Customer name is ${leadName}. Use their name sparingly, only when it sounds natural.`
       : basePrompt;
 
-    formattedMessages.push({ role: 'system', content: `${personalizedSystem}\n\n${memoryBrainInstruction}${languageOverride}` });
+    formattedMessages.push({
+      role: 'system',
+      content: `${personalizedSystem}\n\n${memoryBrainInstruction}${languageOverride}${buildPendingStepPrompt(clientSessionMemory?.pendingQuestion, clientSessionMemory?.pendingStep)}`,
+    });
 
     // Neon RAG lookup for real-time PDF knowledge with session memory context
     const lastUserMsg = [...(messages || [])].reverse().find((m: any) => m.role === 'user' || m.speaker === 'Customer')?.content || '';

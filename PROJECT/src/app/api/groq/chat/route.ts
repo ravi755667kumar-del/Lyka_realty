@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getGroqSettings } from '@/lib/serverConfig';
 import { queryBestPDFAnswer } from '@/lib/neon';
-import { extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
+import { buildPendingStepPrompt, extractSessionMemory, formatMemoryBrainPrompt } from '@/lib/sessionMemory';
 import { requireAuthenticatedApi } from '@/lib/serverAuth';
 import {
   getKnowledgeLanguageDirective,
@@ -141,7 +141,7 @@ NATURAL TANGLISH PROPERTY CONVERSATION GUIDE (v14 SITUATIONAL SPECIFICATION):
    - REPEATED QUESTIONS (v14 Section 14A): Say politely "Naan munnadiye explain pannitten sir, aana no problem! Innoru thadava simple-aa solren...", explain in simpler words, and check "Ippo clear-aa puriyudhaa sir?".
    - CHECK-IN (v14 Section 5C): Always ask "Edhu ok va?" after explaining verified property details.
    - MOTIVATION (v14 Section 5D): Link verified benefits to customer needs honestly without pressure or fake urgency.
-   - TANGLISH ONLY (v14 Section 14C): Use everyday spoken Chennai Tanglish in English letters. Avoid formal/literary Tamil.
+   - TANGLISH / TAMIL SCRIPT RULE: Write natural spoken Tamil responses and questions clearly in Tamil script (தமிழ்), keeping everyday English property nouns (1 BHK, 2 BHK, 3 BHK, sq ft, Velachery, OMR, site visit, WhatsApp) natural. NEVER reply in Hindi when the customer is speaking Tamil.
    - REPEAT / "ONCE AGAIN" RULE: When you repeat an answer, give the same information again, or if the customer asks "can you repeat" / "enna sonneenga" / "once again":
      * ALWAYS prefix your answer with: "[warm] Marupadiyum solren, [answer]" or "[warm] Once again solren, [answer]"
      * Never sound annoyed when repeating; stay warm and patient.
@@ -269,19 +269,19 @@ EMOTIONAL CONTEXT — CURIOUS / EXPLORING OPTIONS:
     ? 'In Hindi (Devanagari only): "हाँ बिल्कुल सर!", "बहुत अच्छा विकल्प है सर!", "आपके लिए परफेक्ट चॉइस है!"'
     : isEnglishMode
       ? 'In English only: "Sure Sir!", "Definitely!", "Oh wonderful!", "That\'s a great choice!"'
-      : 'In Tamil/Tanglish: "Vanakkam Sir!", "Kandippa!", "Super choice Sir!", "Aama Sir!", "Kekudhaa Sir?"';
+      : 'In Tamil script (தமிழ்): "வணக்கம் சார்!", "கண்டிப்பா சார்!", "சூப்பர் சார்!", "ஆமா சார்!"';
 
   const outOfScopeFirstRedirect = isHindiMode
     ? 'माफ़ कीजिए सर, मैं सिर्फ़ प्रॉपर्टी से जुड़ी जानकारी में मदद के लिए हूँ। बताइए, प्रॉपर्टी में क्या मदद चाहिए?'
     : isEnglishMode
       ? "I'm sorry, I'm here only to help with property-related queries. How can I assist you with your property search?"
-      : 'Sorry Sir, idhu en working area-la illa. Property details, price, booking — idhula naan help panren!';
+      : 'மன்னிக்கவும் சார், நான் property தொடர்பான கேள்விகளுக்கு மட்டும் தான் உதவ முடியும். உங்களுக்கு என்ன property details வேணும்?';
 
   const outOfScopeSecondDisconnect = isHindiMode
     ? 'मैं सिर्फ़ प्रॉपर्टी सहायता के लिए हूँ, हम इससे बाहर के विषय पर बात नहीं कर सकते। समय देने के लिए धन्यवाद, कॉल डिस्कनेक्ट कर रही हूँ। आपका दिन शुभ हो!'
     : isEnglishMode
       ? "I'm only here to assist with property queries and cannot discuss unrelated topics. Thank you for your time, disconnecting the call. Have a wonderful day!"
-      : 'Naan property vishayam mattum dhaan pesuven Sir, out of syllabus pesa mudiyadhu. Ungalukku romba nandri, call disconnect panren. Have a wonderful day!';
+      : 'நான் property விஷயம் மட்டும் தான் பேசுவேன் சார், மற்ற விஷயங்கள் பேச முடியாது. நேரத்திற்கு நன்றி, call disconnect பண்றேன்.';
 
   const styleGuidance = conversationStyle === 'polite'
     ? `
@@ -383,16 +383,18 @@ export async function POST(req: Request) {
     const activeMemory = extractSessionMemory(messages, clientSessionMemory || { leadName });
     const memoryBrainInstruction = formatMemoryBrainPrompt(activeMemory);
 
+    const pendingPrompt = buildPendingStepPrompt(clientSessionMemory?.pendingQuestion, clientSessionMemory?.pendingStep);
+
     // Ensure system prompt is present with Session Memory Brain
     let formattedMessages = [...messages];
     const hasSystem = formattedMessages.some((m) => m.role === 'system');
-    const fullSystemPrompt = `${leadName ? `${basePrompt}\nNote: Customer name is ${leadName}. Use their name sparingly, only when it sounds natural.` : basePrompt}\n\n${memoryBrainInstruction}${languageOverride}`;
+    const fullSystemPrompt = `${leadName ? `${basePrompt}\nNote: Customer name is ${leadName}. Use their name sparingly, only when it sounds natural.` : basePrompt}\n\n${memoryBrainInstruction}${languageOverride}${pendingPrompt}`;
 
     if (!hasSystem) {
       formattedMessages.unshift({ role: 'system', content: fullSystemPrompt });
     } else {
       formattedMessages = formattedMessages.map((m) =>
-        m.role === 'system' ? { ...m, content: `${m.content}\n\n${memoryBrainInstruction}${languageOverride}` } : m
+        m.role === 'system' ? { ...m, content: `${m.content}\n\n${memoryBrainInstruction}${languageOverride}${pendingPrompt}` } : m
       );
     }
 
@@ -410,7 +412,7 @@ ${bestKnowledge}
 CRITICAL RESPONSE GUIDANCE:
 - NEVER read out or dump this entire text like a brochure!
 - Pick ONLY the 1 single most relevant fact that directly answers what the customer asked.
-- Answer in 1 or 2 quick, conversational sentences (strictly under 25 words).${getKnowledgeLanguageDirective(effectiveLanguage)}
+- Answer concisely in 1 to 2 sentences, then complete your reply with 1 clear follow-up question.${getKnowledgeLanguageDirective(effectiveLanguage)}
 - Speak with natural, lively telecaller enthusiasm.`,
           });
         }
@@ -425,7 +427,7 @@ CRITICAL RESPONSE GUIDANCE:
       model: activeModel,
       messages: formattedMessages,
       temperature: clampedTemp,
-      max_tokens: isReasoningModel ? 340 : 220,
+      max_tokens: isReasoningModel ? 420 : 340,
       ...(isReasoningModel ? { reasoning_effort: 'low' } : {}),
     };
     let response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -469,12 +471,13 @@ CRITICAL RESPONSE GUIDANCE:
       }
     }
 
-    // Seamless Fallback to Gemini 3.8 Flash if Groq fails or returns empty
+    // Seamless Fallback to Gemini if Groq fails or returns empty
     if (!replyText.trim()) {
       try {
         const { getGeminiSettings } = await import('@/lib/serverConfig');
-        const geminiSettings = await getGeminiSettings();
-        const geminiKey = geminiSettings?.apiKey || process.env.GEMINI_API_KEY;
+        const { buildGeminiChatCandidates, callGeminiGenerateContent } = await import('@/lib/geminiClient');
+        const geminiSettings = getGeminiSettings();
+        const geminiKey = geminiSettings?.apiKey;
         if (geminiKey) {
           const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
           for (const msg of formattedMessages) {
@@ -489,43 +492,20 @@ CRITICAL RESPONSE GUIDANCE:
             geminiContents.push({ role: 'user', parts: [{ text: 'Hello' }] });
           }
 
-          let geminiResp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                systemInstruction: { parts: [{ text: basePrompt }] },
-                contents: geminiContents,
-                generationConfig: {
-                  temperature: 0.5,
-                  thinkingConfig: { thinkingBudget: 0 },
-                  maxOutputTokens: 220,
-                },
-              }),
-            }
-          );
-          if (!geminiResp.ok) {
-            geminiResp = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  systemInstruction: { parts: [{ text: basePrompt }] },
-                  contents: geminiContents,
-                  generationConfig: {
-                    temperature: 0.5,
-                    thinkingConfig: { thinkingBudget: 0 },
-                    maxOutputTokens: 220,
-                  },
-                }),
-              }
-            );
-          }
-          if (geminiResp.ok) {
-            const geminiData = await geminiResp.json();
-            replyText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const geminiResult = await callGeminiGenerateContent({
+            apiKey: geminiKey,
+            models: buildGeminiChatCandidates(undefined, geminiSettings.model),
+            systemInstruction: basePrompt,
+            contents: geminiContents,
+            generationConfig: {
+              temperature: 0.5,
+              maxOutputTokens: 420,
+            },
+            disableThinking: true,
+            logScope: 'Groq->Gemini Fallback',
+          });
+          if (geminiResult.ok) {
+            replyText = geminiResult.text;
           }
         }
       } catch (geminiFallbackErr) {
