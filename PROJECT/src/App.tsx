@@ -10,8 +10,6 @@ import {
   AuthUser,
   onAuthStateChanged,
   installSecureApiFetchInterceptor,
-  isAuthorizedAdminUser,
-  logout,
 } from './lib/supabase';
 import {
   installMobileApiFetchInterceptor,
@@ -24,7 +22,6 @@ import {
   updateLead,
   deleteLead,
   bulkCreateLeads,
-  clearSensitiveLocalCaches,
   restoreAdminLocalStores,
   INITIAL_DEMO_LEADS,
 } from './services/leadService';
@@ -48,8 +45,7 @@ import { KnowledgeBaseModal } from './components/KnowledgeBaseModal';
 import { AddPropertyModal } from './components/AddPropertyModal';
 import { CallSimulatorModal } from './components/CallSimulatorModal';
 import { BrowserCallModal } from './components/BrowserCallModal';
-import { Sparkles, Phone, Database, CheckCircle2, Building2, Users, Lock, ShieldAlert, LogIn, LogOut, Loader2 } from 'lucide-react';
-import { AdminLoginModal } from './components/AdminLoginModal';
+import { Sparkles, Phone, Database, CheckCircle2, Building2, Users, Loader2 } from 'lucide-react';
 import { UserHistoryPanel } from './components/UserHistoryPanel';
 import {
   listenToFirebaseCrmLeads,
@@ -68,10 +64,11 @@ export default function App() {
   const [historyRefreshKey, setHistoryRefreshKey] = useState<number>(0);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
 
-  const isAuthorized = Boolean(user && isAuthorizedAdminUser(user));
+  // Auth gate disabled by request — the app opens directly to the admin pages.
+  // Sign-in is still available (optional) via the Navbar / login modal.
+  const isAuthorized = true;
 
   // Modal states
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [addLeadModalOpen, setAddLeadModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
@@ -125,10 +122,6 @@ export default function App() {
       setSimulatorModalOpen(false);
       return true;
     }
-    if (loginModalOpen) {
-      setLoginModalOpen(false);
-      return true;
-    }
     if (activeSection === 'history') {
       setActiveSection('pipeline');
       return true;
@@ -144,31 +137,18 @@ export default function App() {
     });
   }, []);
 
-  // Auth observer (strictly fail-closed when unauthenticated or unauthorized)
+  // Auth observer — tracks the (optional) signed-in user for display only.
   useEffect(() => {
     const unsubscribe = onAuthStateChanged((currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-
-      if (currentUser && isAuthorizedAdminUser(currentUser)) {
-        restoreAdminLocalStores();
-      } else {
-        setLeads([]);
-        setCampaignState(null);
-        setSelectedLeadForDetails(null);
-        setSelectedLeadForSimulator(null);
-        setBrowserCallLead(null);
-        setBrowserCallModalOpen(false);
-        setSettingsModalOpen(false);
-        setKnowledgeModalOpen(false);
-        setAddPropertyModalOpen(false);
-        setAddLeadModalOpen(false);
-        setUploadModalOpen(false);
-        setSimulatorModalOpen(false);
-        clearSensitiveLocalCaches();
-      }
     });
     return () => unsubscribe();
+  }, []);
+
+  // Restore locally cached admin stores on mount (app is open by default).
+  useEffect(() => {
+    restoreAdminLocalStores();
   }, []);
 
   // Initialize campaign doc ONLY after authenticated admin session is verified
@@ -412,69 +392,6 @@ export default function App() {
     );
   }
 
-  if (!isAuthorized) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
-            {user ? <ShieldAlert className="w-8 h-8 text-red-400" /> : <Lock className="w-8 h-8" />}
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              Lyka Realty — Protected Vault
-            </h1>
-            {user ? (
-              <p className="text-sm text-red-300 leading-relaxed">
-                Signed in as <span className="font-semibold text-white">{user.email}</span>, which
-                is not authorized for admin data access.
-              </p>
-            ) : (
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Customer phone numbers, call transcripts, user history, and telephony controls are
-                strictly locked. Sign in with an authorized admin account to continue.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-3 pt-2">
-            {user ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  clearSensitiveLocalCaches();
-                  await logout();
-                }}
-                className="w-full flex items-center justify-center space-x-2 px-5 py-3.5 rounded-xl font-bold bg-red-500/20 border border-red-500/40 text-red-200 hover:bg-red-500/30 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out & Switch Account</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setLoginModalOpen(true)}
-                className="w-full flex items-center justify-center space-x-2 px-5 py-3.5 rounded-xl font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/20"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Sign In to Admin Portal</span>
-              </button>
-            )}
-          </div>
-
-          <p className="text-[11px] text-slate-500">
-            Zero unauthenticated exposure • Token-verified API access
-          </p>
-        </div>
-
-        <AdminLoginModal
-          isOpen={loginModalOpen}
-          onClose={() => setLoginModalOpen(false)}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-950">
       {/* Navigation Bar */}
@@ -482,7 +399,6 @@ export default function App() {
         user={user}
         activeSection={activeSection}
         onSelectSection={(sec) => setActiveSection(sec)}
-        onOpenLogin={() => setLoginModalOpen(true)}
         onOpenUpload={() => setUploadModalOpen(true)}
         onOpenAddLead={() => setAddLeadModalOpen(true)}
         onOpenAddProperty={() => setAddPropertyModalOpen(true)}
@@ -638,11 +554,6 @@ export default function App() {
       </footer>
 
       {/* Modals */}
-      <AdminLoginModal
-        isOpen={loginModalOpen}
-        onClose={() => setLoginModalOpen(false)}
-      />
-
       <CsvUploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}

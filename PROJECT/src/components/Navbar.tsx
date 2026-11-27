@@ -8,19 +8,15 @@ import {
   BookOpen,
   Upload,
   UserPlus,
-  LogIn,
-  LogOut,
-  ShieldCheck,
   Plus,
   Menu,
   X,
   Sparkles,
   History,
 } from 'lucide-react';
-import { AuthUser, logout } from '../lib/supabase';
 
 interface NavbarProps {
-  user: AuthUser | null;
+  user?: any;
   activeSection?: 'pipeline' | 'history';
   onSelectSection?: (section: 'pipeline' | 'history') => void;
   onOpenUpload: () => void;
@@ -29,7 +25,7 @@ interface NavbarProps {
   onOpenSettings: () => void;
   onOpenKnowledge: () => void;
   onOpenSimulator: () => void;
-  onOpenLogin: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -42,10 +38,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSettings,
   onOpenKnowledge,
   onOpenSimulator,
-  onOpenLogin,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isAdmin = user?.email === '950323243501@gracecoe.org' || Boolean(user?.email);
 
   const handleMobileAction = (action: () => void) => {
     action();
@@ -151,57 +145,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <UserPlus className="w-3.5 h-3.5" />
             <span>Add Lead</span>
           </button>
-
-          {/* User Auth */}
-          <div className="pl-2 border-l border-slate-700/80">
-            {user ? (
-              <div className="flex items-center space-x-2">
-                {user.user_metadata?.avatar_url ? (
-                  <img
-                    src={user.user_metadata.avatar_url}
-                    alt={user.user_metadata?.name || user.email || 'Admin'}
-                    className="w-8 h-8 rounded-full border border-amber-400/50"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs">
-                    {(user.user_metadata?.name || user.email || 'A')[0].toUpperCase()}
-                  </div>
-                )}
-                <div className="hidden xl:block text-left">
-                  <div className="flex items-center space-x-1">
-                    <span className="text-xs font-semibold text-slate-200 truncate max-w-[110px]">
-                      {user.user_metadata?.name || user.email?.split('@')[0] || 'Admin'}
-                    </span>
-                    {isAdmin && (
-                      <span title="Administrator">
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-slate-400 truncate max-w-[110px] block">
-                    {user.email}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
-                  title="Sign Out"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={onOpenLogin}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-sm transition-colors"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Admin Login</span>
-              </button>
-            )}
-          </div>
         </div>
 
         {/* Mobile Header Quick Actions (Shown on < md) */}
@@ -309,42 +252,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <History className={`w-4 h-4 shrink-0 ${activeSection === 'history' ? 'text-slate-950' : 'text-purple-400'}`} />
                 <span>{activeSection === 'history' ? 'Back to Lead Pipeline' : 'User History & Languages'}</span>
-              </button>
-            )}
-          </div>
-
-          {/* User Auth Section in Mobile Menu */}
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-            {user ? (
-              <>
-                <div className="flex items-center space-x-2 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-amber-500 text-slate-950 font-bold flex items-center justify-center text-xs shrink-0">
-                    {(user.user_metadata?.name || user.email || 'A')[0].toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-white truncate">
-                      {user.user_metadata?.name || user.email?.split('@')[0] || 'Admin'}
-                    </div>
-                    <div className="text-[10px] text-slate-400 truncate">{user.email}</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleMobileAction(logout)}
-                  className="px-3 py-1.5 rounded-lg text-xs bg-rose-500/10 text-rose-300 border border-rose-500/20 flex items-center space-x-1 shrink-0"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Logout</span>
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleMobileAction(onOpenLogin)}
-                className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md"
-              >
-                <LogIn className="w-4 h-4" />
-                <span>Admin Login</span>
               </button>
             )}
           </div>
